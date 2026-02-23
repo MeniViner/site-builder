@@ -53,10 +53,10 @@ const SUB_LINKS = [
 ];
 
 const MONTHLY_EVENTS = [
-  { id: 1, date: '04', month: 'נוב', title: 'בוחן מסלול פלוגתי', time: '08:00 בבוקר' },
-  { id: 2, date: '12', month: 'נוב', title: 'כנס סגל פיקוד', time: '14:00 (שתיים בצהריים)' },
+  { id: 1, date: '04', month: 'נוב', title: 'בוחן מסלול פלוגתי', time: '08:00' },
+  { id: 2, date: '12', month: 'נוב', title: 'כנס סגל פיקוד', time: '14:30' },
   { id: 3, date: '18', month: 'נוב', title: 'תרגיל יחידתי מסכם', time: 'כל היום' },
-  { id: 4, date: '25', month: 'נוב', title: 'מסדר דמעות - קק"צ', time: '10:00 בבוקר' },
+  { id: 4, date: '25', month: 'נוב', title: 'מסדר דמעות - קק"צ', time: '10:00' },
 ];
 
 // --- רכיבים (Components) ---
@@ -159,7 +159,7 @@ export default function App() {
         <div className="relative z-10 flex flex-col h-full flex-1">
 
           {/* Top Bar - 3 columns: מופעי החודש (visual right) | search center | דבר מפקד (visual left) */}
-          <header className="w-full py-5 px-6 lg:px-12 grid grid-cols-3 items-start gap-4">
+          <header className="w-full py-5 px-6 lg:px-12 grid grid-cols-3 items-start gap-4" style={{ zoom: 1.5 }}>
 
             {/* עמודה ימנית ויזואלית (RTL first): לוגו + מופעי החודש */}
             <div className="flex flex-col gap-3">
@@ -176,25 +176,38 @@ export default function App() {
               </div>
 
               {/* מופעי החודש - ימין למעלה */}
-              <div className="w-full bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-                <div className="border-b border-white/10 p-3.5 flex items-center gap-2">
-                  <Calendar className="text-red-500 shrink-0" size={17} />
+              <div className="w-full bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ direction: 'rtl' }}>
+                {/* כותרת */}
+                <div className="bg-[#1a1d24] px-4 py-3 flex items-center justify-between">
                   <h2 className="text-white text-sm font-bold">מופעי החודש</h2>
+                  <Calendar className="text-red-500 shrink-0" size={17} />
                 </div>
-                <div className="p-0 flex-1">
-                  {MONTHLY_EVENTS.map((event, index) => (
-                    <div key={event.id} className={`flex items-center gap-3 p-2.5 hover:bg-white/5 transition-colors cursor-pointer ${index !== MONTHLY_EVENTS.length - 1 ? 'border-b border-white/5' : ''}`}>
-                      <div className="flex flex-col items-center justify-center bg-red-500/10 text-red-400 rounded w-9 h-9 shrink-0 border border-red-500/20">
-                        <span className="text-xs font-bold leading-none">{event.date}</span>
+                {/* אירועים */}
+                <div className="flex flex-col divide-y divide-gray-100">
+                  {MONTHLY_EVENTS.map((event) => (
+                    <div key={event.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer">
+                      {/* תאריך - קלנדר */}
+                      <div className="shrink-0 flex flex-col items-center justify-center bg-red-500 text-white rounded-lg w-12 h-12 shadow-sm">
+                        <span className="text-lg font-black leading-none">{event.date}</span>
+                        <span className="text-[10px] font-semibold leading-none opacity-90 mt-0.5">{event.month}</span>
                       </div>
-                      <div className="flex flex-col">
-                        <h4 className="text-white text-xs font-medium leading-tight">{event.title}</h4>
-                        <span className="text-gray-400 text-[11px] mt-0.5 flex items-center gap-1">
-                          <Clock size={9} /> {event.time}
+                      {/* פרטים */}
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <h4 className="text-gray-800 text-sm font-bold leading-snug truncate">{event.title}</h4>
+                        <span className="text-gray-400 text-xs mt-0.5 flex items-center gap-1">
+                          <Clock size={10} className="shrink-0" />
+                          {event.time}
                         </span>
                       </div>
                     </div>
                   ))}
+                </div>
+                {/* פוטר */}
+                <div className="px-4 py-2.5 border-t border-gray-100 flex justify-center">
+                  <button className="text-red-500 text-xs font-semibold hover:text-red-600 transition-colors flex items-center gap-1">
+                    לצפייה ביומן המלא
+                    <span className="text-base leading-none">←</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -212,8 +225,8 @@ export default function App() {
             </div>
 
             {/* עמודה שמאלית ויזואלית (RTL last): דבר המפקד */}
-            <div className="flex justify-start items-start">
-              <div className="w-full bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-5 flex items-start gap-4 shadow-2xl relative overflow-hidden group">
+            <div className="flex justify-start items-start ">
+              <div className="w-full top-20 bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-5 flex items-start gap-4 shadow-2xl relative overflow-hidden group">
                 <div className="absolute right-0 top-0 w-1 h-full bg-red-600/80"></div>
 
                 <div className="w-13 h-13 shrink-0 bg-gray-800/80 rounded-full border-2 border-white/10 flex items-center justify-center" style={{ width: '52px', height: '52px' }}>
