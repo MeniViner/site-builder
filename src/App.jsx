@@ -101,16 +101,17 @@ const FlipCard = ({ title, icon: IconComponent }) => {
             </button>
           </div>
 
-          <div className="flex flex-col gap-1.5 flex-1 justify-center">
+          {/* קישורים - wrap לפי אורך הטקסט */}
+          <div className="flex flex-wrap gap-1.5 flex-1 content-center">
             {SUB_LINKS.map((link, idx) => {
               const LinkIcon = link.icon;
               return (
                 <button
                   key={idx}
                   onClick={handleLinkClick}
-                  className="flex items-center justify-start gap-3 w-full text-right bg-white/5 hover:bg-red-500/10 hover:text-red-400 p-2 rounded-lg transition-all text-sm text-gray-300 group/btn"
+                  className="flex items-center gap-1.5 text-right bg-white/5 hover:bg-red-500/10 hover:text-red-400 px-3 py-2 rounded-lg transition-all text-xs text-gray-300 group/btn whitespace-nowrap"
                 >
-                  {LinkIcon && <LinkIcon size={14} className="text-gray-500 group-hover/btn:text-red-400" />}
+                  {LinkIcon && <LinkIcon size={13} className="text-gray-500 group-hover/btn:text-red-400 shrink-0" />}
                   <span>{link.label}</span>
                 </button>
               );
@@ -157,81 +158,88 @@ export default function App() {
 
         <div className="relative z-10 flex flex-col h-full flex-1">
 
-          {/* Top Bar */}
-          <header className="w-full py-6 px-6 lg:px-12 flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-4 text-white">
-              <div className="w-14 h-14 rounded-full border border-red-500/50 flex items-center justify-center bg-black/60 backdrop-blur-md shadow-lg shadow-red-900/20">
-                <span className="font-bold text-center text-[10px] leading-tight text-gray-200">
-                  חמ"מ<br /><span className="text-red-500 text-xs">7134</span>
-                </span>
-              </div>
-              <h1 className="text-xl font-black hidden md:block tracking-wide drop-shadow-md">
-                פורטל ידע <span className="text-red-500">מבצעי</span>
-              </h1>
-            </div>
+          {/* Top Bar - 3 columns: מופעי החודש (visual right) | search center | דבר מפקד (visual left) */}
+          <header className="w-full py-5 px-6 lg:px-12 grid grid-cols-3 items-start gap-4">
 
-            <div className="w-full max-w-xl relative">
-              <input
-                type="text"
-                placeholder="חיפוש מהיר: נהלים, פקודות, תיקים..."
-                className="w-full bg-black/40 backdrop-blur-md text-white placeholder-gray-400 border border-white/10 hover:border-white/20 focus:border-red-500 focus:bg-black/60 transition-all rounded-full py-3 pr-12 pl-6 outline-none shadow-xl"
-              />
-              <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-            </div>
-          </header>
-
-          {/* Hero Content */}
-          <div className="flex-1 flex items-end justify-center p-6 lg:pb-24 lg:px-12 w-full max-w-[1400px] mx-auto">
-            <div className="flex flex-col lg:flex-row gap-6 w-full items-end justify-between">
-
-              {/* דבר המפקד */}
-              <div className="w-full lg:max-w-[480px] bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-6 flex items-start gap-5 shadow-2xl relative overflow-hidden group">
-                <div className="absolute right-0 top-0 w-1 h-full bg-red-600/80"></div>
-
-                <div className="w-16 h-16 shrink-0 bg-gray-800/80 rounded-full border-2 border-white/10 flex items-center justify-center">
-                  <User size={28} className="text-gray-400" />
+            {/* עמודה ימנית ויזואלית (RTL first): לוגו + מופעי החודש */}
+            <div className="flex flex-col gap-3">
+              {/* לוגו */}
+              <div className="flex items-center gap-3 text-white">
+                <div className="w-12 h-12 rounded-full border border-red-500/50 flex items-center justify-center bg-black/60 backdrop-blur-md shadow-lg shadow-red-900/20">
+                  <span className="font-bold text-center text-[9px] leading-tight text-gray-200">
+                    חמ"מ<br /><span className="text-red-500 text-[11px]">7134</span>
+                  </span>
                 </div>
-
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Quote size={16} className="text-red-400" />
-                    <h2 className="text-lg font-bold text-white">דבר מפקד בית הספר</h2>
-                  </div>
-                  <p className="text-sm text-gray-300 leading-relaxed font-normal">
-                    "המקצועיות שלנו היא מגן הברזל של הלוחמים בשטח. מצוינות בהדרכה ובידע אינה רשות, היא החובה שלנו בכל יום מחדש."
-                  </p>
-                  <span className="text-xs font-semibold text-gray-500 mt-3 block">- סא"ל א. ישראלי</span>
-                </div>
+                <h1 className="text-lg font-black hidden md:block tracking-wide drop-shadow-md">
+                  פורטל ידע <span className="text-red-500">מבצעי</span>
+                </h1>
               </div>
 
-              {/* מופעי החודש */}
-              <div className="w-full lg:max-w-[320px] bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-                <div className="border-b border-white/10 p-4 flex items-center gap-2">
-                  <Calendar className="text-red-500" size={18} />
-                  <h2 className="text-white text-base font-bold">מופעי החודש</h2>
+              {/* מופעי החודש - ימין למעלה */}
+              <div className="w-full bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                <div className="border-b border-white/10 p-3.5 flex items-center gap-2">
+                  <Calendar className="text-red-500 shrink-0" size={17} />
+                  <h2 className="text-white text-sm font-bold">מופעי החודש</h2>
                 </div>
                 <div className="p-0 flex-1">
                   {MONTHLY_EVENTS.map((event, index) => (
-                    <div key={event.id} className={`flex items-center gap-3 p-3 hover:bg-white/5 transition-colors cursor-pointer ${index !== MONTHLY_EVENTS.length - 1 ? 'border-b border-white/5' : ''}`}>
-                      <div className="flex flex-col items-center justify-center bg-red-500/10 text-red-400 rounded w-10 h-10 shrink-0 border border-red-500/20">
-                        <span className="text-sm font-bold leading-none">{event.date}</span>
+                    <div key={event.id} className={`flex items-center gap-3 p-2.5 hover:bg-white/5 transition-colors cursor-pointer ${index !== MONTHLY_EVENTS.length - 1 ? 'border-b border-white/5' : ''}`}>
+                      <div className="flex flex-col items-center justify-center bg-red-500/10 text-red-400 rounded w-9 h-9 shrink-0 border border-red-500/20">
+                        <span className="text-xs font-bold leading-none">{event.date}</span>
                       </div>
                       <div className="flex flex-col">
-                        <h4 className="text-white text-sm font-medium leading-tight">{event.title}</h4>
-                        <span className="text-gray-400 text-xs mt-0.5 flex items-center gap-1">
-                          <Clock size={10} /> {event.time}
+                        <h4 className="text-white text-xs font-medium leading-tight">{event.title}</h4>
+                        <span className="text-gray-400 text-[11px] mt-0.5 flex items-center gap-1">
+                          <Clock size={9} /> {event.time}
                         </span>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-
             </div>
-          </div>
+
+            {/* עמודה אמצעית: חיפוש */}
+            <div className="flex justify-center items-start pt-2">
+              <div className="w-full max-w-md relative">
+                <input
+                  type="text"
+                  placeholder="חיפוש מהיר: נהלים, פקודות, תיקים..."
+                  className="w-full bg-black/40 backdrop-blur-md text-white placeholder-gray-400 border border-white/10 hover:border-white/20 focus:border-red-500 focus:bg-black/60 transition-all rounded-full py-3 pr-12 pl-6 outline-none shadow-xl"
+                />
+                <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+              </div>
+            </div>
+
+            {/* עמודה שמאלית ויזואלית (RTL last): דבר המפקד */}
+            <div className="flex justify-start items-start">
+              <div className="w-full bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-5 flex items-start gap-4 shadow-2xl relative overflow-hidden group">
+                <div className="absolute right-0 top-0 w-1 h-full bg-red-600/80"></div>
+
+                <div className="w-13 h-13 shrink-0 bg-gray-800/80 rounded-full border-2 border-white/10 flex items-center justify-center" style={{ width: '52px', height: '52px' }}>
+                  <User size={22} className="text-gray-400" />
+                </div>
+
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Quote size={14} className="text-red-400" />
+                    <h2 className="text-sm font-bold text-white">דבר מפקד בית הספר</h2>
+                  </div>
+                  <p className="text-xs text-gray-300 leading-relaxed font-normal">
+                    "המקצועיות שלנו היא מגן הברזל של הלוחמים בשטח. מצוינות בהדרכה ובידע אינה רשות, היא החובה שלנו בכל יום מחדש."
+                  </p>
+                  <p className="text-xs text-gray-400 leading-relaxed mt-2">
+                    בית הספר שלנו מהווה את עמוד השדרה של ההכשרה המקצועית. כל מדריך, כל חניך וכל סגל — שותפים למשימה אחת: להכשיר לוחמים מוכנים ומיומנים.
+                  </p>
+                  <span className="text-xs font-semibold text-gray-500 mt-3 block">- סא"ל א. ישראלי</span>
+                </div>
+              </div>
+            </div>
+
+          </header>
 
           {/* Scroll Arrow */}
-          <div className="pb-8 flex justify-center w-full animate-bounce opacity-50">
+          <div className="mt-auto pb-8 flex justify-center w-full animate-bounce opacity-50">
             <div className="bg-black/50 border border-white/10 text-white rounded-full p-2 backdrop-blur-sm">
               <ChevronLeft size={20} className="-rotate-90" />
             </div>
@@ -255,8 +263,8 @@ export default function App() {
                   key={category.id}
                   onClick={() => setActiveCategory(category.id)}
                   className={`flex items-center gap-2 px-5 py-3 rounded-xl font-medium transition-all text-sm whitespace-nowrap ${activeCategory === category.id
-                      ? 'bg-red-600 text-white shadow-[0_4px_15px_rgba(220,38,38,0.3)]'
-                      : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                    ? 'bg-red-600 text-white shadow-[0_4px_15px_rgba(220,38,38,0.3)]'
+                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
                     }`}
                 >
                   {CategoryIcon && <CategoryIcon size={18} />}
