@@ -261,14 +261,75 @@ export default function App() {
       </section>
 
       {/* ==================== אזור 2: תוכן וניווט ==================== */}
-      <section className="min-h-screen bg-[#0a0c0f] py-16 px-6 lg:px-12 flex flex-col items-center relative">
+      <section className="min-h-screen py-16 px-6 lg:px-12 flex flex-col items-center relative overflow-hidden"
+        style={{ background: 'linear-gradient(180deg, #0f0507 0%, #0a0c0f 40%, #0a0c0f 100%)' }}
+      >
 
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-red-900/10 blur-[120px] rounded-full pointer-events-none"></div>
+        {/* ═══════════ שכבת רקע דקורטיבית ═══════════ */}
 
+        {/* Glow ראשי — מרכז עליון */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-red-700/[0.12] blur-[140px] rounded-full pointer-events-none" />
+
+        {/* Glow משני — פינה שמאלית תחתונה */}
+        <div className="absolute bottom-20 left-0 w-[400px] h-[400px] bg-red-900/[0.10] blur-[100px] rounded-full pointer-events-none" />
+
+        {/* Glow שלישי — פינה ימנית */}
+        <div className="absolute top-1/3 right-0 w-[300px] h-[300px] bg-red-800/[0.08] blur-[90px] rounded-full pointer-events-none" />
+
+        {/* Grid נקודות — texture צבאית */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-[0.035]"
+          style={{
+            backgroundImage: 'radial-gradient(circle, #ef4444 1px, transparent 1px)',
+            backgroundSize: '32px 32px',
+          }}
+        />
+
+        {/* קווים אלכסוניים */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          {/* קו אלכסוני 1 */}
+          <div className="absolute top-[-10%] left-[-5%] w-[150%] h-[1px] bg-gradient-to-r from-transparent via-red-600/10 to-transparent rotate-[18deg] origin-left" />
+          {/* קו אלכסוני 2 */}
+          <div className="absolute top-[30%] left-[-5%] w-[150%] h-[1px] bg-gradient-to-r from-transparent via-red-600/8 to-transparent rotate-[18deg] origin-left" />
+          {/* קו אלכסוני 3 - הפוך */}
+          <div className="absolute top-[60%] right-[-5%] w-[150%] h-[1px] bg-gradient-to-l from-transparent via-red-900/10 to-transparent -rotate-[12deg] origin-right" />
+        </div>
+
+        {/* עיגול dashed מסתובב */}
+        <div
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full border border-dashed border-red-900/20 pointer-events-none"
+          style={{ transform: 'translate(-50%, -50%) rotate(15deg)' }}
+        />
+        <div
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full border border-red-900/10 pointer-events-none"
+          style={{ transform: 'translate(-50%, -50%) rotate(-8deg)' }}
+        />
+
+        {/* סוגריים פינתיים — פינה שמאלית עליונה */}
+        <div className="absolute top-8 left-8 pointer-events-none opacity-20">
+          <div className="w-8 h-8 border-t-2 border-l-2 border-red-600" />
+        </div>
+        {/* סוגריים פינתיים — פינה ימנית עליונה */}
+        <div className="absolute top-8 right-8 pointer-events-none opacity-20">
+          <div className="w-8 h-8 border-t-2 border-r-2 border-red-600" />
+        </div>
+        {/* סוגריים פינתיים — פינה שמאלית תחתונה */}
+        <div className="absolute bottom-8 left-8 pointer-events-none opacity-20">
+          <div className="w-8 h-8 border-b-2 border-l-2 border-red-600" />
+        </div>
+        {/* סוגריים פינתיים — פינה ימנית תחתונה */}
+        <div className="absolute bottom-8 right-8 pointer-events-none opacity-20">
+          <div className="w-8 h-8 border-b-2 border-r-2 border-red-600" />
+        </div>
+
+        {/* קו גבול עליון זוהר */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-red-600/40 to-transparent pointer-events-none" />
+
+        {/* ═══════════ תוכן ═══════════ */}
         <div className="w-full max-w-[1400px] flex flex-col gap-12 relative z-10">
 
           {/* ניווט קטגוריות */}
-          <div className="w-full bg-[#111318] rounded-2xl border border-gray-800 p-2 overflow-x-auto flex items-center justify-start xl:justify-center gap-2 sticky top-4 z-20 shadow-2xl">
+          <div className="w-full bg-[#111318]/90 backdrop-blur-xl rounded-2xl border border-red-900/30 p-2 overflow-x-auto flex items-center justify-start xl:justify-center gap-2 sticky top-4 z-20 shadow-[0_8px_32px_rgba(0,0,0,0.5),0_0_0_1px_rgba(220,38,38,0.08)] ">
             {CATEGORIES.map((category) => {
               const CategoryIcon = category.icon;
               return (
@@ -276,8 +337,8 @@ export default function App() {
                   key={category.id}
                   onClick={() => setActiveCategory(category.id)}
                   className={`flex items-center gap-2 px-5 py-3 rounded-xl font-medium transition-all text-sm whitespace-nowrap ${activeCategory === category.id
-                    ? 'bg-red-600 text-white shadow-[0_4px_15px_rgba(220,38,38,0.3)]'
-                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                    ? 'bg-red-600 text-white shadow-[0_4px_20px_rgba(220,38,38,0.4)]'
+                    : 'text-gray-400 hover:bg-red-500/5 hover:text-white'
                     }`}
                 >
                   {CategoryIcon && <CategoryIcon size={18} />}
@@ -289,11 +350,18 @@ export default function App() {
 
           {/* תוכן הקטגוריה */}
           <div className="mt-4">
-            <div className="flex items-center gap-4 mb-10 px-2 border-b border-gray-800 pb-4">
-              <div className="bg-red-500/10 text-red-500 p-3 rounded-xl border border-red-500/20">
+            <div className="flex items-center gap-4 mb-10 px-2 pb-4 relative">
+              {/* border-b עם gradient אדום */}
+              <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-red-600/50 via-red-600/20 to-transparent" />
+              <div className="bg-red-500/10 text-red-500 p-3 rounded-xl border border-red-500/20 shadow-[0_0_15px_rgba(220,38,38,0.15)]">
                 {CategoryIconLarge && <CategoryIconLarge size={24} />}
               </div>
               <h2 className="text-2xl font-bold text-white tracking-wide">{selectedCategoryObj?.label}</h2>
+              {/* Dot מהבהב */}
+              <span className="flex h-2 w-2 mr-1">
+                <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-red-500 opacity-60"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+              </span>
             </div>
 
             {currentCards.length > 0 ? (
@@ -303,9 +371,11 @@ export default function App() {
                 ))}
               </div>
             ) : (
-              <div className="w-full bg-[#111318] border border-dashed border-gray-800 rounded-3xl h-64 flex flex-col items-center justify-center text-gray-600">
-                <ImageIcon size={48} className="mb-4 opacity-30" />
-                <p className="text-xl font-medium">התוכן טרם הוזן</p>
+              <div className="w-full bg-gradient-to-br from-red-950/20 to-[#111318] border border-dashed border-red-900/40 rounded-3xl h-64 flex flex-col items-center justify-center text-gray-600">
+                <div className="bg-red-500/5 border border-red-900/20 p-5 rounded-2xl mb-4">
+                  <ImageIcon size={40} className="opacity-30 text-red-400" />
+                </div>
+                <p className="text-xl font-medium text-gray-600">התוכן טרם הוזן</p>
               </div>
             )}
           </div>
