@@ -1,15 +1,57 @@
-@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-* {
-  font-family: 'Rubik', sans-serif;
+:root {
+  scroll-behavior: smooth;
 }
 
-/* Custom dark scrollbar */
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: #0a0c0f; }
-::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #ef4444; }
+html,
+body,
+#root {
+  direction: rtl;
+  background: #0c0d12;
+  font-family: 'Heebo', sans-serif;
+  margin: 0;
+}
+
+.font-heebo {
+  font-family: 'Heebo', sans-serif;
+}
+
+/* Background grid styling */
+.grid-overlay {
+  background-size: 20vw 25vh;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+}
+
+.grid-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-size: 20vw 25vh;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(220, 38, 38, 0.4) 2px, transparent 3px);
+}
+
+/* Base custom scroll bar just in case */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0c0f;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #ef4444;
+}

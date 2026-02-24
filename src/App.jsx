@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Search, Rocket, BarChart, Briefcase, Camera,
-  Users, Crosshair, AlertTriangle, Calendar,
-  Quote, User, ChevronLeft, Undo2, FileText,
-  Target, GraduationCap, Map, Clock, Image as ImageIcon,
-  ChevronDown
+  Search, ChevronLeft, ChevronRight, Target,
+  Rocket, BarChart, Briefcase, Camera, Users, Crosshair,
+  AlertTriangle, Calendar, Quote, User, Undo2, FileText,
+  GraduationCap, Map, Clock, Image as ImageIcon
 } from 'lucide-react';
 
-// --- נתונים ודאטה ---
-
-const HERO_BACKGROUNDS = [
-  'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&q=80&w=2000',
-  'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=2000',
-  'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&q=80&w=2000'
+const BACKGROUNDS = [
+  '/images/לח1.jpeg',
+  '/images/לח2.jpeg',
+  '/images/לח3.jpg',
+  '/images/לח4.webp',
+  '/images/לח5.jpeg',
+  '/images/לח6.webp',
+  '/images/לח7.jpg'
 ];
 
 const CATEGORIES = [
@@ -25,26 +26,7 @@ const CATEGORIES = [
   { id: 'safety', label: 'בטיחות', icon: AlertTriangle },
 ];
 
-const CARDS_BY_CATEGORY = {
-  training: [
-    { id: 'kakatz', title: 'קק"צ', icon: GraduationCap },
-    { id: 'mekadadim', title: 'קורס מפקדים', icon: Users },
-    { id: 'kamas', title: 'קמ"ס', icon: Target },
-    { id: 'shalit', title: 'שליט/בקרים', icon: Map },
-    { id: 'lohamim', title: 'מסלול לוחם', icon: Crosshair },
-  ],
-  operations: [
-    { id: 'reports', title: 'דו"חות מבצעיים', icon: FileText },
-    { id: 'drills', title: 'תרגילים', icon: Target },
-    { id: 'procedures', title: 'נהלים ופקודות', icon: Briefcase },
-  ],
-  hq: [
-    { id: 'hr', title: 'שלישות ומשאבי אנוש', icon: Users },
-    { id: 'logistics', title: 'לוגיסטיקה', icon: Briefcase },
-  ]
-};
-
-const SUB_LINKS = [
+const DEFAULT_SUB_LINKS = [
   { label: 'חניכי הקורס', icon: Users },
   { label: 'גאנט הקורס', icon: Calendar },
   { label: 'אימונים', icon: Target },
@@ -52,66 +34,93 @@ const SUB_LINKS = [
   { label: 'סגל', icon: User },
 ];
 
-const MONTHLY_EVENTS = [
-  { id: 1, date: '04', month: 'נוב', title: 'בוחן מסלול פלוגתי', time: '08:00' },
-  { id: 2, date: '12', month: 'נוב', title: 'כנס סגל פיקוד', time: '14:30' },
-  { id: 3, date: '18', month: 'נוב', title: 'תרגיל יחידתי מסכם', time: 'כל היום' },
-  { id: 4, date: '25', month: 'נוב', title: 'מסדר דמעות - קק"צ', time: '10:00' },
+const OPS_SUB_LINKS = [
+  { label: 'דו"חות', icon: FileText },
+  { label: 'תרגילים', icon: Target },
+  { label: 'נהלים', icon: Briefcase },
 ];
 
-// --- רכיבים (Components) ---
+const HQ_SUB_LINKS = [
+  { label: 'שלישות', icon: Users },
+  { label: 'לוגיסטיקה', icon: Briefcase },
+];
 
-const FlipCard = ({ title, icon: IconComponent }) => {
-  const [isFlipped, setIsFlipped] = useState(false);
+const CARDS_BY_CATEGORY = {
+  training: [
+    { id: 'kakatz', title: 'קק"צ', icon: GraduationCap, subLinks: DEFAULT_SUB_LINKS },
+    { id: 'mekadadim', title: 'קורס מפקדים', icon: Users, subLinks: DEFAULT_SUB_LINKS },
+    { id: 'kamas', title: 'קמ"ס', icon: Target, subLinks: DEFAULT_SUB_LINKS },
+    { id: 'shalit', title: 'שליט/בקרים', icon: Map, subLinks: DEFAULT_SUB_LINKS },
+    { id: 'lohamim', title: 'מסלול לוחם', icon: Crosshair, subLinks: DEFAULT_SUB_LINKS },
+  ],
+  operations: [
+    { id: 'reports', title: 'דו"חות מבצעיים', icon: FileText, subLinks: OPS_SUB_LINKS },
+    { id: 'drills', title: 'תרגילים', icon: Target, subLinks: OPS_SUB_LINKS },
+    { id: 'procedures', title: 'נהלים ופקודות', icon: Briefcase, subLinks: OPS_SUB_LINKS },
+  ],
+  hq: [
+    { id: 'hr', title: 'שלישות ומשאבי אנוש', icon: Users, subLinks: HQ_SUB_LINKS },
+    { id: 'logistics', title: 'לוגיסטיקה', icon: Briefcase, subLinks: HQ_SUB_LINKS },
+  ]
+};
 
+const FlipCard = ({ id, title, icon: IconComponent, subLinks = [], isFlipped, onFlip }) => {
   const handleLinkClick = (e) => {
     e.stopPropagation();
-    // ניתוב עתידי
+  };
+
+  const handleCardClick = () => {
+    onFlip(isFlipped ? null : id);
+  };
+
+  const handleClose = (e) => {
+    e.stopPropagation();
+    onFlip(null);
   };
 
   return (
     <div
       className="relative w-full h-56 cursor-pointer [perspective:1000px] group"
-      onClick={() => setIsFlipped(!isFlipped)}
+      onClick={handleCardClick}
     >
       <div
         className={`w-full h-full transition-transform duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}
       >
-        {/* צד קדמי */}
-        <div className="absolute inset-0 [backface-visibility:hidden] bg-gradient-to-br from-[#1a1d24] to-[#111318] border border-gray-800 group-hover:border-red-500/50 group-hover:shadow-[0_0_20px_rgba(220,38,38,0.15)] transition-all rounded-xl p-6 flex flex-col items-center justify-center text-gray-200">
+        <div className="absolute inset-0 [backface-visibility:hidden] bg-gradient-to-br from-[#1a1c23] to-[#111318] border border-gray-800 group-hover:border-red-500/50 group-hover:shadow-[0_0_20px_rgba(220,38,38,0.15)] transition-all rounded-xl p-6 flex flex-col items-center justify-center text-gray-200">
           <div className="bg-black/40 border border-gray-800/50 p-4 rounded-xl mb-4 text-red-500 group-hover:scale-110 transition-transform duration-300">
             {IconComponent && <IconComponent size={36} strokeWidth={1.5} />}
           </div>
           <h3 className="text-xl font-bold text-white tracking-wide">{title}</h3>
           <div className="mt-4 flex items-center justify-center gap-1 text-xs text-gray-500 font-medium tracking-wider uppercase">
             <span>לכניסה</span>
-            <ChevronDown size={12} className="-rotate-90" />
+            <ChevronLeft size={12} className="-rotate-90" aria-hidden />
           </div>
         </div>
 
-        {/* צד אחורי */}
         <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] bg-gradient-to-br from-[#111318] to-[#0a0c0f] border border-gray-800 rounded-xl p-5 flex flex-col shadow-2xl">
           <div className="flex justify-between items-center mb-3 border-b border-gray-800 pb-3">
             <h3 className="text-base font-bold text-white/90">{title}</h3>
             <button
+              type="button"
               className="text-gray-500 hover:text-red-500 transition-colors bg-gray-900/50 rounded-md p-1"
-              onClick={(e) => { e.stopPropagation(); setIsFlipped(false); }}
+              onClick={handleClose}
+              aria-label="סגור"
             >
               <Undo2 size={16} />
             </button>
           </div>
 
-          {/* קישורים - wrap לפי אורך הטקסט */}
           <div className="flex flex-wrap gap-1.5 flex-1 content-center">
-            {SUB_LINKS.map((link, idx) => {
+            {(subLinks || []).map((link, idx) => {
               const LinkIcon = link.icon;
               return (
                 <button
                   key={idx}
+                  type="button"
                   onClick={handleLinkClick}
-                  className="flex items-center gap-1.5 text-right bg-white/5 hover:bg-red-500/10 hover:text-red-400 px-3 py-2 rounded-lg transition-all text-xs text-gray-300 group/btn whitespace-nowrap"
+                  className="flex items-center gap-1.5 text-right bg-white/5 hover:bg-red-500/10 hover:text-red-400 px-3 py-2 rounded-lg transition-all text-sm text-gray-300 group/btn whitespace-nowrap"
                 >
-                  {LinkIcon && <LinkIcon size={13} className="text-gray-500 group-hover/btn:text-red-400 shrink-0" />}
+                  {LinkIcon && <LinkIcon size={14} className="text-gray-500 group-hover/btn:text-red-400 shrink-0" />}
                   <span>{link.label}</span>
                 </button>
               );
@@ -124,263 +133,272 @@ const FlipCard = ({ title, icon: IconComponent }) => {
 };
 
 export default function App() {
-  const [activeCategory, setActiveCategory] = useState('training');
   const [bgIndex, setBgIndex] = useState(0);
+  const [flippedCardId, setFlippedCardId] = useState(null);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setBgIndex((prevIndex) => (prevIndex + 1) % HERO_BACKGROUNDS.length);
-    }, 6000);
-    return () => clearInterval(interval);
+    const timer = setInterval(() => {
+      setBgIndex(prev => (prev + 1) % BACKGROUNDS.length);
+    }, 3000);
+    return () => clearInterval(timer);
   }, []);
 
-  const currentCards = CARDS_BY_CATEGORY[activeCategory] || [];
-  const selectedCategoryObj = CATEGORIES.find(c => c.id === activeCategory);
-  const CategoryIconLarge = selectedCategoryObj?.icon;
+  const handleNavTo = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleFlip = (id) => {
+    setFlippedCardId(id);
+  };
 
   return (
-    <div dir="rtl" className="h-screen overflow-y-auto overflow-x-hidden bg-[#0a0c0f] text-right selection:bg-red-500/30 selection:text-white scroll-smooth">
+    <div dir="rtl" className="min-h-screen relative bg-[#0c0d12] text-white font-heebo selection:bg-red-500/30">
 
-      {/* ==================== אזור 1: Hero ==================== */}
-      <section className="relative min-h-screen flex flex-col">
-        {HERO_BACKGROUNDS.map((bg, index) => (
-          <div
-            key={index}
-            className="absolute inset-0 w-full h-full bg-cover bg-center transition-opacity duration-1000 ease-in-out"
-            style={{
-              backgroundImage: `url(${bg})`,
-              opacity: bgIndex === index ? 1 : 0,
-              zIndex: 0
-            }}
+      {/* Background Section (Fixed so it stays while scrolling) */}
+      <div className="fixed inset-0 z-0 bg-[#0c0d12]">
+        {BACKGROUNDS.map((bg, idx) => (
+          <img
+            key={idx}
+            src={bg}
+            alt={`bg-${idx}`}
+            className={`absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-1000 mix-blend-luminosity brightness-75 contrast-125 ${idx === bgIndex ? 'opacity-50' : 'opacity-0'}`}
           />
         ))}
-        <div className="absolute inset-0 bg-black/50 z-0"></div>
 
-        <div className="relative z-10 flex flex-col h-full flex-1">
+        {/* Exact Grid lines */}
+        <div className="absolute inset-0 z-10 grid-overlay pointer-events-none opacity-70" />
 
-          {/* Top Bar - 3 columns: מופעי החודש (visual right) | search center | דבר מפקד (visual left) */}
-          <header className="w-full py-5 px-6 lg:px-12 grid grid-cols-3 items-start gap-4" style={{ zoom: 1.5 }}>
+        {/* Dark black around the edges (vignette and gradients) */}
+        <div className="absolute inset-0 z-10 bg-[radial-gradient(circle_at_center,transparent_30%,#0c0d12_100%)] opacity-90 pointer-events-none" />
+        <div className="absolute inset-0 z-10 bg-gradient-to-t from-[#0c0d12] via-[#0c0d12]/40 to-transparent h-full pointer-events-none" />
+        <div className="absolute inset-0 z-10 bg-gradient-to-b from-[#0c0d12]/80 via-transparent to-transparent h-1/2 pointer-events-none" />
+        <div className="absolute inset-y-0 right-0 z-10 w-2/3 bg-gradient-to-l from-[#0c0d12] via-[#0c0d12]/60 to-transparent pointer-events-none" />
+        <div className="absolute inset-y-0 left-0 z-10 w-1/4 bg-gradient-to-r from-[#0c0d12] to-transparent pointer-events-none" />
+      </div>
 
-            {/* עמודה ימנית ויזואלית (RTL first): לוגו + מופעי החודש */}
-            <div className="flex flex-col gap-3">
-              {/* לוגו */}
-              <div className="flex items-center gap-3 text-white">
-                <div className="w-12 h-12 rounded-full border border-red-500/50 flex items-center justify-center bg-black/60 backdrop-blur-md shadow-lg shadow-red-900/20">
-                  <span className="font-bold text-center text-[9px] leading-tight text-gray-200">
-                    חמ"מ<br /><span className="text-red-500 text-[11px]">7134</span>
-                  </span>
-                </div>
-                <h1 className="text-lg font-black hidden md:block tracking-wide drop-shadow-md">
-                  פורטל ידע <span className="text-red-500">מבצעי</span>
-                </h1>
+      <div className="relative z-20 flex flex-col w-full h-full">
+
+        {/* Top Navbar */}
+        <nav className="w-full px-8 py-6 flex items-center justify-between border-b border-white/5 bg-gradient-to-b from-black/80 to-transparent sticky top-0 z-[100] bg-[#0c0d12]/20 backdrop-blur-md">
+
+          {/* Left side in RTL (Visually Right) */}
+          <div className="flex items-center gap-10">
+            <div className="text-white font-bold text-xl relative group cursor-pointer" onClick={() => window.scrollTo(0, 0)}>
+              בית הספר
+              <div className="absolute -bottom-7 left-0 right-0 h-1 bg-red-600 rounded-t-sm" />
+            </div>
+            {CATEGORIES.map(cat => (
+              <div key={cat.id} onClick={() => handleNavTo(cat.id)} className="text-gray-400 hover:text-white transition font-medium cursor-pointer text-sm tracking-wide">
+                {cat.label}
+              </div>
+            ))}
+          </div>
+
+          {/* Right side in RTL (Visually Left) */}
+          <div className="flex flex-row-reverse items-center gap-3">
+            <div
+              className="relative flex items-center w-64 md:w-80 h-10 group"
+              style={{ filter: 'drop-shadow(0 0 4px rgba(220, 38, 38, 0.2))' }}
+            >
+              <div
+                className="absolute inset-0 bg-red-900/50"
+                style={{ clipPath: 'polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px)' }}
+              />
+              <div
+                className="absolute inset-[1px] bg-[#0c0d12]"
+                style={{ clipPath: 'polygon(11px 0, 100% 0, 100% calc(100% - 11px), calc(100% - 11px) 100%, 0 100%, 0 11px)' }}
+              />
+              <div
+                className="absolute inset-[3px] bg-[#8b1a1a] transition-colors group-hover:bg-red-700/90"
+                style={{ clipPath: 'polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px)' }}
+              />
+              <div
+                className="absolute inset-[4px] bg-white flex items-center px-3"
+                style={{ clipPath: 'polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px)' }}
+              >
+                <Search size={22} className="text-[#8b1a1a] shrink-0" strokeWidth={2} />
+                <input
+                  type="text"
+                  placeholder="חיפוש באתר..."
+                  className="flex-1 w-full bg-transparent border-none outline-none text-gray-800 placeholder-gray-500 text-sm font-medium mr-2"
+                />
+              </div>
+            </div>
+            {/* <button className="bg-red-600 hover:bg-red-700 text-white px-8 h-10 font-bold transition rounded-sm">
+              התחברות
+            </button>
+            <button className="flex items-center gap-2 border border-red-900 bg-[#12141a]/80 text-red-500 hover:bg-[#12141a]/90 px-4 h-10 transition rounded-sm">
+              <Target size={16} />
+              <span className="font-bold">חמ"ל</span>
+            </button> */}
+          </div>
+        </nav>
+
+        {/* Main Hero Content */}
+        <main className="w-full relative min-h-[calc(100vh-80px)] flex flex-col pt-8 lg:pt-16">
+          {/* Text Block - Align to Right */}
+          <div className="flex-1 flex flex-col justify-center px-8 lg:px-24 pointer-events-auto z-20">
+            <div className="w-full lg:w-[65%] xl:w-1/2 text-right">
+              <div className="text-red-500 font-bold text-lg mb-2 mr-1">ברוכים הבאים</div>
+              <h1 className="text-5xl lg:text-6xl xl:text-7xl font-black text-white mb-6 drop-shadow-lg tracking-tight leading-none">בית הספר לחמ"ם 7134</h1>
+              <p className="text-gray-300 text-xl lg:text-2xl leading-relaxed mb-10 drop-shadow-md max-w-2xl">
+                מרכז ההכשרות המוביל בצה"ל למקצועות החמ"ם.<br />
+                {/* אנו אמונים על רצף ההכשרה, פיתוח מקצועי מתמיד ושמירה על כשירות עליונה בתחום המערכות המתקדמות. */}
+              </p>
+              {/* <button onClick={() => handleNavTo('training')} className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-3 px-8 py-3 lg:py-4 font-bold transition rounded-sm shadow-[0_0_20px_rgba(220,38,38,0.3)]">
+                <span className="text-lg">למעבר להכשרות</span>
+                <ChevronLeft size={22} className="mt-0.5" />
+              </button> */}
+            </div>
+          </div>
+
+          {/* Bottom Panels Container */}
+          <div className="w-full px-8 lg:px-24 pb-12 flex flex-col xl:flex-row items-center xl:items-end justify-between gap-10 pointer-events-auto z-30 mt-16 xl:mt-auto">
+
+            {/* RIGHT BOX - "דבר המפקד" */}
+            <div className="w-full xl:w-[700px] h-auto min-h-[320px] bg-[#1a1c23]/95 border border-gray-700/50 p-6 flex flex-col sm:flex-row items-stretch shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)] relative backdrop-blur-md">
+              <div className="w-full sm:w-[45%] relative shrink-0 sm:-ml-4 flex items-center justify-center overflow-visible mb-6 sm:mb-0">
+                {/* Background solid red */}
+                <div className="absolute left-1/2 top-1/2 -translate-x-[40%] -translate-y-[45%] w-40 xl:w-48 h-40 xl:h-48 bg-red-600 z-0 hidden sm:block"></div>
+                <img
+                  src="https://images.unsplash.com/photo-1564564295391-7f24f26f568b?q=80&w=300&auto=format&fit=crop"
+                  className="w-full sm:w-40 xl:w-48 h-48 sm:h-full object-cover object-top grayscale contrast-125 brightness-110 mix-blend-luminosity relative z-10 border-b sm:border-b-0 border-gray-800"
+                  alt="Commander"
+                />
               </div>
 
-              {/* מופעי החודש - ימין למעלה */}
-              <div className="w-full bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ direction: 'rtl' }}>
-                {/* כותרת */}
-                <div className="bg-[#1a1d24] px-4 py-3 flex items-center justify-between">
-                  <h2 className="text-white text-sm font-bold">מופעי החודש</h2>
-                  <Calendar className="text-red-500 shrink-0" size={17} />
+              <div className="flex-1 flex flex-col justify-between items-start sm:border-r border-gray-800/80 sm:pr-6 pt-2 pb-1 relative z-20">
+                <div>
+                  <div className="text-red-500 text-sm font-bold mb-1 opacity-90 tracking-wide">מפקד היחידה</div>
+                  <h2 className="text-3xl xl:text-4xl font-black text-white mb-4 leading-tight">דבר המפקד</h2>
+                  <p className="text-gray-300 text-[14px] leading-relaxed mb-6 font-medium">
+                    "מפקדים ולוחמים, אנו ניצבים בחזית העשייה המבצעית. מצופה מכם לחתור למצוינות, להפגין מקצועיות חסרת פשרות, ולהוביל את העשייה בכל משימה אליה נדרש. יחד ננצח."
+                  </p>
+                  <div className="text-gray-500 text-sm tracking-wider opacity-70">סא"ל א', מפקד בית הספר</div>
                 </div>
-                {/* אירועים */}
-                <div className="flex flex-col divide-y divide-gray-100">
-                  {MONTHLY_EVENTS.map((event) => (
-                    <div key={event.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer">
-                      {/* תאריך - קלנדר */}
-                      <div className="shrink-0 flex flex-col items-center justify-center bg-red-500 text-white rounded-lg w-12 h-12 shadow-sm">
-                        <span className="text-lg font-black leading-none">{event.date}</span>
-                        <span className="text-[10px] font-semibold leading-none opacity-90 mt-0.5">{event.month}</span>
-                      </div>
-                      {/* פרטים */}
-                      <div className="flex flex-col flex-1 min-w-0">
-                        <h4 className="text-gray-800 text-sm font-bold leading-snug truncate">{event.title}</h4>
-                        <span className="text-gray-400 text-xs mt-0.5 flex items-center gap-1">
-                          <Clock size={10} className="shrink-0" />
-                          {event.time}
-                        </span>
-                      </div>
+
+                {/* Pagination */}
+                <div className="flex gap-0.5 mt-6 sm:absolute sm:bottom-0 sm:left-0">
+                  <button className="bg-red-600 w-10 h-10 flex items-center justify-center text-white hover:bg-red-700 transition"><ChevronRight size={18} /></button>
+                  <button className="bg-red-600 w-10 h-10 flex items-center justify-center text-white hover:bg-red-700 transition"><ChevronLeft size={18} /></button>
+                </div>
+              </div>
+            </div>
+
+            {/* LEFT BOX - "מופעי החודש" */}
+            <div className="w-full xl:w-[380px] bg-[#1a1c23]/95 border-b-2 border-l-2 border-red-600 relative shrink-0 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)] backdrop-blur-md">
+              {/* Red tab cut-out decoration */}
+              <div className="absolute top-0 left-0 w-32 h-[4.5rem] bg-red-600 flex items-start justify-end pr-2 overflow-hidden"
+                style={{ clipPath: 'polygon(0 0, 100% 0, 40% 100%, 0 100%)' }}>
+              </div>
+
+              <div className="p-6 pt-7 relative z-10 w-full">
+                <h2 className="text-2xl font-black text-white mb-5 border-b border-gray-800 pb-2">מופעי החודש</h2>
+
+                <div className="flex flex-col gap-[2px]">
+                  {/* Row 1 - Active Red */}
+                  <div className="bg-red-600 text-white flex items-stretch h-20 group cursor-pointer transition">
+                    <div className="w-[30%] flex flex-col items-center justify-center border-l border-white/20">
+                      <span className="text-4xl font-black leading-none drop-shadow-sm">06</span>
+                      <span className="text-xs font-semibold uppercase mt-1 tracking-widest opacity-90">אוק</span>
                     </div>
-                  ))}
+                    <div className="flex-1 flex flex-col justify-center pr-4 pl-2">
+                      <div className="font-bold text-lg leading-tight mb-1 truncate">ביקורת כשירות רבעונית</div>
+                      <div className="text-[11px] opacity-80 uppercase tracking-widest">כולל תרגול חרום</div>
+                    </div>
+                  </div>
+
+                  {/* Row 2 */}
+                  <div className="bg-[#24262f] text-gray-400 hover:bg-[#2c2f3a] transition flex items-stretch h-20 group cursor-pointer">
+                    <div className="w-[30%] flex flex-col items-center justify-center border-l border-gray-800">
+                      <span className="text-4xl font-black leading-none text-gray-300 drop-shadow-sm group-hover:text-white transition">27</span>
+                      <span className="text-xs uppercase mt-1 tracking-widest opacity-60">דצמ</span>
+                    </div>
+                    <div className="flex-1 flex flex-col justify-center pr-4 pl-2">
+                      <div className="font-bold text-base text-gray-200 leading-tight mb-1 truncate group-hover:text-white transition">כנס מפקדים חילי</div>
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wider">מרכז ההדרכה הראשי</div>
+                    </div>
+                  </div>
+
+                  {/* Row 3 */}
+                  <div className="bg-[#24262f] text-gray-400 hover:bg-[#2c2f3a] transition flex items-stretch h-20 group cursor-pointer">
+                    <div className="w-[30%] flex flex-col items-center justify-center border-l border-gray-800">
+                      <span className="text-4xl font-black leading-none text-gray-300 drop-shadow-sm group-hover:text-white transition">18</span>
+                      <span className="text-xs uppercase mt-1 tracking-widest opacity-60">מרץ</span>
+                    </div>
+                    <div className="flex-1 flex flex-col justify-center pr-4 pl-2">
+                      <div className="font-bold text-base text-gray-200 leading-tight mb-1 truncate group-hover:text-white transition">השתלמות בטיחות וכשירות</div>
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wider">חובה לכלל הסגל</div>
+                    </div>
+                  </div>
                 </div>
-                {/* פוטר */}
-                <div className="px-4 py-2.5 border-t border-gray-100 flex justify-center">
-                  <button className="text-red-500 text-xs font-semibold hover:text-red-600 transition-colors flex items-center gap-1">
-                    לצפייה ביומן המלא
-                    <span className="text-base leading-none">←</span>
+
+                {/* Pagination */}
+                <div className="flex gap-2 mt-5">
+                  <button className="w-8 h-8 flex items-center justify-center border border-gray-800 text-red-500 hover:bg-red-600 hover:text-white hover:border-transparent transition rounded-sm">
+                    <ChevronRight size={16} />
+                  </button>
+                  <button className="w-8 h-8 flex items-center justify-center border border-gray-800 text-red-500 hover:bg-red-600 hover:text-white hover:border-transparent transition rounded-sm">
+                    <ChevronLeft size={16} />
                   </button>
                 </div>
               </div>
             </div>
+          </div>
+        </main>
 
-            {/* עמודה אמצעית: חיפוש */}
-            <div className="flex justify-center items-start pt-2">
-              <div className="w-full max-w-md relative">
-                <input
-                  type="text"
-                  placeholder="חיפוש מהיר: נהלים, פקודות, תיקים..."
-                  className="w-full bg-black/40 backdrop-blur-md text-white placeholder-gray-400 border border-white/10 hover:border-white/20 focus:border-red-500 focus:bg-black/60 transition-all rounded-full py-3 pr-12 pl-6 outline-none shadow-xl"
-                />
-                <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-              </div>
-            </div>
+        {/* BELOW HERO - CONTENT & CATEGORIES */}
+        <div className="relative z-10 w-full mt-[10vh] pb-24 px-6 lg:px-12 flex flex-col gap-16 bg-[#0c0d12]/90 backdrop-blur-xl border-t border-red-500/20 pt-16">
+          {CATEGORIES.map((cat) => {
+            const cards = CARDS_BY_CATEGORY[cat.id] || [];
+            const CategoryIcon = cat.icon;
 
-            {/* עמודה שמאלית ויזואלית (RTL last): דבר המפקד */}
-            <div className="flex justify-start items-start ">
-              <div className="w-full top-20 bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-5 flex items-start gap-4 shadow-2xl relative overflow-hidden group">
-                <div className="absolute right-0 top-0 w-1 h-full bg-red-600/80"></div>
-
-                <div className="w-13 h-13 shrink-0 bg-gray-800/80 rounded-full border-2 border-white/10 flex items-center justify-center" style={{ width: '52px', height: '52px' }}>
-                  <User size={22} className="text-gray-400" />
-                </div>
-
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Quote size={14} className="text-red-400" />
-                    <h2 className="text-sm font-bold text-white">דבר מפקד בית הספר</h2>
+            return (
+              <section
+                key={cat.id}
+                id={cat.id}
+                className="scroll-mt-32 max-w-[1400px] mx-auto w-full"
+              >
+                <div className="flex items-center gap-4 mb-8 px-2 pb-4 relative">
+                  <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-red-600/50 via-red-600/20 to-transparent" />
+                  <div className="bg-red-500/10 text-red-500 p-3 rounded-xl border border-red-500/20">
+                    <CategoryIcon size={24} />
                   </div>
-                  <p className="text-xs text-gray-300 leading-relaxed font-normal">
-                    "המקצועיות שלנו היא מגן הברזל של הלוחמים בשטח. מצוינות בהדרכה ובידע אינה רשות, היא החובה שלנו בכל יום מחדש."
-                  </p>
-                  <p className="text-xs text-gray-400 leading-relaxed mt-2">
-                    בית הספר שלנו מהווה את עמוד השדרה של ההכשרה המקצועית. כל מדריך, כל חניך וכל סגל — שותפים למשימה אחת: להכשיר לוחמים מוכנים ומיומנים.
-                  </p>
-                  <span className="text-xs font-semibold text-gray-500 mt-3 block">- סא"ל א. ישראלי</span>
+                  <h2 className="text-2xl font-bold text-white tracking-wide">{cat.label}</h2>
                 </div>
-              </div>
-            </div>
 
-          </header>
-
-          {/* Scroll Arrow */}
-          <div className="mt-auto pb-8 flex justify-center w-full animate-bounce opacity-50">
-            <div className="bg-black/50 border border-white/10 text-white rounded-full p-2 backdrop-blur-sm">
-              <ChevronLeft size={20} className="-rotate-90" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== אזור 2: תוכן וניווט ==================== */}
-      <section className="min-h-screen py-16 px-6 lg:px-12 flex flex-col items-center relative overflow-hidden"
-        style={{ background: 'linear-gradient(180deg, #0f0507 0%, #0a0c0f 40%, #0a0c0f 100%)' }}
-      >
-
-        {/* ═══════════ שכבת רקע דקורטיבית ═══════════ */}
-
-        {/* Glow ראשי — מרכז עליון */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-red-700/[0.12] blur-[140px] rounded-full pointer-events-none" />
-
-        {/* Glow משני — פינה שמאלית תחתונה */}
-        <div className="absolute bottom-20 left-0 w-[400px] h-[400px] bg-red-900/[0.10] blur-[100px] rounded-full pointer-events-none" />
-
-        {/* Glow שלישי — פינה ימנית */}
-        <div className="absolute top-1/3 right-0 w-[300px] h-[300px] bg-red-800/[0.08] blur-[90px] rounded-full pointer-events-none" />
-
-        {/* Grid נקודות — texture צבאית */}
-        <div
-          className="absolute inset-0 pointer-events-none opacity-[0.035]"
-          style={{
-            backgroundImage: 'radial-gradient(circle, #ef4444 1px, transparent 1px)',
-            backgroundSize: '32px 32px',
-          }}
-        />
-
-        {/* קווים אלכסוניים */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          {/* קו אלכסוני 1 */}
-          <div className="absolute top-[-10%] left-[-5%] w-[150%] h-[1px] bg-gradient-to-r from-transparent via-red-600/10 to-transparent rotate-[18deg] origin-left" />
-          {/* קו אלכסוני 2 */}
-          <div className="absolute top-[30%] left-[-5%] w-[150%] h-[1px] bg-gradient-to-r from-transparent via-red-600/8 to-transparent rotate-[18deg] origin-left" />
-          {/* קו אלכסוני 3 - הפוך */}
-          <div className="absolute top-[60%] right-[-5%] w-[150%] h-[1px] bg-gradient-to-l from-transparent via-red-900/10 to-transparent -rotate-[12deg] origin-right" />
+                {cards.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {cards.map((card) => {
+                      const cardUniqueId = `${cat.id}-${card.id}`;
+                      return (
+                        <FlipCard
+                          key={card.id}
+                          id={cardUniqueId}
+                          title={card.title}
+                          icon={card.icon}
+                          subLinks={card.subLinks}
+                          isFlipped={flippedCardId === cardUniqueId}
+                          onFlip={handleFlip}
+                        />
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="w-full bg-gradient-to-br from-[#1a1c23] to-[#111318] border border-dashed border-gray-800 rounded-3xl h-64 flex flex-col items-center justify-center text-gray-600">
+                    <div className="bg-white/5 border border-white/10 p-5 rounded-2xl mb-4">
+                      <ImageIcon size={40} className="opacity-30 text-gray-500" />
+                    </div>
+                    <p className="text-xl font-medium text-gray-500">התוכן טרם הוזן</p>
+                  </div>
+                )}
+              </section>
+            );
+          })}
         </div>
 
-        {/* עיגול dashed מסתובב */}
-        <div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full border border-dashed border-red-900/20 pointer-events-none"
-          style={{ transform: 'translate(-50%, -50%) rotate(15deg)' }}
-        />
-        <div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full border border-red-900/10 pointer-events-none"
-          style={{ transform: 'translate(-50%, -50%) rotate(-8deg)' }}
-        />
-
-        {/* סוגריים פינתיים — פינה שמאלית עליונה */}
-        <div className="absolute top-8 left-8 pointer-events-none opacity-20">
-          <div className="w-8 h-8 border-t-2 border-l-2 border-red-600" />
-        </div>
-        {/* סוגריים פינתיים — פינה ימנית עליונה */}
-        <div className="absolute top-8 right-8 pointer-events-none opacity-20">
-          <div className="w-8 h-8 border-t-2 border-r-2 border-red-600" />
-        </div>
-        {/* סוגריים פינתיים — פינה שמאלית תחתונה */}
-        <div className="absolute bottom-8 left-8 pointer-events-none opacity-20">
-          <div className="w-8 h-8 border-b-2 border-l-2 border-red-600" />
-        </div>
-        {/* סוגריים פינתיים — פינה ימנית תחתונה */}
-        <div className="absolute bottom-8 right-8 pointer-events-none opacity-20">
-          <div className="w-8 h-8 border-b-2 border-r-2 border-red-600" />
-        </div>
-
-        {/* קו גבול עליון זוהר */}
-        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-red-600/40 to-transparent pointer-events-none" />
-
-        {/* ═══════════ תוכן ═══════════ */}
-        <div className="w-full max-w-[1400px] flex flex-col gap-12 relative z-10">
-
-          {/* ניווט קטגוריות */}
-          <div className="w-full bg-[#111318]/90 backdrop-blur-xl rounded-2xl border border-red-900/30 p-2 overflow-x-auto flex items-center justify-start xl:justify-center gap-2 sticky top-4 z-20 shadow-[0_8px_32px_rgba(0,0,0,0.5),0_0_0_1px_rgba(220,38,38,0.08)] ">
-            {CATEGORIES.map((category) => {
-              const CategoryIcon = category.icon;
-              return (
-                <button
-                  key={category.id}
-                  onClick={() => setActiveCategory(category.id)}
-                  className={`flex items-center gap-2 px-5 py-3 rounded-xl font-medium transition-all text-sm whitespace-nowrap ${activeCategory === category.id
-                    ? 'bg-red-600 text-white shadow-[0_4px_20px_rgba(220,38,38,0.4)]'
-                    : 'text-gray-400 hover:bg-red-500/5 hover:text-white'
-                    }`}
-                >
-                  {CategoryIcon && <CategoryIcon size={18} />}
-                  {category.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* תוכן הקטגוריה */}
-          <div className="mt-4">
-            <div className="flex items-center gap-4 mb-10 px-2 pb-4 relative">
-              {/* border-b עם gradient אדום */}
-              <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-red-600/50 via-red-600/20 to-transparent" />
-              <div className="bg-red-500/10 text-red-500 p-3 rounded-xl border border-red-500/20 shadow-[0_0_15px_rgba(220,38,38,0.15)]">
-                {CategoryIconLarge && <CategoryIconLarge size={24} />}
-              </div>
-              <h2 className="text-2xl font-bold text-white tracking-wide">{selectedCategoryObj?.label}</h2>
-              {/* Dot מהבהב */}
-              <span className="flex h-2 w-2 mr-1">
-                <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-red-500 opacity-60"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
-              </span>
-            </div>
-
-            {currentCards.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {currentCards.map((card) => (
-                  <FlipCard key={card.id} title={card.title} icon={card.icon} />
-                ))}
-              </div>
-            ) : (
-              <div className="w-full bg-gradient-to-br from-red-950/20 to-[#111318] border border-dashed border-red-900/40 rounded-3xl h-64 flex flex-col items-center justify-center text-gray-600">
-                <div className="bg-red-500/5 border border-red-900/20 p-5 rounded-2xl mb-4">
-                  <ImageIcon size={40} className="opacity-30 text-red-400" />
-                </div>
-                <p className="text-xl font-medium text-gray-600">התוכן טרם הוזן</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
+      </div>
     </div>
   );
 }
