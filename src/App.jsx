@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 import AdminEvents from './components/AdminEvents';
 import EventsList from './components/EventsList';
 import {
@@ -19,6 +20,7 @@ const BACKGROUNDS = [
 
 import { DynamicIcon } from './components/DynamicIcon';
 import { useNavigation } from './context/NavigationContext';
+import { useAuth } from './context/AuthContext';
 import AdminHub from './components/AdminHub';
 
 export const FlipCard = ({ id, title, icon: iconName, subLinks = [], url, isFlipped, onFlip }) => {
@@ -96,13 +98,24 @@ export const FlipCard = ({ id, title, icon: iconName, subLinks = [], url, isFlip
   );
 };
 
-export default function App() {
-  const [currentView, setCurrentView] = useState('home');
-  const onOpenAdmin = () => setCurrentView('admin');
+function Home() {
+  const navigate = useNavigate();
+  const onOpenAdmin = () => navigate('/admin');
   const [bgIndex, setBgIndex] = useState(0);
   const [flippedCardId, setFlippedCardId] = useState(null);
 
   const { navItems, loading } = useNavigation();
+  const { currentUser } = useAuth();
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour >= 6 && hour < 12) return 'בוקר טוב';
+    if (hour >= 12 && hour < 16) return 'צהריים טובים';
+    if (hour >= 16 && hour < 18) return 'אחה"צ טובים';
+    if (hour >= 18 && hour < 22) return 'ערב טוב';
+    return 'לילה טוב';
+  };
+  const userName = currentUser?.displayName || 'אורח';
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -123,10 +136,6 @@ export default function App() {
   const handleFlip = (id) => {
     setFlippedCardId(id);
   };
-
-  if (currentView === 'admin') {
-    return <AdminHub onClose={() => setCurrentView('home')} />;
-  }
 
   return (
     <div dir="rtl" className="min-h-screen relative bg-[#0c0d12] text-white font-heebo selection:bg-red-500/30">
@@ -204,13 +213,10 @@ export default function App() {
             <button onClick={onOpenAdmin} className="bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-white px-6 h-10 font-bold transition rounded-sm text-sm whitespace-nowrap hidden sm:block">
               ניהול
             </button>
-            <button className="bg-red-600 hover:bg-red-700 text-white px-8 h-10 font-bold transition rounded-sm">
-              התחברות
-            </button>
-            <button className="flex items-center gap-2 border border-red-900 bg-[#12141a]/80 text-red-500 hover:bg-[#12141a]/90 px-4 h-10 transition rounded-sm">
-              <Target size={16} />
-              <span className="font-bold">חמ"ל</span>
-            </button>
+            <div className="flex items-center text-white px-4 h-10 whitespace-nowrap bg-[#12141a]/60 border border-white/10 rounded-sm">
+              <span className="text-gray-300 font-medium ml-1.5">{getGreeting()}</span>
+              <span className="font-bold text-red-400">{userName}</span>
+            </div>
           </div>
         </nav>
 
@@ -362,5 +368,14 @@ export default function App() {
 
       </div >
     </div >
+  );
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/admin/*" element={<AdminHub />} />
+    </Routes>
   );
 }

@@ -1,52 +1,87 @@
 import React, { useState } from 'react';
-import { Undo2 } from 'lucide-react';
+import { Undo2, Calendar, Users, Menu } from 'lucide-react';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import AdminEvents from './AdminEvents';
 import AdminNavigation from './AdminNavigation';
 
-export default function AdminHub({ onClose }) {
-    const [activeTab, setActiveTab] = useState('events');
+export default function AdminHub() {
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    // Determine active tab based on path
+    const activeTab = location.pathname.includes('/navigation') ? 'navigation' : 'events';
 
     return (
-        <div dir="rtl" className="min-h-screen bg-[#0c0d12] text-white font-heebo p-8">
-            <div className="max-w-6xl mx-auto">
-                <div className="flex justify-between items-center mb-8 border-b border-gray-800 pb-4">
-                    <h1 className="text-3xl font-black text-white">ממשק משתמש (ניהול)</h1>
-                    <button
-                        onClick={onClose}
-                        className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-md transition"
-                    >
-                        <span>חזרה לאתר</span>
-                        <Undo2 size={18} />
-                    </button>
-                </div>
-
-                {/* Tabs */}
-                <div className="flex gap-4 mb-8 border-b border-gray-800/50 pb-2">
-                    <button
-                        onClick={() => setActiveTab('events')}
-                        className={`px-6 py-2 text-lg font-bold transition-all rounded-t-lg ${activeTab === 'events' ? 'text-white border-b-2 border-red-500 bg-red-900/10' : 'text-gray-500 hover:text-gray-300'}`}
-                    >
-                        ניהול מופעים
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('navigation')}
-                        className={`px-6 py-2 text-lg font-bold transition-all rounded-t-lg ${activeTab === 'navigation' ? 'text-white border-b-2 border-red-500 bg-red-900/10' : 'text-gray-500 hover:text-gray-300'}`}
-                    >
-                        ניהול המידע (ניווט)
-                    </button>
-                </div>
-
-                {/* Content Area */}
-                <div className="bg-[#0c0d12] rounded-xl">
-                    {activeTab === 'events' ? (
-                        // We wrap AdminEvents but we don't need its internal "back to site" button anymore since the hub has it.
-                        // It still works. We can hide the internal title in CSS or let it be for now.
-                        <div className="admin-events-wrapper">
-                            <AdminEvents onClose={onClose} />
+        <div dir="rtl" className="flex h-screen bg-[#1e212b] text-white font-heebo overflow-hidden">
+            {/* Sidebar */}
+            <div className={`${isSidebarOpen ? 'w-72' : 'w-20'} bg-[#232733] border-l border-white/5 flex flex-col transition-all duration-300 z-50 shrink-0 shadow-[0_0_20px_rgba(0,0,0,0.5)]`}>
+                <div className="flex items-center justify-between p-6 border-b border-white/5 h-20 shrink-0">
+                    {isSidebarOpen ? (
+                        <div className="flex items-center gap-3 w-full">
+                            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-400 hover:text-white transition shrink-0">
+                                <Menu size={24} />
+                            </button>
+                            <h1 className="text-xl font-bold text-gray-200 whitespace-nowrap">ממשק ניהול</h1>
                         </div>
                     ) : (
-                        <AdminNavigation />
+                        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-400 hover:text-white transition mx-auto">
+                            <Menu size={24} />
+                        </button>
                     )}
+                </div>
+
+                <div className="flex-1 overflow-y-auto py-6 px-4 space-y-2">
+                    <button
+                        onClick={() => navigate('/admin')}
+                        className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all ${activeTab === 'events'
+                            ? 'bg-white/10 text-white shadow-sm border border-white/10'
+                            : 'text-gray-400 hover:bg-white/5 hover:text-gray-200 border border-transparent'
+                            }`}
+                        title="ניהול אירועים"
+                    >
+                        <Calendar size={22} className={activeTab === 'events' ? 'text-gray-200' : ''} />
+                        {isSidebarOpen && <span className="font-medium whitespace-nowrap text-[15px]">ניהול אירועים</span>}
+                    </button>
+
+                    <button
+                        onClick={() => navigate('/admin/navigation')}
+                        className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all ${activeTab === 'navigation'
+                            ? 'bg-white/10 text-white shadow-sm border border-white/10'
+                            : 'text-gray-400 hover:bg-white/5 hover:text-gray-200 border border-transparent'
+                            }`}
+                        title="ניהול מידע"
+                    >
+                        <Users size={22} className={activeTab === 'navigation' ? 'text-gray-200' : ''} />
+                        {isSidebarOpen && <span className="font-medium whitespace-nowrap text-[15px]">ניהול מידע</span>}
+                    </button>
+
+                    <button
+                        onClick={() => navigate('/')}
+                        className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all text-gray-400 hover:bg-white/5 hover:text-gray-200 border border-transparent mt-4`}
+                        title="חזרה לאתר"
+                    >
+                        <Undo2 size={22} />
+                        {isSidebarOpen && <span className="font-medium whitespace-nowrap text-[15px]">חזרה לאתר</span>}
+                    </button>
+                </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="flex-1 flex flex-col h-full bg-[#1e212b] overflow-hidden">
+                <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
+                    <Routes>
+                        <Route path="/" element={
+                            <div className="w-full h-full">
+                                <AdminEvents onClose={() => navigate('/')} inHub={true} />
+                            </div>
+                        } />
+                        <Route path="/navigation" element={
+                            <div className="w-full h-full p-8 max-w-7xl mx-auto">
+                                <AdminNavigation />
+                            </div>
+                        } />
+                    </Routes>
                 </div>
             </div>
         </div>

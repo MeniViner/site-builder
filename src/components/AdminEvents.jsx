@@ -1,38 +1,60 @@
 import React, { useState } from 'react';
 import { useEvents } from '../context/EventsContext';
-import { Undo2, Plus, Trash2, Save, AlertTriangle } from 'lucide-react';
+import { Undo2, Plus, Trash2, Edit2, AlertTriangle, Calendar, Save, X } from 'lucide-react';
 
-export default function AdminEvents({ onClose }) {
+const STATUS_OPTIONS = [
+    { value: 'gray', label: 'אפור (כלל משתמשי חרום)', colorClass: 'bg-gray-500', textClass: 'text-gray-200' },
+    { value: 'red', label: 'אדום (דחוף / חשוב)', colorClass: 'bg-red-500', textClass: 'text-white' },
+    // { value: 'green', label: 'ירוק (פנוי / מאושר)', colorClass: 'bg-green-500', textClass: 'text-white' }
+];
+
+export default function AdminEvents({ onClose, inHub = false }) {
     const { events: initialEvents, displayCount: initialDisplayCount, loading, error, saveEvents } = useEvents();
     const [events, setEvents] = useState(initialEvents || []);
     const [displayCount, setDisplayCount] = useState(initialDisplayCount || 3);
     const [isSaving, setIsSaving] = useState(false);
 
-    const handleAdd = () => {
-        setEvents([
-            ...events,
-            { id: Date.now().toString(), date: new Date().toISOString().split('T')[0], title: '', subtitle: '', color: 'gray' }
-        ]);
-    };
+    // UI state
+
+    // Modal state
+    const [editingEvent, setEditingEvent] = useState(null);
 
     const handleRemove = (id) => {
-        setEvents(events.filter(e => e.id !== id));
+        if (window.confirm('האם אתה בטוח שברצונך למחוק אירוע זה?')) {
+            setEvents(events.filter(e => e.id !== id));
+        }
     };
 
-    const handleChange = (id, field, value) => {
-        setEvents(events.map(e => e.id === id ? { ...e, [field]: value } : e));
-    };
-
-    const handleSave = async () => {
+    const handleSaveDisplay = async () => {
         setIsSaving(true);
         const success = await saveEvents(events, displayCount);
         setIsSaving(false);
         if (success) {
-            alert('הנתונים נשמרו בהצלחה!');
-            onClose();
+            alert('התצוגה עודכנה בהצלחה!');
         } else {
-            alert('שגיאה בשמירת הנתונים. אנא נסה שוב.');
+            alert('שגיאה בעדכון התצוגה. אנא נסה שוב.');
         }
+    };
+
+    const handleSaveEvent = (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+
+        const newEvent = {
+            id: editingEvent.id || Date.now().toString(),
+            date: formData.get('date'),
+            title: formData.get('title'),
+            subtitle: formData.get('subtitle'),
+            color: formData.get('color')
+        };
+
+        if (editingEvent.isNew) {
+            setEvents([...events, newEvent]);
+        } else {
+            setEvents(events.map(ev => ev.id === newEvent.id ? newEvent : ev));
+        }
+
+        setEditingEvent(null);
     };
 
     if (loading && !events.length) {
@@ -40,127 +62,219 @@ export default function AdminEvents({ onClose }) {
     }
 
     return (
-        <div dir="rtl" className="min-h-screen bg-[#0c0d12] text-white font-heebo p-8">
-            <div className="max-w-4xl mx-auto">
-                <div className="flex justify-between items-center mb-8 border-b border-gray-800 pb-4">
-                    <h1 className="text-3xl font-black text-white">ניהול מופעי החודש</h1>
+        <div dir="rtl" className={`min-h-screen bg-[#1e212b] text-white font-heebo ${inHub ? 'p-8' : 'p-8 max-w-7xl mx-auto'}`}>
+            <div className="flex justify-between items-center mb-8 border-b border-white/10 pb-4">
+                <h1 className="text-3xl font-black text-white">ניהול אירועי החודש</h1>
+                {!inHub && (
                     <button
                         onClick={onClose}
-                        className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-md transition"
+                        className="flex items-center gap-2 bg-[#4263eb] hover:bg-[#3b5bdb] text-white px-4 py-2 rounded-md transition"
                     >
                         <span>חזרה לאתר</span>
                         <Undo2 size={18} />
                     </button>
-                </div>
-
-                {error && (
-                    <div className="mb-6 p-4 bg-red-900/50 border border-red-500 rounded-lg flex items-center gap-3">
-                        <AlertTriangle className="text-red-400" />
-                        <span className="text-red-200">{error}</span>
-                    </div>
                 )}
+            </div>
 
-                <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6 mb-8 flex items-center justify-between">
-                    <div>
-                        <h2 className="text-xl font-bold text-white mb-1">הגדרות תצוגה</h2>
-                        <p className="text-gray-400 text-sm">קבע כמה אירועים יוצגו בו-זמנית בחלון (השאר יתחלפו באנימציה).</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <label className="text-sm font-bold text-gray-300">כמות צפייה:</label>
-                        <input
-                            type="number"
-                            min="1"
-                            max="10"
-                            value={displayCount}
-                            onChange={(e) => setDisplayCount(Number(e.target.value))}
-                            className="bg-black/50 border border-gray-700 rounded-md px-4 py-2 text-white outline-none focus:border-red-500 w-24 text-center text-lg font-bold"
-                        />
-                    </div>
+            {error && (
+                <div className="mb-6 p-4 bg-red-900/50 border border-red-500 rounded-lg flex items-center gap-3">
+                    <AlertTriangle className="text-red-400" />
+                    <span className="text-red-200">{error}</span>
                 </div>
+            )}
 
-                <div className="space-y-4 mb-8">
-                    {events.map((event, index) => (
-                        <div key={event.id} className="bg-gray-800/40 hover:bg-gray-800/60 transition border border-gray-700/50 rounded-xl p-4 flex flex-col gap-4 relative group">
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                <div className="md:col-span-1">
-                                    <label className="block text-[11px] text-gray-400 mb-1 uppercase tracking-wider font-bold">תאריך המופע</label>
-                                    <input
-                                        type="date"
-                                        value={event.date || ''}
-                                        onChange={(e) => handleChange(event.id, 'date', e.target.value)}
-                                        className="w-full bg-black/40 border border-gray-700/50 rounded-lg px-3 py-2 text-white outline-none focus:border-red-500/80 transition focus:bg-black/60"
-                                    />
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label className="block text-[11px] text-gray-400 mb-1 uppercase tracking-wider font-bold">כותרת ראשי</label>
-                                    <input
-                                        type="text"
-                                        value={event.title}
-                                        onChange={(e) => handleChange(event.id, 'title', e.target.value)}
-                                        className="w-full bg-black/40 border border-gray-700/50 rounded-lg px-3 py-2 text-white outline-none focus:border-red-500/80 transition focus:bg-black/60 font-bold"
-                                        placeholder="הזן שם מופע פה..."
-                                    />
-                                </div>
-                                <div className="md:col-span-1">
-                                    <label className="block text-[11px] text-gray-400 mb-1 uppercase tracking-wider font-bold">צבע תצוגה</label>
-                                    <select
-                                        value={event.color}
-                                        onChange={(e) => handleChange(event.id, 'color', e.target.value)}
-                                        className="w-full bg-black/40 border border-gray-700/50 rounded-lg px-3 py-2 text-white outline-none focus:border-red-500/80 transition focus:bg-black/60"
-                                    >
-                                        <option value="gray">אפור (שגרתי)</option>
-                                        <option value="red">אדום (חריג/חשוב)</option>
-                                    </select>
+            {/* Top Control Bar */}
+            <div className="bg-[#232733] border border-white/5 rounded-xl p-6 mb-8 mt-2 flex flex-col md:flex-row items-end md:items-center justify-between gap-6 relative">
+                <div className="flex items-center gap-6 w-full md:w-auto">
+
+                    <div className="flex items-center gap-6 text-sm font-bold text-gray-300 mr-auto md:mr-0">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <span className="font-medium">כמות להצגה</span>
+                            <div className="relative">
+                                <select
+                                    className="appearance-none bg-[#1e212b] border border-gray-700/50 rounded-lg px-4 py-2 pr-4 pl-8 text-white outline-none focus:border-[#4263eb] font-medium min-w-[100px]"
+                                    value={displayCount}
+                                    onChange={(e) => setDisplayCount(Number(e.target.value))}
+                                >
+                                    {[2, 3, 4, 5].map(n => (
+                                        <option key={n} value={n}>{n}</option>
+                                    ))}
+                                </select>
+                                <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
                                 </div>
                             </div>
-                            <div className="flex flex-col md:flex-row gap-4 items-end">
-                                <div className="flex-1 w-full">
-                                    <label className="block text-[11px] text-gray-400 mb-1 uppercase tracking-wider font-bold">תת-כותרת (פירוט נוסף)</label>
-                                    <input
-                                        type="text"
-                                        value={event.subtitle}
-                                        onChange={(e) => handleChange(event.id, 'subtitle', e.target.value)}
-                                        className="w-full bg-black/40 border border-gray-700/50 rounded-lg px-3 py-2 text-gray-300 outline-none focus:border-red-500/80 transition focus:bg-black/60 text-sm"
-                                        placeholder="פרטים נוספים למשל: שעות או קהל יעד..."
-                                    />
+                        </label>
+                    </div>
+
+                    <button
+                        onClick={handleSaveDisplay}
+                        disabled={isSaving}
+                        className="bg-[#4263eb] hover:bg-[#3b5bdb] disabled:opacity-50 text-white px-6 py-2.5 rounded-lg font-bold transition whitespace-nowrap"
+                    >
+                        {isSaving ? 'מעדכן...' : 'עדכן תצוגה'}
+                    </button>
+
+                </div>
+
+                <div className="absolute top-1 right-6 text-sm font-bold text-white tracking-wide">
+                    הגדרות תצוגה
+                </div>
+
+                {/* <div className="flex items-center gap-6 w-full md:w-auto mt-2 md:mt-0">
+                    <label className="flex items-center gap-2 cursor-pointer font-medium text-gray-300">
+                        <span>הצג הכל</span>
+                        <div className="relative">
+                            <input type="checkbox" className="sr-only" checked={showAll} onChange={() => setShowAll(!showAll)} />
+                            <div className={`w-10 h-5 rounded-full transition-colors ${showAll ? 'bg-[#4263eb]' : 'bg-gray-600'}`}></div>
+                            <div className={`absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform ${showAll ? 'translate-x-[-20px]' : ''}`}></div>
+                        </div>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer font-medium text-gray-300">
+                        <span>כח צפייה</span>
+                        <div className="relative">
+                            <input type="checkbox" className="sr-only" checked={viewPower} onChange={() => setViewPower(!viewPower)} />
+                            <div className={`w-10 h-5 rounded-full transition-colors ${viewPower ? 'bg-[#4263eb]' : 'bg-gray-600'}`}></div>
+                            <div className={`absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform ${viewPower ? 'translate-x-[-20px]' : ''}`}></div>
+                        </div>
+                    </label>
+                </div> */}
+            </div>
+
+            {/* Grid of Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 pb-8">
+                {events.map((event) => {
+                    const statusOpt = STATUS_OPTIONS.find(s => s.value === event.color) || STATUS_OPTIONS[0];
+                    return (
+                        <div key={event.id} className="bg-[#232733] border border-white/5 rounded-xl flex flex-col relative overflow-hidden group">
+                            <div className="p-5 flex-1 flex flex-col items-center justify-center min-h-[160px] text-center">
+                                <div className="absolute top-4 left-4 flex items-center gap-1.5 text-gray-400 text-sm">
+                                    <span>תאריך אירוע</span>
+                                    <Calendar size={14} />
                                 </div>
+
+                                {event.date && (
+                                    <div className="absolute top-9 left-4 text-xs font-bold text-gray-500">
+                                        {event.date}
+                                    </div>
+                                )}
+
+                                <h3 className="text-2xl font-black text-white mt-8 mb-1 px-4">{event.title || 'ללא כותרת'}</h3>
+                                <p className="text-gray-400 text-[15px] mb-4">{event.subtitle || 'תיאור קצר'}</p>
+
+                                <div className="flex flex-col items-center gap-1 mt-auto">
+                                    <span className="text-sm font-medium text-gray-300 tracking-wider">סטטוס</span>
+                                    <div className={`px-4 py-1.5 rounded-full text-xs font-bold ${statusOpt.colorClass} ${statusOpt.textClass}`}>
+                                        {statusOpt.label}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex border-t border-white/5 bg-[#1e212b]/50">
                                 <button
                                     onClick={() => handleRemove(event.id)}
-                                    className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 hover:border-red-500/40 transition rounded-lg px-4 py-2 flex items-center justify-center h-[38px] w-full md:w-auto mt-2 md:mt-0"
-                                    title="מחק מופע"
+                                    className="flex-1 flex items-center justify-center gap-2 py-3 text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition"
                                 >
-                                    <Trash2 size={18} />
+                                    <span>מחיקה</span>
+                                    <Trash2 size={16} />
+                                </button>
+                                <div className="w-px bg-white/5"></div>
+                                <button
+                                    onClick={() => setEditingEvent({ ...event, isNew: false })}
+                                    className="flex-1 flex items-center justify-center gap-2 py-3 text-gray-400 hover:text-white hover:bg-white/5 transition"
+                                >
+                                    <span>עריכה</span>
+                                    <Edit2 size={16} />
                                 </button>
                             </div>
                         </div>
-                    ))}
+                    );
+                })}
 
-                    {events.length === 0 && (
-                        <div className="text-center text-gray-500 py-8 border border-dashed border-gray-800 rounded-xl">
-                            אין מופעים, לחץ על הוסף מופע למטה.
-                        </div>
-                    )}
-                </div>
-
-                <div className="flex justify-between items-center border-t border-gray-800 pt-6">
-                    <button
-                        onClick={handleAdd}
-                        className="flex items-center gap-2 text-red-400 hover:text-red-300 transition"
-                    >
-                        <Plus size={20} />
-                        <span className="font-medium">הוסף מופע</span>
-                    </button>
-
-                    <button
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-8 py-3 rounded-md font-bold transition shadow-[0_0_15px_rgba(220,38,38,0.3)]"
-                    >
-                        <Save size={20} />
-                        <span>{isSaving ? 'שומר...' : 'שמור שינויים'}</span>
-                    </button>
-                </div>
+                {/* Add New Card Button */}
+                <button
+                    onClick={() => setEditingEvent({ date: new Date().toISOString().split('T')[0], title: '', subtitle: '', color: 'gray', isNew: true })}
+                    className="bg-[#232733]/50 border-2 border-dashed border-white/10 hover:border-white/30 hover:bg-[#232733] transition rounded-xl flex flex-col items-center justify-center min-h-[220px] text-gray-400 hover:text-white group"
+                >
+                    <div className="bg-white/5 p-4 rounded-full mb-3 group-hover:scale-110 transition-transform">
+                        <Plus size={24} />
+                    </div>
+                    <span className="font-bold">הוסף אירוע חדש</span>
+                </button>
             </div>
+
+            {/* Modal */}
+            {editingEvent && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-[#1e212b] border border-gray-800 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col">
+                        <div className="flex items-center justify-between p-6 border-b border-gray-800/80">
+                            <h2 className="text-xl font-bold text-white">{editingEvent.isNew ? 'הוסף אירוע חדש' : 'עריכת אירוע'}</h2>
+                            <button onClick={() => setEditingEvent(null)} className="text-gray-400 hover:text-white transition">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveEvent} className="p-6 flex flex-col gap-5">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-300 mb-2">תאריך אירוע</label>
+                                <input
+                                    name="date"
+                                    type="date"
+                                    defaultValue={editingEvent.date}
+                                    required
+                                    className="w-full bg-[#151821] border border-gray-700/50 rounded-xl px-4 py-3 text-white outline-none focus:border-[#4263eb] transition font-medium"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-gray-300 mb-2">כותרת ראשית</label>
+                                <input
+                                    name="title"
+                                    type="text"
+                                    defaultValue={editingEvent.title}
+                                    required
+                                    placeholder="הזן שם מופע..."
+                                    className="w-full bg-[#151821] border border-gray-700/50 rounded-xl px-4 py-3 text-white outline-none focus:border-[#4263eb] transition font-medium"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-gray-300 mb-2">תת-כותרת (תיאור קצר)</label>
+                                <input
+                                    name="subtitle"
+                                    type="text"
+                                    defaultValue={editingEvent.subtitle}
+                                    placeholder="פרטים נוספים למשל: שעות או קהל יעד..."
+                                    className="w-full bg-[#151821] border border-gray-700/50 rounded-xl px-4 py-3 text-white outline-none focus:border-[#4263eb] transition text-sm"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-gray-300 mb-2">סטטוס מופע / צבע</label>
+                                <select
+                                    name="color"
+                                    defaultValue={editingEvent.color || 'gray'}
+                                    className="w-full bg-[#151821] border border-gray-700/50 rounded-xl px-4 py-3 text-white outline-none focus:border-[#4263eb] transition text-sm"
+                                >
+                                    {STATUS_OPTIONS.map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="flex gap-4 mt-4 pt-4 border-t border-gray-800/80">
+                                <button type="submit" className="flex-1 bg-[#4263eb] hover:bg-[#3b5bdb] text-white py-3 rounded-xl font-bold transition">
+                                    שמור שינויים
+                                </button>
+                                <button type="button" onClick={() => setEditingEvent(null)} className="flex-1 bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl font-bold transition">
+                                    ביטול
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

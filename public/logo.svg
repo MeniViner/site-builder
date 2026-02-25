@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <rect width="500" height="500" fill="#000000" />
+  
+  <circle cx="250" cy="250" r="230" fill="none" stroke="#ffffff" stroke-width="4" />
+  
+  <clipPath id="circle-clip">
+    <circle cx="250" cy="250" r="228" />
+  </clipPath>
+
+  <g clip-path="url(#circle-clip)">
+    <defs>
+      <linearGradient id="redGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#ff1a1a" />
+        <stop offset="100%" stop-color="#800000" />
+      </linearGradient>
+      <linearGradient id="whiteGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#ffffff" />
+        <stop offset="100%" stop-color="#e6e6e6" />
+      </linearGradient>
+    </defs>
+
+    <path d="M 160,90 
+             C 220,70 260,80 290,110 
+             C 270,140 290,160 340,150 
+             C 390,200 400,320 340,400 
+             C 280,470 180,430 150,340 
+             C 120,250 130,140 160,90 Z" 
+          fill="url(#whiteGrad)" />
+          
+    <path d="M 340,150 
+             C 300,160 260,180 230,220 
+             C 190,270 200,340 250,360 
+             C 290,380 320,330 350,280 
+             C 370,240 360,180 340,150 Z" 
+          fill="#000000" />
+          
+    <path d="M 160,90 C 200,150 220,200 210,300 C 200,400 150,430 150,430 C 130,350 120,200 160,90 Z" fill="#000000" />
+
+    <circle cx="270" cy="255" r="35" fill="#ffffff" />
+    <circle cx="280" cy="260" r="16" fill="#000000" />
+    <circle cx="275" cy="255" r="5" fill="#ffffff" /> <path d="M 320,305 C 340,290 360,260 380,215 C 360,260 340,280 320,305 Z" fill="url(#redGrad)" />
+    
+    <path d="M 180,310 C 220,330 250,380 220,430 C 180,410 140,360 180,310 Z" fill="url(#redGrad)" />
+    
+    <path d="M 130,190 C 150,180 170,170 190,150 C 170,200 140,240 100,270 Z" fill="url(#redGrad)" />
+    <path d="M 110,230 C 140,210 160,190 180,160 C 160,210 120,260 85,295 Z" fill="url(#redGrad)" />
+    <path d="M 95,270 C 125,245 145,220 165,185 C 140,240 100,295 70,330 Z" fill="url(#redGrad)" />
+    
+  </g>
+</svg>
