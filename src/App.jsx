@@ -280,7 +280,7 @@ function Home() {
                 <div className="flex-1 flex flex-col justify-between items-start sm:border-r border-gray-800/80 sm:pr-6 [@media(max-height:850px)]:pr-4 pt-2 pb-1 relative z-20 overflow-hidden">
                   <div className="w-full">
                     <div className="text-red-500 text-xs xl:text-sm [@media(max-height:850px)]:text-sm font-bold mb-1 opacity-90 tracking-wide">מפקד היחידה</div>
-                    <h2 className="text-2xl lg:text-3xl xl:text-4xl [@media(max-height:850px)]:text-2xl font-black text-white mb-2 xl:mb-4 [@media(max-height:850px)]:mb-1 leading-tight">דבר המפקד</h2>
+                    <h2 className="text-2xl lg:text-3xl xl:text-4xl font-black text-white mb-2 xl:mb-4  leading-tight">דבר המפקד</h2>
                     <p className="text-gray-300 text-[13px] xl:text-[14px] [@media(max-height:850px)]:text-[14px] leading-snug xl:leading-relaxed [@media(max-height:850px)]:leading-tight mb-4 xl:mb-6 [@media(max-height:850px)]:mb-2 font-medium xl:line-clamp-none line-clamp-3 [@media(max-height:850px)]:line-clamp-3">
                       "מפקדים ולוחמים, אנו ניצבים בחזית העשייה המבצעית. מצופה מכם לחתור למצוינות, להפגין מקצועיות חסרת פשרות, ולהוביל את העשייה בכל משימה אליה נדרש. יחד ננצח."
                     </p>
