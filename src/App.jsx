@@ -232,7 +232,7 @@ function Home() {
               <div className="flex flex-col md:flex-row md:items-center  gap-2 md:gap-4 lg:gap-6 [@media(max-height:850px)]:gap-4 mb-4 xl:mb-6 [@media(max-height:850px)]:mb-2 mt-1">
                 <img src="/logo_1734_rmbg.png" alt="Logo החמם" className="h-[70px] md:h-[90px] lg:h-[110px] xl:h-[130px] 2xl:h-[160px] [@media(max-height:850px)]:h-[70px] xl:[@media(max-height:850px)]:h-[80px] w-auto drop-shadow-[0_0_15px_rgba(220,38,38,0.5)] transition-transform duration-500 hover:scale-105" />
                 <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-[4.2rem] 2xl:text-7xl [@media(max-height:850px)]:text-4xl lg:[@media(max-height:850px)]:text-5xl font-black text-white drop-shadow-lg tracking-tight leading-tight lg:leading-none break-words">
-                  בית הספר לחמ"ם 7134
+                  בית הספר לחמ"ם <br /> 7134
                 </h1>
               </div>
               <p className="text-gray-300 text-base md:text-lg lg:text-xl xl:text-2xl [@media(max-height:850px)]:text-xl [@media(max-height:850px)]:leading-tight leading-relaxed mb-4 lg:mb-8 [@media(max-height:850px)]:mb-3 drop-shadow-md max-w-2xl break-words">
@@ -247,7 +247,7 @@ function Home() {
           </div>
 
           {/* Bottom Panels Container */}
-          <div className="w-full px-8 lg:px-12 xl:px-24 pb-6 lg:pb-10 xl:pb-12 flex flex-col lg:flex-row items-center lg:items-center xl:items-end justify-between gap-6 lg:gap-6 xl:gap-10 pointer-events-auto z-30 mt-8 [@media(max-height:850px)]:mt-2 lg:mt-auto">
+          <div className="w-full px-8 lg:px-12 xl:px-24 pb-6 lg:pb-10 xl:pb-12 flex flex-col lg:flex-row items-center lg:items-center xl:items-end justify-between gap-6 lg:gap-6 xl:gap-10 pointer-events-auto z-30 mt-8 [@media(max-height:850px)]:-mt-2 lg:mt-auto">
 
             {/* RIGHT BOX - "דבר המפקד" */}
             <div className="w-full lg:flex-1 lg:max-w-[700px] h-auto lg:h-[260px] xl:h-[300px] 2xl:min-h-[320px] [@media(max-height:850px)]:h-[220px] relative shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)] filter drop-shadow-[0_0_8px_rgba(220,38,38,0.1)] group">
@@ -266,11 +266,11 @@ function Home() {
               <div className="relative z-10 p-6 [@media(max-height:850px)]:p-4 flex flex-col sm:flex-row items-stretch h-full w-full">
                 <div className="w-full sm:w-[45%] relative shrink-0 sm:-ml-4 flex items-center justify-center overflow-visible mb-6 sm:mb-0">
                   {/* Background solid red */}
-                  <div className="absolute left-1/2 top-1/2 -translate-x-[40%] -translate-y-[45%] w-36 lg:w-40 xl:w-48 [@media(max-height:850px)]:w-24 h-36 lg:h-40 xl:h-48 [@media(max-height:850px)]:h-24 bg-red-600 z-0 hidden sm:block"></div>
+                  <div className="absolute left-1/2 top-1/2 -translate-x-[40%] -translate-y-[45%] w-36 lg:w-40 xl:w-48  h-36 lg:h-40 xl:h-48 bg-red-600 z-0 hidden sm:block"></div>
                   <img
                     // src="https://images.unsplash.com/photo-1564564295391-7f24f26f568b?q=80&w=300&auto=format&fit=crop"
                     src="https://yadlashiryon.com/wp-content/uploads/2019/05/26082014-1.jpg"
-                    className="w-full sm:w-36 lg:w-40 xl:w-48 [@media(max-height:850px)]:w-24 h-40 sm:h-full lg:h-[calc(100%+1.5rem)] [@media(max-height:850px)]:lg:h-[calc(100%+1rem)] object-cover object-top grayscale contrast-125 brightness-110  mix-blend-multiply relative z-10 border-b sm:border-b-0 border-gray-800"
+                    className="w-full sm:w-36 lg:w-40 xl:w-48  h-40 sm:h-full object-cover object-top grayscale contrast-125 brightness-110  mix-blend-multiply relative z-10 border-b sm:border-b-0 border-gray-800"
                     alt="Commander"
                   />
                 </div>
