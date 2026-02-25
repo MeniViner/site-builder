@@ -1,4 +1,5 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
+import { getRequestDigest } from '../utils/sharepointUtils';
 
 class EventsService {
     constructor() {
@@ -131,21 +132,8 @@ class EventsService {
 
     async _saveSharePointData(payload) {
         try {
-            // Step 1: Get security token (Form Digest)
-            const digestResponse = await fetch('/_api/contextinfo', {
-                method: 'POST',
-                credentials: 'include',
-                headers: {
-                    'Accept': 'application/json;odata=verbose',
-                }
-            });
-
-            if (!digestResponse.ok) {
-                throw new Error('Failed to get security token from SharePoint');
-            }
-
-            const digestData = await digestResponse.json();
-            const formDigestValue = digestData.d.GetContextWebInformation.FormDigestValue;
+            // Step 1: Get security token (Form Digest) with caching
+            const formDigestValue = await getRequestDigest();
 
             // Step 2: Save the file
             const fileUrl = this.config.fileServerRelativeUrl;
@@ -167,7 +155,27 @@ class EventsService {
                 throw new Error(`SharePoint save failed: ${saveResponse.status} ${saveResponse.statusText}`);
             }
 
-            console.log('Events saved to SharePoint successfully');
+            console.log('Events save request successful. Verifying...');
+
+            // Step 3: Verify the save by reading it back
+            const verifyResponse = await fetch(endpoint, {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Accept': 'application/json;odata=verbose',
+                }
+            });
+
+            if (!verifyResponse.ok) {
+                console.error(`Verification failed: ${verifyResponse.status}`);
+                throw new Error('השמירה בוצעה אך האימות נכשל. ייתכן שהנתונים לא נשמרו כראוי.');
+            }
+
+            // Optional: You could read the text and compare lengths or parse it to be 100% sure
+            // const savedText = await verifyResponse.text();
+            // console.log(`Verified save: ${savedText.length} bytes`);
+
+            console.log('Events saved and verified successfully');
             return payload;
         } catch (error) {
             console.error('Error saving SharePoint events:', error);

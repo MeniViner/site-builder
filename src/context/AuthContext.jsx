@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
+import UsersService from '../services/UsersService';
 
 const AuthContext = createContext(null);
 
@@ -15,12 +16,20 @@ export const AuthProvider = ({ children }) => {
     const [currentUser, setCurrentUser] = useState(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [loading, setLoading] = useState(true);
-
-    // Admin users list (hardcoded for now - can be moved to config later)
-    const ADMIN_USERS = ['מני', 'Admin', 'מנהל'];
+    const [adminUsersInfo, setAdminUsersInfo] = useState([]);
 
     useEffect(() => {
         const initAuth = async () => {
+            // First, fetch the allowed users list
+            let sysUsers = [];
+            try {
+                sysUsers = await UsersService.getUsers();
+                setAdminUsersInfo(sysUsers);
+            } catch (e) {
+                console.error("Error fetching admin users, falling back to empty list", e);
+            }
+
+            const adminNames = sysUsers.map(u => u.name);
             // Check if user is already logged in (SessionStorage)
             const storedUserName = sessionStorage.getItem('tracker_user_name');
 
@@ -32,10 +41,10 @@ export const AuthProvider = ({ children }) => {
                 setCurrentUser(user);
 
                 // Check if admin
-                setIsAdmin(SHAREPOINT_CONFIG.useMock || ADMIN_USERS.includes(storedUserName));
+                setIsAdmin(SHAREPOINT_CONFIG.useMock || adminNames.includes(storedUserName));
             } else {
                 // Attempt to auto-login via SharePoint if no user in session
-                await trySharePointLogin();
+                await trySharePointLogin(adminNames);
             }
 
             setLoading(false);
@@ -44,7 +53,7 @@ export const AuthProvider = ({ children }) => {
         initAuth();
     }, []);
 
-    const signIn = (userName) => {
+    const signIn = (userName, adminNames) => {
         if (!userName || userName.trim() === '') {
             throw new Error('שם משתמש נדרש');
         }
@@ -60,7 +69,10 @@ export const AuthProvider = ({ children }) => {
         };
 
         setCurrentUser(user);
-        setIsAdmin(SHAREPOINT_CONFIG.useMock || ADMIN_USERS.includes(trimmedName));
+
+        // Use the passed adminNames or fallback to state
+        const listToCheck = adminNames || adminUsersInfo.map(u => u.name);
+        setIsAdmin(SHAREPOINT_CONFIG.useMock || listToCheck.includes(trimmedName));
     };
 
     const signOut = () => {
@@ -72,7 +84,7 @@ export const AuthProvider = ({ children }) => {
     /**
      * Attempt to fetch current SharePoint user
      */
-    const trySharePointLogin = async () => {
+    const trySharePointLogin = async (adminNames) => {
         try {
             const response = await fetch('/_api/web/currentuser', {
                 method: 'GET',
@@ -87,7 +99,7 @@ export const AuthProvider = ({ children }) => {
                 const userName = data.d.Title || data.d.LoginName;
 
                 if (userName) {
-                    signIn(userName);
+                    signIn(userName, adminNames);
                     return true;
                 }
             }

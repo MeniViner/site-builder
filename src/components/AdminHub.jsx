@@ -1,16 +1,37 @@
 import React, { useState } from 'react';
-import { Undo2, Calendar, Users, Menu } from 'lucide-react';
+import { Undo2, Calendar, Users, Menu, RefreshCw, Save } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import AdminEvents from './AdminEvents';
 import AdminNavigation from './AdminNavigation';
+import { createBackup } from '../utils/sharepointUtils';
+import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 
 export default function AdminHub() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const navigate = useNavigate();
     const location = useLocation();
+    const [isBackingUp, setIsBackingUp] = useState(false);
 
     // Determine active tab based on path
     const activeTab = location.pathname.includes('/navigation') ? 'navigation' : 'events';
+
+    const handleBackup = async () => {
+        if (SHAREPOINT_CONFIG.useMock) {
+            alert('גיבוי לא נתמך במצב פיתוח (Mock)');
+            return;
+        }
+
+        if (window.confirm('האם ליצור גיבוי של כלל הנתונים עכשיו?')) {
+            setIsBackingUp(true);
+            const success = await createBackup();
+            setIsBackingUp(false);
+            if (success) {
+                alert('הגיבוי נוצר בהצלחה!');
+            } else {
+                alert('שגיאה ביצירת הגיבוי. אנא נסה שוב או בדוק את הלוגים.');
+            }
+        }
+    };
 
     return (
         <div dir="rtl" className="flex h-screen bg-[#1e212b] text-white font-heebo overflow-hidden">
@@ -64,6 +85,18 @@ export default function AdminHub() {
                         <Undo2 size={22} />
                         {isSidebarOpen && <span className="font-medium whitespace-nowrap text-[15px]">חזרה לאתר</span>}
                     </button>
+
+                    <div className="pt-6 mt-6 border-t border-white/10">
+                        <button
+                            onClick={handleBackup}
+                            disabled={isBackingUp}
+                            className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all ${isBackingUp ? 'opacity-50 cursor-not-allowed' : 'text-blue-400 hover:bg-blue-500/10 hover:text-blue-300'}`}
+                            title="גיבוי מערכת"
+                        >
+                            <Save size={22} className={isBackingUp ? 'animate-pulse' : ''} />
+                            {isSidebarOpen && <span className="font-medium whitespace-nowrap text-[15px]">{isBackingUp ? 'מגבה נתונים...' : 'גיבוי מערכת ידני'}</span>}
+                        </button>
+                    </div>
                 </div>
             </div>
 

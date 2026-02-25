@@ -1,15 +1,23 @@
 import React, { useState } from 'react';
 import { useNavigation } from '../context/NavigationContext';
 import { DynamicIcon } from './DynamicIcon';
-import { Plus, Trash2, Save, AlertTriangle, ChevronDown, ChevronUp, Link as LinkIcon, Folder } from 'lucide-react';
+import {
+    Plus, Trash2, Save, AlertTriangle, ChevronLeft, ChevronDown,
+    Folder, FolderOpen, FileText, Link as LinkIcon, Home, Search
+} from 'lucide-react';
 
 export default function AdminNavigation() {
     const { navItems: initialNavItems, loading, error, saveNavigation } = useNavigation();
     const [navItems, setNavItems] = useState(initialNavItems || []);
     const [isSaving, setIsSaving] = useState(false);
-    const [expandedNodes, setExpandedNodes] = useState(new Set());
 
-    const toggleExpand = (id) => {
+    // Navigation State
+    const [selectedPath, setSelectedPath] = useState([]); // [] = root, [catId], [catId, subId]
+    const [expandedNodes, setExpandedNodes] = useState(new Set(['root'])); // Sidebar tree expansion
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const toggleExpand = (id, e) => {
+        e?.stopPropagation();
         const newSet = new Set(expandedNodes);
         if (newSet.has(id)) newSet.delete(id);
         else newSet.add(id);
@@ -27,294 +35,414 @@ export default function AdminNavigation() {
         }
     };
 
-    // Generic updater
-    const updateItem = (parentId, childId, subChildId, field, value) => {
+    // Generic Update using deep clone
+    const updateNode = (path, field, value) => {
         setNavItems(prev => {
-            const newNav = [...prev];
-
-            // Level 1: Category
-            if (parentId !== null && childId === null) {
-                const catIndex = newNav.findIndex(c => c.id === parentId);
-                if (catIndex > -1) newNav[catIndex][field] = value;
-            }
-            // Level 2: Subcategory (FlipCard)
-            else if (parentId !== null && childId !== null && subChildId === null) {
-                const catIndex = newNav.findIndex(c => c.id === parentId);
-                if (catIndex > -1) {
-                    const childIndex = newNav[catIndex].children.findIndex(c => c.id === childId);
-                    if (childIndex > -1) newNav[catIndex].children[childIndex][field] = value;
+            const copy = JSON.parse(JSON.stringify(prev));
+            if (path.length === 1) {
+                const cat = copy.find(c => c.id === path[0]);
+                if (cat) cat[field] = value;
+            } else if (path.length === 2) {
+                const cat = copy.find(c => c.id === path[0]);
+                const sub = cat?.children?.find(c => c.id === path[1]);
+                if (sub) {
+                    if (field === 'title' || field === 'label') {
+                        sub.title = value;
+                        sub.label = value;
+                    } else {
+                        sub[field] = value;
+                    }
                 }
-            }
-            // Level 3: Link inside Subcategory
-            else if (parentId !== null && childId !== null && subChildId !== null) {
-                const catIndex = newNav.findIndex(c => c.id === parentId);
-                if (catIndex > -1) {
-                    const childIndex = newNav[catIndex].children.findIndex(c => c.id === childId);
-                    if (childIndex > -1) {
-                        const linkIndex = newNav[catIndex].children[childIndex].subLinks.findIndex(l => l.label === subChildId || l.id === subChildId); // ID fallback for new links
-                        if (linkIndex > -1) newNav[catIndex].children[childIndex].subLinks[linkIndex][field] = value;
+            } else if (path.length === 3) {
+                const cat = copy.find(c => c.id === path[0]);
+                const sub = cat?.children?.find(c => c.id === path[1]);
+                const link = sub?.subLinks?.find(l => (l.id || l.label) === path[2]);
+                if (link) {
+                    if (field === 'title' || field === 'label') {
+                        link.label = value;
+                    } else {
+                        link[field] = value;
                     }
                 }
             }
-
-            return newNav;
+            return copy;
         });
     };
 
     // Adders
-    const addCategory = () => {
-        const id = `cat_${Date.now()}`;
-        setNavItems([...navItems, { id, label: 'קטגוריה חדשה', icon: 'Folder', url: '', children: [] }]);
-        toggleExpand(id);
-    };
-
-    const addSubcategory = (parentId) => {
-        setNavItems(prev => {
-            const newNav = [...prev];
-            const catIndex = newNav.findIndex(c => c.id === parentId);
-            if (catIndex > -1) {
-                if (!newNav[catIndex].children) newNav[catIndex].children = [];
-                const id = `sub_${Date.now()}`;
-                newNav[catIndex].children.push({ id, title: 'תת-קטגוריה חדשה', icon: 'FileText', url: '', subLinks: [] });
-                toggleExpand(id);
-            }
-            return newNav;
-        });
-    };
-
-    const addLink = (parentId, childId) => {
-        setNavItems(prev => {
-            const newNav = [...prev];
-            const catIndex = newNav.findIndex(c => c.id === parentId);
-            if (catIndex > -1) {
-                const childIndex = newNav[catIndex].children.findIndex(c => c.id === childId);
-                if (childIndex > -1) {
-                    if (!newNav[catIndex].children[childIndex].subLinks) newNav[catIndex].children[childIndex].subLinks = [];
-                    newNav[catIndex].children[childIndex].subLinks.push({ id: `link_${Date.now()}`, label: 'לינק חדש', icon: 'Link', url: '' });
+    const addNode = () => {
+        if (selectedPath.length === 0) {
+            const id = `cat_${Date.now()}`;
+            setNavItems([...navItems, { id, label: 'קטגוריה חדשה', icon: 'Folder', url: '', children: [] }]);
+        } else if (selectedPath.length === 1) {
+            setNavItems(prev => {
+                const copy = JSON.parse(JSON.stringify(prev));
+                const cat = copy.find(c => c.id === selectedPath[0]);
+                if (cat) {
+                    if (!cat.children) cat.children = [];
+                    cat.children.push({ id: `sub_${Date.now()}`, title: 'תת-קטגוריה חדשה', icon: 'FileText', url: '', subLinks: [] });
                 }
-            }
-            return newNav;
-        });
+                return copy;
+            });
+        } else if (selectedPath.length === 2) {
+            setNavItems(prev => {
+                const copy = JSON.parse(JSON.stringify(prev));
+                const cat = copy.find(c => c.id === selectedPath[0]);
+                const sub = cat?.children?.find(c => c.id === selectedPath[1]);
+                if (sub) {
+                    if (!sub.subLinks) sub.subLinks = [];
+                    sub.subLinks.push({ id: `link_${Date.now()}`, label: 'לינק חדש', icon: 'Link', url: '' });
+                }
+                return copy;
+            });
+        }
     };
 
-    // Removers
-    const removeItem = (parentId, childId = null, subChildId = null) => {
+    // Remover
+    const removeNode = (path) => {
         if (!confirm('האם אתה בטוח שברצונך למחוק פריט זה?')) return;
-
         setNavItems(prev => {
-            const newNav = [...prev];
-            // Delete Category
-            if (childId === null) {
-                return newNav.filter(c => c.id !== parentId);
+            const copy = JSON.parse(JSON.stringify(prev));
+            if (path.length === 1) {
+                return copy.filter(c => c.id !== path[0]);
+            } else if (path.length === 2) {
+                const cat = copy.find(c => c.id === path[0]);
+                if (cat && cat.children) cat.children = cat.children.filter(c => c.id !== path[1]);
+            } else if (path.length === 3) {
+                const cat = copy.find(c => c.id === path[0]);
+                const sub = cat?.children?.find(c => c.id === path[1]);
+                if (sub && sub.subLinks) sub.subLinks = sub.subLinks.filter(l => (l.id || l.label) !== path[2]);
             }
-            // Delete Subcategory
-            else if (subChildId === null) {
-                const catIndex = newNav.findIndex(c => c.id === parentId);
-                if (catIndex > -1) {
-                    newNav[catIndex].children = newNav[catIndex].children.filter(c => c.id !== childId);
-                }
-            }
-            // Delete Link
-            else {
-                const catIndex = newNav.findIndex(c => c.id === parentId);
-                if (catIndex > -1) {
-                    const childIndex = newNav[catIndex].children.findIndex(c => c.id === childId);
-                    if (childIndex > -1) {
-                        newNav[catIndex].children[childIndex].subLinks = newNav[catIndex].children[childIndex].subLinks.filter(l => l.id !== subChildId && l.label !== subChildId);
-                    }
-                }
-            }
-            return newNav;
+            return copy;
         });
+
+        // If we deleted the folder we are currently viewing, go up one level
+        if (selectedPath.join(',') === path.join(',')) {
+            setSelectedPath(path.slice(0, -1));
+        }
     };
+
+    // Derived State
+    const currentLevel = selectedPath.length; // 0 = root, 1 = cat, 2 = sub
+
+    let currentChildren = [];
+    let currentTitle = 'כל התוכן';
+    let currentModel = null;
+
+    if (currentLevel === 0) {
+        currentChildren = navItems.map(c => ({ ...c, nodePath: [c.id], type: 'folder', title: c.label }));
+    } else if (currentLevel === 1) {
+        const cat = navItems.find(c => c.id === selectedPath[0]);
+        currentModel = cat;
+        currentTitle = cat?.label || 'קטגוריה לֹא יְדוּעָה';
+        currentChildren = (cat?.children || []).map(c => ({ ...c, nodePath: [cat.id, c.id], type: 'folder', title: c.title || c.label }));
+    } else if (currentLevel === 2) {
+        const cat = navItems.find(c => c.id === selectedPath[0]);
+        const sub = cat?.children?.find(c => c.id === selectedPath[1]);
+        currentModel = sub;
+        currentTitle = sub?.title || sub?.label || 'כרטיסייה לֹא יְדוּעָה';
+        currentChildren = (sub?.subLinks || []).map(l => ({ ...l, id: l.id || l.label, nodePath: [cat.id, sub.id, l.id || l.label], type: 'file', title: l.label }));
+    }
+
+    // Filter children by search
+    if (searchTerm) {
+        currentChildren = currentChildren.filter(c => c.title.toLowerCase().includes(searchTerm.toLowerCase()));
+    }
 
     if (loading && !navItems.length) {
         return <div className="p-8 text-center text-gray-400">טוען מבנה ניווט...</div>;
     }
 
     return (
-        <div className="space-y-6">
-
-            {error && (
-                <div className="p-4 bg-red-900/50 border border-red-500 rounded-lg flex items-center gap-3">
-                    <AlertTriangle className="text-red-400" />
-                    <span className="text-red-200">{error}</span>
+        <div className="flex h-[calc(100vh-140px)] min-h-[600px] border border-[#1f1f22] rounded-xl overflow-hidden text-gray-200 bg-[#050505] shadow-2xl font-sans" dir="rtl">
+            {/* SIDEBAR */}
+            <div className="w-64 bg-[#0a0a0c] border-l border-[#1f1f22] flex flex-col shrink-0 custom-scrollbar-thin">
+                {/* Header */}
+                <div className="h-14 border-b border-[#1f1f22] flex items-center px-4 gap-2 bg-[#0f0f11] shrink-0">
+                    <Folder className="text-red-500" size={18} />
+                    <span className="font-bold text-sm tracking-wide text-gray-100">סייר ניווט</span>
                 </div>
-            )}
+                {/* Tree */}
+                <div className="flex-1 overflow-y-auto p-2 space-y-0.5" style={{ scrollbarWidth: 'thin', scrollbarColor: '#333 #0a0a0c' }}>
+                    {/* Root Node */}
+                    <div
+                        className={`flex items-center gap-2 py-1.5 px-2 cursor-pointer hover:bg-white/5 rounded-md transition ${selectedPath.length === 0 ? 'bg-red-500/10 text-red-500' : 'text-gray-300'}`}
+                        onClick={() => setSelectedPath([])}
+                    >
+                        <Home size={16} />
+                        <span className="text-sm font-semibold select-none">כל התוכן</span>
+                    </div>
 
-            <div className="flex justify-between items-center bg-gray-900/40 p-4 rounded-xl border border-gray-800">
-                <p className="text-sm text-gray-400">ערוך את קטגוריות התפריט ואת כרטיסי המידע (תת-קטגוריות) שבתוכן.</p>
-                <button
-                    onClick={addCategory}
-                    className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-md transition border border-gray-700 hover:border-gray-500 text-sm"
-                >
-                    <Plus size={16} />
-                    <span>הוסף קטגוריה ראשית</span>
-                </button>
-            </div>
+                    {/* Categories */}
+                    {navItems.map(cat => {
+                        const isCatExpanded = expandedNodes.has(cat.id);
+                        const isCatSelected = selectedPath.length === 1 && selectedPath[0] === cat.id;
+                        const isCatPathActive = selectedPath.length > 0 && selectedPath[0] === cat.id;
 
-            <div className="space-y-3">
-                {navItems.map((cat, catIdx) => {
-                    const isCatExpanded = expandedNodes.has(cat.id);
-                    return (
-                        <div key={cat.id} className="bg-gray-900/60 border border-gray-800 rounded-lg overflow-hidden transition-all">
-                            {/* CATEGORY HEADER */}
-                            <div className="flex items-center gap-3 p-3 bg-gray-800/30 hover:bg-gray-800/50 transition border-b border-gray-800/50">
-                                <button onClick={() => toggleExpand(cat.id)} className="p-1 text-gray-400 hover:text-white transition">
-                                    {isCatExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                                </button>
-
-                                <div className="p-2 bg-gray-800 rounded-md border border-gray-700">
-                                    <DynamicIcon name={cat.icon} size={18} className="text-red-400" />
-                                </div>
-
-                                <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
-                                    <input
-                                        type="text"
-                                        value={cat.label}
-                                        onChange={(e) => updateItem(cat.id, null, null, 'label', e.target.value)}
-                                        className="bg-black/50 border border-gray-700 rounded-md px-3 py-1.5 text-white focus:outline-none focus:border-red-500 text-sm font-bold"
-                                        placeholder="שם הקטגוריה"
-                                    />
-                                    <input
-                                        type="text"
-                                        value={cat.icon}
-                                        onChange={(e) => updateItem(cat.id, null, null, 'icon', e.target.value)}
-                                        className="bg-black/50 border border-gray-700 rounded-md px-3 py-1.5 text-white focus:outline-none focus:border-red-500 text-sm"
-                                        placeholder="שם אייקון (Lucide)"
-                                        title="Lucide Icon Name (e.g., Rocket, Users, Target)"
-                                    />
-                                    <input
-                                        type="text"
-                                        value={cat.url || ''}
-                                        onChange={(e) => updateItem(cat.id, null, null, 'url', e.target.value)}
-                                        className="bg-black/50 border border-gray-700 rounded-md px-3 py-1.5 text-white focus:outline-none focus:border-red-500 text-sm"
-                                        placeholder="URL (אופציונלי - קטגוריה כלינק)"
-                                    />
-                                </div>
-
-                                <button onClick={() => removeItem(cat.id)} className="p-2 text-gray-500 hover:text-red-500 transition ml-2">
-                                    <Trash2 size={18} />
-                                </button>
-                            </div>
-
-                            {/* SUBCATEGORIES LIST */}
-                            {isCatExpanded && !cat.url && (
-                                <div className="p-4 bg-black/20 pr-12">
-                                    <div className="space-y-4">
-                                        {(cat.children || []).map((sub, subIdx) => {
-                                            const isSubExpanded = expandedNodes.has(sub.id);
-                                            return (
-                                                <div key={sub.id} className="bg-gray-900 border border-gray-700 rounded-md overflow-hidden">
-                                                    {/* SUBCATEGORY HEADER */}
-                                                    <div className="flex items-center gap-3 p-2 bg-gray-800/50 border-b border-gray-700/50">
-                                                        <button onClick={() => toggleExpand(sub.id)} className="p-1 text-gray-400 hover:text-white transition">
-                                                            {isSubExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                                        </button>
-                                                        <DynamicIcon name={sub.icon} size={16} className="text-gray-400" />
-
-                                                        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2">
-                                                            <input
-                                                                type="text"
-                                                                value={sub.title || sub.label || ''} // Fallback for some hardcoded structs
-                                                                onChange={(e) => updateItem(cat.id, sub.id, null, 'title', e.target.value)}
-                                                                className="bg-black/50 border border-gray-600 rounded px-2 py-1 text-white text-sm"
-                                                                placeholder="שם כרטיסייה"
-                                                            />
-                                                            <input
-                                                                type="text"
-                                                                value={sub.icon}
-                                                                onChange={(e) => updateItem(cat.id, sub.id, null, 'icon', e.target.value)}
-                                                                className="bg-black/50 border border-gray-600 rounded px-2 py-1 text-white text-sm"
-                                                                placeholder="אייקון"
-                                                            />
-                                                            <input
-                                                                type="text"
-                                                                value={sub.url}
-                                                                onChange={(e) => updateItem(cat.id, sub.id, null, 'url', e.target.value)}
-                                                                className="bg-black/50 border border-gray-600 rounded px-2 py-1 text-white text-sm"
-                                                                placeholder="URL (אופציונלי)"
-                                                            />
-                                                        </div>
-                                                        <button onClick={() => removeItem(cat.id, sub.id)} className="p-1 text-gray-500 hover:text-red-500 transition">
-                                                            <Trash2 size={16} />
-                                                        </button>
-                                                    </div>
-
-                                                    {/* LINKS LIST */}
-                                                    {isSubExpanded && !sub.url && (
-                                                        <div className="p-3 bg-black/40 pr-10 space-y-2">
-                                                            {(sub.subLinks || []).map((link, linkIdx) => {
-                                                                const linkIdentifier = link.id || link.label;
-                                                                return (
-                                                                    <div key={linkIdx} className="flex items-center gap-2">
-                                                                        <LinkIcon size={14} className="text-gray-500" />
-                                                                        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2">
-                                                                            <input
-                                                                                type="text"
-                                                                                value={link.label}
-                                                                                onChange={(e) => updateItem(cat.id, sub.id, linkIdentifier, 'label', e.target.value)}
-                                                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-200 text-xs"
-                                                                                placeholder="שם הלינק"
-                                                                            />
-                                                                            <input
-                                                                                type="text"
-                                                                                value={link.icon}
-                                                                                onChange={(e) => updateItem(cat.id, sub.id, linkIdentifier, 'icon', e.target.value)}
-                                                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-200 text-xs"
-                                                                                placeholder="אייקון"
-                                                                            />
-                                                                            <input
-                                                                                type="text"
-                                                                                value={link.url || ''}
-                                                                                onChange={(e) => updateItem(cat.id, sub.id, linkIdentifier, 'url', e.target.value)}
-                                                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-200 text-xs"
-                                                                                placeholder="URL יעד"
-                                                                            />
-                                                                        </div>
-                                                                        <button onClick={() => removeItem(cat.id, sub.id, linkIdentifier)} className="text-gray-600 hover:text-red-500">
-                                                                            <Trash2 size={14} />
-                                                                        </button>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                            <button
-                                                                onClick={() => addLink(cat.id, sub.id)}
-                                                                className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 mt-2 p-1"
-                                                            >
-                                                                <Plus size={14} /> הוסף לינק פנימי
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )
-                                        })}
-
-                                        <button
-                                            onClick={() => addSubcategory(cat.id)}
-                                            className="flex items-center gap-2 text-sm text-gray-400 hover:text-white border border-dashed border-gray-700 hover:border-gray-500 rounded p-2 w-full justify-center transition"
-                                        >
-                                            <Plus size={16} /> הוסף כרטיסיית מידע (תת-קטגוריה)
-                                        </button>
+                        return (
+                            <div key={cat.id}>
+                                <div
+                                    className={`flex items-center gap-1.5 py-1.5 pr-2 pl-2 cursor-pointer hover:bg-white/5 rounded-md transition group ${isCatSelected ? 'bg-white/10 text-white' : isCatPathActive ? 'text-gray-200' : 'text-gray-400'}`}
+                                    onClick={() => setSelectedPath([cat.id])}
+                                >
+                                    <button
+                                        className="p-0.5 hover:bg-white/10 rounded transition-colors"
+                                        onClick={(e) => toggleExpand(cat.id, e)}
+                                    >
+                                        <ChevronLeft size={14} className={`transform transition-transform duration-200 ${isCatExpanded ? '-rotate-90' : ''}`} />
+                                    </button>
+                                    <div className="relative">
+                                        <DynamicIcon name={isCatExpanded || isCatSelected ? 'FolderOpen' : 'Folder'} size={14} className={isCatSelected || isCatPathActive ? 'text-blue-400 drop-shadow-[0_0_5px_rgba(96,165,250,0.5)]' : 'text-blue-500'} />
                                     </div>
+                                    <span className="text-sm truncate select-none flex-1 font-medium">{cat.label}</span>
                                 </div>
-                            )}
+
+                                {/* Subcategories (if expanded) */}
+                                {isCatExpanded && cat.children && (
+                                    <div className="space-y-0.5 mt-0.5">
+                                        {cat.children.map(sub => {
+                                            const isSubSelected = selectedPath.length === 2 && selectedPath[1] === sub.id;
+                                            return (
+                                                <div
+                                                    key={sub.id}
+                                                    className={`flex items-center gap-2 py-1.5 pr-8 pl-2 cursor-pointer hover:bg-white/5 rounded-md transition ${isSubSelected ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                                                    onClick={() => setSelectedPath([cat.id, sub.id])}
+                                                >
+                                                    <DynamicIcon name="FileText" size={14} className={isSubSelected ? 'text-gray-300' : 'text-gray-600'} />
+                                                    <span className="text-sm truncate select-none">{sub.title || sub.label}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <div className="p-4 border-t border-[#1f1f22] bg-[#0f0f11] shrink-0">
+                    <button
+                        onClick={handleSave}
+                        disabled={isSaving}
+                        className="w-full flex justify-center items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded-md font-bold transition shadow-lg shadow-red-900/20 text-sm"
+                    >
+                        <Save size={16} />
+                        <span>{isSaving ? 'שומר...' : 'שמור שינויים'}</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* MAIN AREA */}
+            <div className="flex-1 flex flex-col min-w-0 bg-[#050505]">
+                {/* Address Bar */}
+                <div className="h-14 border-b border-[#1f1f22] flex items-center justify-between px-4 bg-[#0a0a0c] shrink-0">
+                    <div className="flex items-center gap-1 text-sm bg-[#141418] border border-[#252528] rounded-md px-2 py-1 shadow-inner h-8 overflow-hidden">
+                        <button onClick={() => setSelectedPath([])} className="p-1 hover:bg-white/10 rounded transition text-gray-400 hover:text-red-400">
+                            <Home size={14} />
+                        </button>
+                        {selectedPath.length > 0 && (
+                            <>
+                                <ChevronLeft size={14} className="text-gray-600 mx-1 shrink-0" />
+                                <button
+                                    onClick={() => setSelectedPath([selectedPath[0]])}
+                                    className={`px-2 py-1 rounded hover:bg-white/10 transition truncate max-w-[150px] ${selectedPath.length === 1 ? 'text-white font-medium' : 'text-gray-400 hover:text-gray-200'}`}
+                                >
+                                    {navItems.find(c => c.id === selectedPath[0])?.label || 'קטגוריה'}
+                                </button>
+                            </>
+                        )}
+                        {selectedPath.length > 1 && (
+                            <>
+                                <ChevronLeft size={14} className="text-gray-600 mx-1 shrink-0" />
+                                <button className="px-2 py-1 rounded text-white font-medium truncate max-w-[150px]">
+                                    {navItems.find(c => c.id === selectedPath[0])?.children?.find(s => s.id === selectedPath[1])?.title || 'כרטיסייה'}
+                                </button>
+                            </>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <div className="relative">
+                            <Search size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
+                            <input
+                                type="text"
+                                placeholder="חיפוש בתיקייה..."
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="w-48 bg-[#141418] border border-[#252528] rounded-md pr-8 pl-3 py-1.5 text-xs text-white focus:outline-none focus:border-red-500 transition shadow-inner"
+                            />
                         </div>
-                    );
-                })}
-            </div>
+                    </div>
+                </div>
 
-            <div className="flex justify-end pt-6 border-t border-gray-800">
-                <button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-8 py-3 rounded-md font-bold transition shadow-[0_0_15px_rgba(220,38,38,0.3)]"
-                >
-                    <Save size={20} />
-                    <span>{isSaving ? 'שומר...' : 'שמור מבנה ניווט'}</span>
-                </button>
-            </div>
+                {/* ERROR BANNER */}
+                {error && (
+                    <div className="mx-6 my-4 p-3 bg-red-900/30 border border-red-500/50 rounded-lg flex items-center gap-3 shrink-0">
+                        <AlertTriangle size={18} className="text-red-400" />
+                        <span className="text-red-200 text-sm">{error}</span>
+                    </div>
+                )}
 
+                {/* Properties Panel (if not root) */}
+                {selectedPath.length > 0 && currentModel && (
+                    <div className="px-6 py-4 border-b border-[#1f1f22] bg-[#0a0a0c] flex items-center gap-4 shrink-0 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.5)] z-20 relative">
+                        <div className="w-14 h-14 bg-[#141418] rounded-2xl flex items-center justify-center border border-[#252528] shrink-0 p-2 shadow-inner">
+                            <DynamicIcon name={currentModel.icon || 'Folder'} size={28} className={currentLevel === 1 ? 'text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.4)]' : 'text-gray-300 drop-shadow-[0_0_8px_rgba(209,213,219,0.2)]'} />
+                        </div>
+                        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-5">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">שם תצוגה</label>
+                                <input
+                                    type="text"
+                                    value={currentModel.title || currentModel.label || ''}
+                                    onChange={(e) => updateNode(selectedPath, currentLevel === 1 ? 'label' : 'title', e.target.value)}
+                                    className="w-full bg-[#141418] border border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-white focus:outline-none focus:border-red-500 focus:bg-[#1a1a1f] text-sm font-semibold transition"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">אייקון (Lucide)</label>
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        value={currentModel.icon || ''}
+                                        onChange={(e) => updateNode(selectedPath, 'icon', e.target.value)}
+                                        className="w-full bg-[#141418] border border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-white focus:outline-none focus:border-red-500 focus:bg-[#1a1a1f] text-sm transition font-mono"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">קישור ישיר (URL)</label>
+                                <input
+                                    type="url"
+                                    value={currentModel.url || ''}
+                                    onChange={(e) => updateNode(selectedPath, 'url', e.target.value)}
+                                    className="w-full bg-[#141418] border border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-blue-300 focus:outline-none focus:border-red-500 focus:bg-[#1a1a1f] text-sm transition text-left dir-ltr placeholder-[#333]"
+                                    placeholder="https://"
+                                    dir="ltr"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* List Header */}
+                <div className="px-6 py-4 flex items-center justify-between shrink-0 bg-[#050505]">
+                    <h2 className="text-xl font-bold text-gray-100 flex items-center gap-2">
+                        {currentLevel === 0 ? <Home size={20} className="text-gray-400" /> : <FolderOpen size={20} className="text-blue-400 drop-shadow-[0_0_5px_rgba(96,165,250,0.5)]" />}
+                        {currentTitle}
+                        <span className="mr-2 text-xs font-medium text-gray-500 bg-[#141418] px-2.5 py-1 rounded-full border border-[#252528] tracking-widest leading-none translate-y-[1px]">
+                            {currentChildren.length} פריטים
+                        </span>
+                    </h2>
+                    <button
+                        onClick={addNode}
+                        className="flex items-center gap-1.5 bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-md transition shadow-[0_0_10px_rgba(220,38,38,0.2)] hover:shadow-[0_0_15px_rgba(220,38,38,0.4)] text-sm font-bold"
+                    >
+                        <Plus size={16} />
+                        <span>{currentLevel === 0 ? 'קטגוריה חדשה' : currentLevel === 1 ? 'כרטיסייה חדשה' : 'לינק חדש'}</span>
+                    </button>
+                </div>
+
+                {/* Table Content */}
+                <div className="flex-1 overflow-y-auto px-6 pb-6 relative" style={{ scrollbarWidth: 'thin', scrollbarColor: '#333 #050505' }}>
+                    {currentChildren.length === 0 ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 pb-20">
+                            <FolderOpen size={56} className="text-gray-800 mb-4" />
+                            <p className="text-lg font-medium">התיקייה ריקה.</p>
+                            <p className="text-sm mt-1 text-gray-600">לחץ על כפתור ההוספה כדי ליצור תוכן חדש בנתיב זה.</p>
+                        </div>
+                    ) : (
+                        <table className="w-full text-sm text-right border-collapse">
+                            <thead className="sticky top-0 bg-gradient-to-b from-[#050505] to-[#050505]/95 z-10 backdrop-blur-sm">
+                                <tr className="border-b border-[#1f1f22] text-gray-500">
+                                    <th className="pb-3 pt-2 px-2 font-medium w-12 text-center"></th>
+                                    <th className="pb-3 pt-2 px-2 font-medium w-1/3">שם התוכן</th>
+                                    <th className="pb-3 pt-2 px-2 font-medium w-1/4">אייקון</th>
+                                    <th className="pb-3 pt-2 px-2 font-medium">קישור ישיר</th>
+                                    <th className="pb-3 pt-2 px-2 font-medium w-24 text-center">פעולות</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[#1f1f22]/50">
+                                {currentChildren.map(child => (
+                                    <tr
+                                        key={child.id}
+                                        className="hover:bg-white/[0.03] transition-colors group cursor-default"
+                                        onDoubleClick={() => child.type === 'folder' && setSelectedPath(child.nodePath)}
+                                    >
+                                        <td className="py-2.5 px-2">
+                                            <div className="w-10 h-10 mx-auto rounded-xl bg-[#141418] flex items-center justify-center border border-[#252528] group-hover:bg-[#1a1a1f] group-hover:border-gray-700 transition-colors shadow-inner">
+                                                {child.type === 'folder' ? (
+                                                    <Folder className="text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.4)]" size={20} />
+                                                ) : (
+                                                    <LinkIcon className="text-gray-300 drop-shadow-[0_0_5px_rgba(209,213,219,0.3)]" size={18} />
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="py-2.5 px-2">
+                                            <input
+                                                type="text"
+                                                value={child.title}
+                                                onChange={(e) => {
+                                                    let field = 'title';
+                                                    if (currentLevel === 0) field = 'label';
+                                                    else if (currentLevel === 1) field = 'title';
+                                                    else if (currentLevel === 2) field = 'label';
+                                                    updateNode(child.nodePath, field, e.target.value);
+                                                }}
+                                                className="bg-transparent border border-transparent hover:border-[#333] focus:border-red-500 focus:bg-[#141418] rounded-md pl-2 pr-2 py-1.5 transition w-full text-sm font-bold text-gray-200 outline-none hover:bg-black/20 focus:shadow-inner"
+                                            />
+                                        </td>
+                                        <td className="py-2.5 px-2">
+                                            <div className="flex items-center gap-2 bg-transparent border border-transparent focus-within:border-red-500 focus-within:bg-[#141418] hover:border-[#333] hover:bg-black/20 rounded-md transition pl-2 pr-2 py-1.5 focus-within:shadow-inner">
+                                                <div className="w-5 flex justify-center shrink-0">
+                                                    <DynamicIcon name={child.icon} size={16} className="text-gray-400" />
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    value={child.icon || ''}
+                                                    onChange={(e) => updateNode(child.nodePath, 'icon', e.target.value)}
+                                                    className="bg-transparent border-none focus:outline-none w-full text-xs text-gray-400 font-mono"
+                                                    placeholder="שם האייקון"
+                                                />
+                                            </div>
+                                        </td>
+                                        <td className="py-2.5 px-2">
+                                            <input
+                                                type="url"
+                                                value={child.url || ''}
+                                                onChange={(e) => updateNode(child.nodePath, 'url', e.target.value)}
+                                                className="bg-transparent border border-transparent hover:border-[#333] focus:border-red-500 focus:bg-[#141418] rounded-md pl-2 pr-2 py-1.5 transition w-full text-xs text-blue-400 outline-none dir-ltr text-left placeholder-[#333] hover:bg-black/20 focus:shadow-inner"
+                                                placeholder="https://"
+                                                dir="ltr"
+                                            />
+                                        </td>
+                                        <td className="py-2.5 px-2">
+                                            <div className="flex items-center gap-2 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                {child.type === 'folder' && (
+                                                    <button
+                                                        onClick={() => setSelectedPath(child.nodePath)}
+                                                        className="p-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 hover:text-blue-300 rounded-lg transition"
+                                                        title="פתח תיקייה"
+                                                    >
+                                                        <ChevronLeft size={18} />
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => removeNode(child.nodePath)}
+                                                    className="p-1.5 bg-red-500/10 text-red-500 hover:bg-red-500/20 hover:text-red-400 rounded-lg transition"
+                                                    title="מחק"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }

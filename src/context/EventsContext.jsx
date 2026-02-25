@@ -19,6 +19,7 @@ export const EventsProvider = ({ children }) => {
             setDisplayCount(data.displayCount || 3);
             setError(null);
         } catch (err) {
+            console.error(err);
             setError(err.message);
         } finally {
             setLoading(false);
@@ -44,6 +45,14 @@ export const EventsProvider = ({ children }) => {
 
     useEffect(() => {
         fetchEvents();
+
+        // Polling: Auto-refresh data every 60 seconds
+        const intervalId = setInterval(() => {
+            console.log("Auto-refreshing events...");
+            fetchEvents();
+        }, 60000);
+
+        return () => clearInterval(intervalId);
     }, []);
 
     return (

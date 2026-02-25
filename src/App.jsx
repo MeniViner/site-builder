@@ -168,10 +168,13 @@ function Home() {
         <nav className="w-full  px-8 py-6 flex items-center justify-between border-b border-white/5 bg-gradient-to-b from-black/80 to-transparent sticky top-0 z-[100] bg-[#0c0d12]/20 backdrop-blur-md">
 
           {/* Left side in RTL (Visually Right) */}
-          <div className="flex items-center gap-10">
-            <div className="text-white font-bold text-xl relative group cursor-pointer" onClick={() => window.scrollTo(0, 0)}>
-              בית הספר
-              <div className="absolute -bottom-7 left-0 right-0 h-1 bg-red-600 rounded-t-sm" />
+          <div className="flex items-center gap-8 lg:gap-10">
+            <div className="flex items-center gap-3 cursor-pointer group" onClick={() => window.scrollTo(0, 0)}>
+              {/* <img src="/logo_1734_rmbg.png" alt="Logo" className="h-[44px] w-auto drop-shadow-[0_0_8px_rgba(220,38,38,0.5)] transition-transform duration-300 group-hover:scale-105" /> */}
+              <div className="text-white font-bold text-xl relative shrink-0">
+                בית הספר
+                <div className="absolute -bottom-7 left-0 right-0 h-1 bg-red-600 rounded-t-sm" />
+              </div>
             </div>
             {navItems.map(cat => (
               <div key={cat.id} onClick={() => handleNavTo(cat)} className="text-gray-400 hover:text-white transition font-medium cursor-pointer text-sm tracking-wide">
@@ -221,13 +224,18 @@ function Home() {
         </nav>
 
         {/* Main Hero Content */}
-        <main className="w-full relative min-h-[calc(100vh-80px)] flex flex-col pt-8 lg:pt-16">
+        <main className="w-full relative min-h-[calc(100vh-80px)] xl:h-[calc(100vh-80px)] flex flex-col pt-4 [@media(max-height:850px)]:pt-2 lg:pt-8 xl:pt-12">
           {/* Text Block - Align to Right */}
-          <div className="flex-1 flex flex-col justify-center px-8 lg:px-24 pointer-events-auto z-20">
-            <div className="w-full lg:w-[65%] xl:w-1/2 text-right">
-              <div className="text-red-500 font-bold text-lg mb-2 mr-1">ברוכים הבאים</div>
-              <h1 className="text-5xl lg:text-6xl xl:text-7xl font-black text-white mb-6 drop-shadow-lg tracking-tight leading-none">בית הספר לחמ"ם 7134</h1>
-              <p className="text-gray-300 text-xl lg:text-2xl leading-relaxed mb-10 drop-shadow-md max-w-2xl">
+          <div className="flex-1 flex flex-col justify-center px-4 sm:px-8 lg:px-12 xl:px-24 pointer-events-auto z-20">
+            <div className="w-full lg:w-[75%] xl:w-[65%] text-right self-end md:self-auto">
+              <div className="text-red-500 font-bold lg:text-lg [@media(max-height:850px)]:text-sm mb-1 mr-1">ברוכים הבאים</div>
+              <div className="flex flex-col md:flex-row md:items-center  gap-2 md:gap-4 lg:gap-6 [@media(max-height:850px)]:gap-4 mb-4 xl:mb-6 [@media(max-height:850px)]:mb-2 mt-1">
+                <img src="/logo_1734_rmbg.png" alt="Logo החמם" className="h-[70px] md:h-[90px] lg:h-[110px] xl:h-[130px] 2xl:h-[160px] [@media(max-height:850px)]:h-[70px] xl:[@media(max-height:850px)]:h-[80px] w-auto drop-shadow-[0_0_15px_rgba(220,38,38,0.5)] transition-transform duration-500 hover:scale-105" />
+                <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-[4.2rem] 2xl:text-7xl [@media(max-height:850px)]:text-4xl lg:[@media(max-height:850px)]:text-5xl font-black text-white drop-shadow-lg tracking-tight leading-tight lg:leading-none break-words">
+                  בית הספר לחמ"ם 7134
+                </h1>
+              </div>
+              <p className="text-gray-300 text-base md:text-lg lg:text-xl xl:text-2xl [@media(max-height:850px)]:text-xl [@media(max-height:850px)]:leading-tight leading-relaxed mb-4 lg:mb-8 [@media(max-height:850px)]:mb-3 drop-shadow-md max-w-2xl break-words">
                 מרכז ההכשרות המוביל בצה"ל למקצועות החמ"ם.<br />
                 אנו אמונים על רצף ההכשרה, פיתוח מקצועי מתמיד ושמירה על כשירות עליונה בתחום המערכות המתקדמות.
               </p>
@@ -239,10 +247,10 @@ function Home() {
           </div>
 
           {/* Bottom Panels Container */}
-          <div className="w-full px-8 lg:px-24 pb-12 flex flex-col xl:flex-row items-center xl:items-end justify-between gap-10 pointer-events-auto z-30 mt-16 xl:mt-auto">
+          <div className="w-full px-8 lg:px-12 xl:px-24 pb-6 lg:pb-10 xl:pb-12 flex flex-col lg:flex-row items-center lg:items-center xl:items-end justify-between gap-6 lg:gap-6 xl:gap-10 pointer-events-auto z-30 mt-8 [@media(max-height:850px)]:mt-2 lg:mt-auto">
 
             {/* RIGHT BOX - "דבר המפקד" */}
-            <div className="w-full xl:w-[700px] h-auto min-h-[320px] relative shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)] filter drop-shadow-[0_0_8px_rgba(220,38,38,0.1)] group">
+            <div className="w-full lg:flex-1 lg:max-w-[700px] h-auto lg:h-[260px] xl:h-[300px] 2xl:min-h-[320px] [@media(max-height:850px)]:h-[220px] relative shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)] filter drop-shadow-[0_0_8px_rgba(220,38,38,0.1)] group">
               <div
                 className="absolute inset-0 bg-gradient-to-b from-gray-400/30 to-gray-800/20"
                 style={{ clipPath: 'polygon(30px 0, 100% 0, 100% calc(100% - 30px), calc(100% - 30px) 100%, 0 100%, 0 30px)' }}
@@ -255,26 +263,28 @@ function Home() {
                 className="absolute inset-[1px] bg-gradient-to-br from-white/5 to-transparent backdrop-blur-sm mix-blend-overlay"
                 style={{ clipPath: 'polygon(29px 0, 100% 0, 100% calc(100% - 29px), calc(100% - 29px) 100%, 0 100%, 0 29px)' }}
               />
-              <div className="relative z-10 p-6 flex flex-col sm:flex-row items-stretch h-full w-full">
+              <div className="relative z-10 p-6 [@media(max-height:850px)]:p-4 flex flex-col sm:flex-row items-stretch h-full w-full">
                 <div className="w-full sm:w-[45%] relative shrink-0 sm:-ml-4 flex items-center justify-center overflow-visible mb-6 sm:mb-0">
                   {/* Background solid red */}
-                  <div className="absolute left-1/2 top-1/2 -translate-x-[40%] -translate-y-[45%] w-40 xl:w-48 h-40 xl:h-48 bg-red-600 z-0 hidden sm:block"></div>
+                  <div className="absolute left-1/2 top-1/2 -translate-x-[40%] -translate-y-[45%] w-36 lg:w-40 xl:w-48 [@media(max-height:850px)]:w-24 h-36 lg:h-40 xl:h-48 [@media(max-height:850px)]:h-24 bg-red-600 z-0 hidden sm:block"></div>
                   <img
                     // src="https://images.unsplash.com/photo-1564564295391-7f24f26f568b?q=80&w=300&auto=format&fit=crop"
                     src="https://yadlashiryon.com/wp-content/uploads/2019/05/26082014-1.jpg"
-                    className="w-full sm:w-40 xl:w-48 h-48 sm:h-full object-cover object-top grayscale contrast-125 brightness-110  mix-blend-multiply relative z-10 border-b sm:border-b-0 border-gray-800"
+                    className="w-full sm:w-36 lg:w-40 xl:w-48 [@media(max-height:850px)]:w-24 h-40 sm:h-full lg:h-[calc(100%+1.5rem)] [@media(max-height:850px)]:lg:h-[calc(100%+1rem)] object-cover object-top grayscale contrast-125 brightness-110  mix-blend-multiply relative z-10 border-b sm:border-b-0 border-gray-800"
                     alt="Commander"
                   />
                 </div>
 
-                <div className="flex-1 flex flex-col  justify-between items-start sm:border-r border-gray-800/80 sm:pr-6 pt-2 pb-1 relative z-20">
-                  <div>
-                    <div className="text-red-500 text-sm font-bold mb-1 opacity-90 tracking-wide">מפקד היחידה</div>
-                    <h2 className="text-3xl xl:text-4xl font-black text-white mb-4 leading-tight">דבר המפקד</h2>
-                    <p className="text-gray-300 text-[14px] leading-relaxed mb-6 font-medium">
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/3 h-[2px] bg-red-500 shadow-[0_0_15px_rgba(239,68,68,1)] z-20" />
+
+                <div className="flex-1 flex flex-col justify-between items-start sm:border-r border-gray-800/80 sm:pr-6 [@media(max-height:850px)]:pr-4 pt-2 pb-1 relative z-20 overflow-hidden">
+                  <div className="w-full">
+                    <div className="text-red-500 text-xs xl:text-sm [@media(max-height:850px)]:text-sm font-bold mb-1 opacity-90 tracking-wide">מפקד היחידה</div>
+                    <h2 className="text-2xl lg:text-3xl xl:text-4xl [@media(max-height:850px)]:text-2xl font-black text-white mb-2 xl:mb-4 [@media(max-height:850px)]:mb-1 leading-tight">דבר המפקד</h2>
+                    <p className="text-gray-300 text-[13px] xl:text-[14px] [@media(max-height:850px)]:text-[14px] leading-snug xl:leading-relaxed [@media(max-height:850px)]:leading-tight mb-4 xl:mb-6 [@media(max-height:850px)]:mb-2 font-medium xl:line-clamp-none line-clamp-3 [@media(max-height:850px)]:line-clamp-3">
                       "מפקדים ולוחמים, אנו ניצבים בחזית העשייה המבצעית. מצופה מכם לחתור למצוינות, להפגין מקצועיות חסרת פשרות, ולהוביל את העשייה בכל משימה אליה נדרש. יחד ננצח."
                     </p>
-                    <div className="text-gray-500 text-sm tracking-wider opacity-70">סא"ל א', מפקד בית הספר</div>
+                    <div className="text-gray-500 text-xs xl:text-sm [@media(max-height:850px)]:text-sm tracking-wider opacity-70">סא"ל א', מפקד בית הספר</div>
                   </div>
 
                   {/* Pagination */}
@@ -287,7 +297,7 @@ function Home() {
             </div>
 
             {/* LEFT BOX - "מופעי החודש" */}
-            <div className="w-full xl:w-[380px] relative shrink-0 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)] filter drop-shadow-[0_0_8px_rgba(220,38,38,0.1)] group">
+            <div className="w-full lg:w-[320px] xl:w-[380px] h-auto lg:h-[320px] xl:h-[380px] 2xl:h-[420px] [@media(max-height:850px)]:h-[380px] relative shrink-0 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)] filter drop-shadow-[0_0_8px_rgba(220,38,38,0.1)] group">
               <div
                 className="absolute inset-0 bg-gradient-to-b from-gray-400/40 to-gray-800/30"
                 style={{ clipPath: 'polygon(30px 0, 100% 0, 100% calc(100% - 30px), calc(100% - 30px) 100%, 0 100%, 0 30px)' }}
@@ -304,10 +314,14 @@ function Home() {
               {/* Bottom Red Glow Line Component */}
               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/3 h-[2px] bg-red-500 shadow-[0_0_15px_rgba(239,68,68,1)] z-20" />
 
-              <div className="p-6 pt-7 relative z-10 w-full h-full flex flex-col">
-                <h2 className="text-2xl font-black text-white mb-6 border-b border-white/20 pb-2 text-shadow-sm">מופעי החודש</h2>
+              <div className="p-6 pt-7 [@media(max-height:850px)]:p-4 [@media(max-height:850px)]:pt-4 relative z-10 w-full h-full flex flex-col">
+                <h2 className="text-2xl [@media(max-height:850px)]:text-xl font-black text-white mb-6 [@media(max-height:850px)]:mb-3 border-b border-white/20 pb-2 text-shadow-sm">מופעי החודש</h2>
 
-                <EventsList />
+                <div className="overflow-hidden flex-1 relative mask-image-bottom">
+                  <div className="absolute inset-0 overflow-y-auto pr-2 custom-scrollbar">
+                    <EventsList />
+                  </div>
+                </div>
 
               </div>
             </div>
