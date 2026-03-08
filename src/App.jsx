@@ -263,14 +263,13 @@ function Home() {
                 className="absolute inset-[1px] bg-gradient-to-br from-white/5 to-transparent backdrop-blur-sm mix-blend-overlay"
                 style={{ clipPath: 'polygon(29px 0, 100% 0, 100% calc(100% - 29px), calc(100% - 29px) 100%, 0 100%, 0 29px)' }}
               />
-              <div className="relative z-10 p-6 [@media(max-height:850px)]:p-4 flex flex-col sm:flex-row items-stretch h-full w-full">
-                <div className="w-full sm:w-[45%] relative shrink-0 sm:-ml-4 flex items-center justify-center overflow-visible mb-6 sm:mb-0">
-                  {/* Background solid red */}
-                  <div className="absolute left-1/2 top-1/2 -translate-x-[40%] -translate-y-[45%] w-36 lg:w-40 xl:w-48  h-36 lg:h-40 xl:h-48 bg-red-600 z-0 hidden sm:block"></div>
+              <div className="relative  p-6 [@media(max-height:850px)]:p-4 flex flex-col sm:flex-row items-stretch h-full w-full">
+                <div className="w-full sm:w-[45%] relative shrink-0 sm:-ml-4 flex items-center justify-center overflow-visible mb-6 sm:mb-0 isolate">
+                  {/* רקע אדום – מאחורי תמונת המפקד */}
+                  <div className="absolute left-1/2 top-1/2 -translate-x-[40%] -translate-y-[60%] w-28 lg:w-32 xl:w-36 h-28 lg:h-32 xl:h-36 bg-red-600 z-[1] hidden sm:block shadow-[0_0_25px_rgba(220,38,38,0.7),0_0_50px_rgba(220,38,38,0.4)]" aria-hidden="true" />
                   <img
-                    // src="https://images.unsplash.com/photo-1564564295391-7f24f26f568b?q=80&w=300&auto=format&fit=crop"
-                    src="https://yadlashiryon.com/wp-content/uploads/2019/05/26082014-1.jpg"
-                    className="w-full sm:w-36 lg:w-40 xl:w-48  h-40 sm:h-full object-cover object-top grayscale contrast-125 brightness-110  mix-blend-multiply relative z-10 border-b sm:border-b-0 border-gray-800"
+                    src="/images/פורטרט.png"
+                    className="w-full sm:w-44 lg:w-52 xl:w-60 h-40 sm:h-full object-contain object-center relative z-[2] border-b sm:border-b-0 border-gray-800"
                     alt="Commander"
                   />
                 </div>
