@@ -268,7 +268,7 @@ function Home() {
                   {/* רקע אדום – מאחורי תמונת המפקד */}
                   <div className="absolute left-1/2 top-1/2 -translate-x-[40%] -translate-y-[60%] w-28 lg:w-32 xl:w-36 h-28 lg:h-32 xl:h-36 bg-red-600 z-[1] hidden sm:block shadow-[0_0_25px_rgba(220,38,38,0.7),0_0_50px_rgba(220,38,38,0.4)]" aria-hidden="true" />
                   <img
-                    src="/images/פורטרט.png"
+                    src="/images/אייל זמיר.png" //פורטרט
                     className="w-full sm:w-44 lg:w-52 xl:w-60 h-40 sm:h-full object-contain object-center relative z-[2] border-b sm:border-b-0 border-gray-800"
                     alt="Commander"
                   />
