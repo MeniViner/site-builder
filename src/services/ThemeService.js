@@ -8,6 +8,8 @@ const DEFAULT_THEME = {
     linksLayout: 'cards',
     showNavCategories: true,
     heroGrayscale: false,
+    regularLinksLayout: 'grid',
+    externalLinksLayout: 'cards',
 };
 
 class ThemeService {
@@ -41,6 +43,8 @@ class ThemeService {
             linksLayout: data.linksLayout || DEFAULT_THEME.linksLayout,
             showNavCategories: data.showNavCategories !== undefined ? data.showNavCategories : DEFAULT_THEME.showNavCategories,
             heroGrayscale: data.heroGrayscale !== undefined ? data.heroGrayscale : DEFAULT_THEME.heroGrayscale,
+            regularLinksLayout: data.regularLinksLayout || DEFAULT_THEME.regularLinksLayout,
+            externalLinksLayout: data.externalLinksLayout || DEFAULT_THEME.externalLinksLayout,
         };
     }
 

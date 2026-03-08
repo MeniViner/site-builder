@@ -151,23 +151,23 @@ export default function AdminNavigation() {
     }
 
     if (loading && !navItems.length) {
-        return <div className="p-8 text-center text-gray-400">טוען מבנה ניווט...</div>;
+        return <div className="p-8 text-center text-gray-500 dark:text-gray-400">טוען מבנה ניווט...</div>;
     }
 
     return (
-        <div className="flex h-[calc(100vh-140px)] min-h-[600px] border border-[#1f1f22] rounded-xl overflow-hidden text-gray-200 bg-[#050505] shadow-2xl font-sans" dir="rtl">
+        <div className="flex h-[calc(100vh-140px)] min-h-[600px] border border-gray-200 dark:border-[#1f1f22] rounded-xl overflow-hidden text-gray-700 dark:text-gray-200 bg-white dark:bg-[#050505] shadow-2xl font-sans" dir="rtl">
             {/* SIDEBAR */}
-            <div className="w-64 bg-[#0a0a0c] border-l border-[#1f1f22] flex flex-col shrink-0 custom-scrollbar-thin">
+            <div className="w-64 bg-gray-50 dark:bg-[#0a0a0c] border-l border-gray-200 dark:border-[#1f1f22] flex flex-col shrink-0 custom-scrollbar-thin">
                 {/* Header */}
-                <div className="h-14 border-b border-[#1f1f22] flex items-center px-4 gap-2 bg-[#0f0f11] shrink-0">
+                <div className="h-14 border-b border-gray-200 dark:border-[#1f1f22] flex items-center px-4 gap-2 bg-gray-100 dark:bg-[#0f0f11] shrink-0">
                     <Folder className="text-red-500" size={18} />
-                    <span className="font-bold text-sm tracking-wide text-gray-100">סייר ניווט</span>
+                    <span className="font-bold text-sm tracking-wide text-gray-900 dark:text-gray-100">סייר ניווט</span>
                 </div>
                 {/* Tree */}
                 <div className="flex-1 overflow-y-auto p-2 space-y-0.5" style={{ scrollbarWidth: 'thin', scrollbarColor: '#333 #0a0a0c' }}>
                     {/* Root Node */}
                     <div
-                        className={`flex items-center gap-2 py-1.5 px-2 cursor-pointer hover:bg-white/5 rounded-md transition ${selectedPath.length === 0 ? 'bg-red-500/10 text-red-500' : 'text-gray-300'}`}
+                        className={`flex items-center gap-2 py-1.5 px-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/5 rounded-md transition ${selectedPath.length === 0 ? 'bg-red-500/10 text-red-500' : 'text-gray-700 dark:text-gray-300'}`}
                         onClick={() => setSelectedPath([])}
                     >
                         <Home size={16} />
@@ -183,11 +183,11 @@ export default function AdminNavigation() {
                         return (
                             <div key={cat.id}>
                                 <div
-                                    className={`flex items-center gap-1.5 py-1.5 pr-2 pl-2 cursor-pointer hover:bg-white/5 rounded-md transition group ${isCatSelected ? 'bg-white/10 text-white' : isCatPathActive ? 'text-gray-200' : 'text-gray-400'}`}
+                                    className={`flex items-center gap-1.5 py-1.5 pr-2 pl-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/5 rounded-md transition group ${isCatSelected ? 'bg-gray-200 dark:bg-white/10 text-gray-900 dark:text-white' : isCatPathActive ? 'text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}
                                     onClick={() => setSelectedPath([cat.id])}
                                 >
                                     <button
-                                        className="p-0.5 hover:bg-white/10 rounded transition-colors"
+                                        className="p-0.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded transition-colors"
                                         onClick={(e) => toggleExpand(cat.id, e)}
                                     >
                                         <ChevronLeft size={14} className={`transform transition-transform duration-200 ${isCatExpanded ? '-rotate-90' : ''}`} />
@@ -209,10 +209,10 @@ export default function AdminNavigation() {
                                             return (
                                                 <div
                                                     key={sub.id}
-                                                    className={`flex items-center gap-2 py-1.5 pr-8 pl-2 cursor-pointer hover:bg-white/5 rounded-md transition ${isSubSelected ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                                                    className={`flex items-center gap-2 py-1.5 pr-8 pl-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/5 rounded-md transition ${isSubSelected ? 'bg-gray-200 dark:bg-white/10 text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
                                                     onClick={() => setSelectedPath([cat.id, sub.id])}
                                                 >
-                                                    <DynamicIcon name="FileText" size={14} className={isSubSelected ? 'text-gray-300' : 'text-gray-600'} />
+                                                    <DynamicIcon name="FileText" size={14} className={isSubSelected ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'} />
                                                     <span className="text-sm truncate select-none">{sub.title || sub.label}</span>
                                                 </div>
                                             );
@@ -224,7 +224,7 @@ export default function AdminNavigation() {
                     })}
                 </div>
 
-                <div className="p-4 border-t border-[#1f1f22] bg-[#0f0f11] shrink-0">
+                <div className="p-4 border-t border-gray-200 dark:border-[#1f1f22] bg-gray-100 dark:bg-[#0f0f11] shrink-0">
                     <button
                         onClick={handleSave}
                         disabled={isSaving}
@@ -237,19 +237,19 @@ export default function AdminNavigation() {
             </div>
 
             {/* MAIN AREA */}
-            <div className="flex-1 flex flex-col min-w-0 bg-[#050505]">
+            <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#050505]">
                 {/* Address Bar */}
-                <div className="h-14 border-b border-[#1f1f22] flex items-center justify-between px-4 bg-[#0a0a0c] shrink-0">
-                    <div className="flex items-center gap-1 text-sm bg-[#141418] border border-[#252528] rounded-md px-2 py-1 shadow-inner h-8 overflow-hidden">
-                        <button onClick={() => setSelectedPath([])} className="p-1 hover:bg-white/10 rounded transition text-gray-400 hover:text-red-400">
+                <div className="h-14 border-b border-gray-200 dark:border-[#1f1f22] flex items-center justify-between px-4 bg-gray-50 dark:bg-[#0a0a0c] shrink-0">
+                    <div className="flex items-center gap-1 text-sm bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] rounded-md px-2 py-1 shadow-inner h-8 overflow-hidden">
+                        <button onClick={() => setSelectedPath([])} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded transition text-gray-500 dark:text-gray-400 hover:text-red-400">
                             <Home size={14} />
                         </button>
                         {selectedPath.length > 0 && (
                             <>
-                                <ChevronLeft size={14} className="text-gray-600 mx-1 shrink-0" />
+                                <ChevronLeft size={14} className="text-gray-400 dark:text-gray-600 mx-1 shrink-0" />
                                 <button
                                     onClick={() => setSelectedPath([selectedPath[0]])}
-                                    className={`px-2 py-1 rounded hover:bg-white/10 transition truncate max-w-[150px] ${selectedPath.length === 1 ? 'text-white font-medium' : 'text-gray-400 hover:text-gray-200'}`}
+                                    className={`px-2 py-1 rounded hover:bg-gray-200 dark:hover:bg-white/10 transition truncate max-w-[150px] ${selectedPath.length === 1 ? 'text-gray-900 dark:text-white font-medium' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
                                 >
                                     {navItems.find(c => c.id === selectedPath[0])?.label || 'קטגוריה'}
                                 </button>
@@ -257,8 +257,8 @@ export default function AdminNavigation() {
                         )}
                         {selectedPath.length > 1 && (
                             <>
-                                <ChevronLeft size={14} className="text-gray-600 mx-1 shrink-0" />
-                                <button className="px-2 py-1 rounded text-white font-medium truncate max-w-[150px]">
+                                <ChevronLeft size={14} className="text-gray-400 dark:text-gray-600 mx-1 shrink-0" />
+                                <button className="px-2 py-1 rounded text-gray-900 dark:text-white font-medium truncate max-w-[150px]">
                                     {navItems.find(c => c.id === selectedPath[0])?.children?.find(s => s.id === selectedPath[1])?.title || 'כרטיסייה'}
                                 </button>
                             </>
@@ -267,13 +267,13 @@ export default function AdminNavigation() {
 
                     <div className="flex items-center gap-3">
                         <div className="relative">
-                            <Search size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
+                            <Search size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
                             <input
                                 type="text"
                                 placeholder="חיפוש בתיקייה..."
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
-                                className="w-48 bg-[#141418] border border-[#252528] rounded-md pr-8 pl-3 py-1.5 text-xs text-white focus:outline-none focus:border-red-500 transition shadow-inner"
+                                className="w-48 bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] rounded-md pr-8 pl-3 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-red-500 transition shadow-inner"
                             />
                         </div>
                     </div>
@@ -281,46 +281,46 @@ export default function AdminNavigation() {
 
                 {/* ERROR BANNER */}
                 {error && (
-                    <div className="mx-6 my-4 p-3 bg-red-900/30 border border-red-500/50 rounded-lg flex items-center gap-3 shrink-0">
+                    <div className="mx-6 my-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-500/50 rounded-lg flex items-center gap-3 shrink-0">
                         <AlertTriangle size={18} className="text-red-400" />
-                        <span className="text-red-200 text-sm">{error}</span>
+                        <span className="text-red-700 dark:text-red-200 text-sm">{error}</span>
                     </div>
                 )}
 
                 {/* Properties Panel (if not root) */}
                 {selectedPath.length > 0 && currentModel && (
-                    <div className="px-6 py-4 border-b border-[#1f1f22] bg-[#0a0a0c] flex items-center gap-4 shrink-0 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.5)] z-20 relative">
-                        <div className="w-14 h-14 bg-[#141418] rounded-2xl flex items-center justify-center border border-[#252528] shrink-0 p-2 shadow-inner">
-                            <DynamicIcon name={currentModel.icon || 'Folder'} size={28} className={currentLevel === 1 ? 'text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.4)]' : 'text-gray-300 drop-shadow-[0_0_8px_rgba(209,213,219,0.2)]'} />
+                    <div className="px-6 py-4 border-b border-gray-200 dark:border-[#1f1f22] bg-gray-50 dark:bg-[#0a0a0c] flex items-center gap-4 shrink-0 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.5)] z-20 relative">
+                        <div className="w-14 h-14 bg-gray-50 dark:bg-[#141418] rounded-2xl flex items-center justify-center border border-gray-300 dark:border-[#252528] shrink-0 p-2 shadow-inner">
+                            <DynamicIcon name={currentModel.icon || 'Folder'} size={28} className={currentLevel === 1 ? 'text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.4)]' : 'text-gray-700 dark:text-gray-300 drop-shadow-[0_0_8px_rgba(209,213,219,0.2)]'} />
                         </div>
                         <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-5">
                             <div className="space-y-1.5">
-                                <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">שם תצוגה</label>
+                                <label className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">שם תצוגה</label>
                                 <input
                                     type="text"
                                     value={currentModel.title || currentModel.label || ''}
                                     onChange={(e) => updateNode(selectedPath, currentLevel === 1 ? 'label' : 'title', e.target.value)}
-                                    className="w-full bg-[#141418] border border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-white focus:outline-none focus:border-red-500 focus:bg-[#1a1a1f] text-sm font-semibold transition"
+                                    className="w-full bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-gray-900 dark:text-white focus:outline-none focus:border-red-500 focus:bg-gray-100 dark:focus:bg-[#1a1a1f] text-sm font-semibold transition"
                                 />
                             </div>
                             <div className="space-y-1.5">
-                                <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">אייקון (Lucide)</label>
+                                <label className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">אייקון (Lucide)</label>
                                 <div className="relative">
                                     <input
                                         type="text"
                                         value={currentModel.icon || ''}
                                         onChange={(e) => updateNode(selectedPath, 'icon', e.target.value)}
-                                        className="w-full bg-[#141418] border border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-white focus:outline-none focus:border-red-500 focus:bg-[#1a1a1f] text-sm transition font-mono"
+                                        className="w-full bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-gray-900 dark:text-white focus:outline-none focus:border-red-500 focus:bg-gray-100 dark:focus:bg-[#1a1a1f] text-sm transition font-mono"
                                     />
                                 </div>
                             </div>
                             <div className="space-y-1.5">
-                                <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">קישור ישיר (URL)</label>
+                                <label className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">קישור ישיר (URL)</label>
                                 <input
                                     type="url"
                                     value={currentModel.url || ''}
                                     onChange={(e) => updateNode(selectedPath, 'url', e.target.value)}
-                                    className="w-full bg-[#141418] border border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-blue-300 focus:outline-none focus:border-red-500 focus:bg-[#1a1a1f] text-sm transition text-left dir-ltr placeholder-[#333]"
+                                    className="w-full bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-blue-300 focus:outline-none focus:border-red-500 focus:bg-gray-100 dark:focus:bg-[#1a1a1f] text-sm transition text-left dir-ltr placeholder-[#333]"
                                     placeholder="https://"
                                     dir="ltr"
                                 />
@@ -336,12 +336,12 @@ export default function AdminNavigation() {
                                             checked={!!currentModel.isDirectLink}
                                             onChange={(e) => updateNode(selectedPath, 'isDirectLink', e.target.checked)}
                                         />
-                                        <div className="w-11 h-6 bg-[#252528] rounded-full peer-checked:bg-red-600 transition-colors" />
+                                        <div className="w-11 h-6 bg-gray-200 dark:bg-[#252528] rounded-full peer-checked:bg-red-600 transition-colors" />
                                         <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-gray-300 rounded-full peer-checked:translate-x-5 peer-checked:bg-white transition-transform shadow-sm" />
                                     </div>
                                     <div className="flex items-center gap-1.5">
                                         <ExternalLink size={14} className="text-gray-500 group-hover:text-red-400 transition" />
-                                        <span className="text-xs text-gray-400 font-bold whitespace-nowrap">Direct Link</span>
+                                        <span className="text-xs text-gray-500 dark:text-gray-400 font-bold whitespace-nowrap">Direct Link</span>
                                     </div>
                                 </label>
                             </div>
@@ -350,11 +350,11 @@ export default function AdminNavigation() {
                 )}
 
                 {/* List Header */}
-                <div className="px-6 py-4 flex items-center justify-between shrink-0 bg-[#050505]">
-                    <h2 className="text-xl font-bold text-gray-100 flex items-center gap-2">
-                        {currentLevel === 0 ? <Home size={20} className="text-gray-400" /> : <FolderOpen size={20} className="text-blue-400 drop-shadow-[0_0_5px_rgba(96,165,250,0.5)]" />}
+                <div className="px-6 py-4 flex items-center justify-between shrink-0 bg-white dark:bg-[#050505]">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                        {currentLevel === 0 ? <Home size={20} className="text-gray-500 dark:text-gray-400" /> : <FolderOpen size={20} className="text-blue-400 drop-shadow-[0_0_5px_rgba(96,165,250,0.5)]" />}
                         {currentTitle}
-                        <span className="mr-2 text-xs font-medium text-gray-500 bg-[#141418] px-2.5 py-1 rounded-full border border-[#252528] tracking-widest leading-none translate-y-[1px]">
+                        <span className="mr-2 text-xs font-medium text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-[#141418] px-2.5 py-1 rounded-full border border-gray-300 dark:border-[#252528] tracking-widest leading-none translate-y-[1px]">
                             {currentChildren.length} פריטים
                         </span>
                     </h2>
@@ -370,15 +370,15 @@ export default function AdminNavigation() {
                 {/* Table Content */}
                 <div className="flex-1 overflow-y-auto px-6 pb-6 relative" style={{ scrollbarWidth: 'thin', scrollbarColor: '#333 #050505' }}>
                     {currentChildren.length === 0 ? (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 pb-20">
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 pb-20">
                             <FolderOpen size={56} className="text-gray-800 mb-4" />
                             <p className="text-lg font-medium">התיקייה ריקה.</p>
-                            <p className="text-sm mt-1 text-gray-600">לחץ על כפתור ההוספה כדי ליצור תוכן חדש בנתיב זה.</p>
+                            <p className="text-sm mt-1 text-gray-400 dark:text-gray-600">לחץ על כפתור ההוספה כדי ליצור תוכן חדש בנתיב זה.</p>
                         </div>
                     ) : (
                         <table className="w-full text-sm text-right border-collapse">
-                            <thead className="sticky top-0 bg-gradient-to-b from-[#050505] to-[#050505]/95 z-10 backdrop-blur-sm">
-                                <tr className="border-b border-[#1f1f22] text-gray-500">
+                            <thead className="sticky top-0 bg-gradient-to-b from-white to-white/95 dark:from-[#050505] dark:to-[#050505]/95 z-10 backdrop-blur-sm">
+                                <tr className="border-b border-gray-200 dark:border-[#1f1f22] text-gray-400 dark:text-gray-500">
                                     <th className="pb-3 pt-2 px-2 font-medium w-12 text-center"></th>
                                     <th className="pb-3 pt-2 px-2 font-medium w-1/3">שם התוכן</th>
                                     <th className="pb-3 pt-2 px-2 font-medium w-1/4">אייקון</th>
@@ -386,19 +386,19 @@ export default function AdminNavigation() {
                                     <th className="pb-3 pt-2 px-2 font-medium w-24 text-center">פעולות</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-[#1f1f22]/50">
+                            <tbody className="divide-y divide-gray-200 dark:divide-[#1f1f22]/50">
                                 {currentChildren.map(child => (
                                     <tr
                                         key={child.id}
-                                        className="hover:bg-white/[0.03] transition-colors group cursor-default"
+                                        className="hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors group cursor-default"
                                         onDoubleClick={() => child.type === 'folder' && setSelectedPath(child.nodePath)}
                                     >
                                         <td className="py-2.5 px-2">
-                                            <div className="w-10 h-10 mx-auto rounded-xl bg-[#141418] flex items-center justify-center border border-[#252528] group-hover:bg-[#1a1a1f] group-hover:border-gray-700 transition-colors shadow-inner">
+                                            <div className="w-10 h-10 mx-auto rounded-xl bg-gray-50 dark:bg-[#141418] flex items-center justify-center border border-gray-300 dark:border-[#252528] group-hover:bg-gray-100 dark:group-hover:bg-[#1a1a1f] group-hover:border-gray-700 transition-colors shadow-inner">
                                                 {child.type === 'folder' ? (
                                                     <Folder className="text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.4)]" size={20} />
                                                 ) : (
-                                                    <LinkIcon className="text-gray-300 drop-shadow-[0_0_5px_rgba(209,213,219,0.3)]" size={18} />
+                                                    <LinkIcon className="text-gray-700 dark:text-gray-300 drop-shadow-[0_0_5px_rgba(209,213,219,0.3)]" size={18} />
                                                 )}
                                             </div>
                                         </td>
@@ -413,19 +413,19 @@ export default function AdminNavigation() {
                                                     else if (currentLevel === 2) field = 'label';
                                                     updateNode(child.nodePath, field, e.target.value);
                                                 }}
-                                                className="bg-transparent border border-transparent hover:border-[#333] focus:border-red-500 focus:bg-[#141418] rounded-md pl-2 pr-2 py-1.5 transition w-full text-sm font-bold text-gray-200 outline-none hover:bg-black/20 focus:shadow-inner"
+                                                className="bg-transparent border border-transparent hover:border-[#333] focus:border-red-500 focus:bg-gray-50 dark:focus:bg-[#141418] rounded-md pl-2 pr-2 py-1.5 transition w-full text-sm font-bold text-gray-700 dark:text-gray-200 outline-none hover:bg-gray-100 dark:hover:bg-black/20 focus:shadow-inner"
                                             />
                                         </td>
                                         <td className="py-2.5 px-2">
-                                            <div className="flex items-center gap-2 bg-transparent border border-transparent focus-within:border-red-500 focus-within:bg-[#141418] hover:border-[#333] hover:bg-black/20 rounded-md transition pl-2 pr-2 py-1.5 focus-within:shadow-inner">
+                                            <div className="flex items-center gap-2 bg-transparent border border-transparent focus-within:border-red-500 focus-within:bg-gray-50 dark:focus-within:bg-[#141418] hover:border-[#333] hover:bg-gray-100 dark:hover:bg-black/20 rounded-md transition pl-2 pr-2 py-1.5 focus-within:shadow-inner">
                                                 <div className="w-5 flex justify-center shrink-0">
-                                                    <DynamicIcon name={child.icon} size={16} className="text-gray-400" />
+                                                    <DynamicIcon name={child.icon} size={16} className="text-gray-500 dark:text-gray-400" />
                                                 </div>
                                                 <input
                                                     type="text"
                                                     value={child.icon || ''}
                                                     onChange={(e) => updateNode(child.nodePath, 'icon', e.target.value)}
-                                                    className="bg-transparent border-none focus:outline-none w-full text-xs text-gray-400 font-mono"
+                                                    className="bg-transparent border-none focus:outline-none w-full text-xs text-gray-500 dark:text-gray-400 font-mono"
                                                     placeholder="שם האייקון"
                                                 />
                                             </div>
@@ -435,7 +435,7 @@ export default function AdminNavigation() {
                                                 type="url"
                                                 value={child.url || ''}
                                                 onChange={(e) => updateNode(child.nodePath, 'url', e.target.value)}
-                                                className="bg-transparent border border-transparent hover:border-[#333] focus:border-red-500 focus:bg-[#141418] rounded-md pl-2 pr-2 py-1.5 transition w-full text-xs text-blue-400 outline-none dir-ltr text-left placeholder-[#333] hover:bg-black/20 focus:shadow-inner"
+                                                className="bg-transparent border border-transparent hover:border-[#333] focus:border-red-500 focus:bg-gray-50 dark:focus:bg-[#141418] rounded-md pl-2 pr-2 py-1.5 transition w-full text-xs text-blue-400 outline-none dir-ltr text-left placeholder-[#333] hover:bg-gray-100 dark:hover:bg-black/20 focus:shadow-inner"
                                                 placeholder="https://"
                                                 dir="ltr"
                                             />

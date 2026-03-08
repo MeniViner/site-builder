@@ -68,15 +68,15 @@ export default function AdminWidgets() {
     };
 
     if (loading && !widgetConfig) {
-        return <div className="p-8 text-center text-gray-400">טוען הגדרות ווידגטים...</div>;
+        return <div className="p-8 text-center text-gray-500 dark:text-gray-400">טוען הגדרות ווידגטים...</div>;
     }
 
     return (
-        <div dir="rtl" className="min-h-screen bg-[#1e212b] text-white font-heebo p-8">
-            <div className="flex justify-between items-center mb-8 border-b border-white/10 pb-4">
+        <div dir="rtl" className="min-h-screen bg-gray-100 dark:bg-[#1e212b] text-gray-900 dark:text-white font-heebo p-8">
+            <div className="flex justify-between items-center mb-8 border-b border-gray-300 dark:border-white/10 pb-4">
                 <div>
-                    <h1 className="text-3xl font-black text-white">ניהול ווידגטים</h1>
-                    <p className="text-sm text-gray-500 mt-1">בחר את הווידגט שיוצג באזור הדינמי (Section 3) באתר</p>
+                    <h1 className="text-3xl font-black text-gray-900 dark:text-white">ניהול ווידגטים</h1>
+                    <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">בחר את הווידגט שיוצג באזור הדינמי (Section 3) באתר</p>
                 </div>
                 <button
                     onClick={handleSave}
@@ -89,15 +89,15 @@ export default function AdminWidgets() {
             </div>
 
             {error && (
-                <div className="mb-6 p-4 bg-red-900/50 border border-red-500 rounded-lg flex items-center gap-3">
+                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/50 border border-red-500 rounded-lg flex items-center gap-3">
                     <AlertTriangle className="text-red-400 shrink-0" />
-                    <span className="text-red-200">{error}</span>
+                    <span className="text-red-700 dark:text-red-200">{error}</span>
                 </div>
             )}
 
             {saveMessage && (
-                <div className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${saveMessage.type === 'success' ? 'bg-green-900/50 border border-green-500' : 'bg-red-900/50 border border-red-500'}`}>
-                    <span className={saveMessage.type === 'success' ? 'text-green-200' : 'text-red-200'}>{saveMessage.text}</span>
+                <div className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${saveMessage.type === 'success' ? 'bg-green-50 dark:bg-green-900/50 border border-green-500' : 'bg-red-50 dark:bg-red-900/50 border border-red-500'}`}>
+                    <span className={saveMessage.type === 'success' ? 'text-green-700 dark:text-green-200' : 'text-red-700 dark:text-red-200'}>{saveMessage.text}</span>
                 </div>
             )}
 
@@ -115,7 +115,7 @@ export default function AdminWidgets() {
                             className={`relative text-right p-6 rounded-2xl border-2 transition-all duration-200 group ${
                                 isSelected
                                     ? `${colors.activeBg} ${colors.activeBorder} ring-2 ${colors.activeRing} shadow-lg`
-                                    : 'bg-[#232733] border-white/5 hover:border-white/15 hover:bg-[#272b38]'
+                                    : 'bg-white dark:bg-[#232733] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15 hover:bg-gray-50 dark:hover:bg-[#272b38]'
                             }`}
                         >
                             {isLive && (
@@ -125,21 +125,21 @@ export default function AdminWidgets() {
                             )}
 
                             <div className={`w-14 h-14 rounded-xl flex items-center justify-center mb-5 ${
-                                isSelected ? colors.iconBg : 'bg-white/5'
+                                isSelected ? colors.iconBg : 'bg-gray-100 dark:bg-white/5'
                             } transition-colors`}>
                                 <Icon size={28} className={isSelected ? colors.iconText : 'text-gray-500'} />
                             </div>
 
-                            <h3 className={`text-xl font-bold mb-2 ${isSelected ? 'text-white' : 'text-gray-300'}`}>
+                            <h3 className={`text-xl font-bold mb-2 ${isSelected ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>
                                 {widget.label}
                             </h3>
 
-                            <p className={`text-sm leading-relaxed ${isSelected ? 'text-gray-300' : 'text-gray-500'}`}>
+                            <p className={`text-sm leading-relaxed ${isSelected ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}`}>
                                 {widget.description}
                             </p>
 
                             <div className={`mt-5 flex items-center gap-2 text-sm font-bold ${
-                                isSelected ? colors.iconText : 'text-gray-600'
+                                isSelected ? colors.iconText : 'text-gray-400 dark:text-gray-600'
                             }`}>
                                 {isSelected ? (
                                     <>
@@ -147,7 +147,7 @@ export default function AdminWidgets() {
                                         <span>נבחר</span>
                                     </>
                                 ) : (
-                                    <span className="group-hover:text-gray-400 transition">לחץ לבחירה</span>
+                                    <span className="group-hover:text-gray-500 dark:group-hover:text-gray-400 transition">לחץ לבחירה</span>
                                 )}
                             </div>
                         </button>
@@ -155,17 +155,17 @@ export default function AdminWidgets() {
                 })}
 
                 {/* Placeholder for future widgets */}
-                <div className="relative p-6 rounded-2xl border-2 border-dashed border-white/10 flex flex-col items-center justify-center text-center min-h-[260px]">
+                <div className="relative p-6 rounded-2xl border-2 border-dashed border-gray-300 dark:border-white/10 flex flex-col items-center justify-center text-center min-h-[260px]">
                     <LayoutGrid size={36} className="text-gray-700 mb-3" />
-                    <h3 className="text-lg font-bold text-gray-600 mb-1">ווידגטים נוספים</h3>
+                    <h3 className="text-lg font-bold text-gray-400 dark:text-gray-600 mb-1">ווידגטים נוספים</h3>
                     <p className="text-sm text-gray-700">ווידגטים חדשים יתווספו בעדכונים עתידיים.</p>
                 </div>
             </div>
 
             {hasChanges && (
-                <div className="mt-8 p-4 bg-amber-900/30 border border-amber-500/30 rounded-xl flex items-center gap-3">
+                <div className="mt-8 p-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-500/30 rounded-xl flex items-center gap-3">
                     <AlertTriangle size={18} className="text-amber-400 shrink-0" />
-                    <span className="text-amber-200 text-sm font-medium">
+                    <span className="text-amber-700 dark:text-amber-200 text-sm font-medium">
                         יש שינויים שלא נשמרו — לחץ "שמור שינויים" כדי לעדכן את הווידגט הפעיל.
                     </span>
                 </div>

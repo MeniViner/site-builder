@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSiteContent } from '../context/SiteContentContext';
 import {
     Save, AlertTriangle, Plus, Trash2, Edit2, X,
-    Image as ImageIcon, Type, MessageSquare, ChevronDown, ChevronUp, GripVertical
+    Image as ImageIcon, Type, MessageSquare, ChevronDown, ChevronUp, GripVertical, Upload, Loader2
 } from 'lucide-react';
+import { uploadImage } from '../utils/sharepointUtils';
 
 const MAX_COMMANDER_MESSAGES = 3;
 
@@ -15,6 +16,10 @@ export default function AdminSiteContent() {
     const [hero, setHero] = useState({ title: '', subtitle: '', description: '', backgroundImages: [] });
     const [commander, setCommander] = useState({ image: '', sectionTitle: '', roleLabel: '', messages: [] });
     const [editingMessage, setEditingMessage] = useState(null);
+    const [uploadingHeroIndex, setUploadingHeroIndex] = useState(null);
+    const [uploadingCommander, setUploadingCommander] = useState(false);
+    const heroFileInputRef = useRef(null);
+    const commanderFileInputRef = useRef(null);
 
     useEffect(() => {
         if (siteContent) {
@@ -48,8 +53,38 @@ export default function AdminSiteContent() {
         });
     };
 
-    const addBackgroundImage = () => {
-        setHero(prev => ({ ...prev, backgroundImages: [...prev.backgroundImages, ''] }));
+    const handleHeroFileUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploadingHeroIndex(hero.backgroundImages.length);
+        try {
+            const url = await uploadImage(file, 'Hero');
+            setHero(prev => ({ ...prev, backgroundImages: [...prev.backgroundImages, url] }));
+        } catch (err) {
+            console.error('שגיאה בהעלאת תמונת רקע:', err);
+            setSaveMessage({ type: 'error', text: `שגיאה בהעלאת תמונה: ${err.message}` });
+            setTimeout(() => setSaveMessage(null), 4000);
+        } finally {
+            setUploadingHeroIndex(null);
+            if (heroFileInputRef.current) heroFileInputRef.current.value = '';
+        }
+    };
+
+    const handleCommanderFileUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploadingCommander(true);
+        try {
+            const url = await uploadImage(file, 'Commander');
+            setCommander(prev => ({ ...prev, image: url }));
+        } catch (err) {
+            console.error('שגיאה בהעלאת תמונת מפקד:', err);
+            setSaveMessage({ type: 'error', text: `שגיאה בהעלאת תמונה: ${err.message}` });
+            setTimeout(() => setSaveMessage(null), 4000);
+        } finally {
+            setUploadingCommander(false);
+            if (commanderFileInputRef.current) commanderFileInputRef.current.value = '';
+        }
     };
 
     const removeBackgroundImage = (index) => {
@@ -58,6 +93,8 @@ export default function AdminSiteContent() {
             backgroundImages: prev.backgroundImages.filter((_, i) => i !== index)
         }));
     };
+
+    const isUploading = uploadingHeroIndex !== null || uploadingCommander;
 
     const addMessage = () => {
         if (commander.messages.length >= MAX_COMMANDER_MESSAGES) return;
@@ -111,17 +148,17 @@ export default function AdminSiteContent() {
     };
 
     if (loading && !siteContent) {
-        return <div className="p-8 text-center text-gray-400">טוען תוכן אתר...</div>;
+        return <div className="p-8 text-center text-gray-500 dark:text-gray-400">טוען תוכן אתר...</div>;
     }
 
     return (
-        <div dir="rtl" className="min-h-screen bg-[#1e212b] text-white font-heebo p-8">
+        <div dir="rtl" className="min-h-screen bg-gray-100 dark:bg-[#1e212b] text-gray-900 dark:text-white font-heebo p-8">
             {/* Header */}
-            <div className="flex justify-between items-center mb-8 border-b border-white/10 pb-4">
-                <h1 className="text-3xl font-black text-white">ניהול המידע</h1>
+            <div className="flex justify-between items-center mb-8 border-b border-gray-300 dark:border-white/10 pb-4">
+                <h1 className="text-3xl font-black text-gray-900 dark:text-white">ניהול המידע</h1>
                 <button
                     onClick={handleSave}
-                    disabled={isSaving}
+                    disabled={isSaving || isUploading}
                     className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-6 py-2.5 rounded-lg font-bold transition shadow-lg shadow-red-900/20"
                 >
                     <Save size={18} />
@@ -130,62 +167,62 @@ export default function AdminSiteContent() {
             </div>
 
             {error && (
-                <div className="mb-6 p-4 bg-red-900/50 border border-red-500 rounded-lg flex items-center gap-3">
+                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/50 border border-red-300 dark:border-red-500 rounded-lg flex items-center gap-3">
                     <AlertTriangle className="text-red-400 shrink-0" />
-                    <span className="text-red-200">{error}</span>
+                    <span className="text-red-700 dark:text-red-200">{error}</span>
                 </div>
             )}
 
             {saveMessage && (
-                <div className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${saveMessage.type === 'success' ? 'bg-green-900/50 border border-green-500' : 'bg-red-900/50 border border-red-500'}`}>
-                    <span className={saveMessage.type === 'success' ? 'text-green-200' : 'text-red-200'}>{saveMessage.text}</span>
+                <div className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${saveMessage.type === 'success' ? 'bg-green-50 dark:bg-green-900/50 border border-green-300 dark:border-green-500' : 'bg-red-50 dark:bg-red-900/50 border border-red-300 dark:border-red-500'}`}>
+                    <span className={saveMessage.type === 'success' ? 'text-green-700 dark:text-green-200' : 'text-red-700 dark:text-red-200'}>{saveMessage.text}</span>
                 </div>
             )}
 
             {/* ==================== HERO SECTION ==================== */}
-            <section className="bg-[#232733] border border-white/5 rounded-xl p-6 mb-8">
-                <div className="flex items-center gap-3 mb-6 border-b border-white/10 pb-4">
+            <section className="bg-white dark:bg-[#232733] border border-gray-200 dark:border-white/5 rounded-xl p-6 mb-8">
+                <div className="flex items-center gap-3 mb-6 border-b border-gray-300 dark:border-white/10 pb-4">
                     <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
                         <Type size={20} className="text-red-400" />
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold text-white">אזור Hero ראשי</h2>
-                        <p className="text-sm text-gray-500">כותרת, תיאור ותמונות רקע של העמוד הראשי</p>
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">אזור Hero ראשי</h2>
+                        <p className="text-sm text-gray-400 dark:text-gray-500">כותרת, תיאור ותמונות רקע של העמוד הראשי</p>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="space-y-5">
                         <div>
-                            <label className="block text-sm font-bold text-gray-300 mb-2">תת-כותרת עליונה</label>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">תת-כותרת עליונה</label>
                             <input
                                 type="text"
                                 value={hero.subtitle}
                                 onChange={(e) => updateHeroField('subtitle', e.target.value)}
-                                className="w-full bg-[#1e212b] border border-gray-700/50 rounded-lg px-4 py-3 text-white outline-none focus:border-red-500 transition font-medium"
+                                className="w-full bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 rounded-lg px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-red-500 transition font-medium"
                                 placeholder='לדוגמה: "ברוכים הבאים"'
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-bold text-gray-300 mb-2">כותרת ראשית</label>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">כותרת ראשית</label>
                             <textarea
                                 value={hero.title}
                                 onChange={(e) => updateHeroField('title', e.target.value)}
                                 rows={2}
-                                className="w-full bg-[#1e212b] border border-gray-700/50 rounded-lg px-4 py-3 text-white outline-none focus:border-red-500 transition font-medium resize-none"
+                                className="w-full bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 rounded-lg px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-red-500 transition font-medium resize-none"
                                 placeholder='לדוגמה: "בית הספר לחמ"ם\n7134"'
                             />
-                            <p className="text-xs text-gray-600 mt-1">השתמש ב-\n לשבירת שורה</p>
+                            <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">השתמש ב-\n לשבירת שורה</p>
                         </div>
 
                         <div>
-                            <label className="block text-sm font-bold text-gray-300 mb-2">תיאור</label>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">תיאור</label>
                             <textarea
                                 value={hero.description}
                                 onChange={(e) => updateHeroField('description', e.target.value)}
                                 rows={4}
-                                className="w-full bg-[#1e212b] border border-gray-700/50 rounded-lg px-4 py-3 text-white outline-none focus:border-red-500 transition text-sm resize-none"
+                                className="w-full bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 rounded-lg px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-red-500 transition text-sm resize-none"
                                 placeholder="תיאור קצר שמופיע מתחת לכותרת..."
                             />
                         </div>
@@ -194,42 +231,62 @@ export default function AdminSiteContent() {
                     {/* Background Images */}
                     <div>
                         <div className="flex items-center justify-between mb-3">
-                            <label className="text-sm font-bold text-gray-300 flex items-center gap-2">
-                                <ImageIcon size={16} className="text-gray-500" />
+                            <label className="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                <ImageIcon size={16} className="text-gray-400 dark:text-gray-500" />
                                 תמונות רקע מתחלפות
                             </label>
-                            <button
-                                onClick={addBackgroundImage}
-                                className="flex items-center gap-1 text-xs bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 px-3 py-1.5 rounded-lg transition font-medium"
+                            <label
+                                className={`flex items-center gap-1 text-xs bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 border border-gray-300 dark:border-white/10 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg transition font-medium cursor-pointer ${uploadingHeroIndex !== null ? 'opacity-50 pointer-events-none' : ''}`}
                             >
-                                <Plus size={14} />
-                                <span>הוסף תמונה</span>
-                            </button>
+                                {uploadingHeroIndex !== null ? (
+                                    <>
+                                        <Loader2 size={14} className="animate-spin" />
+                                        <span>מעלה...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Upload size={14} />
+                                        <span>העלה תמונה</span>
+                                    </>
+                                )}
+                                <input
+                                    ref={heroFileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleHeroFileUpload}
+                                    className="hidden"
+                                    disabled={uploadingHeroIndex !== null}
+                                />
+                            </label>
                         </div>
                         <div className="space-y-2 max-h-[320px] overflow-y-auto custom-scrollbar pr-1">
                             {hero.backgroundImages.map((img, idx) => (
                                 <div key={idx} className="flex items-center gap-2 group">
-                                    <span className="text-xs text-gray-600 w-6 text-center shrink-0">{idx + 1}</span>
-                                    <input
-                                        type="text"
-                                        value={img}
-                                        onChange={(e) => updateBackgroundImage(idx, e.target.value)}
-                                        className="flex-1 bg-[#1e212b] border border-gray-700/50 rounded-lg px-3 py-2 text-sm text-blue-300 outline-none focus:border-red-500 transition dir-ltr text-left"
-                                        placeholder="/images/background.jpg"
-                                        dir="ltr"
-                                    />
+                                    <span className="text-xs text-gray-400 dark:text-gray-600 w-6 text-center shrink-0">{idx + 1}</span>
+                                    <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center shrink-0">
+                                        <img src={img} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
+                                    </div>
+                                    <span className="flex-1 text-sm text-blue-300 truncate dir-ltr text-left" dir="ltr">
+                                        {img.startsWith('data:') ? `תמונה מקומית (${Math.round(img.length / 1024)}KB)` : img}
+                                    </span>
                                     <button
                                         onClick={() => removeBackgroundImage(idx)}
-                                        className="p-1.5 text-gray-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                        className="p-1.5 text-gray-400 dark:text-gray-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition opacity-0 group-hover:opacity-100"
                                         title="הסר"
                                     >
                                         <Trash2 size={14} />
                                     </button>
                                 </div>
                             ))}
-                            {hero.backgroundImages.length === 0 && (
-                                <div className="text-center py-8 text-gray-600 text-sm">
-                                    אין תמונות רקע. לחץ על "הוסף תמונה" להוספה.
+                            {uploadingHeroIndex !== null && (
+                                <div className="flex items-center gap-3 py-2 text-gray-400 text-sm">
+                                    <Loader2 size={16} className="animate-spin text-red-400" />
+                                    <span>מעלה תמונה...</span>
+                                </div>
+                            )}
+                            {hero.backgroundImages.length === 0 && uploadingHeroIndex === null && (
+                                <div className="text-center py-8 text-gray-400 dark:text-gray-600 text-sm">
+                                    אין תמונות רקע. לחץ על "העלה תמונה" להוספה.
                                 </div>
                             )}
                         </div>
@@ -238,56 +295,71 @@ export default function AdminSiteContent() {
             </section>
 
             {/* ==================== COMMANDER SECTION ==================== */}
-            <section className="bg-[#232733] border border-white/5 rounded-xl p-6 mb-8">
-                <div className="flex items-center gap-3 mb-6 border-b border-white/10 pb-4">
+            <section className="bg-white dark:bg-[#232733] border border-gray-200 dark:border-white/5 rounded-xl p-6 mb-8">
+                <div className="flex items-center gap-3 mb-6 border-b border-gray-300 dark:border-white/10 pb-4">
                     <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
                         <MessageSquare size={20} className="text-red-400" />
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold text-white">דבר המפקד</h2>
-                        <p className="text-sm text-gray-500">תמונת מפקד, כותרת האזור, והודעות מתחלפות (עד {MAX_COMMANDER_MESSAGES})</p>
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">דבר המפקד</h2>
+                        <p className="text-sm text-gray-400 dark:text-gray-500">תמונת מפקד, כותרת האזור, והודעות מתחלפות (עד {MAX_COMMANDER_MESSAGES})</p>
                     </div>
                 </div>
 
                 {/* Commander Meta */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
                     <div>
-                        <label className="block text-sm font-bold text-gray-300 mb-2">כותרת אזור</label>
+                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">כותרת אזור</label>
                         <input
                             type="text"
                             value={commander.sectionTitle}
                             onChange={(e) => setCommander(prev => ({ ...prev, sectionTitle: e.target.value }))}
-                            className="w-full bg-[#1e212b] border border-gray-700/50 rounded-lg px-4 py-3 text-white outline-none focus:border-red-500 transition font-medium"
+                            className="w-full bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 rounded-lg px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-red-500 transition font-medium"
                             placeholder='דבר המפקד'
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-bold text-gray-300 mb-2">תפקיד</label>
+                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">תפקיד</label>
                         <input
                             type="text"
                             value={commander.roleLabel}
                             onChange={(e) => setCommander(prev => ({ ...prev, roleLabel: e.target.value }))}
-                            className="w-full bg-[#1e212b] border border-gray-700/50 rounded-lg px-4 py-3 text-white outline-none focus:border-red-500 transition font-medium"
+                            className="w-full bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 rounded-lg px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-red-500 transition font-medium"
                             placeholder='מפקד היחידה'
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-bold text-gray-300 mb-2">נתיב תמונת מפקד</label>
-                        <input
-                            type="text"
-                            value={commander.image}
-                            onChange={(e) => setCommander(prev => ({ ...prev, image: e.target.value }))}
-                            className="w-full bg-[#1e212b] border border-gray-700/50 rounded-lg px-3 py-3 text-sm text-blue-300 outline-none focus:border-red-500 transition dir-ltr text-left"
-                            placeholder="/images/commander.png"
-                            dir="ltr"
-                        />
+                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">תמונת מפקד</label>
+                        <label
+                            className={`flex items-center justify-center gap-2 w-full bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 border-dashed rounded-lg px-3 py-3 text-sm text-gray-500 dark:text-gray-400 hover:border-red-500/50 hover:text-gray-700 dark:hover:text-gray-300 transition cursor-pointer ${uploadingCommander ? 'opacity-50 pointer-events-none' : ''}`}
+                        >
+                            {uploadingCommander ? (
+                                <>
+                                    <Loader2 size={16} className="animate-spin text-red-400" />
+                                    <span>מעלה תמונה...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Upload size={16} />
+                                    <span>{commander.image ? 'החלף תמונה' : 'העלה תמונת מפקד'}</span>
+                                </>
+                            )}
+                            <input
+                                ref={commanderFileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleCommanderFileUpload}
+                                className="hidden"
+                                disabled={uploadingCommander}
+                            />
+                        </label>
                     </div>
                 </div>
 
                 {/* Commander Image Preview */}
                 {commander.image && (
                     <div className="mb-6 flex items-center gap-4">
-                        <div className="w-24 h-24 rounded-xl bg-[#1e212b] border border-gray-700/50 overflow-hidden flex items-center justify-center">
+                        <div className="w-24 h-24 rounded-xl bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center">
                             <img
                                 src={commander.image}
                                 alt="תצוגה מקדימה"
@@ -295,15 +367,23 @@ export default function AdminSiteContent() {
                                 onError={(e) => { e.target.style.display = 'none'; }}
                             />
                         </div>
-                        <div className="text-sm text-gray-500">תצוגה מקדימה של תמונת המפקד</div>
+                        <div className="flex flex-col gap-1">
+                            <div className="text-sm text-gray-400 dark:text-gray-500">תצוגה מקדימה של תמונת המפקד</div>
+                            <button
+                                onClick={() => setCommander(prev => ({ ...prev, image: '' }))}
+                                className="text-xs text-red-400 hover:text-red-300 transition text-right"
+                            >
+                                הסר תמונה
+                            </button>
+                        </div>
                     </div>
                 )}
 
                 {/* Messages List */}
                 <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold text-gray-200">
+                    <h3 className="text-lg font-bold text-gray-700 dark:text-gray-200">
                         הודעות מפקד
-                        <span className="text-sm font-normal text-gray-500 mr-2">
+                        <span className="text-sm font-normal text-gray-400 dark:text-gray-500 mr-2">
                             ({commander.messages.length}/{MAX_COMMANDER_MESSAGES})
                         </span>
                     </h3>
@@ -318,21 +398,21 @@ export default function AdminSiteContent() {
                 </div>
 
                 {commander.messages.length === 0 ? (
-                    <div className="text-center py-12 border-2 border-dashed border-white/10 rounded-xl text-gray-600">
+                    <div className="text-center py-12 border-2 border-dashed border-gray-300 dark:border-white/10 rounded-xl text-gray-400 dark:text-gray-600">
                         <MessageSquare size={40} className="mx-auto mb-3 opacity-30" />
                         <p className="text-base font-medium">אין הודעות מפקד. לחץ על "הוסף הודעה" ליצירת הודעה ראשונה.</p>
                     </div>
                 ) : (
                     <div className="space-y-3">
                         {commander.messages.map((msg, idx) => (
-                            <div key={msg.id} className="bg-[#1e212b] border border-gray-700/30 rounded-xl p-5 flex gap-4 group relative">
+                            <div key={msg.id} className="bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/30 rounded-xl p-5 flex gap-4 group relative">
                                 {/* Reorder controls */}
                                 <div className="flex flex-col items-center gap-1 shrink-0 pt-1">
-                                    <span className="text-xs text-gray-600 font-bold mb-1">{idx + 1}</span>
+                                    <span className="text-xs text-gray-400 dark:text-gray-600 font-bold mb-1">{idx + 1}</span>
                                     <button
                                         onClick={() => moveMessage(idx, -1)}
                                         disabled={idx === 0}
-                                        className="p-1 text-gray-600 hover:text-white disabled:opacity-20 transition rounded"
+                                        className="p-1 text-gray-400 dark:text-gray-600 hover:text-gray-900 dark:hover:text-white disabled:opacity-20 transition rounded"
                                         title="הזז למעלה"
                                     >
                                         <ChevronUp size={14} />
@@ -340,7 +420,7 @@ export default function AdminSiteContent() {
                                     <button
                                         onClick={() => moveMessage(idx, 1)}
                                         disabled={idx === commander.messages.length - 1}
-                                        className="p-1 text-gray-600 hover:text-white disabled:opacity-20 transition rounded"
+                                        className="p-1 text-gray-400 dark:text-gray-600 hover:text-gray-900 dark:hover:text-white disabled:opacity-20 transition rounded"
                                         title="הזז למטה"
                                     >
                                         <ChevronDown size={14} />
@@ -349,15 +429,15 @@ export default function AdminSiteContent() {
 
                                 {/* Content */}
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-gray-300 text-sm leading-relaxed line-clamp-3 mb-2">{msg.text || '(הודעה ריקה)'}</p>
-                                    <p className="text-gray-500 text-xs">{msg.signature || '(ללא חתימה)'}</p>
+                                    <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed line-clamp-3 mb-2">{msg.text || '(הודעה ריקה)'}</p>
+                                    <p className="text-gray-400 dark:text-gray-500 text-xs">{msg.signature || '(ללא חתימה)'}</p>
                                 </div>
 
                                 {/* Actions */}
                                 <div className="flex items-start gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button
                                         onClick={() => setEditingMessage({ ...msg, isNew: false })}
-                                        className="p-2 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-lg transition"
+                                        className="p-2 bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg transition"
                                         title="ערוך"
                                     >
                                         <Edit2 size={16} />
@@ -376,7 +456,7 @@ export default function AdminSiteContent() {
                 )}
 
                 {commander.messages.length === 1 && (
-                    <p className="mt-3 text-xs text-gray-600 bg-yellow-900/20 border border-yellow-500/20 rounded-lg px-4 py-2">
+                    <p className="mt-3 text-xs text-gray-400 dark:text-gray-600 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-500/20 rounded-lg px-4 py-2">
                         כאשר קיימת רק הודעה אחת, כפתורי הניווט (חצים) יוסתרו אוטומטית בחזית האתר ויוחלפו באלמנט עיצובי.
                     </p>
                 )}
@@ -384,46 +464,46 @@ export default function AdminSiteContent() {
 
             {/* Message Edit Modal */}
             {editingMessage && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                    <div className="bg-[#1e212b] border border-gray-800 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col">
-                        <div className="flex items-center justify-between p-6 border-b border-gray-800/80">
-                            <h2 className="text-xl font-bold text-white">
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/30 dark:bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-gray-100 dark:bg-[#1e212b] border border-gray-200 dark:border-gray-800 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col">
+                        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800/80">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                                 {editingMessage.isNew ? 'הוסף הודעת מפקד' : 'עריכת הודעה'}
                             </h2>
-                            <button onClick={() => setEditingMessage(null)} className="text-gray-400 hover:text-white transition">
+                            <button onClick={() => setEditingMessage(null)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition">
                                 <X size={20} />
                             </button>
                         </div>
 
                         <form onSubmit={saveMessageEdit} className="p-6 flex flex-col gap-5">
                             <div>
-                                <label className="block text-sm font-bold text-gray-300 mb-2">תוכן ההודעה</label>
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">תוכן ההודעה</label>
                                 <textarea
                                     name="text"
                                     defaultValue={editingMessage.text}
                                     required
                                     rows={5}
-                                    className="w-full bg-[#151821] border border-gray-700/50 rounded-xl px-4 py-3 text-white outline-none focus:border-red-500 transition text-sm resize-none leading-relaxed"
+                                    className="w-full bg-gray-50 dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-red-500 transition text-sm resize-none leading-relaxed"
                                     placeholder="הזן את תוכן הודעת המפקד..."
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-sm font-bold text-gray-300 mb-2">חתימה</label>
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">חתימה</label>
                                 <input
                                     name="signature"
                                     type="text"
                                     defaultValue={editingMessage.signature}
-                                    className="w-full bg-[#151821] border border-gray-700/50 rounded-xl px-4 py-3 text-white outline-none focus:border-red-500 transition text-sm"
+                                    className="w-full bg-gray-50 dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-red-500 transition text-sm"
                                     placeholder='לדוגמה: סא"ל א׳, מפקד בית הספר'
                                 />
                             </div>
 
-                            <div className="flex gap-4 mt-4 pt-4 border-t border-gray-800/80">
+                            <div className="flex gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-800/80">
                                 <button type="submit" className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold transition">
                                     שמור
                                 </button>
-                                <button type="button" onClick={() => setEditingMessage(null)} className="flex-1 bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl font-bold transition">
+                                <button type="button" onClick={() => setEditingMessage(null)} className="flex-1 bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 text-gray-900 dark:text-white py-3 rounded-xl font-bold transition">
                                     ביטול
                                 </button>
                             </div>

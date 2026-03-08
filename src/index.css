@@ -68,6 +68,12 @@ body,
 .grid-overlay {
   background-size: 20vw 25vh;
   background-image:
+    linear-gradient(to right, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+}
+
+.dark .grid-overlay {
+  background-image:
     linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
 }
@@ -87,6 +93,11 @@ body,
 }
 
 ::-webkit-scrollbar-track {
+  background: #f0f0f0;
+}
+
+.dark ::-webkit-scrollbar-track,
+html.dark ::-webkit-scrollbar-track {
   background: #0a0c0f;
 }
 
@@ -114,8 +125,13 @@ body,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #374151;
+  background: #c0c0c0;
   border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb,
+html.dark ::-webkit-scrollbar-thumb {
+  background: #374151;
 }
 
 ::-webkit-scrollbar-thumb:hover {

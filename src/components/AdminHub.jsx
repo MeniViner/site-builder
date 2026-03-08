@@ -23,12 +23,12 @@ function SidebarButton({ icon: Icon, label, isActive, onClick, isSidebarOpen, ti
         <button
             onClick={onClick}
             className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all ${isActive
-                ? 'bg-white/10 text-white shadow-sm border border-white/10'
-                : 'text-gray-400 hover:bg-white/5 hover:text-gray-200 border border-transparent'
+                ? 'bg-gray-200 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm border border-gray-300 dark:border-white/10'
+                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-700 dark:hover:text-gray-200 border border-transparent'
                 }`}
             title={title || label}
         >
-            <Icon size={22} className={isActive ? 'text-gray-200' : ''} />
+            <Icon size={22} className={isActive ? 'text-gray-700 dark:text-gray-200' : ''} />
             {isSidebarOpen && <span className="font-medium whitespace-nowrap text-[15px]">{label}</span>}
         </button>
     );
@@ -75,19 +75,19 @@ export default function AdminHub() {
     };
 
     return (
-        <div dir="rtl" className="flex h-screen bg-[#1e212b] text-white font-heebo overflow-hidden">
+        <div dir="rtl" className="flex h-screen bg-gray-100 dark:bg-[#1e212b] text-gray-900 dark:text-white font-heebo overflow-hidden">
             {/* Sidebar */}
-            <div className={`${isSidebarOpen ? 'w-72' : 'w-20'} bg-[#232733] border-l border-white/5 flex flex-col transition-all duration-300 z-50 shrink-0 shadow-[0_0_20px_rgba(0,0,0,0.5)]`}>
-                <div className="flex items-center justify-between p-6 border-b border-white/5 h-20 shrink-0">
+            <div className={`${isSidebarOpen ? 'w-72' : 'w-20'} bg-white dark:bg-[#232733] border-l border-gray-200 dark:border-white/5 flex flex-col transition-all duration-300 z-50 shrink-0 shadow-[0_0_20px_rgba(0,0,0,0.5)]`}>
+                <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-white/5 h-20 shrink-0">
                     {isSidebarOpen ? (
                         <div className="flex items-center gap-3 w-full">
-                            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-400 hover:text-white transition shrink-0">
+                            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition shrink-0">
                                 <Menu size={24} />
                             </button>
-                            <h1 className="text-xl font-bold text-gray-200 whitespace-nowrap">ממשק ניהול</h1>
+                            <h1 className="text-xl font-bold text-gray-700 dark:text-gray-200 whitespace-nowrap">ממשק ניהול</h1>
                         </div>
                     ) : (
-                        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-400 hover:text-white transition mx-auto">
+                        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition mx-auto">
                             <Menu size={24} />
                         </button>
                     )}
@@ -95,7 +95,7 @@ export default function AdminHub() {
 
                 <div className="flex-1 overflow-y-auto py-6 px-4 space-y-1.5 custom-scrollbar">
                     {isSidebarOpen && (
-                        <div className="text-[11px] font-bold text-gray-500 uppercase tracking-widest px-4 mb-2">ניהול תוכן</div>
+                        <div className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest px-4 mb-2">ניהול תוכן</div>
                     )}
 
                     <SidebarButton
@@ -125,9 +125,9 @@ export default function AdminHub() {
                     )}
 
                     {isSidebarOpen && (
-                        <div className="text-[11px] font-bold text-gray-500 uppercase tracking-widest px-4 mt-6 mb-2">הגדרות מערכת</div>
+                        <div className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest px-4 mt-6 mb-2">הגדרות מערכת</div>
                     )}
-                    {!isSidebarOpen && <div className="my-4 border-t border-white/10" />}
+                    {!isSidebarOpen && <div className="my-4 border-t border-gray-300 dark:border-white/10" />}
 
                     <SidebarButton
                         icon={LayoutGrid}
@@ -155,7 +155,7 @@ export default function AdminHub() {
 
                     <div className="flex-1" />
 
-                    <div className="pt-6 mt-6 border-t border-white/10 space-y-1.5">
+                    <div className="pt-6 mt-6 border-t border-gray-300 dark:border-white/10 space-y-1.5">
                         <SidebarButton
                             icon={Undo2}
                             label="חזרה לאתר"
@@ -178,7 +178,7 @@ export default function AdminHub() {
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 flex flex-col h-full bg-[#1e212b] overflow-hidden">
+            <div className="flex-1 flex flex-col h-full bg-gray-100 dark:bg-[#1e212b] overflow-hidden">
                 <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
                     <Routes>
                         <Route path="/" element={
