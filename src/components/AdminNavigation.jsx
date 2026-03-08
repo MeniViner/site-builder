@@ -3,7 +3,8 @@ import { useNavigation } from '../context/NavigationContext';
 import { DynamicIcon } from './DynamicIcon';
 import {
     Plus, Trash2, Save, AlertTriangle, ChevronLeft, ChevronDown,
-    Folder, FolderOpen, FileText, Link as LinkIcon, Home, Search
+    Folder, FolderOpen, FileText, Link as LinkIcon, Home, Search,
+    ExternalLink
 } from 'lucide-react';
 
 export default function AdminNavigation() {
@@ -195,6 +196,9 @@ export default function AdminNavigation() {
                                         <DynamicIcon name={isCatExpanded || isCatSelected ? 'FolderOpen' : 'Folder'} size={14} className={isCatSelected || isCatPathActive ? 'text-blue-400 drop-shadow-[0_0_5px_rgba(96,165,250,0.5)]' : 'text-blue-500'} />
                                     </div>
                                     <span className="text-sm truncate select-none flex-1 font-medium">{cat.label}</span>
+                                    {cat.isDirectLink && (
+                                        <ExternalLink size={12} className="text-red-500/60 shrink-0" title="Direct Link" />
+                                    )}
                                 </div>
 
                                 {/* Subcategories (if expanded) */}
@@ -322,6 +326,26 @@ export default function AdminNavigation() {
                                 />
                             </div>
                         </div>
+                        {currentLevel === 1 && (
+                            <div className="mr-4 flex items-center shrink-0">
+                                <label className="flex items-center gap-3 cursor-pointer group" title="סמן קטגוריה כ-Direct Link: הילדים לא יוצגו בחזית, רק הקישור הישיר">
+                                    <div className="relative">
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            checked={!!currentModel.isDirectLink}
+                                            onChange={(e) => updateNode(selectedPath, 'isDirectLink', e.target.checked)}
+                                        />
+                                        <div className="w-11 h-6 bg-[#252528] rounded-full peer-checked:bg-red-600 transition-colors" />
+                                        <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-gray-300 rounded-full peer-checked:translate-x-5 peer-checked:bg-white transition-transform shadow-sm" />
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <ExternalLink size={14} className="text-gray-500 group-hover:text-red-400 transition" />
+                                        <span className="text-xs text-gray-400 font-bold whitespace-nowrap">Direct Link</span>
+                                    </div>
+                                </label>
+                            </div>
+                        )}
                     </div>
                 )}
 

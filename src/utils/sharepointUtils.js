@@ -51,7 +51,11 @@ export const createBackup = async (filesToBackup = []) => {
         if (!filesToBackup || filesToBackup.length === 0) {
             filesToBackup = [
                 import.meta.env.VITE_SP_EVENTS_FILE_URL || '/sites/bihs7134/SiteAssets/events_data.txt',
-                import.meta.env.VITE_SP_NAV_FILE_URL || '/sites/bihs7134/SiteAssets/nav_data.txt'
+                import.meta.env.VITE_SP_NAV_FILE_URL || '/sites/bihs7134/SiteAssets/nav_data.txt',
+                import.meta.env.VITE_SP_SITE_CONTENT_FILE_URL || '/sites/bihs7134/SiteAssets/site_content_data.txt',
+                import.meta.env.VITE_SP_THEME_FILE_URL || '/sites/bihs7134/SiteAssets/theme_data.txt',
+                import.meta.env.VITE_SP_WIDGETS_FILE_URL || '/sites/bihs7134/SiteAssets/widgets_data.txt',
+                import.meta.env.VITE_SP_EXTERNAL_LINKS_FILE_URL || '/sites/bihs7134/SiteAssets/external_links_data.txt',
             ];
         }
 

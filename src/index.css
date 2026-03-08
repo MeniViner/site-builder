@@ -4,15 +4,58 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   DYNAMIC THEME ENGINE — CSS Custom Properties
+   These variables are set at runtime by ThemeContext.
+   Defaults below match the original hardcoded dark + red theme.
+   ============================================================ */
 :root {
   scroll-behavior: smooth;
+
+  /* Primary color in HSL components (space-separated for Tailwind) */
+  --color-primary-h: 0;
+  --color-primary-s: 72%;
+  --color-primary-l: 51%;
+  --color-primary: var(--color-primary-h) var(--color-primary-s) var(--color-primary-l);
+
+  /* Pre-computed shade scale — ThemeContext overrides these from JS */
+  --color-primary-50:  hsl(var(--color-primary-h), var(--color-primary-s), 95%);
+  --color-primary-100: hsl(var(--color-primary-h), var(--color-primary-s), 90%);
+  --color-primary-200: hsl(var(--color-primary-h), var(--color-primary-s), 80%);
+  --color-primary-300: hsl(var(--color-primary-h), var(--color-primary-s), 65%);
+  --color-primary-400: hsl(var(--color-primary-h), var(--color-primary-s), 55%);
+  --color-primary-500: hsl(var(--color-primary-h), var(--color-primary-s), var(--color-primary-l));
+  --color-primary-600: hsl(var(--color-primary-h), var(--color-primary-s), 41%);
+  --color-primary-700: hsl(var(--color-primary-h), var(--color-primary-s), 33%);
+  --color-primary-800: hsl(var(--color-primary-h), var(--color-primary-s), 24%);
+  --color-primary-900: hsl(var(--color-primary-h), var(--color-primary-s), 15%);
+  --color-primary-950: hsl(var(--color-primary-h), var(--color-primary-s), 10%);
+
+  /* Raw hex — useful for box-shadow, drop-shadow where hsl() in var is awkward */
+  --color-primary-hex: #dc2626;
+
+  /* Surface / background tokens (dark mode defaults) */
+  --surface-bg: #0c0d12;
+  --surface-card: #1a1c23;
+  --surface-elevated: #232733;
+  --surface-text: #ffffff;
+  --surface-text-muted: #9ca3af;
+}
+
+/* Light-mode overrides (applied when ThemeContext removes .dark class) */
+html:not(.dark) {
+  --surface-bg: #f5f5f5;
+  --surface-card: #ffffff;
+  --surface-elevated: #f0f0f0;
+  --surface-text: #111827;
+  --surface-text-muted: #6b7280;
 }
 
 html,
 body,
 #root {
   direction: rtl;
-  background: #0c0d12;
+  background: var(--surface-bg);
   font-family: 'Heebo', sans-serif;
   margin: 0;
 }
@@ -35,7 +78,7 @@ body,
   inset: 0;
   background-size: 20vw 25vh;
   background-image:
-    radial-gradient(circle at 1px 1px, rgba(220, 38, 38, 0.4) 2px, transparent 3px);
+    radial-gradient(circle at 1px 1px, hsl(var(--color-primary) / 0.4) 2px, transparent 3px);
 }
 
 /* Base custom scroll bar just in case */
@@ -57,12 +100,12 @@ body,
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(220, 38, 38, 0.3);
+  background-color: hsl(var(--color-primary) / 0.3);
   border-radius: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(220, 38, 38, 0.6);
+  background-color: hsl(var(--color-primary) / 0.6);
 }
 
 .mask-image-bottom {
@@ -76,7 +119,7 @@ body,
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #ef4444;
+  background: var(--color-primary-500);
 }
 
 @keyframes aggressiveEntrance {
@@ -102,5 +145,43 @@ body,
 .animate-aggressive {
   animation: aggressiveEntrance 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
   opacity: 0;
-  /* Starts hidden until animation kicks in */
+}
+
+/* ============================================================
+   TACTICAL BORDER UTILITIES — Complex clip-path shapes
+   Each style clips two opposite corners or multiple corners
+   to create the modern tactical/military UI look.
+   Sizes: sm (12px), DEFAULT/md (20px), lg (30px)
+   ============================================================ */
+@layer utilities {
+
+  /* --- Style 1: Top-left + Bottom-right corners clipped (main tactical shape) --- */
+  .tactical-clip-1-sm { clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px); }
+  .tactical-clip-1    { clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px); }
+  .tactical-clip-1-lg { clip-path: polygon(30px 0, 100% 0, 100% calc(100% - 30px), calc(100% - 30px) 100%, 0 100%, 0 30px); }
+
+  /* --- Style 2: Top-right + Bottom-left corners clipped (mirror of style 1) --- */
+  .tactical-clip-2-sm { clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px)); }
+  .tactical-clip-2    { clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px)); }
+  .tactical-clip-2-lg { clip-path: polygon(0 0, calc(100% - 30px) 0, 100% 30px, 100% 100%, 30px 100%, 0 calc(100% - 30px)); }
+
+  /* --- Style 3: All four corners clipped symmetrically --- */
+  .tactical-clip-3-sm { clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px), 0 12px); }
+  .tactical-clip-3    { clip-path: polygon(20px 0, calc(100% - 20px) 0, 100% 20px, 100% calc(100% - 20px), calc(100% - 20px) 100%, 20px 100%, 0 calc(100% - 20px), 0 20px); }
+  .tactical-clip-3-lg { clip-path: polygon(30px 0, calc(100% - 30px) 0, 100% 30px, 100% calc(100% - 30px), calc(100% - 30px) 100%, 30px 100%, 0 calc(100% - 30px), 0 30px); }
+
+  /* --- Style 4: One large corner (TL) + small notch (BR) — asymmetric tactical --- */
+  .tactical-clip-4-sm { clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 20px); }
+  .tactical-clip-4    { clip-path: polygon(30px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 30px); }
+  .tactical-clip-4-lg { clip-path: polygon(40px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 40px); }
+
+  /* --- Style 5: Horizontal tag / badge shape (left+right chevron points) --- */
+  .tactical-clip-5-sm { clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0 50%); }
+  .tactical-clip-5    { clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 14px 100%, 0 50%); }
+  .tactical-clip-5-lg { clip-path: polygon(20px 0, calc(100% - 20px) 0, 100% 50%, calc(100% - 20px) 100%, 20px 100%, 0 50%); }
+
+  /* --- Style 6: Top-left only — single dramatic corner cut --- */
+  .tactical-clip-6-sm { clip-path: polygon(16px 0, 100% 0, 100% 100%, 0 100%, 0 16px); }
+  .tactical-clip-6    { clip-path: polygon(24px 0, 100% 0, 100% 100%, 0 100%, 0 24px); }
+  .tactical-clip-6-lg { clip-path: polygon(36px 0, 100% 0, 100% 100%, 0 100%, 0 36px); }
 }
