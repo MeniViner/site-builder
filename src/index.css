@@ -201,3 +201,28 @@ html.dark ::-webkit-scrollbar-thumb {
   .tactical-clip-6    { clip-path: polygon(24px 0, 100% 0, 100% 100%, 0 100%, 0 24px); }
   .tactical-clip-6-lg { clip-path: polygon(36px 0, 100% 0, 100% 100%, 0 100%, 0 36px); }
 }
+
+/* ============================================================
+   RIGHT SIDEBAR NAV — RTL Animated Underline
+   The line grows from right → left on hover using the
+   dynamic primary color set by ThemeContext.
+   ============================================================ */
+.sidebar-nav-item {
+  position: relative;
+}
+
+.sidebar-nav-item::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  height: 2px;
+  width: 0;
+  background-color: var(--color-primary-hex, #dc2626);
+  transition: width 0.3s ease;
+  border-radius: 1px;
+}
+
+.sidebar-nav-item:hover::after {
+  width: 100%;
+}

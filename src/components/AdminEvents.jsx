@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { toast } from 'react-toastify';
 import { useEvents } from '../context/EventsContext';
 import { Undo2, Plus, Trash2, Edit2, AlertTriangle, Calendar, Save, X } from 'lucide-react';
 
@@ -30,9 +31,9 @@ export default function AdminEvents({ onClose, inHub = false }) {
         const success = await saveEvents(events, displayCount);
         setIsSaving(false);
         if (success) {
-            alert('התצוגה עודכנה בהצלחה!');
+            toast.success('התצוגה עודכנה בהצלחה!');
         } else {
-            alert('שגיאה בעדכון התצוגה. אנא נסה שוב.');
+            toast.error('שגיאה בעדכון התצוגה. אנא נסה שוב.');
         }
     };
 

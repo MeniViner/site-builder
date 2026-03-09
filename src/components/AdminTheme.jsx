@@ -3,7 +3,7 @@ import { useTheme } from '../context/ThemeContext';
 import {
     Save, AlertTriangle, Palette, Sun, Moon, Monitor,
     Square, Hexagon, Eye, EyeOff, Image as ImageIcon,
-    LayoutGrid, List, Columns, Globe, CircleDot, PanelBottom
+    LayoutGrid, List, Columns, Globe, CircleDot, PanelBottom, PanelRight, Info
 } from 'lucide-react';
 
 const COLOR_SWATCHES = [
@@ -37,12 +37,13 @@ const REGULAR_LINK_LAYOUTS = [
     { value: 'grid', label: 'Grid', description: 'כרטיסי Flip בתצוגת גריד', icon: LayoutGrid },
     { value: 'compact', label: 'Compact List', description: 'רשימה מינימליסטית עם שורות פשוטות', icon: List },
     { value: 'hq', label: 'HQ Dashboard', description: 'עיצוב מרכז פיקוד טקטי מתקדם', icon: Columns },
+    { value: 'sidebar-right', label: 'תפריט צד טקטי', description: 'סרגל ניווט צדדי קבוע בצד ימין', icon: PanelRight },
 ];
 
 const EXTERNAL_LINK_LAYOUTS = [
     { value: 'cards', label: 'Cards', description: 'כרטיסים עם אייקון וכותרת', icon: LayoutGrid },
     { value: 'minimal', label: 'Minimal Icons', description: 'עיגולי אייקון בשורה — כותרת ב-hover', icon: CircleDot },
-    { value: 'floating', label: 'Floating Bar', description: 'פס נעוץ בתחתית המסך', icon: PanelBottom },
+    { value: 'floating', label: 'Floating Bar', description: 'פס עגול עם אייקונים וטקסט', icon: PanelBottom },
 ];
 
 export default function AdminTheme() {
@@ -67,7 +68,14 @@ export default function AdminTheme() {
     if (!draft) return null;
 
     const updateField = (field, value) => {
-        setDraft(prev => ({ ...prev, [field]: value }));
+        setDraft(prev => {
+            const next = { ...prev, [field]: value };
+            // When sidebar-right is selected, force showNavCategories off
+            if (field === 'regularLinksLayout' && value === 'sidebar-right') {
+                next.showNavCategories = false;
+            }
+            return next;
+        });
     };
 
     const handleColorSwatchClick = (hex) => {
@@ -151,11 +159,10 @@ export default function AdminTheme() {
                             <button
                                 key={swatch.hex}
                                 onClick={() => handleColorSwatchClick(swatch.hex)}
-                                className={`group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
-                                    draft.primaryColor === swatch.hex
-                                        ? 'border-gray-400 dark:border-white/40 bg-gray-100 dark:bg-white/5 ring-2 ring-gray-300 dark:ring-white/20'
-                                        : 'border-transparent hover:border-gray-300 dark:hover:border-white/10 hover:bg-gray-100 dark:hover:bg-white/5'
-                                }`}
+                                className={`group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${draft.primaryColor === swatch.hex
+                                    ? 'border-gray-400 dark:border-white/40 bg-gray-100 dark:bg-white/5 ring-2 ring-gray-300 dark:ring-white/20'
+                                    : 'border-transparent hover:border-gray-300 dark:hover:border-white/10 hover:bg-gray-100 dark:hover:bg-white/5'
+                                    }`}
                                 title={swatch.label}
                             >
                                 <div
@@ -239,24 +246,21 @@ export default function AdminTheme() {
                                 <button
                                     key={mode.value}
                                     onClick={() => updateField('displayMode', mode.value)}
-                                    className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${
-                                        isActive
-                                            ? 'bg-red-500/10 border-red-500/40 ring-1 ring-red-500/20'
-                                            : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
-                                    }`}
+                                    className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${isActive
+                                        ? 'bg-red-500/10 border-red-500/40 ring-1 ring-red-500/20'
+                                        : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
+                                        }`}
                                 >
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
-                                        isActive ? 'bg-red-500/15' : 'bg-gray-100 dark:bg-white/5'
-                                    }`}>
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-red-500/15' : 'bg-gray-100 dark:bg-white/5'
+                                        }`}>
                                         <Icon size={22} className={isActive ? 'text-red-400' : 'text-gray-500'} />
                                     </div>
                                     <div className="flex-1">
                                         <h3 className={`font-bold ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>{mode.label}</h3>
                                         <p className={`text-sm ${isActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>{mode.description}</p>
                                     </div>
-                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${
-                                        isActive ? 'border-red-500 bg-red-500' : 'border-gray-600'
-                                    }`}>
+                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${isActive ? 'border-red-500 bg-red-500' : 'border-gray-600'
+                                        }`}>
                                         {isActive && <div className="w-2 h-2 bg-white rounded-full" />}
                                     </div>
                                 </button>
@@ -292,11 +296,10 @@ export default function AdminTheme() {
                                 <button
                                     key={style.value}
                                     onClick={() => updateField('borderStyle', style.value)}
-                                    className={`relative p-5 rounded-xl border-2 text-right transition-all ${
-                                        isActive
-                                            ? 'bg-red-500/10 border-red-500/40 ring-1 ring-red-500/20'
-                                            : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
-                                    }`}
+                                    className={`relative p-5 rounded-xl border-2 text-right transition-all ${isActive
+                                        ? 'bg-red-500/10 border-red-500/40 ring-1 ring-red-500/20'
+                                        : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
+                                        }`}
                                 >
                                     <div
                                         className={`w-full h-16 bg-gradient-to-br from-gray-600/30 to-gray-700/20 border border-white/10 mb-4 ${previewClasses[style.value] || 'rounded-xl'}`}
@@ -332,7 +335,10 @@ export default function AdminTheme() {
                     </div>
 
                     {/* Toggle: Show Nav Categories */}
-                    <div className="flex items-center justify-between p-5 bg-gray-100 dark:bg-[#1e212b] rounded-xl border border-gray-200 dark:border-white/5 mb-4">
+                    <div
+                        className={`flex items-center justify-between p-5 bg-gray-100 dark:bg-[#1e212b] rounded-xl border border-gray-200 dark:border-white/5 mb-4 transition-opacity ${draft.regularLinksLayout === 'sidebar-right' ? 'opacity-50 pointer-events-none' : ''}`}
+                        title={draft.regularLinksLayout === 'sidebar-right' ? 'לא ניתן להציג ניווט עליון כאשר תפריט צד נבחר' : undefined}
+                    >
                         <div className="flex items-center gap-4">
                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${draft.showNavCategories ? 'bg-green-500/15' : 'bg-gray-100 dark:bg-white/5'}`}>
                                 {draft.showNavCategories ? <Eye size={20} className="text-green-400" /> : <EyeOff size={20} className="text-gray-500" />}
@@ -347,6 +353,7 @@ export default function AdminTheme() {
                                 type="checkbox"
                                 className="sr-only peer"
                                 checked={draft.showNavCategories}
+                                disabled={draft.regularLinksLayout === 'sidebar-right'}
                                 onChange={(e) => updateField('showNavCategories', e.target.checked)}
                             />
                             <div className="w-12 h-7 bg-gray-200 dark:bg-[#252528] rounded-full peer-checked:bg-green-600 transition-colors" />
@@ -368,21 +375,19 @@ export default function AdminTheme() {
                         <div className="flex items-center bg-gray-200 dark:bg-[#252528] rounded-xl p-1 gap-1">
                             <button
                                 onClick={() => updateField('heroGrayscale', false)}
-                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                                    !draft.heroGrayscale
-                                        ? 'bg-amber-600 text-white shadow'
-                                        : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-                                }`}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${!draft.heroGrayscale
+                                    ? 'bg-amber-600 text-white shadow'
+                                    : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                                    }`}
                             >
                                 צבעוני
                             </button>
                             <button
                                 onClick={() => updateField('heroGrayscale', true)}
-                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                                    draft.heroGrayscale
-                                        ? 'bg-gray-600 text-white shadow'
-                                        : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-                                }`}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${draft.heroGrayscale
+                                    ? 'bg-gray-600 text-white shadow'
+                                    : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                                    }`}
                             >
                                 שחור לבן
                             </button>
@@ -409,11 +414,10 @@ export default function AdminTheme() {
                                 <button
                                     key={layout.value}
                                     onClick={() => updateField('regularLinksLayout', layout.value)}
-                                    className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${
-                                        isActive
-                                            ? 'bg-red-500/10 border-red-500/40 ring-1 ring-red-500/20'
-                                            : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
-                                    }`}
+                                    className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${isActive
+                                        ? 'bg-red-500/10 border-red-500/40 ring-1 ring-red-500/20'
+                                        : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
+                                        }`}
                                 >
                                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-red-500/15' : 'bg-gray-100 dark:bg-white/5'}`}>
                                         <Icon size={22} className={isActive ? 'text-red-400' : 'text-gray-500'} />
@@ -450,11 +454,10 @@ export default function AdminTheme() {
                                 <button
                                     key={layout.value}
                                     onClick={() => updateField('externalLinksLayout', layout.value)}
-                                    className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${
-                                        isActive
-                                            ? 'bg-red-500/10 border-red-500/40 ring-1 ring-red-500/20'
-                                            : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
-                                    }`}
+                                    className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${isActive
+                                        ? 'bg-red-500/10 border-red-500/40 ring-1 ring-red-500/20'
+                                        : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
+                                        }`}
                                 >
                                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-red-500/15' : 'bg-gray-100 dark:bg-white/5'}`}>
                                         <Icon size={22} className={isActive ? 'text-red-400' : 'text-gray-500'} />
@@ -469,6 +472,27 @@ export default function AdminTheme() {
                                 </button>
                             );
                         })}
+                    </div>
+                    <div className="mt-5 pt-5 border-t border-gray-200 dark:border-white/5 flex items-center gap-3 flex-wrap">
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={!!draft.externalLinksFixed}
+                                onChange={(e) => updateField('externalLinksFixed', e.target.checked)}
+                                className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-red-500 focus:ring-red-500"
+                            />
+                            <span className="font-medium text-gray-800 dark:text-gray-200">הצג כפס נעוץ</span>
+                            <span
+                                className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 dark:bg-white/10 text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-white/20 transition-colors cursor-help"
+                                title="נעוץ: הקישורים יוצגו בפס קבוע בתחתית המסך (תמיד גלוי בגלילה)."
+                                aria-label="הסבר על פס נעוץ"
+                            >
+                                <Info size={12} strokeWidth={2.5} />
+                            </span>
+                        </label>
+                        <p className="text-xs text-gray-500 dark:text-gray-500 w-full mr-7">
+                            פס נעוץ — הקישורים יישארו קבועים בתחתית המסך ויהיו תמיד גלויים גם בגלילה.
+                        </p>
                     </div>
                 </section>
             </div>

@@ -2,9 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useExternalLinks } from '../context/ExternalLinksContext';
 import {
     Save, AlertTriangle, Plus, Trash2, Edit2, X,
-    ExternalLink, GripVertical, Image as ImageIcon, Link as LinkIcon, Type, Upload, Loader2
+    ExternalLink, GripVertical, Image as ImageIcon, Link as LinkIcon, Type, Upload, Loader2, Star
 } from 'lucide-react';
 import { uploadImage } from '../utils/sharepointUtils';
+import { toast } from 'react-toastify';
+import IconPickerModal from './IconPickerModal';
+import { DynamicIcon } from './DynamicIcon';
 
 function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -14,9 +17,10 @@ export default function AdminExternalLinks() {
     const { externalLinks, loading, error, saveExternalLinks } = useExternalLinks();
     const [links, setLinks] = useState([]);
     const [isSaving, setIsSaving] = useState(false);
-    const [saveMessage, setSaveMessage] = useState(null);
     const [editingLink, setEditingLink] = useState(null);
+    const [confirmDeleteId, setConfirmDeleteId] = useState(null);
     const [uploadingIcon, setUploadingIcon] = useState(false);
+    const [iconPickerOpen, setIconPickerOpen] = useState(false);
     const iconFileInputRef = useRef(null);
 
     useEffect(() => {
@@ -33,11 +37,10 @@ export default function AdminExternalLinks() {
         setUploadingIcon(true);
         try {
             const url = await uploadImage(file, 'ExternalLinks');
-            setEditingLink(prev => ({ ...prev, iconUrl: url }));
+            setEditingLink(prev => ({ ...prev, iconUrl: url, icon: '' }));
         } catch (err) {
-            console.error('שגיאה בהעלאת אייקון:', err);
-            setSaveMessage({ type: 'error', text: `שגיאה בהעלאת אייקון: ${err.message}` });
-            setTimeout(() => setSaveMessage(null), 4000);
+            console.error('שגיאה בהעלאת יוצג:', err);
+            toast.error(`שגיאה בהעלאת תמונה: ${err.message}`);
         } finally {
             setUploadingIcon(false);
             if (iconFileInputRef.current) iconFileInputRef.current.value = '';
@@ -46,15 +49,13 @@ export default function AdminExternalLinks() {
 
     const handleSave = async () => {
         setIsSaving(true);
-        setSaveMessage(null);
         const success = await saveExternalLinks(links);
         setIsSaving(false);
         if (success) {
-            setSaveMessage({ type: 'success', text: 'קישורים חיצוניים נשמרו בהצלחה!' });
+            toast.success('קישורים חיצוניים נשמרו בהצלחה!');
         } else {
-            setSaveMessage({ type: 'error', text: 'שגיאה בשמירה. אנא נסה שוב.' });
+            toast.error(error || 'שגיאה בשמירה. אנא נסה שוב.');
         }
-        setTimeout(() => setSaveMessage(null), 4000);
     };
 
     const addLink = () => {
@@ -63,6 +64,8 @@ export default function AdminExternalLinks() {
             title: '',
             url: '',
             iconUrl: '',
+            icon: '',
+            visualType: 'icon',
             isNew: true,
         });
     };
@@ -74,7 +77,8 @@ export default function AdminExternalLinks() {
             id: editingLink.id,
             title: formData.get('title').trim(),
             url: formData.get('url').trim(),
-            iconUrl: editingLink.iconUrl || '',
+            icon: editingLink.visualType === 'icon' ? (editingLink.icon || '') : '',
+            iconUrl: editingLink.visualType === 'image' ? (editingLink.iconUrl || '') : '',
         };
 
         if (!updated.title || !updated.url) return;
@@ -88,12 +92,22 @@ export default function AdminExternalLinks() {
     };
 
     const removeLink = (id) => {
-        if (!window.confirm('האם למחוק קישור זה?')) return;
-        setLinks(prev => prev.filter(l => l.id !== id));
+        setConfirmDeleteId(id);
+    };
+
+    const confirmRemoveLink = () => {
+        if (confirmDeleteId) {
+            setLinks(prev => prev.filter(l => l.id !== confirmDeleteId));
+            setConfirmDeleteId(null);
+        }
     };
 
     const startEdit = (link) => {
-        setEditingLink({ ...link, isNew: false });
+        setEditingLink({
+            ...link,
+            visualType: link.iconUrl && !link.icon ? 'image' : 'icon',
+            isNew: false
+        });
     };
 
     if (loading && !externalLinks) {
@@ -102,6 +116,18 @@ export default function AdminExternalLinks() {
 
     return (
         <div dir="rtl" className="min-h-screen bg-gray-100 dark:bg-[#1e212b] text-gray-900 dark:text-white font-heebo p-8">
+            {/* מודל אישור מחיקת קישור */}
+            {confirmDeleteId && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setConfirmDeleteId(null)}>
+                    <div className="bg-white dark:bg-[#232733] border border-gray-200 dark:border-white/10 rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
+                        <p className="text-gray-900 dark:text-white font-bold text-lg mb-4">האם למחוק קישור זה?</p>
+                        <div className="flex gap-3 justify-end">
+                            <button type="button" onClick={() => setConfirmDeleteId(null)} className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 transition font-medium">ביטול</button>
+                            <button type="button" onClick={confirmRemoveLink} className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-medium transition">מחוק</button>
+                        </div>
+                    </div>
+                </div>
+            )}
             <div className="flex justify-between items-center mb-8 border-b border-gray-300 dark:border-white/10 pb-4">
                 <div>
                     <h1 className="text-3xl font-black text-gray-900 dark:text-white">ניהול קישורים חיצוניים</h1>
@@ -133,12 +159,6 @@ export default function AdminExternalLinks() {
                 </div>
             )}
 
-            {saveMessage && (
-                <div className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${saveMessage.type === 'success' ? 'bg-green-50 dark:bg-green-900/50 border border-green-300 dark:border-green-500' : 'bg-red-50 dark:bg-red-900/50 border border-red-300 dark:border-red-500'}`}>
-                    <span className={saveMessage.type === 'success' ? 'text-green-700 dark:text-green-200' : 'text-red-700 dark:text-red-200'}>{saveMessage.text}</span>
-                </div>
-            )}
-
             {links.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-gray-300 dark:border-white/10 rounded-2xl">
                     <ExternalLink size={48} className="text-gray-700 mb-4" />
@@ -153,7 +173,7 @@ export default function AdminExternalLinks() {
                     </button>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-5 gap-4">
                     {links.map((link) => (
                         <div
                             key={link.id}
@@ -161,19 +181,18 @@ export default function AdminExternalLinks() {
                         >
                             <div className="flex items-start gap-4 mb-4">
                                 <div className="w-14 h-14 rounded-xl bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center shrink-0">
-                                    {link.iconUrl ? (
+                                    {link.icon ? (
+                                        <DynamicIcon name={link.icon} size={28} className="text-gray-500 dark:text-gray-400" />
+                                    ) : link.iconUrl ? (
                                         <img
                                             src={link.iconUrl}
                                             alt={link.title}
                                             className="w-full h-full object-contain p-1.5"
                                             onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
                                         />
-                                    ) : null}
-                                    <div
-                                        className={`w-full h-full items-center justify-center ${link.iconUrl ? 'hidden' : 'flex'}`}
-                                    >
+                                    ) : (
                                         <ExternalLink size={22} className="text-gray-400 dark:text-gray-600" />
-                                    </div>
+                                    )}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <h3 className="font-bold text-gray-900 dark:text-white text-base truncate mb-1">{link.title || '(ללא כותרת)'}</h3>
@@ -181,9 +200,10 @@ export default function AdminExternalLinks() {
                                 </div>
                             </div>
 
-                            {link.iconUrl && (
+                            {(link.iconUrl || link.icon) && (
                                 <p className="text-[11px] text-gray-400 dark:text-gray-600 truncate mb-3 dir-ltr text-left" dir="ltr">
-                                    <ImageIcon size={10} className="inline mr-1" />{link.iconUrl}
+                                    {link.iconUrl ? <ImageIcon size={10} className="inline mr-1" /> : <Star size={10} className="inline mr-1" />}
+                                    {link.iconUrl ? link.iconUrl : `Icon: ${link.icon}`}
                                 </p>
                             )}
 
@@ -272,56 +292,98 @@ export default function AdminExternalLinks() {
                             </div>
 
                             <div>
-                                <label className="flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                    <ImageIcon size={14} className="text-gray-400 dark:text-gray-500" />
-                                    אייקון / תמונה
-                                    <span className="text-gray-400 dark:text-gray-600 font-normal">(אופציונלי)</span>
+                                <label className="flex items-center justify-between text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">
+                                    <span className="flex items-center gap-2">
+                                        <ImageIcon size={14} className="text-gray-400 dark:text-gray-500" />
+                                        תצוגה חזותית <span className="text-gray-400 dark:text-gray-600 font-normal">(אופציונלי)</span>
+                                    </span>
                                 </label>
-                                <input name="iconUrl" type="hidden" value={editingLink.iconUrl || ''} />
-                                <label
-                                    className={`flex items-center justify-center gap-2 w-full bg-gray-50 dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 border-dashed rounded-xl px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hover:border-red-500/50 hover:text-gray-700 dark:hover:text-gray-300 transition cursor-pointer ${uploadingIcon ? 'opacity-50 pointer-events-none' : ''}`}
-                                >
-                                    {uploadingIcon ? (
-                                        <>
-                                            <Loader2 size={16} className="animate-spin text-red-400" />
-                                            <span>מעלה אייקון...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Upload size={16} />
-                                            <span>{editingLink.iconUrl ? 'החלף אייקון' : 'העלה אייקון'}</span>
-                                        </>
-                                    )}
-                                    <input
-                                        ref={iconFileInputRef}
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handleIconFileUpload}
-                                        className="hidden"
-                                        disabled={uploadingIcon}
-                                    />
-                                </label>
-                                {editingLink.iconUrl && (
-                                    <div className="mt-3 flex items-center gap-3">
-                                        <div className="w-12 h-12 rounded-lg bg-white dark:bg-[#232733] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center">
-                                            <img
-                                                src={editingLink.iconUrl}
-                                                alt="תצוגה מקדימה"
-                                                className="w-full h-full object-contain p-1"
-                                                onError={(e) => { e.target.style.display = 'none'; }}
-                                            />
+
+                                {/* Visual Type Toggle */}
+                                <div className="flex bg-gray-100 dark:bg-[#151821] p-1 rounded-lg mb-4 text-sm font-medium border border-gray-300 dark:border-gray-700/50">
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditingLink(prev => ({ ...prev, visualType: 'icon' }))}
+                                        className={`flex-1 py-1.5 px-3 rounded-md transition flex justify-center items-center gap-2 ${editingLink.visualType === 'icon' ? 'bg-white dark:bg-[#232733] text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                                    >
+                                        <Star size={14} /> אייקון
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditingLink(prev => ({ ...prev, visualType: 'image' }))}
+                                        className={`flex-1 py-1.5 px-3 rounded-md transition flex justify-center items-center gap-2 ${editingLink.visualType === 'image' ? 'bg-white dark:bg-[#232733] text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                                    >
+                                        <ImageIcon size={14} /> תמונה מותאמת
+                                    </button>
+                                </div>
+
+                                {editingLink.visualType === 'icon' ? (
+                                    <div className="flex bg-gray-50 dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-3 items-center justify-between group">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-white dark:bg-[#232733] rounded-lg border border-gray-200 dark:border-gray-700/50 flex flex-col items-center justify-center shrink-0">
+                                                <DynamicIcon name={editingLink.icon || 'HelpCircle'} size={20} className="text-blue-500" />
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{editingLink.icon || 'לא נבחר אייקון'}</span>
+                                                <span className="text-xs text-gray-500">אייקון מספריית Lucide</span>
+                                            </div>
                                         </div>
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-xs text-gray-400 dark:text-gray-600">תצוגה מקדימה</span>
-                                            <button
-                                                type="button"
-                                                onClick={() => setEditingLink(prev => ({ ...prev, iconUrl: '' }))}
-                                                className="text-xs text-red-400 hover:text-red-300 transition text-right"
-                                            >
-                                                הסר אייקון
-                                            </button>
-                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIconPickerOpen(true)}
+                                            className="px-4 py-2 bg-gray-200 dark:bg-white/10 hover:bg-red-500 text-gray-700 hover:text-white dark:text-gray-300 rounded-lg transition text-sm font-bold"
+                                        >
+                                            בחר
+                                        </button>
                                     </div>
+                                ) : (
+                                    <>
+                                        <label
+                                            className={`flex items-center justify-center gap-2 w-full bg-gray-50 dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 border-dashed rounded-xl px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hover:border-red-500/50 hover:text-gray-700 dark:hover:text-gray-300 transition cursor-pointer ${uploadingIcon ? 'opacity-50 pointer-events-none' : ''}`}
+                                        >
+                                            {uploadingIcon ? (
+                                                <>
+                                                    <Loader2 size={16} className="animate-spin text-red-400" />
+                                                    <span>מעלה תמונה...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Upload size={16} />
+                                                    <span>{editingLink.iconUrl ? 'החלף תמונה' : 'העלה תמונה'}</span>
+                                                </>
+                                            )}
+                                            <input
+                                                ref={iconFileInputRef}
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleIconFileUpload}
+                                                className="hidden"
+                                                disabled={uploadingIcon}
+                                            />
+                                        </label>
+                                        {editingLink.iconUrl && (
+                                            <div className="mt-3 flex items-center gap-3">
+                                                <div className="w-12 h-12 rounded-lg bg-white dark:bg-[#232733] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center">
+                                                    <img
+                                                        src={editingLink.iconUrl}
+                                                        alt="תצוגה מקדימה"
+                                                        className="w-full h-full object-contain p-1"
+                                                        onError={(e) => { e.target.style.display = 'none'; }}
+                                                    />
+                                                </div>
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-xs text-gray-400 dark:text-gray-600">תצוגה מקדימה</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setEditingLink(prev => ({ ...prev, iconUrl: '' }))}
+                                                        className="text-xs text-red-400 hover:text-red-300 transition text-right"
+                                                    >
+                                                        הסר תמונה
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
 
@@ -341,6 +403,15 @@ export default function AdminExternalLinks() {
                     </div>
                 </div>
             )}
+
+            <IconPickerModal
+                isOpen={iconPickerOpen}
+                onClose={() => setIconPickerOpen(false)}
+                currentIcon={editingLink?.icon || ''}
+                onSelect={(iconName) => {
+                    setEditingLink(prev => ({ ...prev, icon: iconName, iconUrl: '' }));
+                }}
+            />
         </div>
     );
 }

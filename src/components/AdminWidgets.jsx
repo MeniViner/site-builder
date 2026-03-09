@@ -112,11 +112,10 @@ export default function AdminWidgets() {
                         <button
                             key={widget.id}
                             onClick={() => setSelected(widget.id)}
-                            className={`relative text-right p-6 rounded-2xl border-2 transition-all duration-200 group ${
-                                isSelected
+                            className={`relative text-right p-6 rounded-2xl border-2 transition-all duration-200 group ${isSelected
                                     ? `${colors.activeBg} ${colors.activeBorder} ring-2 ${colors.activeRing} shadow-lg`
                                     : 'bg-white dark:bg-[#232733] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15 hover:bg-gray-50 dark:hover:bg-[#272b38]'
-                            }`}
+                                }`}
                         >
                             {isLive && (
                                 <div className={`absolute top-3 left-3 ${colors.badgeBg} text-white text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider`}>
@@ -124,9 +123,8 @@ export default function AdminWidgets() {
                                 </div>
                             )}
 
-                            <div className={`w-14 h-14 rounded-xl flex items-center justify-center mb-5 ${
-                                isSelected ? colors.iconBg : 'bg-gray-100 dark:bg-white/5'
-                            } transition-colors`}>
+                            <div className={`w-14 h-14 rounded-xl flex items-center justify-center mb-5 ${isSelected ? colors.iconBg : 'bg-gray-100 dark:bg-white/5'
+                                } transition-colors`}>
                                 <Icon size={28} className={isSelected ? colors.iconText : 'text-gray-500'} />
                             </div>
 
@@ -138,9 +136,8 @@ export default function AdminWidgets() {
                                 {widget.description}
                             </p>
 
-                            <div className={`mt-5 flex items-center gap-2 text-sm font-bold ${
-                                isSelected ? colors.iconText : 'text-gray-400 dark:text-gray-600'
-                            }`}>
+                            <div className={`mt-5 flex items-center gap-2 text-sm font-bold ${isSelected ? colors.iconText : 'text-gray-400 dark:text-gray-600'
+                                }`}>
                                 {isSelected ? (
                                     <>
                                         <Check size={16} />

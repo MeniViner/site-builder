@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { toast } from 'react-toastify';
 import {
     Undo2, Calendar, Menu, Save, FileText, Link as LinkIcon,
     LayoutGrid, Palette, ExternalLink
@@ -58,7 +59,7 @@ export default function AdminHub() {
 
     const handleBackup = async () => {
         if (SHAREPOINT_CONFIG.useMock) {
-            alert('גיבוי לא נתמך במצב פיתוח (Mock)');
+            toast.info('גיבוי לא נתמך במצב פיתוח (Mock)');
             return;
         }
 
@@ -67,9 +68,9 @@ export default function AdminHub() {
             const success = await createBackup();
             setIsBackingUp(false);
             if (success) {
-                alert('הגיבוי נוצר בהצלחה!');
+                toast.success('הגיבוי נוצר בהצלחה!');
             } else {
-                alert('שגיאה ביצירת הגיבוי. אנא נסה שוב או בדוק את הלוגים.');
+                toast.error('שגיאה ביצירת הגיבוי. אנא נסה שוב או בדוק את הלוגים.');
             }
         }
     };

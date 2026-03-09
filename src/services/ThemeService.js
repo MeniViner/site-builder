@@ -10,6 +10,7 @@ const DEFAULT_THEME = {
     heroGrayscale: false,
     regularLinksLayout: 'grid',
     externalLinksLayout: 'cards',
+    externalLinksFixed: false,
 };
 
 class ThemeService {
@@ -45,6 +46,7 @@ class ThemeService {
             heroGrayscale: data.heroGrayscale !== undefined ? data.heroGrayscale : DEFAULT_THEME.heroGrayscale,
             regularLinksLayout: data.regularLinksLayout || DEFAULT_THEME.regularLinksLayout,
             externalLinksLayout: data.externalLinksLayout || DEFAULT_THEME.externalLinksLayout,
+            externalLinksFixed: data.externalLinksFixed !== undefined ? data.externalLinksFixed : DEFAULT_THEME.externalLinksFixed,
         };
     }
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { toast } from 'react-toastify';
 import { useNavigation } from '../context/NavigationContext';
 import { DynamicIcon } from './DynamicIcon';
 import {
@@ -6,11 +7,15 @@ import {
     Folder, FolderOpen, FileText, Link as LinkIcon, Home, Search,
     ExternalLink
 } from 'lucide-react';
+import IconPickerModal from './IconPickerModal';
 
 export default function AdminNavigation() {
     const { navItems: initialNavItems, loading, error, saveNavigation } = useNavigation();
     const [navItems, setNavItems] = useState(initialNavItems || []);
     const [isSaving, setIsSaving] = useState(false);
+
+    // Icon Picker State
+    const [iconPicker, setIconPicker] = useState({ isOpen: false, targetPath: null, currentIcon: '' });
 
     // Navigation State
     const [selectedPath, setSelectedPath] = useState([]); // [] = root, [catId], [catId, subId]
@@ -30,9 +35,9 @@ export default function AdminNavigation() {
         const success = await saveNavigation(navItems);
         setIsSaving(false);
         if (success) {
-            alert('נתוני הניווט נשמרו בהצלחה!');
+            toast.success('נתוני הניווט נשמרו בהצלחה!');
         } else {
-            alert('שגיאה בשמירת נתוני הניווט.');
+            toast.error('שגיאה בשמירת נתוני הניווט.');
         }
     };
 
@@ -305,14 +310,16 @@ export default function AdminNavigation() {
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">אייקון (Lucide)</label>
-                                <div className="relative">
-                                    <input
-                                        type="text"
-                                        value={currentModel.icon || ''}
-                                        onChange={(e) => updateNode(selectedPath, 'icon', e.target.value)}
-                                        className="w-full bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-gray-900 dark:text-white focus:outline-none focus:border-red-500 focus:bg-gray-100 dark:focus:bg-[#1a1a1f] text-sm transition font-mono"
-                                    />
-                                </div>
+                                <button
+                                    onClick={() => setIconPicker({ isOpen: true, targetPath: selectedPath, currentIcon: currentModel.icon || '' })}
+                                    className="w-full h-[34px] flex items-center justify-between bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-red-400 dark:hover:border-red-500 rounded-md px-3 py-1.5 text-gray-900 dark:text-white transition focus:outline-none focus:ring-1 focus:ring-red-500"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <DynamicIcon name={currentModel.icon || 'HelpCircle'} size={16} className="text-blue-500 dark:text-blue-400" />
+                                        <span className="text-sm font-medium font-mono truncate">{currentModel.icon || 'בחר אייקון'}</span>
+                                    </div>
+                                    <ChevronDown size={14} className="text-gray-400" />
+                                </button>
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">קישור ישיר (URL)</label>
@@ -326,26 +333,6 @@ export default function AdminNavigation() {
                                 />
                             </div>
                         </div>
-                        {currentLevel === 1 && (
-                            <div className="mr-4 flex items-center shrink-0">
-                                <label className="flex items-center gap-3 cursor-pointer group" title="סמן קטגוריה כ-Direct Link: הילדים לא יוצגו בחזית, רק הקישור הישיר">
-                                    <div className="relative">
-                                        <input
-                                            type="checkbox"
-                                            className="sr-only peer"
-                                            checked={!!currentModel.isDirectLink}
-                                            onChange={(e) => updateNode(selectedPath, 'isDirectLink', e.target.checked)}
-                                        />
-                                        <div className="w-11 h-6 bg-gray-200 dark:bg-[#252528] rounded-full peer-checked:bg-red-600 transition-colors" />
-                                        <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-gray-300 rounded-full peer-checked:translate-x-5 peer-checked:bg-white transition-transform shadow-sm" />
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <ExternalLink size={14} className="text-gray-500 group-hover:text-red-400 transition" />
-                                        <span className="text-xs text-gray-500 dark:text-gray-400 font-bold whitespace-nowrap">Direct Link</span>
-                                    </div>
-                                </label>
-                            </div>
-                        )}
                     </div>
                 )}
 
@@ -417,18 +404,19 @@ export default function AdminNavigation() {
                                             />
                                         </td>
                                         <td className="py-2.5 px-2">
-                                            <div className="flex items-center gap-2 bg-transparent border border-transparent focus-within:border-red-500 focus-within:bg-gray-50 dark:focus-within:bg-[#141418] hover:border-[#333] hover:bg-gray-100 dark:hover:bg-black/20 rounded-md transition pl-2 pr-2 py-1.5 focus-within:shadow-inner">
-                                                <div className="w-5 flex justify-center shrink-0">
-                                                    <DynamicIcon name={child.icon} size={16} className="text-gray-500 dark:text-gray-400" />
+                                            <button
+                                                onClick={() => setIconPicker({ isOpen: true, targetPath: child.nodePath, currentIcon: child.icon || '' })}
+                                                className="w-full flex items-center justify-between gap-2 bg-transparent border border-transparent hover:border-[#333] hover:bg-gray-100 dark:hover:bg-black/20 focus:border-red-500 focus:bg-gray-50 dark:focus:bg-[#141418] rounded-md transition pl-2 pr-2 py-1.5 focus:shadow-inner"
+                                            >
+                                                <div className="flex items-center gap-2 overflow-hidden">
+                                                    <div className="w-5 flex justify-center shrink-0">
+                                                        <DynamicIcon name={child.icon || 'HelpCircle'} size={16} className="text-gray-500 dark:text-gray-400" />
+                                                    </div>
+                                                    <span className="text-xs text-gray-500 dark:text-gray-400 font-mono truncate text-left dir-ltr">
+                                                        {child.icon || 'בחר אייקון...'}
+                                                    </span>
                                                 </div>
-                                                <input
-                                                    type="text"
-                                                    value={child.icon || ''}
-                                                    onChange={(e) => updateNode(child.nodePath, 'icon', e.target.value)}
-                                                    className="bg-transparent border-none focus:outline-none w-full text-xs text-gray-500 dark:text-gray-400 font-mono"
-                                                    placeholder="שם האייקון"
-                                                />
-                                            </div>
+                                            </button>
                                         </td>
                                         <td className="py-2.5 px-2">
                                             <input
@@ -467,6 +455,18 @@ export default function AdminNavigation() {
                     )}
                 </div>
             </div>
+
+            {/* Icon Picker Modal */}
+            <IconPickerModal
+                isOpen={iconPicker.isOpen}
+                onClose={() => setIconPicker({ isOpen: false, targetPath: null, currentIcon: '' })}
+                currentIcon={iconPicker.currentIcon}
+                onSelect={(iconName) => {
+                    if (iconPicker.targetPath) {
+                        updateNode(iconPicker.targetPath, 'icon', iconName);
+                    }
+                }}
+            />
         </div>
     );
 }

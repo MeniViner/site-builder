@@ -31,7 +31,9 @@ class ExternalLinksService {
             id: item.id || String(idx + 1),
             title: item.title || '',
             url: item.url || '',
-            image: item.image || '',
+            image: item.image || item.iconUrl || '',
+            iconUrl: item.iconUrl || item.image || '',
+            icon: item.icon || '',
             order: item.order !== undefined ? item.order : idx,
         }));
     }
@@ -64,6 +66,9 @@ class ExternalLinksService {
             return Promise.resolve(payload);
         } catch (error) {
             console.error('Error saving mock external links:', error);
+            if (error.name === 'QuotaExceededError' || error.message.includes('quota')) {
+                throw new Error('חריגה ממגבלת הזיכרון המקומי! התמונות גדולות מדי לגירסת הפיתוח. אנא השתמש באייקונים במקום תמונות כבדות.');
+            }
             throw new Error('שגיאה בשמירת קישורים חיצוניים לזיכרון המקומי');
         }
     }

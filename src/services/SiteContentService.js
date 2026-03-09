@@ -3,6 +3,7 @@ import { getRequestDigest } from '../utils/sharepointUtils';
 
 const DEFAULT_SITE_CONTENT = {
     hero: {
+        siteName: 'שם האתר',
         title: 'בית הספר לחמ"ם \n 7134',
         subtitle: 'ברוכים הבאים',
         description: 'מרכז ההכשרות המוביל בצה"ל למקצועות החמ"ם.\nאנו אמונים על רצף ההכשרה, פיתוח מקצועי מתמיד ושמירה על כשירות עליונה בתחום המערכות המתקדמות.',
@@ -19,6 +20,7 @@ const DEFAULT_SITE_CONTENT = {
         image: '/images/אייל זמיר.png',
         sectionTitle: 'דבר המפקד',
         roleLabel: 'מפקד היחידה',
+        decorativeElement: 'line-diamond-line',
         messages: [
             {
                 id: '1',
@@ -57,22 +59,35 @@ class SiteContentService {
         const hero = data.hero || DEFAULT_SITE_CONTENT.hero;
         const commander = data.commander || DEFAULT_SITE_CONTENT.commander;
 
+        if (hero && !hero.siteName) hero.siteName = DEFAULT_SITE_CONTENT.hero.siteName;
         if (!hero.backgroundImages || !hero.backgroundImages.length) {
             hero.backgroundImages = DEFAULT_SITE_CONTENT.hero.backgroundImages;
         }
         if (!commander.messages || !commander.messages.length) {
             commander.messages = DEFAULT_SITE_CONTENT.commander.messages;
         }
+        if (!commander.decorativeElement) {
+            commander.decorativeElement = DEFAULT_SITE_CONTENT.commander.decorativeElement || 'line-diamond-line';
+        }
 
         return { hero, commander };
     }
 
     async saveSiteContent(payload) {
+        const isDev = import.meta.env.DEV;
         if (this.useMock) {
-            return this._saveMockData(payload);
-        } else {
-            return this._saveSharePointData(payload);
+            const result = await this._saveMockData(payload);
+            return result;
         }
+        const result = await this._saveSharePointData(payload);
+        if (isDev) {
+            try {
+                await this._saveMockData(payload);
+            } catch (e) {
+                console.warn('Dev: could not persist site content to localStorage', e);
+            }
+        }
+        return result;
     }
 
     _getMockData() {

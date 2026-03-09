@@ -17,6 +17,9 @@ import { useTheme } from './context/ThemeContext';
 import { useWidget } from './context/WidgetContext';
 import { useExternalLinks } from './context/ExternalLinksContext';
 import AdminHub from './components/AdminHub';
+import RightSidebarNav from './components/RightSidebarNav';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 /* ================================================================
    BORDER STYLE HELPER
@@ -56,25 +59,25 @@ export const FlipCard = ({ id, title, icon: iconName, subLinks = [], url, isFlip
   return (
     <div className="relative w-full h-56 cursor-pointer [perspective:1000px] group" onClick={handleCardClick}>
       <div className={`w-full h-full transition-transform duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
-        <div className="absolute inset-0 [backface-visibility:hidden] bg-gradient-to-br from-white to-gray-100 dark:from-surface-card dark:to-[#111318] border border-gray-200 dark:border-gray-800 group-hover:border-primary/50 group-hover:shadow-[0_0_20px_var(--color-primary-900)] transition-all rounded-xl p-6 flex flex-col items-center justify-center text-gray-700 dark:text-gray-200">
+        <div className="absolute inset-0 [backface-visibility:hidden] bg-gradient-to-br from-white to-gray-50 border border-gray-200 shadow-sm text-gray-900 dark:from-[#2a2e3b] dark:to-[#1e212b] dark:border-white/10 dark:text-white group-hover:border-primary/50 group-hover:shadow-[0_0_20px_var(--color-primary-900)] transition-all rounded-xl p-6 flex flex-col items-center justify-center">
           <div className="bg-gray-100 dark:bg-black/40 border border-gray-200 dark:border-gray-800/50 p-4 rounded-xl mb-4 text-primary group-hover:scale-110 transition-transform duration-300">
             <DynamicIcon name={iconName} size={36} strokeWidth={1.5} />
           </div>
           <h3 className="text-xl font-bold text-gray-900 dark:text-white tracking-wide">{title}</h3>
-          <div className="mt-4 flex items-center justify-center gap-1 text-xs text-gray-400 dark:text-gray-500 font-medium tracking-wider uppercase">
+          <div className="mt-4 flex items-center justify-center gap-1 text-xs text-gray-600 dark:text-gray-300 font-medium tracking-wider uppercase">
             <span>לכניסה</span>
-            <ChevronLeft size={12} className="-rotate-90" aria-hidden />
+            <ChevronLeft size={12} className="-rotate-90 text-gray-700 dark:text-gray-400" aria-hidden />
           </div>
         </div>
-        <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] bg-gradient-to-br from-gray-100 to-gray-50 dark:from-[#111318] dark:to-[#0a0c0f] border border-gray-200 dark:border-gray-800 rounded-xl p-5 flex flex-col shadow-2xl">
+        <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] bg-gradient-to-br from-white to-gray-50 border border-gray-200 shadow-sm text-gray-900 dark:from-[#2a2e3b] dark:to-[#1e212b] dark:border-white/10 dark:text-white rounded-xl p-5 flex flex-col shadow-2xl">
           <div className="flex justify-between items-center mb-3 border-b border-gray-200 dark:border-gray-800 pb-3">
-            <h3 className="text-base font-bold text-gray-800 dark:text-white/90">{title}</h3>
-            <button type="button" className="text-gray-400 dark:text-gray-500 hover:text-primary transition-colors bg-gray-100 dark:bg-gray-900/50 rounded-md p-1" onClick={handleClose} aria-label="סגור"><Undo2 size={16} /></button>
+            <h3 className="text-base font-bold text-gray-900 dark:text-white/90">{title}</h3>
+            <button type="button" className="text-gray-700 dark:text-gray-400 hover:text-primary transition-colors bg-gray-100 dark:bg-gray-900/50 rounded-md p-1" onClick={handleClose} aria-label="סגור"><Undo2 size={16} /></button>
           </div>
           <div className="flex flex-wrap gap-1.5 flex-1 content-center">
             {(subLinks || []).map((link, idx) => (
               <button key={idx} type="button" onClick={handleLinkClick} className="relative flex items-center gap-1.5 text-right bg-gray-100 dark:bg-white/5 hover:bg-primary/10 hover:text-primary-300 px-3 py-2 rounded-lg transition-all text-sm text-gray-600 dark:text-gray-300 group/btn whitespace-nowrap">
-                <DynamicIcon name={link.icon} size={14} className="text-gray-400 dark:text-gray-500 group-hover/btn:text-primary-300 shrink-0" />
+                <DynamicIcon name={link.icon} size={14} className="text-gray-700 dark:text-gray-400 group-hover/btn:text-primary-300 shrink-0" />
                 <span>{link.label}</span>
                 {link.url && <a href={link.url} target="_blank" rel="noreferrer" className="absolute inset-0" onClick={(e) => e.stopPropagation()} />}
               </button>
@@ -108,14 +111,14 @@ function CompactListSection({ cat }) {
             rel={card.url ? 'noopener noreferrer' : undefined}
             className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-all group border border-transparent hover:border-gray-200 dark:hover:border-white/5"
           >
-            <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center text-gray-400 dark:text-gray-500 group-hover:text-primary group-hover:bg-primary/10 transition shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center text-gray-700 dark:text-gray-400 group-hover:text-primary group-hover:bg-primary/10 transition shrink-0">
               <DynamicIcon name={card.icon} size={16} />
             </div>
             <span className="text-sm font-medium text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition flex-1">{card.title || card.label}</span>
             {card.subLinks && card.subLinks.length > 0 && (
-              <span className="text-[10px] text-gray-500 dark:text-gray-600 bg-gray-100 dark:bg-white/5 px-2 py-0.5 rounded-full">{card.subLinks.length} קישורים</span>
+              <span className="text-[10px] text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-white/5 px-2 py-0.5 rounded-full">{card.subLinks.length} קישורים</span>
             )}
-            <ChevronLeft size={14} className="text-gray-400 dark:text-gray-700 group-hover:text-primary transition shrink-0" />
+            <ChevronLeft size={14} className="text-gray-700 dark:text-gray-400 group-hover:text-primary transition shrink-0" />
           </a>
         ))}
       </div>
@@ -173,16 +176,21 @@ function HQDashboardSection({ cat }) {
 /* ================================================================
    EXTERNAL LINK IMAGE with Globe fallback
    ================================================================ */
-function ExtLinkIcon({ src, alt, size = 18, className = '' }) {
+function ExtLinkIcon({ icon, src, alt, size = 18, className = '' }) {
   const [failed, setFailed] = useState(false);
+  if (icon) {
+    return <DynamicIcon name={icon} size={size} className={`text-gray-600 group-hover:text-primary dark:text-gray-400 transition ${className}`} />;
+  }
   if (!src || failed) {
-    return <Globe size={size} className={`text-gray-600 group-hover:text-primary transition ${className}`} />;
+    return <Globe size={size} className={`text-gray-600 group-hover:text-primary dark:text-gray-400 transition ${className}`} />;
   }
   return (
     <img
       src={src}
-      alt={alt}
-      className={`w-full h-full object-contain p-1.5 ${className}`}
+      alt={alt ?? ''}
+      width={size}
+      height={size}
+      className={`object-contain ${className}`}
       onError={() => setFailed(true)}
     />
   );
@@ -191,7 +199,22 @@ function ExtLinkIcon({ src, alt, size = 18, className = '' }) {
 /* ================================================================
    EXTERNAL LINKS — Cards Layout
    ================================================================ */
-function ExtLinksCards({ links }) {
+function ExtLinksCards({ links, compact }) {
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2 flex-nowrap">
+        {links.map((link) => (
+          <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
+            className="group flex flex-col items-center gap-1.5 p-2.5 rounded-lg bg-white/50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/5 hover:border-primary/30 hover:bg-primary/5 transition-all text-center shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center justify-center overflow-hidden group-hover:border-primary/30 transition shrink-0">
+              <ExtLinkIcon icon={link.icon} src={link.iconUrl || link.image} alt={link.title} size={18} />
+            </div>
+            <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition truncate max-w-[64px]">{link.title}</span>
+          </a>
+        ))}
+      </div>
+    );
+  }
   return (
     <div className="max-w-[1400px] mx-auto px-6 lg:px-12 py-12">
       <div className="flex items-center gap-3 mb-8">
@@ -204,7 +227,7 @@ function ExtLinksCards({ links }) {
           <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
             className="group flex flex-col items-center gap-3 p-5 rounded-xl bg-white dark:bg-white/[0.02] border border-gray-200 dark:border-white/5 hover:border-primary/30 hover:bg-primary/5 transition-all text-center">
             <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center justify-center overflow-hidden group-hover:border-primary/30 transition shrink-0">
-              <ExtLinkIcon src={link.iconUrl || link.image} alt={link.title} />
+              <ExtLinkIcon icon={link.icon} src={link.iconUrl || link.image} alt={link.title} size={24} />
             </div>
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition truncate w-full">{link.title}</span>
           </a>
@@ -217,21 +240,25 @@ function ExtLinksCards({ links }) {
 /* ================================================================
    EXTERNAL LINKS — Minimal Icons Layout
    ================================================================ */
-function ExtLinksMinimal({ links }) {
+function ExtLinksMinimal({ links, compact }) {
+  const wrapCls = compact ? 'flex items-center gap-3 flex-nowrap' : 'max-w-[1400px] mx-auto px-6 lg:px-12 py-10 flex items-center justify-center gap-6 flex-wrap';
+  const linkCls = compact
+    ? 'group relative w-10 h-10 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:border-primary/40 hover:bg-primary/10 flex items-center justify-center overflow-hidden transition-all hover:scale-110 shrink-0'
+    : 'group relative w-14 h-14 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:border-primary/40 hover:bg-primary/10 flex items-center justify-center overflow-hidden transition-all hover:scale-110';
   return (
-    <div className="max-w-[1400px] mx-auto px-6 lg:px-12 py-10">
-      <div className="flex items-center justify-center gap-6 flex-wrap">
-        {links.map((link) => (
-          <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
-            className="group relative w-14 h-14 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:border-primary/40 hover:bg-primary/10 flex items-center justify-center overflow-hidden transition-all hover:scale-110"
-            title={link.title}>
-            <ExtLinkIcon src={link.iconUrl || link.image} alt={link.title} size={22} />
+    <div className={wrapCls}>
+      {links.map((link) => (
+        <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
+          className={linkCls}
+          title={link.title}>
+          <ExtLinkIcon icon={link.icon} src={link.iconUrl || link.image} alt={link.title} size={compact ? 16 : 22} />
+          {!compact && (
             <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-gray-900 dark:bg-black/90 text-white text-[10px] font-bold px-2.5 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
               {link.title}
             </div>
-          </a>
-        ))}
-      </div>
+          )}
+        </a>
+      ))}
     </div>
   );
 }
@@ -239,21 +266,29 @@ function ExtLinksMinimal({ links }) {
 /* ================================================================
    EXTERNAL LINKS — Floating Bar Layout
    ================================================================ */
-function ExtLinksFloating({ links }) {
-  return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[90] flex items-center gap-2 bg-white/80 dark:bg-black/80 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-full px-4 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.15)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
+function ExtLinksFloating({ links, fixed: isFixed = true }) {
+  const content = (
+    <div className="flex items-center gap-2 bg-white/80 dark:bg-black/80 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-full px-4 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.15)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
       {links.map((link) => (
         <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
           className="group relative flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 transition-all"
           title={link.title}>
           <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center overflow-hidden shrink-0">
-            <ExtLinkIcon src={link.iconUrl || link.image} alt={link.title} size={14} className="!p-0" />
+            <ExtLinkIcon icon={link.icon} src={link.iconUrl || link.image} alt={link.title} size={14} className="!p-0" />
           </div>
           <span className="text-xs font-medium text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition hidden sm:inline max-w-[80px] truncate">{link.title}</span>
         </a>
       ))}
     </div>
   );
+  if (isFixed) {
+    return (
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[90]">
+        {content}
+      </div>
+    );
+  }
+  return <div className="w-full border-t border-gray-200 dark:border-white/5 bg-gray-50 dark:bg-[#1e212b] py-4 flex justify-center">{content}</div>;
 }
 
 /* ================================================================
@@ -331,23 +366,13 @@ function CommanderSection({ commander, messages }) {
 function TacticalPanel({ borderStyle, cornerSize, className, children, glowLine }) {
   const isTactical = borderStyle && borderStyle !== 'standard';
   const outerClip = isTactical ? tacticalClip(borderStyle, cornerSize) : null;
-  const innerClip = isTactical ? tacticalClip(borderStyle, cornerSize - 1) : null;
   const radius = !isTactical ? `${Math.min(cornerSize, 20)}px` : undefined;
 
   return (
-    <div className={`relative ${className}`}>
-      <div
-        className="absolute inset-0 bg-gradient-to-b from-gray-300/40 dark:from-gray-400/30 to-gray-200/30 dark:to-gray-800/20"
-        style={outerClip ? { clipPath: outerClip } : { borderRadius: radius }}
-      />
-      <div
-        className="absolute inset-[1px] bg-surface-bg/40 backdrop-blur-xl"
-        style={innerClip ? { clipPath: innerClip } : { borderRadius: radius }}
-      />
-      <div
-        className="absolute inset-[1px] bg-gradient-to-br from-white/5 to-transparent backdrop-blur-sm mix-blend-overlay"
-        style={innerClip ? { clipPath: innerClip } : { borderRadius: radius }}
-      />
+    <div
+      className={`relative bg-white border border-gray-200 shadow-md text-gray-800 dark:bg-[#232733] dark:border-white/5 dark:text-white dark:shadow-none ${className}`}
+      style={outerClip ? { clipPath: outerClip } : { borderRadius: radius }}
+    >
       {glowLine && (
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/3 h-[2px] shadow-[0_0_15px_var(--color-primary-hex)] z-20" style={{ backgroundColor: 'var(--color-primary-hex)' }} />
       )}
@@ -366,7 +391,7 @@ function SearchBar({ borderStyle }) {
     return (
       <div className="relative flex items-center w-64 md:w-80 h-10 group" style={{ filter: `drop-shadow(0 0 4px var(--color-primary-900))` }}>
         <div className="absolute inset-0 bg-primary-900 rounded-lg" />
-        <div className="absolute inset-[1px] bg-surface-bg rounded-[7px]" />
+        <div className="absolute inset-[1px] bg-gray-50 dark:bg-[#1e212b] rounded-[7px]" />
         <div className="absolute inset-[3px] rounded-[5px] transition-colors group-hover:brightness-110" style={{ backgroundColor: 'var(--color-primary-800)' }} />
         <div className="absolute inset-[4px] bg-white flex items-center px-3 rounded-[4px]">
           <Search size={22} className="shrink-0" style={{ color: 'var(--color-primary-800)' }} strokeWidth={2} />
@@ -380,7 +405,7 @@ function SearchBar({ borderStyle }) {
   return (
     <div className="relative flex items-center w-64 md:w-80 h-10 group" style={{ filter: `drop-shadow(0 0 4px var(--color-primary-900))` }}>
       <div className="absolute inset-0 bg-primary-900" style={{ clipPath: clip(12) }} />
-      <div className="absolute inset-[1px] bg-surface-bg" style={{ clipPath: clip(11) }} />
+      <div className="absolute inset-[1px] bg-gray-50 dark:bg-[#1e212b]" style={{ clipPath: clip(11) }} />
       <div className="absolute inset-[3px] transition-colors group-hover:brightness-110" style={{ clipPath: clip(9), backgroundColor: 'var(--color-primary-800)' }} />
       <div className="absolute inset-[4px] bg-white flex items-center px-3" style={{ clipPath: clip(8) }}>
         <Search size={22} className="shrink-0" style={{ color: 'var(--color-primary-800)' }} strokeWidth={2} />
@@ -415,6 +440,7 @@ function Home() {
   const borderStyle = theme?.borderStyle || 'tactical-1';
   const regularLinksLayout = theme?.regularLinksLayout || 'grid';
   const externalLinksLayout = theme?.externalLinksLayout || 'cards';
+  const externalLinksFixed = theme?.externalLinksFixed ?? false;
   const activeWidget = widgetConfig?.activeWidget || 'events';
   const widgetTitle = activeWidget === 'events' ? 'מופעי החודש' : activeWidget === 'alerts' ? 'לוח הודעות' : 'ווידגט';
 
@@ -488,45 +514,59 @@ function Home() {
 
   const renderExternalLinks = () => {
     if (!externalLinks || externalLinks.length === 0) return null;
-    if (externalLinksLayout === 'minimal') return <footer className="relative z-10 w-full border-t border-gray-200 dark:border-white/5 bg-surface-bg"><ExtLinksMinimal links={externalLinks} /></footer>;
-    if (externalLinksLayout === 'floating') return <ExtLinksFloating links={externalLinks} />;
-    return <footer className="relative z-10 w-full border-t border-gray-200 dark:border-white/5 bg-surface-bg"><ExtLinksCards links={externalLinks} /></footer>;
+    const footerCls = 'relative z-10 w-full border-t border-gray-200 dark:border-white/5 bg-gray-50 dark:bg-[#1e212b]';
+    if (externalLinksFixed) return null;
+    if (externalLinksLayout === 'minimal') return <footer className={footerCls}><ExtLinksMinimal links={externalLinks} /></footer>;
+    if (externalLinksLayout === 'floating') return <footer className={footerCls}><ExtLinksFloating links={externalLinks} fixed={false} /></footer>;
+    return <footer className={footerCls}><ExtLinksCards links={externalLinks} /></footer>;
   };
 
   return (
-    <div dir="rtl" className="min-h-screen relative bg-surface-bg text-gray-900 dark:text-white font-heebo selection:bg-primary/30">
+    <div dir="rtl" className="min-h-screen relative bg-gray-50 dark:bg-[#1e212b] text-gray-900 dark:text-white font-heebo selection:bg-primary/30">
 
       {/* Background */}
-      <div className="fixed inset-0 z-0 bg-surface-bg">
+      <div className="fixed inset-0 z-0 bg-gray-50 dark:bg-[#1e212b]">
         {backgrounds.map((bg, idx) => (
-          <img key={idx} src={bg} alt={`bg-${idx}`}
-            className={`absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-1000 mix-blend-luminosity brightness-75 contrast-125 ${idx === bgIndex ? 'opacity-50' : 'opacity-0'} ${heroGrayscale ? 'grayscale' : ''}`} />
+          <img
+            key={idx}
+            src={bg}
+            alt={`bg-${idx}`}
+            className={`absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-1000 brightness-75 contrast-125 ${idx === bgIndex ? 'opacity-50' : 'opacity-0'}`}
+            style={{
+              filter: heroGrayscale ? 'grayscale(100%)' : 'none',
+              mixBlendMode: heroGrayscale ? 'luminosity' : 'normal',
+            }}
+          />
         ))}
         <div className="absolute inset-0 z-10 grid-overlay pointer-events-none opacity-70" />
         <div className="absolute inset-0 z-10 bg-[radial-gradient(circle_at_center,transparent_30%,var(--surface-bg)_100%)] opacity-90 pointer-events-none" />
-        <div className="absolute inset-0 z-10 bg-gradient-to-t from-[var(--surface-bg)] via-[var(--surface-bg)]/40 to-transparent h-full pointer-events-none" />
-        <div className="absolute inset-0 z-10 bg-gradient-to-b from-[var(--surface-bg)]/80 via-transparent to-transparent h-1/2 pointer-events-none" />
-        <div className="absolute inset-y-0 right-0 z-10 w-2/3 bg-gradient-to-l from-[var(--surface-bg)] via-[var(--surface-bg)]/60 to-transparent pointer-events-none" />
-        <div className="absolute inset-y-0 left-0 z-10 w-1/4 bg-gradient-to-r from-[var(--surface-bg)] to-transparent pointer-events-none" />
+        <div className="absolute inset-0 z-10 bg-gradient-to-t from-gray-50 via-gray-50/80 to-transparent dark:from-[#1a1d24] dark:via-[#1a1d24]/80 h-full pointer-events-none" />
+        <div className="absolute inset-0 z-10 bg-gradient-to-b from-gray-50/80 dark:from-[#1e212b]/80 via-transparent to-transparent h-1/2 pointer-events-none" />
+        <div className="absolute inset-y-0 right-0 z-10 w-2/3 bg-gradient-to-l from-gray-50 via-gray-50/60 to-transparent dark:from-[#1e212b] dark:via-[#1e212b]/60 pointer-events-none" />
+        <div className="absolute inset-y-0 left-0 z-10 w-1/4 bg-gradient-to-r from-gray-50 to-transparent dark:from-[#1e212b] pointer-events-none" />
       </div>
 
       <div className="relative z-20 flex flex-col w-full h-full">
         {/* Top Navbar */}
-        <nav className="w-full px-8 py-6 flex items-center justify-between border-b border-gray-200 dark:border-white/5 bg-gradient-to-b from-white/80 dark:from-black/80 to-transparent sticky top-0 z-[100] bg-surface-bg/20 backdrop-blur-md">
+        <nav className="w-full px-8 py-6 flex items-center justify-between bg-white/80 backdrop-blur-md border-b border-gray-200 dark:bg-[#1a1d24]/90 dark:border-white/5 sticky top-0 z-[100]">
           <div className="flex items-center gap-8 lg:gap-10">
             <div className="flex items-center gap-3 cursor-pointer group" onClick={() => window.scrollTo(0, 0)}>
-              <div className="text-gray-900 dark:text-white font-bold text-xl relative shrink-0">
-                בית הספר
-                <div className="absolute -bottom-7 left-0 right-0 h-1 bg-primary rounded-t-sm" />
+              <div className="font-bold text-xl relative shrink-0" style={{ color: theme?.primaryColor ?? '#dc2626' }}>
+                {hero.siteName || 'שם האתר'}
+                <div className="absolute -bottom-7 left-0 right-0 h-1 rounded-t-sm" style={{ backgroundColor: theme?.primaryColor ?? '#dc2626' }} />
               </div>
             </div>
             {showNavCategories && navItems.map(cat => (
-              <div key={cat.id} onClick={() => handleNavTo(cat)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition font-medium cursor-pointer text-sm tracking-wide">{cat.label}</div>
+              <div key={cat.id} onClick={() => handleNavTo(cat)} className="px-3 py-1.5 rounded-md text-gray-700 hover:text-black hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-white/10 transition font-medium cursor-pointer text-sm tracking-wide">{cat.label}</div>
             ))}
           </div>
           <div className="flex flex-row-reverse items-center gap-3">
             <SearchBar borderStyle={borderStyle} />
-            <button onClick={onOpenAdmin} className="bg-primary/20 hover:bg-primary/40 border border-primary/30 text-gray-900 dark:text-white px-6 h-10 font-bold transition rounded-sm text-sm whitespace-nowrap hidden sm:block">ניהול</button>
+            <button
+              onClick={onOpenAdmin}
+              className="  border text-gray-900 dark:text-white px-6 h-10 font-bold transition rounded-sm text-sm whitespace-nowrap hidden sm:block"
+              style={{ borderColor: theme?.primaryColor ?? '#dc2626' }}
+            >ניהול</button>
             {theme?.displayMode === 'user-toggle' && (
               <button
                 onClick={toggleUserMode}
@@ -585,36 +625,61 @@ function Home() {
         </main>
 
         {/* Categories Section */}
-        <div className="relative z-10 w-full mt-[10vh] pb-24 px-6 lg:px-12 flex flex-col gap-16 bg-surface-bg/90 backdrop-blur-xl border-t border-gray-200 dark:border-primary/20 pt-16">
-          {loading ? (
-            <div className="w-full h-64 flex items-center justify-center text-gray-500">טוען קטגוריות...</div>
-          ) : filteredCats.map(renderCategorySection)}
-        </div>
+        {regularLinksLayout !== 'sidebar-right' && (
+          <div className="relative z-10 w-full mt-[10vh] pb-24 px-6 lg:px-12 flex flex-col gap-16 bg-gray-50/90 dark:bg-[#1e212b]/90 backdrop-blur-xl border-t border-gray-200 dark:border-primary/20 pt-16">
+            {loading ? (
+              <div className="w-full h-64 flex items-center justify-center text-gray-500">טוען קטגוריות...</div>
+            ) : filteredCats.map(renderCategorySection)}
+          </div>
+        )}
 
-        {/* External Links */}
-        {externalLinksLayout !== 'floating' && renderExternalLinks()}
+        {/* External Links (in flow when not fixed) */}
+        {!externalLinksFixed && renderExternalLinks()}
 
         {/* Copyright */}
-        {externalLinks && externalLinks.length > 0 && externalLinksLayout !== 'floating' && (
-          <div className="relative z-10 border-t border-gray-200 dark:border-white/5 py-4 text-center bg-surface-bg">
+        {externalLinks && externalLinks.length > 0 && !externalLinksFixed && (
+          <div className="relative z-10 border-t border-gray-200 dark:border-white/5 py-4 text-center bg-gray-50 dark:bg-[#1e212b]">
             <p className="text-xs text-gray-700">כל הזכויות שמורות &copy; {new Date().getFullYear()}</p>
           </div>
         )}
       </div>
 
-      {/* Floating bar renders outside the flow */}
-      {externalLinksLayout === 'floating' && externalLinks && externalLinks.length > 0 && (
-        <ExtLinksFloating links={externalLinks} />
+      {/* Right Sidebar Nav — TOP LEVEL, outside all relative/overflow parents */}
+      {regularLinksLayout === 'sidebar-right' && <RightSidebarNav />}
+
+      {/* Fixed bar (when "נעוץ" is on) — any of the 3 layouts can be shown fixed */}
+      {externalLinksFixed && externalLinks && externalLinks.length > 0 && (
+        externalLinksLayout === 'floating' ? (
+          <ExtLinksFloating links={externalLinks} fixed />
+        ) : (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[90] max-w-[95vw] overflow-x-auto rounded-2xl bg-white/80 dark:bg-black/80 backdrop-blur-xl border border-gray-200 dark:border-white/10 px-4 py-3 shadow-[0_8px_32px_rgba(0,0,0,0.15)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
+            {externalLinksLayout === 'minimal' ? (
+              <ExtLinksMinimal links={externalLinks} compact />
+            ) : (
+              <ExtLinksCards links={externalLinks} compact />
+            )}
+          </div>
+        )
       )}
     </div>
   );
 }
 
 export default function App() {
+  const { effectiveMode } = useTheme();
   return (
-    <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/admin/*" element={<AdminHub />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/admin/*" element={<AdminHub />} />
+      </Routes>
+      <ToastContainer
+        position="top-right"
+        rtl
+        theme={effectiveMode === 'dark' ? 'dark' : 'light'}
+        autoClose={4000}
+        closeButton
+      />
+    </>
   );
 }

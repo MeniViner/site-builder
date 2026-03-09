@@ -59,30 +59,16 @@ export default function EventsList() {
             {slice.map((event, idx) => (
                 <div
                     key={`${event.id}-${currentIndex}`}
-                    className={`relative group cursor-pointer transition h-20 animate-aggressive ${event.color === 'red' ? 'filter drop-shadow-[0_0_12px_rgba(220,38,38,0.2)]' : 'hover:opacity-100'}`}
+                    className={`relative group cursor-pointer transition h-20 animate-aggressive ${event.color === 'red' ? 'ring-1 ring-red-500 shadow-[0_0_12px_rgba(220,38,38,0.2)]' : 'hover:opacity-100'} bg-white border border-gray-200 shadow-md text-gray-800 dark:bg-[#232733] dark:border-white/5 dark:text-white dark:shadow-none flex items-stretch rounded-lg overflow-hidden`}
                     style={{ animationDelay: `${idx * 0.15}s` }}
                 >
-                    <div
-                        className={`absolute inset-0 ${event.color === 'red' ? 'bg-red-500' : 'bg-gray-300 dark:bg-gray-600/50'}`}
-                        style={{ clipPath: 'polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px)' }}
-                    />
-                    <div
-                        className={`absolute inset-[1px] ${event.color === 'red' ? 'bg-white/80 dark:bg-[#0c0d12]/60' : 'bg-white/80 dark:bg-[#0c0d12]/50'} backdrop-blur-xl`}
-                        style={{ clipPath: 'polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px)' }}
-                    />
-                    <div
-                        className={`absolute inset-[1px] bg-gradient-to-l ${event.color === 'red' ? 'from-red-600/40 backdrop-blur-md' : 'from-gray-400/20 dark:from-gray-600/20 mix-blend-screen'} to-transparent`}
-                        style={{ clipPath: 'polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px)' }}
-                    />
-                    <div className={`relative z-10 flex items-stretch h-full ${event.color === 'red' ? 'text-red-800 dark:text-white' : 'text-gray-700 dark:text-gray-200'}`}>
-                        <div className={`w-[30%] flex flex-col items-center justify-center border-l ${event.color === 'red' ? 'border-red-500/30' : 'border-gray-300 dark:border-gray-600/40 text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition'} font-bold`}>
-                            <span className="text-3xl leading-none drop-shadow-sm">{getDayNumeric(event.date, event.day)}</span>
-                            <span className={`text-[10px] mt-1 tracking-widest ${event.color === 'red' ? 'opacity-90 text-red-700 dark:text-red-100' : 'opacity-80'}`}>{getHebrewMonth(event.date, event.month)}</span>
-                        </div>
-                        <div className={`flex-1 flex flex-col justify-center pr-4 pl-2 ${event.color === 'red' ? '' : 'group-hover:text-gray-900 dark:group-hover:text-white transition'}`}>
-                            <div className="font-bold text-[15px] lg:text-lg leading-tight mb-0.5 truncate drop-shadow-sm">{event.title}</div>
-                            <div className={`text-[10px] lg:text-[11px] uppercase tracking-widest font-medium ${event.color === 'red' ? 'opacity-80' : 'text-gray-400'}`}>{event.subtitle}</div>
-                        </div>
+                    <div className="w-[30%] flex flex-col items-center justify-center border-l border-inherit font-bold">
+                        <span className="text-3xl leading-none drop-shadow-sm">{getDayNumeric(event.date, event.day)}</span>
+                        <span className="text-[10px] mt-1 tracking-widest opacity-80">{getHebrewMonth(event.date, event.month)}</span>
+                    </div>
+                    <div className="flex-1 flex flex-col justify-center pr-4 pl-2">
+                        <div className="font-bold text-[15px] lg:text-lg leading-tight mb-0.5 truncate drop-shadow-sm text-gray-900 dark:text-white">{event.title}</div>
+                        <div className="text-[10px] lg:text-[11px] uppercase tracking-widest font-medium text-gray-600 dark:text-gray-300">{event.subtitle}</div>
                     </div>
                 </div>
             ))}

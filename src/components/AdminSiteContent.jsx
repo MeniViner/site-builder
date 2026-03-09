@@ -6,15 +6,15 @@ import {
 } from 'lucide-react';
 import { uploadImage } from '../utils/sharepointUtils';
 
-const MAX_COMMANDER_MESSAGES = 3;
+const MAX_COMMANDER_MESSAGES = 5;
 
 export default function AdminSiteContent() {
     const { siteContent, loading, error, saveSiteContent } = useSiteContent();
     const [isSaving, setIsSaving] = useState(false);
     const [saveMessage, setSaveMessage] = useState(null);
 
-    const [hero, setHero] = useState({ title: '', subtitle: '', description: '', backgroundImages: [] });
-    const [commander, setCommander] = useState({ image: '', sectionTitle: '', roleLabel: '', messages: [] });
+    const [hero, setHero] = useState({ siteName: '', title: '', subtitle: '', description: '', backgroundImages: [] });
+    const [commander, setCommander] = useState({ image: '', sectionTitle: '', roleLabel: '', decorativeElement: 'line-diamond-line', messages: [] });
     const [editingMessage, setEditingMessage] = useState(null);
     const [uploadingHeroIndex, setUploadingHeroIndex] = useState(null);
     const [uploadingCommander, setUploadingCommander] = useState(false);
@@ -194,6 +194,18 @@ export default function AdminSiteContent() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="space-y-5">
                         <div>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">שם האתר (בתפריט העליון)</label>
+                            <input
+                                type="text"
+                                value={hero.siteName ?? ''}
+                                onChange={(e) => updateHeroField('siteName', e.target.value)}
+                                className="w-full bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 rounded-lg px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-red-500 transition font-medium"
+                                placeholder='לדוגמה: "שם האתר"'
+                            />
+                            <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">מוצג בתפריט העליון בצבע הראשי</p>
+                        </div>
+
+                        <div>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">תת-כותרת עליונה</label>
                             <input
                                 type="text"
@@ -208,23 +220,32 @@ export default function AdminSiteContent() {
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">כותרת ראשית</label>
                             <textarea
                                 value={hero.title}
-                                onChange={(e) => updateHeroField('title', e.target.value)}
+                                onChange={(e) => {
+                                    const lines = e.target.value.split(/\n/);
+                                    const limited = lines.slice(0, 2).join('\n');
+                                    updateHeroField('title', limited);
+                                }}
                                 rows={2}
                                 className="w-full bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 rounded-lg px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-red-500 transition font-medium resize-none"
                                 placeholder='לדוגמה: "בית הספר לחמ"ם\n7134"'
                             />
-                            <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">השתמש ב-\n לשבירת שורה</p>
+                            <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">עד 2 שורות. השתמש ב-Enter לשבירת שורה</p>
                         </div>
 
                         <div>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">תיאור</label>
                             <textarea
                                 value={hero.description}
-                                onChange={(e) => updateHeroField('description', e.target.value)}
-                                rows={4}
+                                onChange={(e) => {
+                                    const lines = e.target.value.split(/\n/);
+                                    const limited = lines.slice(0, 3).join('\n');
+                                    updateHeroField('description', limited);
+                                }}
+                                rows={3}
                                 className="w-full bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 rounded-lg px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-red-500 transition text-sm resize-none"
                                 placeholder="תיאור קצר שמופיע מתחת לכותרת..."
                             />
+                            <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">עד 3 שורות</p>
                         </div>
                     </div>
 
@@ -378,6 +399,21 @@ export default function AdminSiteContent() {
                         </div>
                     </div>
                 )}
+
+                <div className="mb-6">
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">אלמנט עיצובי (כשיש הודעה אחת)</label>
+                    <select
+                        value={commander.decorativeElement ?? 'line-diamond-line'}
+                        onChange={(e) => setCommander(prev => ({ ...prev, decorativeElement: e.target.value }))}
+                        className="w-full max-w-xs bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 rounded-lg px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-red-500 transition font-medium"
+                    >
+                        <option value="line-diamond-line">קו — יהלום — קו</option>
+                        <option value="dots">נקודות</option>
+                        <option value="line">קו בלבד</option>
+                        <option value="double-line">שני קווים</option>
+                    </select>
+                    <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">מוצג במקום כפתורי הניווט כשיש רק הודעה אחת</p>
+                </div>
 
                 {/* Messages List */}
                 <div className="flex items-center justify-between mb-4">
