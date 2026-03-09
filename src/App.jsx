@@ -521,6 +521,16 @@ function Home() {
     return <footer className={footerCls}><ExtLinksCards links={externalLinks} /></footer>;
   };
 
+  const getWidgetHeight = (level) => {
+    switch (level) {
+      case 'full': return 'calc(100vh - 180px)';
+      case 'high': return 'calc(100vh - 300px)';
+      case 'medium': return '520px';
+      case 'low':
+      default: return '400px';
+    }
+  };
+
   return (
     <div dir="rtl" className="min-h-screen relative bg-gray-50 dark:bg-[#1e212b] text-gray-900 dark:text-white font-heebo selection:bg-primary/30">
 
@@ -584,7 +594,7 @@ function Home() {
         </nav>
 
         {/* Main Hero Content */}
-        <main className="w-full relative min-h-[calc(100vh-80px)] xl:h-[calc(100vh-80px)] flex flex-col pt-4 [@media(max-height:850px)]:pt-2 lg:pt-8 xl:pt-12">
+        <main className="w-full relative h-[calc(100vh-80px)] min-h-[calc(100vh-80px)] max-h-[calc(100vh-80px)] flex flex-col justify-between overflow-hidden pt-4 [@media(max-height:850px)]:pt-2 lg:pt-8 xl:pt-12">
           <div className="flex-1 flex flex-col justify-center px-4 sm:px-8 lg:px-12 xl:px-24 pointer-events-auto z-20">
             <div className="w-full lg:w-[75%] xl:w-[65%] text-right self-end md:self-auto">
               <div className="text-primary font-bold lg:text-lg [@media(max-height:850px)]:text-sm mb-1 mr-1">{hero.subtitle}</div>
@@ -597,30 +607,39 @@ function Home() {
           </div>
 
           {/* Bottom Panels: Commander + Widget */}
-          <div className="w-full px-8 lg:px-12 xl:px-24 pb-6 lg:pb-10 xl:pb-12 flex flex-col lg:flex-row items-center lg:items-center xl:items-end justify-between gap-6 lg:gap-6 xl:gap-10 pointer-events-auto z-30 mt-8 [@media(max-height:850px)]:-mt-2 lg:mt-auto">
+          <div className="w-full px-8 lg:px-12 xl:px-24 pb-6 lg:pb-10 xl:pb-12 flex flex-col lg:flex-row items-end justify-between gap-6 lg:gap-6 xl:gap-10 pointer-events-auto z-30 mt-auto">
             <TacticalPanel
               borderStyle={borderStyle}
               cornerSize={30}
-              className="w-full lg:flex-1 lg:max-w-[700px] h-auto lg:h-[260px] xl:h-[300px] 2xl:min-h-[320px] [@media(max-height:850px)]:h-[220px] shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)] group"
+              className="w-full lg:flex-1 lg:max-w-[700px] h-auto lg:h-[260px] xl:h-[300px] 2xl:min-h-[320px] [@media(max-height:850px)]:h-[220px] shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)] group self-end"
             >
               <CommanderSection commander={commander} messages={messages} />
             </TacticalPanel>
 
-            <TacticalPanel
-              borderStyle={borderStyle}
-              cornerSize={30}
-              glowLine
-              className="w-full lg:w-[320px] xl:w-[380px] h-auto lg:h-[320px] xl:h-[380px] 2xl:h-[420px] [@media(max-height:850px)]:h-[380px] shrink-0 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)] group"
-            >
-              <div className="p-6 pt-7 [@media(max-height:850px)]:p-4 [@media(max-height:850px)]:pt-4 relative z-10 w-full h-full flex flex-col">
-                <h2 className="text-2xl [@media(max-height:850px)]:text-xl font-black text-gray-900 dark:text-white mb-6 [@media(max-height:850px)]:mb-3 border-b border-gray-200 dark:border-white/20 pb-2 text-shadow-sm">{widgetTitle}</h2>
-                <div className="overflow-hidden flex-1 relative mask-image-bottom">
-                  <div className="absolute inset-0 overflow-y-auto pr-2 custom-scrollbar">
-                    <WidgetSection activeWidget={activeWidget} />
+            {/* Dynamic Widget Controlled Wrapper */}
+            <div className="self-end shrink-0 w-full lg:w-[320px] xl:w-[380px] relative z-40 lg:h-0">
+              {/* On mobile: regular flow. On desktop: absolutely positioned to grow UP from the 0-height wrapper */}
+              <div
+                className="w-full lg:absolute lg:bottom-0 lg:left-0 transition-all duration-300"
+                style={{ height: getWidgetHeight(theme?.widgetHeight) }}
+              >
+                <TacticalPanel
+                  borderStyle={borderStyle}
+                  cornerSize={30}
+                  glowLine
+                  className="w-full h-full shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)] group flex flex-col"
+                >
+                  <div className="p-6 pt-7 relative z-10 w-full h-full flex flex-col">
+                    <h2 className="text-2xl [@media(max-height:850px)]:text-xl font-black text-gray-900 dark:text-white mb-6 [@media(max-height:850px)]:mb-3 border-b border-gray-200 dark:border-white/20 pb-2 text-shadow-sm">{widgetTitle}</h2>
+                    <div className="overflow-hidden flex-1 relative mask-image-bottom">
+                      <div className="h-full flex flex-col">
+                        <WidgetSection activeWidget={activeWidget} />
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </TacticalPanel>
               </div>
-            </TacticalPanel>
+            </div>
           </div>
         </main>
 

@@ -11,7 +11,10 @@ const DEFAULT_THEME = {
     regularLinksLayout: 'grid',
     externalLinksLayout: 'cards',
     externalLinksFixed: false,
+    widgetHeight: 'low',
 };
+
+const WIDGET_HEIGHT_OPTIONS = ['full', 'high', 'medium', 'low'];
 
 class ThemeService {
     constructor() {
@@ -37,6 +40,10 @@ class ThemeService {
 
     _normalizeData(data) {
         if (!data) return { ...DEFAULT_THEME };
+        const widgetHeight = WIDGET_HEIGHT_OPTIONS.includes(data.widgetHeight)
+            ? data.widgetHeight
+            : DEFAULT_THEME.widgetHeight;
+
         return {
             primaryColor: data.primaryColor || DEFAULT_THEME.primaryColor,
             displayMode: data.displayMode || DEFAULT_THEME.displayMode,
@@ -47,6 +54,7 @@ class ThemeService {
             regularLinksLayout: data.regularLinksLayout || DEFAULT_THEME.regularLinksLayout,
             externalLinksLayout: data.externalLinksLayout || DEFAULT_THEME.externalLinksLayout,
             externalLinksFixed: data.externalLinksFixed !== undefined ? data.externalLinksFixed : DEFAULT_THEME.externalLinksFixed,
+            widgetHeight,
         };
     }
 

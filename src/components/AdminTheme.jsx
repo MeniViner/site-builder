@@ -46,6 +46,13 @@ const EXTERNAL_LINK_LAYOUTS = [
     { value: 'floating', label: 'Floating Bar', description: 'פס עגול עם אייקונים וטקסט', icon: PanelBottom },
 ];
 
+const WIDGET_HEIGHT_OPTIONS = [
+    { value: 'full', label: 'מלא', description: 'נמתח כמעט עד סרגל הניווט העליון' },
+    { value: 'high', label: 'גבוה', description: 'תופס שטח אנכי מורחב' },
+    { value: 'medium', label: 'בינוני', description: 'איזון בין שטח תוכן לנראות ההירו' },
+    { value: 'low', label: 'נמוך', description: 'גובה ברירת מחדל (המצב הנוכחי)' },
+];
+
 export default function AdminTheme() {
     const { theme, loading, error, saveTheme } = useTheme();
     const [draft, setDraft] = useState(null);
@@ -315,6 +322,44 @@ export default function AdminTheme() {
                                             <div className="w-2 h-2 bg-white rounded-full" />
                                         </div>
                                     )}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </section>
+
+                {/* ==================== WIDGET HEIGHT ==================== */}
+                <section className="bg-white dark:bg-[#232733] border border-gray-200 dark:border-white/5 rounded-xl p-6">
+                    <div className="flex items-center gap-3 mb-6 border-b border-gray-300 dark:border-white/10 pb-4">
+                        <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
+                            <PanelBottom size={20} className="text-red-400" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">גובה הווידגט הדינמי</h2>
+                            <p className="text-sm text-gray-400 dark:text-gray-500">שליטה בגובה Section 3 בלבד, תוך שמירה על יישור תחתון קבוע</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {WIDGET_HEIGHT_OPTIONS.map((option) => {
+                            const isActive = draft.widgetHeight === option.value;
+
+                            return (
+                                <button
+                                    key={option.value}
+                                    onClick={() => updateField('widgetHeight', option.value)}
+                                    className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${isActive
+                                        ? 'bg-red-500/10 border-red-500/40 ring-1 ring-red-500/20'
+                                        : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
+                                        }`}
+                                >
+                                    <div className="flex-1">
+                                        <h3 className={`font-bold ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>{option.label}</h3>
+                                        <p className={`text-sm ${isActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>{option.description}</p>
+                                    </div>
+                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${isActive ? 'border-red-500 bg-red-500' : 'border-gray-600'}`}>
+                                        {isActive && <div className="w-2 h-2 bg-white rounded-full" />}
+                                    </div>
                                 </button>
                             );
                         })}
