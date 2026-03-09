@@ -196,7 +196,7 @@ export default function AdminExternalLinks() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <h3 className="font-bold text-gray-900 dark:text-white text-base truncate mb-1">{link.title || '(ללא כותרת)'}</h3>
-                                    <p className="text-xs text-blue-400/70 truncate dir-ltr text-left" dir="ltr">{link.url || '(ללא כתובת)'}</p>
+                                    <p className="text-xs text-blue-600/80 dark:text-blue-400/70 truncate dir-ltr text-left" dir="ltr">{link.url || '(ללא כתובת)'}</p>
                                 </div>
                             </div>
 

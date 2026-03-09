@@ -4,6 +4,13 @@ import { getRequestDigest } from '../utils/sharepointUtils';
 const DEFAULT_WIDGETS_CONFIG = {
     activeWidget: 'events',
     widgetSettings: {},
+    outstanding: [],
+    countdown: {
+        title: '',
+        targetDate: '',
+    },
+    news: [],
+    phonebook: [],
 };
 
 class WidgetService {
@@ -33,6 +40,12 @@ class WidgetService {
         return {
             activeWidget: data.activeWidget || DEFAULT_WIDGETS_CONFIG.activeWidget,
             widgetSettings: data.widgetSettings || {},
+            outstanding: Array.isArray(data.outstanding) ? data.outstanding : [],
+            countdown: data.countdown && typeof data.countdown === 'object'
+                ? { title: data.countdown.title || '', targetDate: data.countdown.targetDate || '' }
+                : { title: '', targetDate: '' },
+            news: Array.isArray(data.news) ? data.news : [],
+            phonebook: Array.isArray(data.phonebook) ? data.phonebook : [],
         };
     }
 

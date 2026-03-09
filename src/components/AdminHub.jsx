@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 import {
     Undo2, Calendar, Menu, Save, FileText, Link as LinkIcon,
-    LayoutGrid, Palette, ExternalLink
+    LayoutGrid, Palette, ExternalLink, Sun, Moon,
+    Award, Timer, Rss, BookUser
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import AdminEvents from './AdminEvents';
@@ -11,12 +12,25 @@ import AdminSiteContent from './AdminSiteContent';
 import AdminWidgets from './AdminWidgets';
 import AdminTheme from './AdminTheme';
 import AdminExternalLinks from './AdminExternalLinks';
+import AdminOutstanding from './AdminOutstanding';
+import AdminCountdown from './AdminCountdown';
+import AdminNews from './AdminNews';
+import AdminPhonebook from './AdminPhonebook';
 import { createBackup } from '../utils/sharepointUtils';
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { useWidget } from '../context/WidgetContext';
+import { useTheme } from '../context/ThemeContext';
 
-const WIDGET_META = {
-    events: { label: 'ניהול אירועים', icon: Calendar, path: '/admin/events' },
+// ─── Dynamic widget management link config ────────────────────────────────────
+// Maps activeWidget value → sidebar label, icon, and route path.
+// Widgets without a dedicated management page (e.g. 'alerts') are omitted
+// so the link will simply not render.
+const WIDGET_MANAGE_MAP = {
+    events: { label: 'ניהול מופעים', icon: Calendar, path: '/admin/events' },
+    outstanding: { label: 'ניהול מצטיינים', icon: Award, path: '/admin/outstanding' },
+    countdown: { label: 'ניהול ספירה לאחור', icon: Timer, path: '/admin/countdown' },
+    news: { label: 'ניהול מבזקים', icon: Rss, path: '/admin/news' },
+    phonebook: { label: 'ניהול ספר טלפונים', icon: BookUser, path: '/admin/phonebook' },
 };
 
 function SidebarButton({ icon: Icon, label, isActive, onClick, isSidebarOpen, title }) {
@@ -41,9 +55,11 @@ export default function AdminHub() {
     const location = useLocation();
     const [isBackingUp, setIsBackingUp] = useState(false);
     const { widgetConfig } = useWidget();
+    const { effectiveMode, toggleAdminMode } = useTheme();
 
     const activeWidget = widgetConfig?.activeWidget || 'events';
-    const widgetMeta = WIDGET_META[activeWidget];
+    const widgetManageMeta = WIDGET_MANAGE_MAP[activeWidget] ?? null;
+    const isLightMode = effectiveMode === 'light';
 
     const getActiveTab = () => {
         const path = location.pathname;
@@ -52,17 +68,24 @@ export default function AdminHub() {
         if (path.includes('/admin/widgets')) return 'widgets';
         if (path.includes('/admin/theme')) return 'theme';
         if (path.includes('/admin/external-links')) return 'external-links';
+        if (path.includes('/admin/outstanding')) return 'outstanding';
+        if (path.includes('/admin/countdown')) return 'countdown';
+        if (path.includes('/admin/news')) return 'news';
+        if (path.includes('/admin/phonebook')) return 'phonebook';
         return 'info';
     };
 
     const activeTab = getActiveTab();
+
+    // Determine the key for the current dynamic widget page
+    const widgetPageKeys = ['events', 'outstanding', 'countdown', 'news', 'phonebook'];
+    const isOnWidgetPage = widgetPageKeys.includes(activeTab);
 
     const handleBackup = async () => {
         if (SHAREPOINT_CONFIG.useMock) {
             toast.info('גיבוי לא נתמך במצב פיתוח (Mock)');
             return;
         }
-
         if (window.confirm('האם ליצור גיבוי של כלל הנתונים עכשיו?')) {
             setIsBackingUp(true);
             const success = await createBackup();
@@ -81,16 +104,34 @@ export default function AdminHub() {
             <div className={`${isSidebarOpen ? 'w-72' : 'w-20'} bg-white dark:bg-[#232733] border-l border-gray-200 dark:border-white/5 flex flex-col transition-all duration-300 z-50 shrink-0 shadow-[0_0_20px_rgba(0,0,0,0.5)]`}>
                 <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-white/5 h-20 shrink-0">
                     {isSidebarOpen ? (
-                        <div className="flex items-center gap-3 w-full">
-                            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition shrink-0">
+                        <>
+                            <div className="flex items-center gap-3 w-full min-w-0">
+                                <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition shrink-0">
+                                    <Menu size={24} />
+                                </button>
+                                <h1 className="text-xl font-bold text-gray-700 dark:text-gray-200 whitespace-nowrap">ממשק ניהול</h1>
+                            </div>
+                            <button
+                                onClick={toggleAdminMode}
+                                className="w-10 h-10 shrink-0 rounded-lg border border-gray-300 dark:border-white/10 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition flex items-center justify-center"
+                                title={isLightMode ? 'מעבר למצב כהה (ניהול בלבד)' : 'מעבר למצב בהיר (ניהול בלבד)'}
+                            >
+                                {isLightMode ? <Moon size={18} /> : <Sun size={18} />}
+                            </button>
+                        </>
+                    ) : (
+                        <div className="flex flex-col items-center gap-2 mx-auto">
+                            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition">
                                 <Menu size={24} />
                             </button>
-                            <h1 className="text-xl font-bold text-gray-700 dark:text-gray-200 whitespace-nowrap">ממשק ניהול</h1>
+                            <button
+                                onClick={toggleAdminMode}
+                                className="w-10 h-10 rounded-lg border border-gray-300 dark:border-white/10 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition flex items-center justify-center"
+                                title={isLightMode ? 'מעבר למצב כהה' : 'מעבר למצב בהיר'}
+                            >
+                                {isLightMode ? <Moon size={18} /> : <Sun size={18} />}
+                            </button>
                         </div>
-                    ) : (
-                        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition mx-auto">
-                            <Menu size={24} />
-                        </button>
                     )}
                 </div>
 
@@ -115,13 +156,15 @@ export default function AdminHub() {
                         isSidebarOpen={isSidebarOpen}
                     />
 
-                    {widgetMeta && (
+                    {/* Dynamic widget management link — updates based on activeWidget */}
+                    {widgetManageMeta && (
                         <SidebarButton
-                            icon={widgetMeta.icon}
-                            label={widgetMeta.label}
-                            isActive={activeTab === 'events'}
-                            onClick={() => navigate('/admin/events')}
+                            icon={widgetManageMeta.icon}
+                            label={widgetManageMeta.label}
+                            isActive={isOnWidgetPage && activeTab !== 'info' && activeTab !== 'links'}
+                            onClick={() => navigate(widgetManageMeta.path)}
                             isSidebarOpen={isSidebarOpen}
+                            title={`${widgetManageMeta.label} (ווידגט פעיל)`}
                         />
                     )}
 
@@ -132,7 +175,7 @@ export default function AdminHub() {
 
                     <SidebarButton
                         icon={LayoutGrid}
-                        label="ניהול ווידגטים"
+                        label="הגדרות ווידגט"
                         isActive={activeTab === 'widgets'}
                         onClick={() => navigate('/admin/widgets')}
                         isSidebarOpen={isSidebarOpen}
@@ -168,7 +211,7 @@ export default function AdminHub() {
                         <button
                             onClick={handleBackup}
                             disabled={isBackingUp}
-                            className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all ${isBackingUp ? 'opacity-50 cursor-not-allowed' : 'text-blue-400 hover:bg-blue-500/10 hover:text-blue-300'} border border-transparent`}
+                            className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all ${isBackingUp ? 'opacity-50 cursor-not-allowed' : 'text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 hover:text-blue-700 dark:hover:text-blue-300'} border border-transparent`}
                             title="גיבוי מערכת"
                         >
                             <Save size={22} className={isBackingUp ? 'animate-pulse' : ''} />
@@ -182,36 +225,17 @@ export default function AdminHub() {
             <div className="flex-1 flex flex-col h-full bg-gray-100 dark:bg-[#1e212b] overflow-hidden">
                 <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
                     <Routes>
-                        <Route path="/" element={
-                            <div className="w-full h-full">
-                                <AdminSiteContent />
-                            </div>
-                        } />
-                        <Route path="/links" element={
-                            <div className="w-full h-full p-8 max-w-7xl mx-auto">
-                                <AdminNavigation />
-                            </div>
-                        } />
-                        <Route path="/events" element={
-                            <div className="w-full h-full">
-                                <AdminEvents onClose={() => navigate('/')} inHub={true} />
-                            </div>
-                        } />
-                        <Route path="/widgets" element={
-                            <div className="w-full h-full">
-                                <AdminWidgets />
-                            </div>
-                        } />
-                        <Route path="/theme" element={
-                            <div className="w-full h-full">
-                                <AdminTheme />
-                            </div>
-                        } />
-                        <Route path="/external-links" element={
-                            <div className="w-full h-full">
-                                <AdminExternalLinks />
-                            </div>
-                        } />
+                        <Route path="/" element={<div className="w-full h-full"><AdminSiteContent /></div>} />
+                        <Route path="/links" element={<div className="w-full h-full p-8 max-w-7xl mx-auto"><AdminNavigation /></div>} />
+                        <Route path="/events" element={<div className="w-full h-full"><AdminEvents onClose={() => navigate('/')} inHub={true} /></div>} />
+                        <Route path="/widgets" element={<div className="w-full h-full"><AdminWidgets /></div>} />
+                        <Route path="/theme" element={<div className="w-full h-full"><AdminTheme /></div>} />
+                        <Route path="/external-links" element={<div className="w-full h-full"><AdminExternalLinks /></div>} />
+                        {/* ── New dedicated widget management pages ── */}
+                        <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />
+                        <Route path="/countdown" element={<div className="w-full h-full"><AdminCountdown /></div>} />
+                        <Route path="/news" element={<div className="w-full h-full"><AdminNews /></div>} />
+                        <Route path="/phonebook" element={<div className="w-full h-full"><AdminPhonebook /></div>} />
                     </Routes>
                 </div>
             </div>

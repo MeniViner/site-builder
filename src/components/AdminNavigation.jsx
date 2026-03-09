@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 import { useNavigation } from '../context/NavigationContext';
+import { useTheme } from '../context/ThemeContext';
 import { DynamicIcon } from './DynamicIcon';
 import {
     Plus, Trash2, Save, AlertTriangle, ChevronLeft, ChevronDown,
@@ -11,6 +12,7 @@ import IconPickerModal from './IconPickerModal';
 
 export default function AdminNavigation() {
     const { navItems: initialNavItems, loading, error, saveNavigation } = useNavigation();
+    const { effectiveMode } = useTheme();
     const [navItems, setNavItems] = useState(initialNavItems || []);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -21,6 +23,9 @@ export default function AdminNavigation() {
     const [selectedPath, setSelectedPath] = useState([]); // [] = root, [catId], [catId, subId]
     const [expandedNodes, setExpandedNodes] = useState(new Set(['root'])); // Sidebar tree expansion
     const [searchTerm, setSearchTerm] = useState('');
+    const isDarkMode = effectiveMode === 'dark';
+    const sidebarScrollbarColor = isDarkMode ? '#333 #0a0a0c' : '#9ca3af #f3f4f6';
+    const contentScrollbarColor = isDarkMode ? '#333 #050505' : '#9ca3af #f3f4f6';
 
     const toggleExpand = (id, e) => {
         e?.stopPropagation();
@@ -169,7 +174,7 @@ export default function AdminNavigation() {
                     <span className="font-bold text-sm tracking-wide text-gray-900 dark:text-gray-100">סייר ניווט</span>
                 </div>
                 {/* Tree */}
-                <div className="flex-1 overflow-y-auto p-2 space-y-0.5" style={{ scrollbarWidth: 'thin', scrollbarColor: '#333 #0a0a0c' }}>
+                <div className="flex-1 overflow-y-auto p-2 space-y-0.5" style={{ scrollbarWidth: 'thin', scrollbarColor: sidebarScrollbarColor }}>
                     {/* Root Node */}
                     <div
                         className={`flex items-center gap-2 py-1.5 px-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/5 rounded-md transition ${selectedPath.length === 0 ? 'bg-red-500/10 text-red-500' : 'text-gray-700 dark:text-gray-300'}`}
@@ -327,7 +332,7 @@ export default function AdminNavigation() {
                                     type="url"
                                     value={currentModel.url || ''}
                                     onChange={(e) => updateNode(selectedPath, 'url', e.target.value)}
-                                    className="w-full bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-blue-300 focus:outline-none focus:border-red-500 focus:bg-gray-100 dark:focus:bg-[#1a1a1f] text-sm transition text-left dir-ltr placeholder-[#333]"
+                                    className="w-full bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-blue-600 dark:text-blue-300 focus:outline-none focus:border-red-500 focus:bg-gray-100 dark:focus:bg-[#1a1a1f] text-sm transition text-left dir-ltr placeholder-gray-500 dark:placeholder-[#333]"
                                     placeholder="https://"
                                     dir="ltr"
                                 />
@@ -355,10 +360,10 @@ export default function AdminNavigation() {
                 </div>
 
                 {/* Table Content */}
-                <div className="flex-1 overflow-y-auto px-6 pb-6 relative" style={{ scrollbarWidth: 'thin', scrollbarColor: '#333 #050505' }}>
+                <div className="flex-1 overflow-y-auto px-6 pb-6 relative" style={{ scrollbarWidth: 'thin', scrollbarColor: contentScrollbarColor }}>
                     {currentChildren.length === 0 ? (
                         <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 pb-20">
-                            <FolderOpen size={56} className="text-gray-800 mb-4" />
+                            <FolderOpen size={56} className="text-gray-500 dark:text-gray-700 mb-4" />
                             <p className="text-lg font-medium">התיקייה ריקה.</p>
                             <p className="text-sm mt-1 text-gray-400 dark:text-gray-600">לחץ על כפתור ההוספה כדי ליצור תוכן חדש בנתיב זה.</p>
                         </div>
@@ -423,7 +428,7 @@ export default function AdminNavigation() {
                                                 type="url"
                                                 value={child.url || ''}
                                                 onChange={(e) => updateNode(child.nodePath, 'url', e.target.value)}
-                                                className="bg-transparent border border-transparent hover:border-[#333] focus:border-red-500 focus:bg-gray-50 dark:focus:bg-[#141418] rounded-md pl-2 pr-2 py-1.5 transition w-full text-xs text-blue-400 outline-none dir-ltr text-left placeholder-[#333] hover:bg-gray-100 dark:hover:bg-black/20 focus:shadow-inner"
+                                                className="bg-transparent border border-transparent hover:border-[#333] focus:border-red-500 focus:bg-gray-50 dark:focus:bg-[#141418] rounded-md pl-2 pr-2 py-1.5 transition w-full text-xs text-blue-600 dark:text-blue-400 outline-none dir-ltr text-left placeholder-gray-500 dark:placeholder-[#333] hover:bg-gray-100 dark:hover:bg-black/20 focus:shadow-inner"
                                                 placeholder="https://"
                                                 dir="ltr"
                                             />
@@ -433,7 +438,7 @@ export default function AdminNavigation() {
                                                 {child.type === 'folder' && (
                                                     <button
                                                         onClick={() => setSelectedPath(child.nodePath)}
-                                                        className="p-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 hover:text-blue-300 rounded-lg transition"
+                                                        className="p-1.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg transition"
                                                         title="פתח תיקייה"
                                                     >
                                                         <ChevronLeft size={18} />

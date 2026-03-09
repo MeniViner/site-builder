@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import AdminEvents from './components/AdminEvents';
 import EventsList from './components/EventsList';
+import WidgetOutstanding from './components/widgets/WidgetOutstanding';
+import WidgetCountdown from './components/widgets/WidgetCountdown';
+import WidgetNewsTicker from './components/widgets/WidgetNewsTicker';
+import WidgetPhonebook from './components/widgets/WidgetPhonebook';
 import {
   Search, ChevronLeft, ChevronRight,
   Bell, Undo2, Globe,
@@ -295,17 +299,23 @@ function ExtLinksFloating({ links, fixed: isFixed = true }) {
    WIDGET SECTION
    ================================================================ */
 function WidgetSection({ activeWidget }) {
+  const { widgetConfig } = useWidget();
+
   if (activeWidget === 'events') return <EventsList />;
+  if (activeWidget === 'outstanding') return <WidgetOutstanding data={widgetConfig?.outstanding || []} />;
+  if (activeWidget === 'countdown') return <WidgetCountdown data={widgetConfig?.countdown || {}} />;
+  if (activeWidget === 'news') return <WidgetNewsTicker data={widgetConfig?.news || []} />;
+  if (activeWidget === 'phonebook') return <WidgetPhonebook data={widgetConfig?.phonebook || []} />;
   if (activeWidget === 'alerts') {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center py-8 px-4">
         <Bell size={36} className="text-primary/40 mb-3" />
-        <div className="text-lg font-bold text-gray-800 dark:text-white/80 mb-1">לוח הודעות</div>
-        <div className="text-sm text-gray-400 dark:text-gray-500">בקרוב — ממשק ההודעות בפיתוח.</div>
+        <div className="text-lg font-bold text-themeText-secondary mb-1">לוח הודעות</div>
+        <div className="text-sm text-themeText-tertiary">בקרוב — ממשק ההודעות בפיתוח.</div>
       </div>
     );
   }
-  return <div className="flex items-center justify-center h-full text-gray-500 text-sm">ווידגט לא ידוע</div>;
+  return <div className="flex items-center justify-center h-full text-themeText-tertiary text-sm">ווידגט לא ידוע</div>;
 }
 
 /* ================================================================
@@ -442,7 +452,12 @@ function Home() {
   const externalLinksLayout = theme?.externalLinksLayout || 'cards';
   const externalLinksFixed = theme?.externalLinksFixed ?? false;
   const activeWidget = widgetConfig?.activeWidget || 'events';
-  const widgetTitle = activeWidget === 'events' ? 'מופעי החודש' : activeWidget === 'alerts' ? 'לוח הודעות' : 'ווידגט';
+  const widgetTitle = activeWidget === 'events' ? 'מופעי החודש' :
+    activeWidget === 'outstanding' ? 'מצטייני היחידה' :
+      activeWidget === 'countdown' ? 'ספירה לאחור' :
+        activeWidget === 'alerts' ? 'לוח הודעות' :
+          activeWidget === 'news' ? 'מבזקים ועדכונים' :
+            activeWidget === 'phonebook' ? 'ספר טלפונים' : 'ווידגט';
 
   const getGreeting = () => {
     const hour = new Date().getHours();

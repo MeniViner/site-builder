@@ -1,4 +1,5 @@
-import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import ThemeService from '../services/ThemeService';
 
 const ThemeContext = createContext();
@@ -6,6 +7,7 @@ const ThemeContext = createContext();
 export const useTheme = () => useContext(ThemeContext);
 
 const USER_MODE_KEY = 'bihs_user_display_mode';
+const ADMIN_MODE_KEY = 'bihs_admin_display_mode';
 
 function hexToHsl(hex) {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -64,6 +66,12 @@ function resolveDisplayMode(displayMode) {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
+function resolveAdminMode() {
+    const stored = localStorage.getItem(ADMIN_MODE_KEY);
+    if (stored === 'dark' || stored === 'light') return stored;
+    return 'dark';
+}
+
 function applyDisplayMode(effectiveMode) {
     const root = document.documentElement;
     if (effectiveMode === 'dark') {
@@ -87,14 +95,22 @@ export const ThemeProvider = ({ children }) => {
     const [theme, setTheme] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [effectiveMode, setEffectiveMode] = useState('dark');
+    const [siteMode, setSiteMode] = useState('dark');
+    const [adminMode, setAdminMode] = useState(() => resolveAdminMode());
+    const location = useLocation();
+    const isAdminRoute = useMemo(() => {
+        const path = (location.pathname || '').toLowerCase();
+        const hash = (location.hash || '').toLowerCase();
+        const adminSegmentRegex = /(?:^|\/)admin(?:\/|$)/;
+        return adminSegmentRegex.test(path) || adminSegmentRegex.test(hash.replace(/^#/, ''));
+    }, [location.pathname, location.hash]);
+    const effectiveMode = isAdminRoute ? adminMode : siteMode;
 
     const applyThemeToDom = useCallback((themeData) => {
         if (!themeData) return;
         applyPrimaryColorVars(themeData.primaryColor || '#dc2626');
         const mode = resolveDisplayMode(themeData.displayMode || 'dark');
-        setEffectiveMode(mode);
-        applyDisplayMode(mode);
+        setSiteMode(mode);
     }, []);
 
     const fetchTheme = async () => {
@@ -130,11 +146,18 @@ export const ThemeProvider = ({ children }) => {
 
     const toggleUserMode = useCallback(() => {
         if (!theme || theme.displayMode !== 'user-toggle') return;
-        const next = effectiveMode === 'dark' ? 'light' : 'dark';
+        const next = siteMode === 'dark' ? 'light' : 'dark';
         localStorage.setItem(USER_MODE_KEY, next);
-        setEffectiveMode(next);
-        applyDisplayMode(next);
-    }, [theme, effectiveMode]);
+        setSiteMode(next);
+    }, [theme, siteMode]);
+
+    const toggleAdminMode = useCallback(() => {
+        setAdminMode(prevMode => {
+            const next = prevMode === 'dark' ? 'light' : 'dark';
+            localStorage.setItem(ADMIN_MODE_KEY, next);
+            return next;
+        });
+    }, []);
 
     useEffect(() => {
         fetchTheme();
@@ -146,15 +169,23 @@ export const ThemeProvider = ({ children }) => {
         }
     }, [theme, applyThemeToDom]);
 
+    useEffect(() => {
+        applyDisplayMode(effectiveMode);
+    }, [effectiveMode]);
+
     return (
         <ThemeContext.Provider value={{
             theme,
             loading,
             error,
+            siteMode,
+            adminMode,
+            isAdminRoute,
             effectiveMode,
             saveTheme,
             fetchTheme,
             toggleUserMode,
+            toggleAdminMode,
         }}>
             {children}
         </ThemeContext.Provider>

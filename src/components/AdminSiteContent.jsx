@@ -287,7 +287,7 @@ export default function AdminSiteContent() {
                                     <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center shrink-0">
                                         <img src={img} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
                                     </div>
-                                    <span className="flex-1 text-sm text-blue-300 truncate dir-ltr text-left" dir="ltr">
+                                    <span className="flex-1 text-sm text-blue-600 dark:text-blue-300 truncate dir-ltr text-left" dir="ltr">
                                         {img.startsWith('data:') ? `תמונה מקומית (${Math.round(img.length / 1024)}KB)` : img}
                                     </span>
                                     <button
