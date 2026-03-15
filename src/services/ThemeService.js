@@ -11,6 +11,8 @@ const DEFAULT_THEME = {
     regularLinksLayout: 'grid',
     externalLinksLayout: 'cards',
     externalLinksFixed: false,
+    externalLinksBordered: true,
+    externalLinksShowBackground: true,
     widgetHeight: 'low',
 };
 
@@ -54,6 +56,8 @@ class ThemeService {
             regularLinksLayout: data.regularLinksLayout || DEFAULT_THEME.regularLinksLayout,
             externalLinksLayout: data.externalLinksLayout || DEFAULT_THEME.externalLinksLayout,
             externalLinksFixed: data.externalLinksFixed !== undefined ? data.externalLinksFixed : DEFAULT_THEME.externalLinksFixed,
+            externalLinksBordered: data.externalLinksBordered !== undefined ? data.externalLinksBordered : DEFAULT_THEME.externalLinksBordered,
+            externalLinksShowBackground: data.externalLinksShowBackground !== undefined ? data.externalLinksShowBackground : DEFAULT_THEME.externalLinksShowBackground,
             widgetHeight,
         };
     }

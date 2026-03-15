@@ -91,6 +91,45 @@ function applyDisplayMode(effectiveMode) {
     }
 }
 
+/** Apply theme (primary color + display mode) to a container element for scoped preview. */
+export function applyThemeToElement(el, themeData) {
+    if (!el || !themeData) return;
+    const hex = themeData.primaryColor || '#dc2626';
+    const [h, s, l] = hexToHsl(hex);
+    el.style.setProperty('--color-primary-h', String(h));
+    el.style.setProperty('--color-primary-s', `${s}%`);
+    el.style.setProperty('--color-primary-l', `${l}%`);
+    el.style.setProperty('--color-primary', `${h} ${s}% ${l}%`);
+    el.style.setProperty('--color-primary-hex', hex);
+    el.style.setProperty('--color-primary-50', `hsl(${h}, ${s}%, 95%)`);
+    el.style.setProperty('--color-primary-100', `hsl(${h}, ${s}%, 90%)`);
+    el.style.setProperty('--color-primary-200', `hsl(${h}, ${s}%, 80%)`);
+    el.style.setProperty('--color-primary-300', `hsl(${h}, ${s}%, 65%)`);
+    el.style.setProperty('--color-primary-400', `hsl(${h}, ${s}%, 55%)`);
+    el.style.setProperty('--color-primary-500', `hsl(${h}, ${s}%, ${l}%)`);
+    el.style.setProperty('--color-primary-600', `hsl(${h}, ${s}%, ${Math.max(l - 10, 10)}%)`);
+    el.style.setProperty('--color-primary-700', `hsl(${h}, ${s}%, ${Math.max(l - 18, 8)}%)`);
+    el.style.setProperty('--color-primary-800', `hsl(${h}, ${s}%, ${Math.max(l - 27, 6)}%)`);
+    el.style.setProperty('--color-primary-900', `hsl(${h}, ${s}%, ${Math.max(l - 36, 4)}%)`);
+    el.style.setProperty('--color-primary-950', `hsl(${h}, ${s}%, ${Math.max(l - 41, 3)}%)`);
+    const mode = themeData.displayMode === 'user-toggle' ? 'dark' : (themeData.displayMode || 'dark');
+    if (mode === 'dark') {
+        el.classList.add('dark');
+        el.style.setProperty('--surface-bg', '#0c0d12');
+        el.style.setProperty('--surface-card', '#1a1c23');
+        el.style.setProperty('--surface-elevated', '#232733');
+        el.style.setProperty('--surface-text', '#ffffff');
+        el.style.setProperty('--surface-text-muted', '#9ca3af');
+    } else {
+        el.classList.remove('dark');
+        el.style.setProperty('--surface-bg', '#f5f5f5');
+        el.style.setProperty('--surface-card', '#ffffff');
+        el.style.setProperty('--surface-elevated', '#f0f0f0');
+        el.style.setProperty('--surface-text', '#111827');
+        el.style.setProperty('--surface-text-muted', '#6b7280');
+    }
+}
+
 export const ThemeProvider = ({ children }) => {
     const [theme, setTheme] = useState(null);
     const [loading, setLoading] = useState(true);

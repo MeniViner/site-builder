@@ -1,10 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTheme } from '../context/ThemeContext';
+import ThemeLivePreview from './ThemeLivePreview';
 import {
-    Save, AlertTriangle, Palette, Sun, Moon, Monitor,
-    Square, Hexagon, Eye, EyeOff, Image as ImageIcon,
+    AlertTriangle, Palette, Sun, Moon, Monitor,
+    Hexagon, Eye, EyeOff, Image as ImageIcon,
     LayoutGrid, List, Columns, Globe, CircleDot, PanelBottom, PanelRight, Info
 } from 'lucide-react';
+
+const SETTINGS_NAV = [
+    { id: 'primaryColor', label: 'צבע ראשי' },
+    { id: 'displayMode', label: 'מצב תצוגה' },
+    { id: 'borderStyle', label: 'סגנון מסגרות' },
+    { id: 'widgetHeight', label: 'גובה ווידגט' },
+    { id: 'toggles', label: 'הגדרות נוספות' },
+    { id: 'regularLinksLayout', label: 'קטגוריות וקישורים' },
+    { id: 'externalLinksLayout', label: 'קישורים חיצוניים' },
+];
 
 const COLOR_SWATCHES = [
     { hex: '#dc2626', label: 'אדום' },
@@ -53,13 +64,17 @@ const WIDGET_HEIGHT_OPTIONS = [
     { value: 'low', label: 'נמוך', description: 'גובה ברירת מחדל (המצב הנוכחי)' },
 ];
 
+const SAVE_DEBOUNCE_MS = 500;
+
 export default function AdminTheme() {
     const { theme, loading, error, saveTheme } = useTheme();
     const [draft, setDraft] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
     const [saveMessage, setSaveMessage] = useState(null);
     const [customColor, setCustomColor] = useState('');
+    const [activeSettingId, setActiveSettingId] = useState(null);
     const colorInputRef = useRef(null);
+    const saveTimeoutRef = useRef(null);
 
     useEffect(() => {
         if (theme) {
@@ -67,6 +82,26 @@ export default function AdminTheme() {
             setCustomColor(theme.primaryColor || '#dc2626');
         }
     }, [theme]);
+
+    const triggerAutoSave = useCallback((nextDraft) => {
+        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = setTimeout(async () => {
+            if (!nextDraft || !theme || JSON.stringify(nextDraft) === JSON.stringify(theme)) return;
+            setIsSaving(true);
+            setSaveMessage(null);
+            const success = await saveTheme(nextDraft);
+            setIsSaving(false);
+            if (success) {
+                setSaveMessage({ type: 'success', text: 'הגדרות העיצוב נשמרו אוטומטית' });
+            } else {
+                setSaveMessage({ type: 'error', text: 'שגיאה בשמירה. אנא נסה שוב.' });
+            }
+            setTimeout(() => setSaveMessage(null), 4000);
+            saveTimeoutRef.current = null;
+        }, SAVE_DEBOUNCE_MS);
+    }, [theme, saveTheme]);
+
+    useEffect(() => () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); }, []);
 
     if (loading && !theme) {
         return <div className="p-8 text-center text-gray-500 dark:text-gray-400">טוען הגדרות עיצוב...</div>;
@@ -77,10 +112,10 @@ export default function AdminTheme() {
     const updateField = (field, value) => {
         setDraft(prev => {
             const next = { ...prev, [field]: value };
-            // When sidebar-right is selected, force showNavCategories off
             if (field === 'regularLinksLayout' && value === 'sidebar-right') {
                 next.showNavCategories = false;
             }
+            triggerAutoSave(next);
             return next;
         });
     };
@@ -103,37 +138,33 @@ export default function AdminTheme() {
         updateField('primaryColor', hex);
     };
 
-    const hasChanges = theme && JSON.stringify(draft) !== JSON.stringify(theme);
-
-    const handleSave = async () => {
-        setIsSaving(true);
-        setSaveMessage(null);
-        const success = await saveTheme(draft);
-        setIsSaving(false);
-        if (success) {
-            setSaveMessage({ type: 'success', text: 'הגדרות העיצוב נשמרו בהצלחה!' });
-        } else {
-            setSaveMessage({ type: 'error', text: 'שגיאה בשמירה. אנא נסה שוב.' });
-        }
-        setTimeout(() => setSaveMessage(null), 4000);
+    const handleNavSettingClick = (id) => {
+        setActiveSettingId(prev => (prev === id ? null : id));
     };
+
+    const showSection = (id) => activeSettingId === null || activeSettingId === id;
 
     return (
         <div dir="rtl" className="min-h-screen bg-gray-100 dark:bg-[#1e212b] text-gray-900 dark:text-white font-heebo p-8">
-            <div className="flex justify-between items-center mb-8 border-b border-gray-300 dark:border-white/10 pb-4">
-                <div>
-                    <h1 className="text-3xl font-black text-gray-900 dark:text-white">ניהול עיצוב האתר</h1>
-                    <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">התאם צבעים, מצב תצוגה, סגנון מסגרות ואפקטים ויזואליים</p>
-                </div>
-                <button
-                    onClick={handleSave}
-                    disabled={isSaving || !hasChanges}
-                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg font-bold transition shadow-lg shadow-red-900/20"
-                >
-                    <Save size={18} />
-                    <span>{isSaving ? 'שומר...' : 'שמור שינויים'}</span>
-                </button>
+            <div className="mb-6 border-b border-gray-300 dark:border-white/10 pb-4">
+                <h1 className="text-3xl font-black text-gray-900 dark:text-white">ניהול עיצוב האתר</h1>
+                <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">התאם צבעים, מצב תצוגה, סגנון מסגרות ואפקטים ויזואליים</p>
             </div>
+
+            <nav className="flex flex-wrap items-center gap-2 mb-6">
+                {SETTINGS_NAV.map(({ id, label }) => (
+                    <button
+                        key={id}
+                        onClick={() => handleNavSettingClick(id)}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeSettingId === id
+                            ? 'bg-red-600 text-white ring-2 ring-red-400 ring-offset-2 ring-offset-gray-100 dark:ring-offset-[#1e212b]'
+                            : 'bg-gray-200 dark:bg-white/10 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-white/20'
+                            }`}
+                    >
+                        {label}
+                    </button>
+                ))}
+            </nav>
 
             {error && (
                 <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/50 border border-red-500 rounded-lg flex items-center gap-3">
@@ -142,16 +173,20 @@ export default function AdminTheme() {
                 </div>
             )}
 
-            {saveMessage && (
-                <div className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${saveMessage.type === 'success' ? 'bg-green-50 dark:bg-green-900/50 border border-green-500' : 'bg-red-50 dark:bg-red-900/50 border border-red-500'}`}>
-                    <span className={saveMessage.type === 'success' ? 'text-green-700 dark:text-green-200' : 'text-red-700 dark:text-red-200'}>{saveMessage.text}</span>
+            {(saveMessage || isSaving) && (
+                <div className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${saveMessage?.type === 'success' ? 'bg-green-50 dark:bg-green-900/50 border border-green-500' : saveMessage?.type === 'error' ? 'bg-red-50 dark:bg-red-900/50 border border-red-500' : 'bg-gray-200 dark:bg-white/10 border border-gray-300 dark:border-white/10'}`}>
+                    <span className={saveMessage?.type === 'success' ? 'text-green-700 dark:text-green-200' : saveMessage?.type === 'error' ? 'text-red-700 dark:text-red-200' : 'text-gray-700 dark:text-gray-300'}>
+                        {isSaving ? 'שומר...' : (saveMessage && saveMessage.text)}
+                    </span>
                 </div>
             )}
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="space-y-10 order-2 lg:order-1">
                 {/* ==================== PRIMARY COLOR ==================== */}
-                <section className="bg-white dark:bg-[#232733] border border-gray-200 dark:border-white/5 rounded-xl p-6">
-                    <div className="flex items-center gap-3 mb-6 border-b border-gray-300 dark:border-white/10 pb-4">
+                {showSection('primaryColor') && (
+                <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
+                    <div className="flex items-center gap-3 mb-6 pb-4">
                         <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
                             <Palette size={20} className="text-red-400" />
                         </div>
@@ -214,27 +249,13 @@ export default function AdminTheme() {
                         </div>
                     </div>
 
-                    {/* Live Preview */}
-                    <div className="mt-5 p-4 bg-gray-100 dark:bg-[#1e212b] rounded-xl border border-gray-200 dark:border-white/5">
-                        <p className="text-xs text-gray-400 dark:text-gray-500 mb-3 font-bold">תצוגה מקדימה:</p>
-                        <div className="flex items-center gap-3">
-                            <button
-                                className="px-5 py-2 rounded-lg text-white font-bold text-sm shadow-lg transition"
-                                style={{ backgroundColor: draft.primaryColor }}
-                            >
-                                כפתור לדוגמה
-                            </button>
-                            <span className="text-sm font-bold" style={{ color: draft.primaryColor }}>
-                                טקסט מודגש
-                            </span>
-                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: draft.primaryColor }} />
-                        </div>
-                    </div>
                 </section>
+                )}
 
                 {/* ==================== DISPLAY MODE ==================== */}
-                <section className="bg-white dark:bg-[#232733] border border-gray-200 dark:border-white/5 rounded-xl p-6">
-                    <div className="flex items-center gap-3 mb-6 border-b border-gray-300 dark:border-white/10 pb-4">
+                {showSection('displayMode') && (
+                <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
+                    <div className="flex items-center gap-3 mb-6 pb-4">
                         <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
                             <Sun size={20} className="text-red-400" />
                         </div>
@@ -275,10 +296,12 @@ export default function AdminTheme() {
                         })}
                     </div>
                 </section>
+                )}
 
                 {/* ==================== BORDER STYLES ==================== */}
-                <section className="bg-white dark:bg-[#232733] border border-gray-200 dark:border-white/5 rounded-xl p-6">
-                    <div className="flex items-center gap-3 mb-6 border-b border-gray-300 dark:border-white/10 pb-4">
+                {showSection('borderStyle') && (
+                <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
+                    <div className="flex items-center gap-3 mb-6 pb-4">
                         <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
                             <Hexagon size={20} className="text-red-400" />
                         </div>
@@ -327,10 +350,12 @@ export default function AdminTheme() {
                         })}
                     </div>
                 </section>
+                )}
 
                 {/* ==================== WIDGET HEIGHT ==================== */}
-                <section className="bg-white dark:bg-[#232733] border border-gray-200 dark:border-white/5 rounded-xl p-6">
-                    <div className="flex items-center gap-3 mb-6 border-b border-gray-300 dark:border-white/10 pb-4">
+                {showSection('widgetHeight') && (
+                <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
+                    <div className="flex items-center gap-3 mb-6 pb-4">
                         <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
                             <PanelBottom size={20} className="text-red-400" />
                         </div>
@@ -365,11 +390,12 @@ export default function AdminTheme() {
                         })}
                     </div>
                 </section>
+                )}
 
                 {/* ==================== TOGGLES ==================== */}
-                <section className="bg-white dark:bg-[#232733] border border-gray-200 dark:border-white/5 rounded-xl p-6 space-y-0">
-                    {/* Nav Categories Toggle */}
-                    <div className="flex items-center gap-3 mb-6 border-b border-gray-300 dark:border-white/10 pb-4">
+                {showSection('toggles') && (
+                <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0 space-y-0">
+                    <div className="flex items-center gap-3 mb-6 pb-4">
                         <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
                             <Eye size={20} className="text-red-400" />
                         </div>
@@ -439,10 +465,12 @@ export default function AdminTheme() {
                         </div>
                     </div>
                 </section>
+                )}
 
                 {/* ==================== REGULAR LINKS LAYOUT ==================== */}
-                <section className="bg-white dark:bg-[#232733] border border-gray-200 dark:border-white/5 rounded-xl p-6">
-                    <div className="flex items-center gap-3 mb-6 border-b border-gray-300 dark:border-white/10 pb-4">
+                {showSection('regularLinksLayout') && (
+                <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
+                    <div className="flex items-center gap-3 mb-6 pb-4">
                         <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
                             <LayoutGrid size={20} className="text-red-400" />
                         </div>
@@ -479,10 +507,12 @@ export default function AdminTheme() {
                         })}
                     </div>
                 </section>
+                )}
 
                 {/* ==================== EXTERNAL LINKS LAYOUT ==================== */}
-                <section className="bg-white dark:bg-[#232733] border border-gray-200 dark:border-white/5 rounded-xl p-6">
-                    <div className="flex items-center gap-3 mb-6 border-b border-gray-300 dark:border-white/10 pb-4">
+                {showSection('externalLinksLayout') && (
+                <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
+                    <div className="flex items-center gap-3 mb-6 border-b border-gray-200 dark:border-white/10 pb-4">
                         <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
                             <Globe size={20} className="text-red-400" />
                         </div>
@@ -491,7 +521,7 @@ export default function AdminTheme() {
                             <p className="text-sm text-gray-400 dark:text-gray-500">בחר את אופן הצגת הקישורים החיצוניים בפוטר</p>
                         </div>
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-3 mb-5">
                         {EXTERNAL_LINK_LAYOUTS.map((layout) => {
                             const isActive = draft.externalLinksLayout === layout.value;
                             const Icon = layout.icon;
@@ -518,38 +548,60 @@ export default function AdminTheme() {
                             );
                         })}
                     </div>
-                    <div className="mt-5 pt-5 border-t border-gray-200 dark:border-white/5 flex items-center gap-3 flex-wrap">
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <div className="space-y-4 pt-5 border-t border-gray-200 dark:border-white/5">
+                        <label className="flex items-center gap-3 cursor-pointer select-none p-3 rounded-xl bg-gray-50 dark:bg-[#1e212b] hover:bg-gray-100 dark:hover:bg-white/5 transition">
                             <input
                                 type="checkbox"
                                 checked={!!draft.externalLinksFixed}
                                 onChange={(e) => updateField('externalLinksFixed', e.target.checked)}
                                 className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-red-500 focus:ring-red-500"
                             />
-                            <span className="font-medium text-gray-800 dark:text-gray-200">הצג כפס נעוץ</span>
-                            <span
-                                className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 dark:bg-white/10 text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-white/20 transition-colors cursor-help"
-                                title="נעוץ: הקישורים יוצגו בפס קבוע בתחתית המסך (תמיד גלוי בגלילה)."
-                                aria-label="הסבר על פס נעוץ"
-                            >
-                                <Info size={12} strokeWidth={2.5} />
-                            </span>
+                            <div>
+                                <span className="font-medium text-gray-800 dark:text-gray-200">הצג כפס נעוץ</span>
+                                <span
+                                    className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 dark:bg-white/10 text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-white/20 transition-colors cursor-help mr-1.5 align-middle"
+                                    title="נעוץ: הקישורים יוצגו בפס קבוע בתחתית המסך (תמיד גלוי בגלילה)."
+                                    aria-label="הסבר על פס נעוץ"
+                                >
+                                    <Info size={12} strokeWidth={2.5} />
+                                </span>
+                                <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">הקישורים יישארו קבועים בתחתית המסך ויהיו תמיד גלויים גם בגלילה.</p>
+                            </div>
                         </label>
-                        <p className="text-xs text-gray-500 dark:text-gray-500 w-full mr-7">
-                            פס נעוץ — הקישורים יישארו קבועים בתחתית המסך ויהיו תמיד גלויים גם בגלילה.
-                        </p>
+                        <label className="flex items-center gap-3 cursor-pointer select-none p-3 rounded-xl bg-gray-50 dark:bg-[#1e212b] hover:bg-gray-100 dark:hover:bg-white/5 transition">
+                            <input
+                                type="checkbox"
+                                checked={draft.externalLinksBordered !== false}
+                                onChange={(e) => updateField('externalLinksBordered', e.target.checked)}
+                                className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-red-500 focus:ring-red-500"
+                            />
+                            <div>
+                                <span className="font-medium text-gray-800 dark:text-gray-200">הצג את הלינקים בתחום עם מסגרת (בורדר)</span>
+                                <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">כאשר כבוי — הקישורים יוצגו ללא מסגרת מסביב.</p>
+                            </div>
+                        </label>
+                        <label className="flex items-center gap-3 cursor-pointer select-none p-3 rounded-xl bg-gray-50 dark:bg-[#1e212b] hover:bg-gray-100 dark:hover:bg-white/5 transition">
+                            <input
+                                type="checkbox"
+                                checked={draft.externalLinksShowBackground !== false}
+                                onChange={(e) => updateField('externalLinksShowBackground', e.target.checked)}
+                                className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-red-500 focus:ring-red-500"
+                            />
+                            <div>
+                                <span className="font-medium text-gray-800 dark:text-gray-200">הצג רקע סביב קישורים חיצוניים</span>
+                                <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">כאשר כבוי — הפס/הכרטיסים יוצגו בלי רקע לבן ומטושטש (שקוף).</p>
+                            </div>
+                        </label>
                     </div>
                 </section>
-            </div>
-
-            {hasChanges && (
-                <div className="mt-8 p-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-500/30 rounded-xl flex items-center gap-3">
-                    <AlertTriangle size={18} className="text-amber-400 shrink-0" />
-                    <span className="text-amber-700 dark:text-amber-200 text-sm font-medium">
-                        יש שינויים שלא נשמרו — לחץ "שמור שינויים" כדי להחיל את העיצוב החדש.
-                    </span>
+                )}
                 </div>
-            )}
+
+                <div className="order-1 lg:order-2 lg:sticky lg:top-8 h-fit">
+                    <p className="text-sm font-bold text-gray-500 dark:text-gray-400 mb-2">תצוגה מקדימה</p>
+                    <ThemeLivePreview draft={draft} />
+                </div>
+            </div>
         </div>
     );
 }

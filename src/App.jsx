@@ -192,9 +192,7 @@ function ExtLinkIcon({ icon, src, alt, size = 18, className = '' }) {
     <img
       src={src}
       alt={alt ?? ''}
-      width={size}
-      height={size}
-      className={`object-contain ${className}`}
+      className={`w-full h-full object-cover ${className}`}
       onError={() => setFailed(true)}
     />
   );
@@ -203,14 +201,21 @@ function ExtLinkIcon({ icon, src, alt, size = 18, className = '' }) {
 /* ================================================================
    EXTERNAL LINKS — Cards Layout
    ================================================================ */
-function ExtLinksCards({ links, compact }) {
+function ExtLinksCards({ links, compact, bordered = true }) {
+  const cardBorder = bordered ? 'border border-gray-200 dark:border-white/5 hover:border-primary/30' : '';
+  const iconWrap = bordered
+    ? 'w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 group-hover:border-primary/30 overflow-hidden shrink-0'
+    : 'w-8 h-8 rounded-lg overflow-hidden shrink-0';
+  const iconWrapFull = bordered
+    ? 'w-12 h-12 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 group-hover:border-primary/30 overflow-hidden shrink-0'
+    : 'w-12 h-12 rounded-lg overflow-hidden shrink-0';
   if (compact) {
     return (
       <div className="flex items-center gap-2 flex-nowrap">
         {links.map((link) => (
           <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
-            className="group flex flex-col items-center gap-1.5 p-2.5 rounded-lg bg-white/50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/5 hover:border-primary/30 hover:bg-primary/5 transition-all text-center shrink-0">
-            <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center justify-center overflow-hidden group-hover:border-primary/30 transition shrink-0">
+            className={`group flex flex-col items-center gap-1.5 p-2.5 rounded-lg bg-white/50 dark:bg-white/[0.02] ${cardBorder} hover:bg-primary/5 transition-all text-center shrink-0`}>
+            <div className={`flex items-center justify-center ${iconWrap}`}>
               <ExtLinkIcon icon={link.icon} src={link.iconUrl || link.image} alt={link.title} size={18} />
             </div>
             <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition truncate max-w-[64px]">{link.title}</span>
@@ -229,8 +234,8 @@ function ExtLinksCards({ links, compact }) {
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
         {links.map((link) => (
           <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
-            className="group flex flex-col items-center gap-3 p-5 rounded-xl bg-white dark:bg-white/[0.02] border border-gray-200 dark:border-white/5 hover:border-primary/30 hover:bg-primary/5 transition-all text-center">
-            <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center justify-center overflow-hidden group-hover:border-primary/30 transition shrink-0">
+            className={`group flex flex-col items-center gap-3 p-5 rounded-xl bg-white dark:bg-white/[0.02] ${cardBorder} hover:bg-primary/5 transition-all text-center`}>
+            <div className={`flex items-center justify-center ${iconWrapFull}`}>
               <ExtLinkIcon icon={link.icon} src={link.iconUrl || link.image} alt={link.title} size={24} />
             </div>
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition truncate w-full">{link.title}</span>
@@ -244,11 +249,12 @@ function ExtLinksCards({ links, compact }) {
 /* ================================================================
    EXTERNAL LINKS — Minimal Icons Layout
    ================================================================ */
-function ExtLinksMinimal({ links, compact }) {
+function ExtLinksMinimal({ links, compact, bordered = true }) {
   const wrapCls = compact ? 'flex items-center gap-3 flex-nowrap' : 'max-w-[1400px] mx-auto px-6 lg:px-12 py-10 flex items-center justify-center gap-6 flex-wrap';
+  const ringCls = bordered ? 'border border-gray-200 dark:border-white/10 hover:border-primary/40 bg-gray-100 dark:bg-white/5 hover:bg-primary/10' : 'hover:bg-white/20 dark:hover:bg-white/10';
   const linkCls = compact
-    ? 'group relative w-10 h-10 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:border-primary/40 hover:bg-primary/10 flex items-center justify-center overflow-hidden transition-all hover:scale-110 shrink-0'
-    : 'group relative w-14 h-14 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:border-primary/40 hover:bg-primary/10 flex items-center justify-center overflow-hidden transition-all hover:scale-110';
+    ? `group relative w-10 h-10 rounded-full ${ringCls} flex items-center justify-center overflow-hidden transition-all hover:scale-110 shrink-0`
+    : `group relative w-14 h-14 rounded-full ${ringCls} flex items-center justify-center overflow-hidden transition-all hover:scale-110`;
   return (
     <div className={wrapCls}>
       {links.map((link) => (
@@ -270,14 +276,17 @@ function ExtLinksMinimal({ links, compact }) {
 /* ================================================================
    EXTERNAL LINKS — Floating Bar Layout
    ================================================================ */
-function ExtLinksFloating({ links, fixed: isFixed = true }) {
+function ExtLinksFloating({ links, fixed: isFixed = true, bordered = true, showBackground = true }) {
+  const barBorder = bordered && showBackground ? 'border border-gray-200 dark:border-white/10' : '';
+  const iconBg = bordered ? 'bg-gray-100 dark:bg-white/10' : '';
+  const barBg = showBackground ? 'bg-white/80 dark:bg-black/80 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.15)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.6)]' : '';
   const content = (
-    <div className="flex items-center gap-2 bg-white/80 dark:bg-black/80 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-full px-4 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.15)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
+    <div className={`flex items-center gap-2 ${barBg} ${barBorder} rounded-full px-4 py-2.5`}>
       {links.map((link) => (
         <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
           className="group relative flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 transition-all"
           title={link.title}>
-          <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center overflow-hidden shrink-0">
+          <div className={`w-6 h-6 rounded-full ${iconBg} flex items-center justify-center overflow-hidden shrink-0`}>
             <ExtLinkIcon icon={link.icon} src={link.iconUrl || link.image} alt={link.title} size={14} className="!p-0" />
           </div>
           <span className="text-xs font-medium text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition hidden sm:inline max-w-[80px] truncate">{link.title}</span>
@@ -451,6 +460,8 @@ function Home() {
   const regularLinksLayout = theme?.regularLinksLayout || 'grid';
   const externalLinksLayout = theme?.externalLinksLayout || 'cards';
   const externalLinksFixed = theme?.externalLinksFixed ?? false;
+  const externalLinksBordered = theme?.externalLinksBordered !== false;
+  const externalLinksShowBackground = theme?.externalLinksShowBackground !== false;
   const activeWidget = widgetConfig?.activeWidget || 'events';
   const widgetTitle = activeWidget === 'events' ? 'מופעי החודש' :
     activeWidget === 'outstanding' ? 'מצטייני היחידה' :
@@ -531,9 +542,9 @@ function Home() {
     if (!externalLinks || externalLinks.length === 0) return null;
     const footerCls = 'relative z-10 w-full border-t border-gray-200 dark:border-white/5 bg-gray-50 dark:bg-[#1e212b]';
     if (externalLinksFixed) return null;
-    if (externalLinksLayout === 'minimal') return <footer className={footerCls}><ExtLinksMinimal links={externalLinks} /></footer>;
-    if (externalLinksLayout === 'floating') return <footer className={footerCls}><ExtLinksFloating links={externalLinks} fixed={false} /></footer>;
-    return <footer className={footerCls}><ExtLinksCards links={externalLinks} /></footer>;
+    if (externalLinksLayout === 'minimal') return <footer className={footerCls}><ExtLinksMinimal links={externalLinks} bordered={externalLinksBordered} /></footer>;
+    if (externalLinksLayout === 'floating') return <footer className={footerCls}><ExtLinksFloating links={externalLinks} fixed={false} bordered={externalLinksBordered} showBackground={externalLinksShowBackground} /></footer>;
+    return <footer className={footerCls}><ExtLinksCards links={externalLinks} bordered={externalLinksBordered} /></footer>;
   };
 
   const getWidgetHeight = (level) => {
@@ -684,13 +695,13 @@ function Home() {
       {/* Fixed bar (when "נעוץ" is on) — any of the 3 layouts can be shown fixed */}
       {externalLinksFixed && externalLinks && externalLinks.length > 0 && (
         externalLinksLayout === 'floating' ? (
-          <ExtLinksFloating links={externalLinks} fixed />
+          <ExtLinksFloating links={externalLinks} fixed bordered={externalLinksBordered} showBackground={externalLinksShowBackground} />
         ) : (
-          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[90] max-w-[95vw] overflow-x-auto rounded-2xl bg-white/80 dark:bg-black/80 backdrop-blur-xl border border-gray-200 dark:border-white/10 px-4 py-3 shadow-[0_8px_32px_rgba(0,0,0,0.15)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
+          <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-[90] max-w-[95vw] overflow-x-auto rounded-2xl px-4 py-3 ${externalLinksShowBackground ? 'bg-white/80 dark:bg-black/80 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.15)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.6)]' : ''} ${externalLinksShowBackground && externalLinksBordered ? 'border border-gray-200 dark:border-white/10' : ''}`}>
             {externalLinksLayout === 'minimal' ? (
-              <ExtLinksMinimal links={externalLinks} compact />
+              <ExtLinksMinimal links={externalLinks} compact bordered={externalLinksBordered} />
             ) : (
-              <ExtLinksCards links={externalLinks} compact />
+              <ExtLinksCards links={externalLinks} compact bordered={externalLinksBordered} />
             )}
           </div>
         )

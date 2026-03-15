@@ -128,23 +128,28 @@ export default function AdminExternalLinks() {
                     </div>
                 </div>
             )}
-            <div className="flex justify-between items-center mb-8 border-b border-gray-300 dark:border-white/10 pb-4">
-                <div>
-                    <h1 className="text-3xl font-black text-gray-900 dark:text-white">ניהול קישורים חיצוניים</h1>
-                    <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">ניהול הקישורים המוצגים בפוטר של האתר — מערכות צה"ל, אתרים חיצוניים ועוד</p>
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-6 mb-8 pb-6 border-b border-gray-200 dark:border-white/10">
+                <div className="flex items-start gap-4">
+                    <div className="bg-red-500/10 p-3 rounded-xl border border-red-500/20 shrink-0">
+                        <ExternalLink size={24} className="text-red-500" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">ניהול קישורים חיצוניים</h1>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">ניהול הקישורים המוצגים בפוטר — מערכות צה"ל, אתרים חיצוניים ועוד</p>
+                    </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                     <button
                         onClick={addLink}
-                        className="flex items-center gap-2 bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white px-5 py-2.5 rounded-lg font-bold transition text-sm"
+                        className="flex items-center gap-2 bg-white dark:bg-white/5 hover:bg-gray-50 dark:hover:bg-white/10 border-2 border-gray-200 dark:border-white/10 text-gray-900 dark:text-white px-5 py-2.5 rounded-xl font-bold transition text-sm"
                     >
-                        <Plus size={16} />
+                        <Plus size={18} />
                         <span>הוסף קישור</span>
                     </button>
                     <button
                         onClick={handleSave}
                         disabled={isSaving || !hasChanges || uploadingIcon}
-                        className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg font-bold transition shadow-lg shadow-red-900/20"
+                        className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-xl font-bold transition shadow-lg shadow-red-900/20"
                     >
                         <Save size={18} />
                         <span>{isSaving ? 'שומר...' : 'שמור שינויים'}</span>
@@ -173,25 +178,31 @@ export default function AdminExternalLinks() {
                     </button>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                     {links.map((link) => (
                         <div
                             key={link.id}
-                            className="bg-white dark:bg-[#232733] border border-gray-200 dark:border-white/5 rounded-xl p-5 flex flex-col group hover:border-gray-300 dark:hover:border-white/10 transition-all relative"
+                            className="bg-white dark:bg-[#232733] border border-gray-200 dark:border-white/10 rounded-2xl p-6 flex flex-col group hover:border-red-500/30 hover:shadow-lg hover:shadow-red-500/5 transition-all relative shadow-sm"
                         >
                             <div className="flex items-start gap-4 mb-4">
-                                <div className="w-14 h-14 rounded-xl bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center shrink-0">
+                                <div className="relative w-16 h-16 rounded-xl bg-gray-100 dark:bg-[#1e212b] border border-gray-200 dark:border-white/10 overflow-hidden flex items-center justify-center shrink-0">
                                     {link.icon ? (
-                                        <DynamicIcon name={link.icon} size={28} className="text-gray-500 dark:text-gray-400" />
+                                        <DynamicIcon name={link.icon} size={32} className="text-gray-500 dark:text-gray-400" />
                                     ) : link.iconUrl ? (
-                                        <img
-                                            src={link.iconUrl}
-                                            alt={link.title}
-                                            className="w-full h-full object-contain p-1.5"
-                                            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
-                                        />
-                                    ) : (
-                                        <ExternalLink size={22} className="text-gray-400 dark:text-gray-600" />
+                                        <>
+                                            <img
+                                                src={link.iconUrl}
+                                                alt={link.title}
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => { e.target.style.display = 'none'; const fallback = e.target.nextElementSibling; if (fallback) fallback.style.display = 'flex'; }}
+                                            />
+                                            <span className="hidden absolute inset-0 items-center justify-center bg-gray-100 dark:bg-[#1e212b]">
+                                                <ExternalLink size={24} className="text-gray-400 dark:text-gray-600" />
+                                            </span>
+                                        </>
+                                    ) : null}
+                                    {!link.icon && !link.iconUrl && (
+                                        <ExternalLink size={24} className="text-gray-400 dark:text-gray-600" />
                                     )}
                                 </div>
                                 <div className="flex-1 min-w-0">
@@ -201,23 +212,23 @@ export default function AdminExternalLinks() {
                             </div>
 
                             {(link.iconUrl || link.icon) && (
-                                <p className="text-[11px] text-gray-400 dark:text-gray-600 truncate mb-3 dir-ltr text-left" dir="ltr">
+                                <p className="text-[11px] text-gray-400 dark:text-gray-600 truncate mb-4 dir-ltr text-left" dir="ltr">
                                     {link.iconUrl ? <ImageIcon size={10} className="inline mr-1" /> : <Star size={10} className="inline mr-1" />}
                                     {link.iconUrl ? link.iconUrl : `Icon: ${link.icon}`}
                                 </p>
                             )}
 
-                            <div className="flex items-center gap-2 mt-auto pt-3 border-t border-gray-200 dark:border-white/5">
+                            <div className="flex items-center gap-2 mt-auto pt-4 border-t border-gray-100 dark:border-white/5">
                                 <button
                                     onClick={() => startEdit(link)}
-                                    className="flex-1 flex items-center justify-center gap-2 py-2 bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white rounded-lg transition text-sm font-medium"
+                                    className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-gray-100 dark:bg-white/5 hover:bg-red-500 hover:text-white text-gray-700 dark:text-gray-300 rounded-xl transition text-sm font-bold"
                                 >
                                     <Edit2 size={14} />
                                     <span>ערוך</span>
                                 </button>
                                 <button
                                     onClick={() => removeLink(link.id)}
-                                    className="flex items-center justify-center gap-2 py-2 px-4 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-lg transition text-sm font-medium"
+                                    className="flex items-center justify-center gap-2 py-2.5 px-4 bg-red-500/10 hover:bg-red-500/25 text-red-500 hover:text-red-400 rounded-xl transition text-sm font-medium"
                                 >
                                     <Trash2 size={14} />
                                     <span>מחק</span>
@@ -229,9 +240,9 @@ export default function AdminExternalLinks() {
                     {/* Add card */}
                     <button
                         onClick={addLink}
-                        className="border-2 border-dashed border-gray-300 dark:border-white/10 rounded-xl p-5 flex flex-col items-center justify-center gap-3 text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-400 dark:hover:border-white/20 hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-all min-h-[200px]"
+                        className="border-2 border-dashed border-gray-300 dark:border-white/10 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 text-gray-400 dark:text-gray-500 hover:text-red-500 hover:border-red-500/40 hover:bg-red-500/5 dark:hover:bg-red-500/10 transition-all min-h-[220px]"
                     >
-                        <Plus size={28} />
+                        <Plus size={32} />
                         <span className="font-bold text-sm">הוסף קישור חדש</span>
                     </button>
                 </div>
@@ -363,11 +374,11 @@ export default function AdminExternalLinks() {
                                         </label>
                                         {editingLink.iconUrl && (
                                             <div className="mt-3 flex items-center gap-3">
-                                                <div className="w-12 h-12 rounded-lg bg-white dark:bg-[#232733] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center">
+                                                <div className="w-14 h-14 rounded-xl bg-white dark:bg-[#232733] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center">
                                                     <img
                                                         src={editingLink.iconUrl}
                                                         alt="תצוגה מקדימה"
-                                                        className="w-full h-full object-contain p-1"
+                                                        className="w-full h-full object-cover"
                                                         onError={(e) => { e.target.style.display = 'none'; }}
                                                     />
                                                 </div>
