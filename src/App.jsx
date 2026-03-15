@@ -437,7 +437,7 @@ function SearchBar({ borderStyle }) {
 /* ================================================================
    HOME
    ================================================================ */
-function Home() {
+export function Home() {
   const navigate = useNavigate();
   const onOpenAdmin = () => navigate('/admin');
   const [bgIndex, setBgIndex] = useState(0);

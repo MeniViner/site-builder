@@ -2,7 +2,7 @@ import React, { createContext, useState, useEffect, useContext, useCallback, use
 import { useLocation } from 'react-router-dom';
 import ThemeService from '../services/ThemeService';
 
-const ThemeContext = createContext();
+export const ThemeContext = createContext();
 
 export const useTheme = () => useContext(ThemeContext);
 
@@ -46,7 +46,7 @@ function applyPrimaryColorVars(hex) {
     root.style.setProperty('--color-primary', `${h} ${s}% ${l}%`);
     root.style.setProperty('--color-primary-hex', hex);
 
-    root.style.setProperty('--color-primary-50',  `hsl(${h}, ${s}%, 95%)`);
+    root.style.setProperty('--color-primary-50', `hsl(${h}, ${s}%, 95%)`);
     root.style.setProperty('--color-primary-100', `hsl(${h}, ${s}%, 90%)`);
     root.style.setProperty('--color-primary-200', `hsl(${h}, ${s}%, 80%)`);
     root.style.setProperty('--color-primary-300', `hsl(${h}, ${s}%, 65%)`);
