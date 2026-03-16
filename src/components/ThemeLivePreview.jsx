@@ -39,6 +39,7 @@ export default function ThemeLivePreview({ draft, displayModeOverride }) {
             ...draft,
             displayMode: previewMode,
         });
+        contentRef.current.dataset.theme = draft.colorPackage || 'classic';
     }, [draft, previewMode]);
 
     if (!draft) return null;
@@ -54,13 +55,13 @@ export default function ThemeLivePreview({ draft, displayModeOverride }) {
     return (
         <div
             ref={containerRef}
-            className="w-full rounded-2xl  border-gray-800 dark:border-white/20 shadow-2xl relative overflow-hidden bg-gray-50 dark:bg-[#1e212b]"
+            className="w-full rounded-2xl border-gray-800 dark:border-white/20 shadow-2xl relative overflow-hidden bg-[var(--color-bg-base)]"
             // Force the wrapper to match the inner desktop proportions exactly
             style={{ aspectRatio: `${DESKTOP_WIDTH} / ${DESKTOP_HEIGHT}` }}
         >
             <div
                 ref={contentRef}
-                className="absolute top-0 right-0 origin-top-right overflow-y-auto overflow-x-hidden custom-scrollbar bg-gray-50 dark:bg-[#1e212b]"
+                className="absolute top-0 right-0 origin-top-right overflow-y-auto overflow-x-hidden custom-scrollbar bg-[var(--color-bg-base)]"
                 style={{
                     width: `${DESKTOP_WIDTH}px`,
                     height: `${DESKTOP_HEIGHT}px`,

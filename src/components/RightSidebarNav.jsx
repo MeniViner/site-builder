@@ -75,7 +75,7 @@ export default function RightSidebarNav() {
                                 href={item.url || '#'}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="sidebar-nav-item flex flex-col items-center gap-1 px-1 py-2.5 rounded-lg bg-white/80 dark:bg-[#1a1d24]/80 backdrop-blur-md border border-gray-200 dark:border-white/10 shadow-md text-gray-500 dark:text-gray-400 hover:text-primary hover:bg-white dark:hover:bg-[#1a1d24] hover:shadow-lg transition-all text-center cursor-pointer"
+                                className="sidebar-nav-item flex flex-col items-center gap-1 px-1 py-2.5 rounded-lg bg-theme-chrome backdrop-blur-md border border-theme-subtle shadow-md text-theme-muted hover:text-primary hover:brightness-110 hover:shadow-lg transition-all text-center cursor-pointer"
                                 title={item.label}
                                 style={panelStyle(topLevelBorderStyle, 10)}
                             >
@@ -87,9 +87,9 @@ export default function RightSidebarNav() {
                         ) : (
                             <button
                                 onClick={() => handleLevel1Click(item)}
-                                className={`sidebar-nav-item w-full flex flex-col items-center gap-1 px-1 py-2.5 rounded-lg bg-white/80 dark:bg-[#1a1d24]/80 backdrop-blur-md border shadow-md hover:shadow-lg transition-all text-center cursor-pointer ${isOpen
-                                        ? 'text-primary border-primary/30 bg-white dark:bg-[#1a1d24]'
-                                        : 'text-gray-500 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:text-primary hover:bg-white dark:hover:bg-[#1a1d24]'
+                                className={`sidebar-nav-item w-full flex flex-col items-center gap-1 px-1 py-2.5 rounded-lg bg-theme-chrome backdrop-blur-md border shadow-md hover:shadow-lg transition-all text-center cursor-pointer ${isOpen
+                                        ? 'text-primary border-primary/30 brightness-110'
+                                        : 'text-theme-muted border-theme-subtle hover:text-primary hover:brightness-110'
                                     }`}
                                 title={item.label}
                                 style={panelStyle(topLevelBorderStyle, 10)}
@@ -104,17 +104,17 @@ export default function RightSidebarNav() {
                         {/* Level 2 Flyout — click-controlled, absolutely free over the page */}
                         {hasChildren && !isDirectLink && (
                             <div
-                                className={`absolute right-full top-0 mr-4 w-auto min-w-[300px] bg-white/95 dark:bg-[#1a1d24]/95 backdrop-blur-md shadow-2xl rounded-l-xl z-[10000] border border-gray-200 dark:border-white/10 p-4 transition-all duration-300 ${isOpen
+                                className={`absolute right-full top-0 mr-4 w-auto min-w-[300px] bg-theme-card backdrop-blur-md shadow-2xl rounded-l-xl z-[10000] border border-theme-subtle p-4 transition-all duration-300 ${isOpen
                                         ? 'opacity-100 visible pointer-events-auto'
                                         : 'opacity-0 invisible pointer-events-none'
                                     }`}
                             >
                                 {/* Panel Header */}
-                                <div className="flex items-center gap-2 px-1 pb-3 mb-2 border-b border-gray-200 dark:border-white/10">
+                                <div className="flex items-center gap-2 px-1 pb-3 mb-2 border-b border-theme-subtle">
                                     <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center">
                                         <DynamicIcon name={item.icon} size={15} className="text-primary" />
                                     </div>
-                                    <span className="font-bold text-sm text-gray-900 dark:text-white whitespace-nowrap">
+                                    <span className="font-bold text-sm text-theme whitespace-nowrap">
                                         {item.label}
                                     </span>
                                 </div>
@@ -130,30 +130,30 @@ export default function RightSidebarNav() {
                                             <div key={child.id}>
                                                 <button
                                                     onClick={() => handleLevel2Click(child)}
-                                                    className="sidebar-nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-right transition-all hover:bg-gray-100 dark:hover:bg-white/5 group/l2"
+                                                    className="sidebar-nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-right transition-all hover:bg-theme-card-hover group/l2"
                                                 >
                                                     <div
                                                         className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition ${isExpanded
                                                                 ? 'bg-primary/15 text-primary'
-                                                                : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 group-hover/l2:text-primary group-hover/l2:bg-primary/10'
+                                                                : 'bg-theme-elevated text-theme-muted group-hover/l2:text-primary group-hover/l2:bg-primary/10'
                                                             }`}
                                                     >
                                                         <DynamicIcon name={child.icon} size={14} />
                                                     </div>
                                                     <span
                                                         className={`flex-1 text-sm font-medium transition whitespace-nowrap ${isExpanded
-                                                                ? 'text-gray-900 dark:text-white'
-                                                                : 'text-gray-600 dark:text-gray-300 group-hover/l2:text-gray-900 dark:group-hover/l2:text-white'
+                                                                ? 'text-theme'
+                                                                : 'text-theme-muted group-hover/l2:text-theme'
                                                             }`}
                                                     >
                                                         {child.title || child.label}
                                                     </span>
                                                     {childIsLink ? (
-                                                        <ExternalLink size={12} className="text-gray-400 shrink-0" />
+                                                        <ExternalLink size={12} className="text-theme-muted/80 shrink-0" />
                                                     ) : hasSubLinks ? (
                                                         <ChevronDown
                                                             size={14}
-                                                            className={`text-gray-400 shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''
+                                                            className={`text-theme-muted/80 shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''
                                                                 }`}
                                                         />
                                                     ) : null}
@@ -166,20 +166,20 @@ export default function RightSidebarNav() {
                                                             <button
                                                                 key={idx}
                                                                 onClick={() => handleLevel3Click(link)}
-                                                                className="sidebar-nav-item w-full flex items-center gap-2 pr-4 pl-3 py-2 text-right transition-all hover:bg-gray-100 dark:hover:bg-white/5 rounded-md group/l3"
+                                                                className="sidebar-nav-item w-full flex items-center gap-2 pr-4 pl-3 py-2 text-right transition-all hover:bg-theme-card-hover rounded-md group/l3"
                                                             >
                                                                 <DynamicIcon
                                                                     name={link.icon}
                                                                     size={13}
-                                                                    className="text-gray-400 group-hover/l3:text-primary transition shrink-0"
+                                                                    className="text-theme-muted/80 group-hover/l3:text-primary transition shrink-0"
                                                                 />
-                                                                <span className="text-[13px] text-gray-500 dark:text-gray-400 group-hover/l3:text-gray-900 dark:group-hover/l3:text-white transition flex-1 whitespace-nowrap">
+                                                                <span className="text-[13px] text-theme-muted group-hover/l3:text-theme transition flex-1 whitespace-nowrap">
                                                                     {link.label}
                                                                 </span>
                                                                 {link.url && (
                                                                     <ExternalLink
                                                                         size={10}
-                                                                        className="text-gray-300 dark:text-gray-600 shrink-0"
+                                                                        className="text-theme-muted/60 shrink-0"
                                                                     />
                                                                 )}
                                                             </button>

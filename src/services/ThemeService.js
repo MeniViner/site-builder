@@ -4,6 +4,7 @@ import { normalizeBorderStyle } from '../utils/borderStyles';
 
 const DEFAULT_THEME = {
     primaryColor: '#dc2626',
+    colorPackage: 'classic',
     displayMode: 'dark',
     borderStyle: 'cyber',
     linksLayout: 'cards',
@@ -18,6 +19,7 @@ const DEFAULT_THEME = {
 };
 
 const WIDGET_HEIGHT_OPTIONS = ['full', 'high', 'medium', 'low'];
+const COLOR_PACKAGE_OPTIONS = ['classic', 'ocean', 'crimson', 'forest'];
 
 class ThemeService {
     constructor() {
@@ -46,9 +48,18 @@ class ThemeService {
         const widgetHeight = WIDGET_HEIGHT_OPTIONS.includes(data.widgetHeight)
             ? data.widgetHeight
             : DEFAULT_THEME.widgetHeight;
+        const colorPackage = COLOR_PACKAGE_OPTIONS.includes(data.colorPackage)
+            ? data.colorPackage
+            : DEFAULT_THEME.colorPackage;
+        const externalLinksBordered = data.externalLinksBordered !== undefined
+            ? data.externalLinksBordered
+            : (data.externalLinksBordeprimary !== undefined
+                ? data.externalLinksBordeprimary
+                : DEFAULT_THEME.externalLinksBordered);
 
         return {
             primaryColor: data.primaryColor || DEFAULT_THEME.primaryColor,
+            colorPackage,
             displayMode: data.displayMode || DEFAULT_THEME.displayMode,
             borderStyle: normalizeBorderStyle(data.borderStyle || DEFAULT_THEME.borderStyle),
             linksLayout: data.linksLayout || DEFAULT_THEME.linksLayout,
@@ -57,7 +68,7 @@ class ThemeService {
             regularLinksLayout: data.regularLinksLayout || DEFAULT_THEME.regularLinksLayout,
             externalLinksLayout: data.externalLinksLayout || DEFAULT_THEME.externalLinksLayout,
             externalLinksFixed: data.externalLinksFixed !== undefined ? data.externalLinksFixed : DEFAULT_THEME.externalLinksFixed,
-            externalLinksBordered: data.externalLinksBordered !== undefined ? data.externalLinksBordered : DEFAULT_THEME.externalLinksBordered,
+            externalLinksBordered,
             externalLinksShowBackground: data.externalLinksShowBackground !== undefined ? data.externalLinksShowBackground : DEFAULT_THEME.externalLinksShowBackground,
             widgetHeight,
         };

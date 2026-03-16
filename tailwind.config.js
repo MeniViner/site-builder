@@ -24,6 +24,7 @@ export default {
           900: 'var(--color-primary-900)',
           950: 'var(--color-primary-950)',
         },
+        /* Legacy surface aliases — backwards compatible */
         surface: {
           bg:       'var(--surface-bg)',
           card:     'var(--surface-card)',
@@ -31,6 +32,25 @@ export default {
           text:     'var(--surface-text)',
           muted:    'var(--surface-text-muted)',
         },
+        /* Premium theme tokens — 12-variable architecture */
+        theme: {
+          'bg-base':      'var(--color-bg-base)',
+          'grad-start':   'var(--color-bg-gradient-start)',
+          'grad-end':     'var(--color-bg-gradient-end)',
+          'chrome':       'var(--color-bg-chrome)',
+          'card':         'var(--color-bg-card)',
+          'card-hover':   'var(--color-bg-card-hover)',
+          'elevated':     'var(--color-bg-elevated)',
+        },
+      },
+      borderColor: {
+        'theme-subtle': 'var(--color-border-subtle)',
+        'theme-strong': 'var(--color-border-strong)',
+      },
+      textColor: {
+        'theme':       'var(--color-text-primary)',
+        'theme-muted': 'var(--color-text-muted)',
+        'theme-inv':   'var(--color-text-inverted)',
       },
     },
   },

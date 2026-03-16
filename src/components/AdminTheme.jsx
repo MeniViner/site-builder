@@ -11,6 +11,7 @@ import { normalizeBorderStyle, panelStyle } from '../utils/borderStyles';
 
 const SETTINGS_NAV = [
     { id: 'primaryColor', label: 'צבע ראשי' },
+    { id: 'colorPackage', label: 'ערכת צבע' },
     { id: 'displayMode', label: 'מצב תצוגה' },
     { id: 'borderStyle', label: 'סגנון מסגרות' },
     { id: 'widgetHeight', label: 'גובה ווידגט' },
@@ -31,6 +32,29 @@ const COLOR_SWATCHES = [
     { hex: '#64748b', label: 'אפור-כחול' },
     { hex: '#78716c', label: 'אפור' },
     { hex: '#7B3F00', label: 'חום' },
+];
+
+const COLOR_PACKAGES = [
+    {
+        value: 'classic', label: 'Classic', labelHe: 'קלאסי',
+        description: 'גווני אפור נקיים עם עומק פרימיום',
+        swatch: { base: '#0c0d12', card: '#1a1c23', elevated: '#252830' },
+    },
+    {
+        value: 'ocean', label: 'Ocean', labelHe: 'כחול ים',
+        description: 'גווני כחול עמוק לתחושת אמינות ופיקוד',
+        swatch: { base: '#080c14', card: '#0f1724', elevated: '#1a2840' },
+    },
+    {
+        value: 'crimson', label: 'Crimson', labelHe: 'אדום עמוק',
+        description: 'בורגנדי עשיר עם נוכחות מפקדת',
+        swatch: { base: '#0e0809', card: '#1a1012', elevated: '#301c20' },
+    },
+    {
+        value: 'forest', label: 'Forest', labelHe: 'ירוק טקטי',
+        description: 'ירוק זית ביער — מראה צבאי טקטי',
+        swatch: { base: '#080c09', card: '#0f1810', elevated: '#1c3020' },
+    },
 ];
 
 const DISPLAY_MODES = [
@@ -89,12 +113,22 @@ export default function AdminTheme() {
     const [activeSettingId, setActiveSettingId] = useState(SETTINGS_NAV[0].id);
     const colorInputRef = useRef(null);
     const saveTimeoutRef = useRef(null);
+    const latestDraftRef = useRef(null);
+    const latestThemeRef = useRef(null);
 
     useEffect(() => {
         if (theme) {
             setDraft({ ...theme, borderStyle: normalizeBorderStyle(theme.borderStyle) });
             setCustomColor(theme.primaryColor || '#dc2626');
         }
+    }, [theme]);
+
+    useEffect(() => {
+        latestDraftRef.current = draft;
+    }, [draft]);
+
+    useEffect(() => {
+        latestThemeRef.current = theme;
     }, [theme]);
 
     const triggerAutoSave = useCallback((nextDraft) => {
@@ -111,7 +145,15 @@ export default function AdminTheme() {
         }, SAVE_DEBOUNCE_MS);
     }, [theme, saveTheme]);
 
-    useEffect(() => () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); }, []);
+    useEffect(() => () => {
+        if (!saveTimeoutRef.current) return;
+        clearTimeout(saveTimeoutRef.current);
+        const pendingDraft = latestDraftRef.current;
+        const currentTheme = latestThemeRef.current;
+        if (pendingDraft && currentTheme && JSON.stringify(pendingDraft) !== JSON.stringify(currentTheme)) {
+            saveTheme(pendingDraft);
+        }
+    }, [saveTheme]);
 
     if (loading && !theme) {
         return <div className="p-8 text-center text-gray-500 dark:text-gray-400">טוען הגדרות עיצוב...</div>;
@@ -267,6 +309,75 @@ export default function AdminTheme() {
                                 </div>
                             </div>
 
+                        </section>
+                    )}
+
+                    {/* ==================== COLOR PACKAGE ==================== */}
+                    {showSection('colorPackage') && (
+                        <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
+                            <div className="flex items-center gap-3 mb-6 pb-4">
+                                <div className="bg-primary-500/10 p-2.5 rounded-lg border border-primary-500/20">
+                                    <Palette size={20} className="text-primary-400" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">ערכת צבע</h2>
+                                    <p className="text-sm text-gray-400 dark:text-gray-500">בחר ערכת צבעים שלמה שתשנה את הרקעים, הכרטיסים והבורדרים</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                {COLOR_PACKAGES.map((pkg) => {
+                                    const isActive = (draft.colorPackage || 'classic') === pkg.value;
+                                    return (
+                                        <button
+                                            key={pkg.value}
+                                            onClick={() => updateField('colorPackage', pkg.value)}
+                                            className={`relative p-5 rounded-xl border-2 text-right transition-all ${
+                                                isActive
+                                                    ? 'bg-primary-500/10 border-primary-500/40 ring-1 ring-primary-500/20'
+                                                    : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
+                                            }`}
+                                        >
+                                            {/* 3-Layer Swatch Preview */}
+                                            <div className="w-full h-20 rounded-lg mb-4 relative overflow-hidden shadow-inner border border-white/5">
+                                                {/* Layer 1: Base */}
+                                                <div className="absolute inset-0" style={{ backgroundColor: pkg.swatch.base }} />
+                                                {/* Layer 2: Card */}
+                                                <div
+                                                    className="absolute bottom-0 left-2 right-2 top-4 rounded-t-md"
+                                                    style={{ backgroundColor: pkg.swatch.card }}
+                                                />
+                                                {/* Layer 3: Elevated */}
+                                                <div
+                                                    className="absolute bottom-2 left-4 right-4 top-8 rounded-sm"
+                                                    style={{ backgroundColor: pkg.swatch.elevated }}
+                                                />
+                                                {/* Subtle glow accent from primary */}
+                                                <div
+                                                    className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/2 h-[2px] rounded-full opacity-70"
+                                                    style={{ backgroundColor: draft.primaryColor || '#dc2626', boxShadow: `0 0 8px ${draft.primaryColor || '#dc2626'}` }}
+                                                />
+                                            </div>
+
+                                            <h3 className={`font-bold text-sm mb-0.5 ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>
+                                                {pkg.label}
+                                            </h3>
+                                            <span className={`text-xs font-medium ${isActive ? 'text-primary-400' : 'text-gray-500 dark:text-gray-500'}`}>
+                                                {pkg.labelHe}
+                                            </span>
+                                            <p className={`text-[11px] mt-1.5 leading-snug ${isActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>
+                                                {pkg.description}
+                                            </p>
+
+                                            {isActive && (
+                                                <div className="absolute top-3 left-3 w-5 h-5 bg-primary-500 rounded-full flex items-center justify-center">
+                                                    <div className="w-2 h-2 bg-white rounded-full" />
+                                                </div>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </section>
                     )}
 
@@ -662,8 +773,8 @@ export default function AdminTheme() {
                                 <label className="flex items-center gap-3 cursor-pointer select-none p-3 rounded-xl bg-gray-50 dark:bg-[#1e212b] hover:bg-gray-100 dark:hover:bg-white/5 transition">
                                     <input
                                         type="checkbox"
-                                        checked={draft.externalLinksBordeprimary !== false}
-                                        onChange={(e) => updateField('externalLinksBordeprimary', e.target.checked)}
+                                        checked={draft.externalLinksBordered !== false}
+                                        onChange={(e) => updateField('externalLinksBordered', e.target.checked)}
                                         className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-primary-500 focus:ring-primary-500"
                                     />
                                     <div>

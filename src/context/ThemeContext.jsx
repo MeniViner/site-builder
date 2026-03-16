@@ -88,22 +88,13 @@ function applyDisplayMode(effectiveMode) {
     const root = document.documentElement;
     if (effectiveMode === 'dark') {
         root.classList.add('dark');
-        root.style.setProperty('--surface-bg', '#0c0d12');
-        root.style.setProperty('--surface-card', '#1a1c23');
-        root.style.setProperty('--surface-elevated', '#232733');
-        root.style.setProperty('--surface-text', '#ffffff');
-        root.style.setProperty('--surface-text-muted', '#9ca3af');
     } else {
         root.classList.remove('dark');
-        root.style.setProperty('--surface-bg', '#f5f5f5');
-        root.style.setProperty('--surface-card', '#ffffff');
-        root.style.setProperty('--surface-elevated', '#f0f0f0');
-        root.style.setProperty('--surface-text', '#111827');
-        root.style.setProperty('--surface-text-muted', '#6b7280');
     }
+    // Surface tokens are now handled by CSS cascade via data-theme + .dark selectors
 }
 
-/** Apply theme (primary color + display mode) to a container element for scoped preview. */
+/** Apply theme (primary color + display mode + color package) to a container element for scoped preview. */
 export function applyThemeToElement(el, themeData) {
     if (!el || !themeData) return;
     const hex = themeData.primaryColor || '#dc2626';
@@ -127,19 +118,11 @@ export function applyThemeToElement(el, themeData) {
     const mode = themeData.displayMode === 'user-toggle' ? 'dark' : (themeData.displayMode || 'dark');
     if (mode === 'dark') {
         el.classList.add('dark');
-        el.style.setProperty('--surface-bg', '#0c0d12');
-        el.style.setProperty('--surface-card', '#1a1c23');
-        el.style.setProperty('--surface-elevated', '#232733');
-        el.style.setProperty('--surface-text', '#ffffff');
-        el.style.setProperty('--surface-text-muted', '#9ca3af');
     } else {
         el.classList.remove('dark');
-        el.style.setProperty('--surface-bg', '#f5f5f5');
-        el.style.setProperty('--surface-card', '#ffffff');
-        el.style.setProperty('--surface-elevated', '#f0f0f0');
-        el.style.setProperty('--surface-text', '#111827');
-        el.style.setProperty('--surface-text-muted', '#6b7280');
     }
+    // Apply color package via data-theme attribute (CSS cascade handles surface tokens)
+    el.dataset.theme = themeData.colorPackage || 'classic';
 }
 
 export const ThemeProvider = ({ children }) => {
@@ -161,6 +144,7 @@ export const ThemeProvider = ({ children }) => {
     const applyThemeToDom = useCallback((themeData) => {
         if (!themeData) return;
         applyPrimaryColorVars(themeData.primaryColor || '#dc2626');
+        document.documentElement.dataset.theme = themeData.colorPackage || 'classic';
         const mode = resolveDisplayMode(themeData.displayMode || 'dark');
         setSiteMode(mode);
     }, []);
