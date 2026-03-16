@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { AlertTriangle, CalendarDays, Check, PartyPopper, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useWidget } from '../context/WidgetContext';
+import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
 
 const panelCls = 'bg-themeBg-card bg-white dark:bg-[#232733] text-themeText-primary text-gray-900 dark:text-white border border-gray-200 dark:border-white/10';
-const inputCls = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-500/20 dark:border-white/10 dark:bg-[#1a1d24] dark:text-white';
+const inputCls = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20 dark:border-white/10 dark:bg-[#1a1d24] dark:text-white';
 
 const EMPTY_CELEBRATION = { id: '', name: '', type: '', date: '', description: '' };
 const makeId = () => crypto.randomUUID?.() || Date.now().toString();
@@ -71,7 +72,7 @@ export default function AdminCelebrations() {
             <div className="mb-8 flex items-center justify-between border-b border-gray-300 pb-4 dark:border-white/10">
                 <div>
                     <h1 className="flex items-center gap-3 text-3xl font-black">
-                        <PartyPopper size={28} className="text-teal-400" />
+                        <PartyPopper size={28} className="text-primary-400" />
                         ניהול חוגגים השבוע
                     </h1>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">שחרורים, דרגות ואירועים משמחים של היחידה.</p>
@@ -88,7 +89,7 @@ export default function AdminCelebrations() {
 
             <div className="mb-6 flex items-center justify-between">
                 <p className="text-sm text-gray-500 dark:text-gray-400">{list.length} אירועים חגיגיים</p>
-                <button onClick={openNew} className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-teal-700">
+                <button onClick={openNew} className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-primary-700">
                     <Plus size={16} />
                     הוסף אירוע
                 </button>
@@ -96,7 +97,7 @@ export default function AdminCelebrations() {
 
             {editingId !== null && (
                 <div className={`${panelCls} mb-6 rounded-2xl p-6 shadow-lg`}>
-                    <h3 className="mb-4 text-base font-bold text-teal-400">{editingId === 'new' ? 'הוספת אירוע' : 'עריכת אירוע'}</h3>
+                    <h3 className="mb-4 text-base font-bold text-primary-400">{editingId === 'new' ? 'הוספת אירוע' : 'עריכת אירוע'}</h3>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <input className={inputCls} placeholder="שם החוגג/ת" value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} />
                         <input className={inputCls} placeholder="סוג (שחרור / דרגה / יום הולדת)" value={form.type} onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value }))} />
@@ -104,7 +105,7 @@ export default function AdminCelebrations() {
                         <input className={inputCls} placeholder="תיאור קצר" value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} />
                     </div>
                     <div className="mt-4 flex gap-3">
-                        <button onClick={commitEdit} className="flex items-center gap-2 rounded-lg bg-teal-600 px-5 py-2 text-sm font-bold text-white transition hover:bg-teal-700">
+                        <button onClick={commitEdit} className="flex items-center gap-2 rounded-lg bg-primary-600 px-5 py-2 text-sm font-bold text-white transition hover:bg-primary-700">
                             <Check size={16} />
                             {editingId === 'new' ? 'הוסף' : 'עדכן'}
                         </button>
@@ -123,7 +124,7 @@ export default function AdminCelebrations() {
                             <div>
                                 <div className="text-lg font-bold">{item.name}</div>
                                 <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
-                                    <span className="rounded-full bg-teal-500/10 px-3 py-1 text-teal-500">{item.type}</span>
+                                    <span className="rounded-full bg-primary-500/10 px-3 py-1 text-primary-500">{item.type}</span>
                                     <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-gray-600 dark:bg-white/10 dark:text-gray-300">
                                         <CalendarDays size={12} />
                                         {item.date}
@@ -132,13 +133,18 @@ export default function AdminCelebrations() {
                                 {item.description && <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">{item.description}</p>}
                             </div>
                             <div className="flex gap-1">
-                                <button onClick={() => openEdit(item)} className="rounded-md p-2 text-gray-400 transition hover:bg-teal-500/10 hover:text-teal-400"><Pencil size={15} /></button>
+                                <button onClick={() => openEdit(item)} className="rounded-md p-2 text-gray-400 transition hover:bg-primary-500/10 hover:text-primary-400"><Pencil size={15} /></button>
                                 <button onClick={() => deleteItem(item.id)} className="rounded-md p-2 text-gray-400 transition hover:bg-red-500/10 hover:text-red-400"><Trash2 size={15} /></button>
                             </div>
                         </div>
                     </div>
                 ))}
             </div>
+
+            <WidgetDisplaySettingsPanel
+                widgetKey="celebrations"
+                title="הגדרות הצגה דינמיות לווידג׳ט הזה"
+            />
         </div>
     );
 }

@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import ThemeService from '../services/ThemeService';
+import { DEFAULT_BORDER_TARGETS, normalizeBorderTargets } from '../utils/borderStyles';
 
 export const ThemeContext = createContext();
 
@@ -8,6 +9,17 @@ export const useTheme = () => useContext(ThemeContext);
 
 const USER_MODE_KEY = 'bihs_user_display_mode';
 const ADMIN_MODE_KEY = 'bihs_admin_display_mode';
+const BORDER_TARGETS_KEY = 'bihs_border_targets';
+
+function resolveBorderTargets() {
+    try {
+        const saved = localStorage.getItem(BORDER_TARGETS_KEY);
+        return saved ? normalizeBorderTargets(JSON.parse(saved)) : { ...DEFAULT_BORDER_TARGETS };
+    } catch (error) {
+        console.error('Failed to read border targets from localStorage:', error);
+        return { ...DEFAULT_BORDER_TARGETS };
+    }
+}
 
 function hexToHsl(hex) {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -136,6 +148,7 @@ export const ThemeProvider = ({ children }) => {
     const [error, setError] = useState(null);
     const [siteMode, setSiteMode] = useState('dark');
     const [adminMode, setAdminMode] = useState(() => resolveAdminMode());
+    const [borderTargets, setBorderTargets] = useState(() => resolveBorderTargets());
     const location = useLocation();
     const isAdminRoute = useMemo(() => {
         const path = (location.pathname || '').toLowerCase();
@@ -212,6 +225,14 @@ export const ThemeProvider = ({ children }) => {
         applyDisplayMode(effectiveMode);
     }, [effectiveMode]);
 
+    useEffect(() => {
+        try {
+            localStorage.setItem(BORDER_TARGETS_KEY, JSON.stringify(borderTargets));
+        } catch (error) {
+            console.error('Failed to save border targets to localStorage:', error);
+        }
+    }, [borderTargets]);
+
     return (
         <ThemeContext.Provider value={{
             theme,
@@ -225,6 +246,8 @@ export const ThemeProvider = ({ children }) => {
             fetchTheme,
             toggleUserMode,
             toggleAdminMode,
+            borderTargets,
+            setBorderTargets,
         }}>
             {children}
         </ThemeContext.Provider>

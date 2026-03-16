@@ -258,8 +258,10 @@ export default function AdminHub() {
                                 <Route path="/tips" element={<div className="w-full h-full"><AdminTips /></div>} />
                             </Routes>
                         </div>
-                        <aside className="shrink-0 flex items-start pt-2">
-                            <WidgetLivePreview />
+                        <aside className="shrink-0 flex items-start pt-2 pr-1">
+                            <div className="sticky top-28 w-[430px] max-w-[430px]">
+                                <WidgetLivePreview title="תצוגה מקדימה מהאתר" />
+                            </div>
                         </aside>
                     </div>
                 ) : (

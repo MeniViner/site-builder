@@ -19,47 +19,28 @@ import { useExternalLinks } from './context/ExternalLinksContext';
 import AdminHub from './components/AdminHub';
 import RightSidebarNav from './components/RightSidebarNav';
 import { ToastContainer } from 'react-toastify';
+import { normalizeBorderStyle, panelStyle, tacticalClip, isTacticalStyle } from './utils/borderStyles';
 import 'react-toastify/dist/ReactToastify.css';
-
-/* ================================================================
-   BORDER STYLE HELPER
-   Returns a clip-path polygon string for tactical styles,
-   or null for standard (caller uses border-radius instead).
-   ================================================================ */
-function tacticalClip(style, size) {
-  const s = size;
-  switch (style) {
-    case 'tactical-1':
-      return `polygon(${s}px 0, 100% 0, 100% calc(100% - ${s}px), calc(100% - ${s}px) 100%, 0 100%, 0 ${s}px)`;
-    case 'tactical-2':
-      return `polygon(0 0, calc(100% - ${s}px) 0, 100% ${s}px, 100% 100%, ${s}px 100%, 0 calc(100% - ${s}px))`;
-    case 'tactical-3':
-      return `polygon(${s}px 0, calc(100% - ${s}px) 0, 100% ${s}px, 100% calc(100% - ${s}px), calc(100% - ${s}px) 100%, ${s}px 100%, 0 calc(100% - ${s}px), 0 ${s}px)`;
-    default:
-      return null;
-  }
-}
-
-function panelStyle(borderStyle, size) {
-  const clip = tacticalClip(borderStyle, size);
-  return clip ? { clipPath: clip } : { borderRadius: `${Math.min(size, 16)}px` };
-}
 
 /* ================================================================
    FLIP CARD (Grid layout)
    ================================================================ */
-export const FlipCard = ({ id, title, icon: iconName, subLinks = [], url, isFlipped, onFlip }) => {
+export const FlipCard = ({ id, title, icon: iconName, subLinks = [], url, isFlipped, onFlip, borderStyle = 'standard' }) => {
   const handleLinkClick = (e) => e.stopPropagation();
   const handleCardClick = () => {
     if (url) { window.open(url, '_blank', 'noopener,noreferrer'); return; }
     onFlip(isFlipped ? null : id);
   };
   const handleClose = (e) => { e.stopPropagation(); onFlip(null); };
+  const cardFrameStyle = panelStyle(borderStyle, 12);
 
   return (
     <div className="relative w-full h-56 cursor-pointer [perspective:1000px] group" onClick={handleCardClick}>
       <div className={`w-full h-full transition-transform duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
-        <div className="absolute inset-0 [backface-visibility:hidden] bg-gradient-to-br from-white to-gray-50 border border-gray-200 shadow-sm text-gray-900 dark:from-[#2a2e3b] dark:to-[#1e212b] dark:border-white/10 dark:text-white group-hover:border-primary/50 group-hover:shadow-[0_0_20px_var(--color-primary-900)] transition-all rounded-xl p-6 flex flex-col items-center justify-center">
+        <div
+          className="absolute inset-0 [backface-visibility:hidden] bg-gradient-to-br from-white to-gray-50 border border-gray-200 shadow-sm text-gray-900 dark:from-[#2a2e3b] dark:to-[#1e212b] dark:border-white/10 dark:text-white group-hover:border-primary/50 group-hover:shadow-[0_0_20px_var(--color-primary-900)] transition-all rounded-xl p-6 flex flex-col items-center justify-center overflow-hidden"
+          style={cardFrameStyle}
+        >
           <div className="bg-gray-100 dark:bg-black/40 border border-gray-200 dark:border-gray-800/50 p-4 rounded-xl mb-4 text-primary group-hover:scale-110 transition-transform duration-300">
             <DynamicIcon name={iconName} size={36} strokeWidth={1.5} />
           </div>
@@ -69,7 +50,10 @@ export const FlipCard = ({ id, title, icon: iconName, subLinks = [], url, isFlip
             <ChevronLeft size={12} className="-rotate-90 text-gray-700 dark:text-gray-400" aria-hidden />
           </div>
         </div>
-        <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] bg-gradient-to-br from-white to-gray-50 border border-gray-200 shadow-sm text-gray-900 dark:from-[#2a2e3b] dark:to-[#1e212b] dark:border-white/10 dark:text-white rounded-xl p-5 flex flex-col shadow-2xl">
+        <div
+          className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] bg-gradient-to-br from-white to-gray-50 border border-gray-200 shadow-sm text-gray-900 dark:from-[#2a2e3b] dark:to-[#1e212b] dark:border-white/10 dark:text-white rounded-xl p-5 flex flex-col shadow-2xl overflow-hidden"
+          style={cardFrameStyle}
+        >
           <div className="flex justify-between items-center mb-3 border-b border-gray-200 dark:border-gray-800 pb-3">
             <h3 className="text-base font-bold text-gray-900 dark:text-white/90">{title}</h3>
             <button type="button" className="text-gray-700 dark:text-gray-400 hover:text-primary transition-colors bg-gray-100 dark:bg-gray-900/50 rounded-md p-1" onClick={handleClose} aria-label="סגור"><Undo2 size={16} /></button>
@@ -130,7 +114,7 @@ function CompactListSection({ cat }) {
    HQ DASHBOARD LAYOUT (Creative)
    Command-center inspired: status-card rows with glow accents
    ================================================================ */
-function HQDashboardSection({ cat }) {
+function HQDashboardSection({ cat, borderStyle = 'standard' }) {
   return (
     <section key={cat.id} id={cat.id} className="scroll-mt-32 max-w-[1400px] mx-auto w-full">
       <div className="flex items-center gap-4 mb-6 px-2 pb-4 relative">
@@ -147,7 +131,8 @@ function HQDashboardSection({ cat }) {
             href={card.url || '#'}
             target={card.url ? '_blank' : undefined}
             rel={card.url ? 'noopener noreferrer' : undefined}
-            className="group relative flex items-center gap-5 p-5 rounded-none bg-gradient-to-l from-surface-card to-transparent border-r-2 border-primary/30 hover:border-primary hover:bg-surface-card/80 transition-all overflow-hidden"
+            className="group relative flex items-center gap-5 p-5 bg-gradient-to-l from-surface-card to-transparent border-r-2 border-primary/30 hover:border-primary hover:bg-surface-card/80 transition-all overflow-hidden"
+            style={panelStyle(borderStyle, 12)}
           >
             <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-l from-primary/5 to-transparent pointer-events-none" />
             <div className="absolute top-0 right-0 w-1 h-full bg-primary/0 group-hover:bg-primary transition-all shadow-[0_0_12px_var(--color-primary-hex)] group-hover:shadow-[0_0_16px_var(--color-primary-hex)]" />
@@ -197,7 +182,7 @@ function ExtLinkIcon({ icon, src, alt, size = 18, className = '' }) {
 /* ================================================================
    EXTERNAL LINKS — Cards Layout
    ================================================================ */
-function ExtLinksCards({ links, compact, bordered = true }) {
+function ExtLinksCards({ links, compact, bordered = true, borderStyle = 'standard' }) {
   const cardBorder = bordered ? 'border border-gray-200 dark:border-white/5 hover:border-primary/30' : '';
   const iconWrap = bordered
     ? 'w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 group-hover:border-primary/30 overflow-hidden shrink-0'
@@ -210,7 +195,8 @@ function ExtLinksCards({ links, compact, bordered = true }) {
       <div className="flex items-center gap-2 flex-nowrap">
         {links.map((link) => (
           <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
-            className={`group flex flex-col items-center gap-1.5 p-2.5 rounded-lg bg-white/50 dark:bg-white/[0.02] ${cardBorder} hover:bg-primary/5 transition-all text-center shrink-0`}>
+            className={`group flex flex-col items-center gap-1.5 p-2.5 rounded-lg bg-white/50 dark:bg-white/[0.02] ${cardBorder} hover:bg-primary/5 transition-all text-center shrink-0 overflow-hidden`}
+            style={panelStyle(borderStyle, 10)}>
             <div className={`flex items-center justify-center ${iconWrap}`}>
               <ExtLinkIcon icon={link.icon} src={link.iconUrl || link.image} alt={link.title} size={18} />
             </div>
@@ -230,7 +216,8 @@ function ExtLinksCards({ links, compact, bordered = true }) {
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
         {links.map((link) => (
           <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
-            className={`group flex flex-col items-center gap-3 p-5 rounded-xl bg-white dark:bg-white/[0.02] ${cardBorder} hover:bg-primary/5 transition-all text-center`}>
+            className={`group flex flex-col items-center gap-3 p-5 rounded-xl bg-white dark:bg-white/[0.02] ${cardBorder} hover:bg-primary/5 transition-all text-center overflow-hidden`}
+            style={panelStyle(borderStyle, 12)}>
             <div className={`flex items-center justify-center ${iconWrapFull}`}>
               <ExtLinkIcon icon={link.icon} src={link.iconUrl || link.image} alt={link.title} size={24} />
             </div>
@@ -272,12 +259,13 @@ function ExtLinksMinimal({ links, compact, bordered = true }) {
 /* ================================================================
    EXTERNAL LINKS — Floating Bar Layout
    ================================================================ */
-function ExtLinksFloating({ links, fixed: isFixed = true, bordered = true, showBackground = true }) {
+function ExtLinksFloating({ links, fixed: isFixed = true, bordered = true, showBackground = true, borderStyle = 'standard' }) {
   const barBorder = bordered && showBackground ? 'border border-gray-200 dark:border-white/10' : '';
   const iconBg = bordered ? 'bg-gray-100 dark:bg-white/10' : '';
   const barBg = showBackground ? 'bg-white/80 dark:bg-black/80 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.15)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.6)]' : '';
+  const barShape = panelStyle(borderStyle, 12);
   const content = (
-    <div className={`flex items-center gap-2 ${barBg} ${barBorder} rounded-full px-4 py-2.5`}>
+    <div className={`flex items-center gap-2 ${barBg} ${barBorder} rounded-full px-4 py-2.5 overflow-hidden`} style={barShape}>
       {links.map((link) => (
         <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
           className="group relative flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 transition-all"
@@ -356,9 +344,12 @@ function CommanderSection({ commander, messages }) {
    TACTICAL PANEL — reusable layered card with dynamic border style
    ================================================================ */
 function TacticalPanel({ borderStyle, cornerSize, className, children, glowLine }) {
-  const isTactical = borderStyle && borderStyle !== 'standard';
-  const outerClip = isTactical ? tacticalClip(borderStyle, cornerSize) : null;
-  const radius = !isTactical ? `${Math.min(cornerSize, 20)}px` : undefined;
+  const normalizedStyle = normalizeBorderStyle(borderStyle);
+  const isTactical = isTacticalStyle(normalizedStyle);
+  const outerClip = isTactical ? tacticalClip(normalizedStyle, cornerSize) : null;
+  const radius = !isTactical
+    ? (normalizedStyle === 'square' ? '0px' : `${Math.min(cornerSize, 20)}px`)
+    : undefined;
 
   return (
     <div
@@ -377,15 +368,17 @@ function TacticalPanel({ borderStyle, cornerSize, className, children, glowLine 
    SEARCH BAR — dynamic border style
    ================================================================ */
 function SearchBar({ borderStyle }) {
-  const isTactical = borderStyle && borderStyle !== 'standard';
+  const normalizedStyle = normalizeBorderStyle(borderStyle);
+  const isTactical = isTacticalStyle(normalizedStyle);
+  const squareStyle = normalizedStyle === 'square' ? { borderRadius: '0px' } : undefined;
 
   if (!isTactical) {
     return (
       <div className="relative flex items-center w-64 md:w-80 h-10 group" style={{ filter: `drop-shadow(0 0 4px var(--color-primary-900))` }}>
-        <div className="absolute inset-0 bg-primary-900 rounded-lg" />
-        <div className="absolute inset-[1px] bg-gray-50 dark:bg-[#1e212b] rounded-[7px]" />
-        <div className="absolute inset-[3px] rounded-[5px] transition-colors group-hover:brightness-110" style={{ backgroundColor: 'var(--color-primary-800)' }} />
-        <div className="absolute inset-[4px] bg-white flex items-center px-3 rounded-[4px]">
+        <div className="absolute inset-0 bg-primary-900 rounded-lg" style={squareStyle} />
+        <div className="absolute inset-[1px] bg-gray-50 dark:bg-[#1e212b] rounded-[7px]" style={squareStyle} />
+        <div className="absolute inset-[3px] rounded-[5px] transition-colors group-hover:brightness-110" style={{ backgroundColor: 'var(--color-primary-800)', ...(squareStyle || {}) }} />
+        <div className="absolute inset-[4px] bg-white flex items-center px-3 rounded-[4px]" style={squareStyle}>
           <Search size={22} className="shrink-0" style={{ color: 'var(--color-primary-800)' }} strokeWidth={2} />
           <input type="text" placeholder="חיפוש באתר..." className="flex-1 w-full bg-transparent border-none outline-none text-gray-800 placeholder-gray-500 text-sm font-medium mr-2" />
         </div>
@@ -393,7 +386,7 @@ function SearchBar({ borderStyle }) {
     );
   }
 
-  const clip = (s) => tacticalClip(borderStyle, s);
+  const clip = (s) => tacticalClip(normalizedStyle, s);
   return (
     <div className="relative flex items-center w-64 md:w-80 h-10 group" style={{ filter: `drop-shadow(0 0 4px var(--color-primary-900))` }}>
       <div className="absolute inset-0 bg-primary-900" style={{ clipPath: clip(12) }} />
@@ -419,7 +412,7 @@ export function Home() {
   const { navItems, loading } = useNavigation();
   const { currentUser } = useAuth();
   const { siteContent } = useSiteContent();
-  const { theme, effectiveMode, toggleUserMode } = useTheme();
+  const { theme, effectiveMode, toggleUserMode, borderTargets } = useTheme();
   const { widgetConfig } = useWidget();
   const { externalLinks } = useExternalLinks();
 
@@ -429,13 +422,20 @@ export function Home() {
   const backgrounds = (hero.backgroundImages || []).filter(Boolean);
   const heroGrayscale = theme?.heroGrayscale ?? false;
   const showNavCategories = theme?.showNavCategories ?? true;
-  const borderStyle = theme?.borderStyle || 'tactical-1';
+  const borderStyle = normalizeBorderStyle(theme?.borderStyle || 'cyber');
   const regularLinksLayout = theme?.regularLinksLayout || 'grid';
   const externalLinksLayout = theme?.externalLinksLayout || 'cards';
   const externalLinksFixed = theme?.externalLinksFixed ?? false;
   const externalLinksBordered = theme?.externalLinksBordered !== false;
   const externalLinksShowBackground = theme?.externalLinksShowBackground !== false;
   const activeWidget = widgetConfig?.activeWidget || 'events';
+  const commanderBorderStyle = borderTargets?.commander ? borderStyle : 'standard';
+  const widgetBorderStyle = borderTargets?.widget ? borderStyle : 'standard';
+  const searchBorderStyle = borderTargets?.search ? borderStyle : 'standard';
+  const topNavBorderStyle = borderTargets?.topNav ? borderStyle : 'standard';
+  const flipCardBorderStyle = borderTargets?.flipCards ? borderStyle : 'standard';
+  const hqDashBorderStyle = borderTargets?.hqDash ? borderStyle : 'standard';
+  const extLinksBorderStyle = borderTargets?.extLinks ? borderStyle : 'standard';
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour >= 6 && hour < 12) return 'בוקר טוב';
@@ -478,7 +478,7 @@ export function Home() {
 
   const renderCategorySection = (cat) => {
     if (regularLinksLayout === 'compact') return <CompactListSection key={cat.id} cat={cat} />;
-    if (regularLinksLayout === 'hq') return <HQDashboardSection key={cat.id} cat={cat} />;
+    if (regularLinksLayout === 'hq') return <HQDashboardSection key={cat.id} cat={cat} borderStyle={hqDashBorderStyle} />;
     // Default: grid with FlipCards
     return (
       <section key={cat.id} id={cat.id} className="scroll-mt-32 max-w-[1400px] mx-auto w-full">
@@ -491,7 +491,7 @@ export function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {cat.children.map((card) => {
               const uid = `${cat.id}-${card.id}`;
-              return <FlipCard key={card.id} id={uid} title={card.title || card.label} icon={card.icon} subLinks={card.subLinks} url={card.url} isFlipped={flippedCardId === uid} onFlip={handleFlip} />;
+              return <FlipCard key={card.id} id={uid} title={card.title || card.label} icon={card.icon} subLinks={card.subLinks} url={card.url} isFlipped={flippedCardId === uid} onFlip={handleFlip} borderStyle={flipCardBorderStyle} />;
             })}
           </div>
         ) : (
@@ -509,8 +509,8 @@ export function Home() {
     const footerCls = 'relative z-10 w-full border-t border-gray-200 dark:border-white/5 bg-gray-50 dark:bg-[#1e212b]';
     if (externalLinksFixed) return null;
     if (externalLinksLayout === 'minimal') return <footer className={footerCls}><ExtLinksMinimal links={externalLinks} bordered={externalLinksBordered} /></footer>;
-    if (externalLinksLayout === 'floating') return <footer className={footerCls}><ExtLinksFloating links={externalLinks} fixed={false} bordered={externalLinksBordered} showBackground={externalLinksShowBackground} /></footer>;
-    return <footer className={footerCls}><ExtLinksCards links={externalLinks} bordered={externalLinksBordered} /></footer>;
+    if (externalLinksLayout === 'floating') return <footer className={footerCls}><ExtLinksFloating links={externalLinks} fixed={false} bordered={externalLinksBordered} showBackground={externalLinksShowBackground} borderStyle={extLinksBorderStyle} /></footer>;
+    return <footer className={footerCls}><ExtLinksCards links={externalLinks} bordered={externalLinksBordered} borderStyle={extLinksBorderStyle} /></footer>;
   };
 
   const getWidgetHeight = (level) => {
@@ -563,22 +563,26 @@ export function Home() {
             ))}
           </div>
           <div className="flex flex-row-reverse items-center gap-3">
-            <SearchBar borderStyle={borderStyle} />
+            <SearchBar borderStyle={searchBorderStyle} />
             <button
               onClick={onOpenAdmin}
-              className="  border text-gray-900 dark:text-white px-6 h-10 font-bold transition rounded-sm text-sm whitespace-nowrap hidden sm:block"
-              style={{ borderColor: theme?.primaryColor ?? '#dc2626' }}
+              className="border text-gray-900 dark:text-white px-6 h-10 font-bold transition text-sm whitespace-nowrap hidden sm:block bg-white/60 dark:bg-[#12141a]/60 hover:bg-gray-100 dark:hover:bg-white/10"
+              style={{ ...panelStyle(topNavBorderStyle, 10), borderColor: theme?.primaryColor ?? '#dc2626' }}
             >ניהול</button>
             {theme?.displayMode === 'user-toggle' && (
               <button
                 onClick={toggleUserMode}
-                className="flex items-center justify-center w-10 h-10 rounded-sm border border-gray-200 dark:border-white/10 bg-white/60 dark:bg-[#12141a]/60 hover:bg-gray-100 dark:hover:bg-white/10 transition text-gray-700 dark:text-gray-300"
+                className="flex items-center justify-center w-10 h-10 border border-gray-200 dark:border-white/10 bg-white/60 dark:bg-[#12141a]/60 hover:bg-gray-100 dark:hover:bg-white/10 transition text-gray-700 dark:text-gray-300"
                 title={effectiveMode === 'dark' ? 'מעבר למצב בהיר' : 'מעבר למצב כהה'}
+                style={panelStyle(topNavBorderStyle, 10)}
               >
                 {effectiveMode === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
               </button>
             )}
-            <div className="flex items-center text-gray-900 dark:text-white px-4 h-10 whitespace-nowrap bg-white/60 dark:bg-[#12141a]/60 border border-gray-200 dark:border-white/10 rounded-sm">
+            <div
+              className="flex items-center text-gray-900 dark:text-white px-4 h-10 whitespace-nowrap bg-white/60 dark:bg-[#12141a]/60 border border-gray-200 dark:border-white/10"
+              style={panelStyle(topNavBorderStyle, 10)}
+            >
               <span className="text-gray-600 dark:text-gray-300 font-medium ml-1.5">{getGreeting()}</span>
               <span className="font-bold text-primary-400">{userName}</span>
             </div>
@@ -601,7 +605,7 @@ export function Home() {
           {/* Bottom Panels: Commander + Widget */}
           <div className="w-full px-8 lg:px-12 xl:px-24 pb-6 lg:pb-10 xl:pb-12 flex flex-col lg:flex-row items-end justify-between gap-6 lg:gap-6 xl:gap-10 pointer-events-auto z-30 mt-auto">
             <TacticalPanel
-              borderStyle={borderStyle}
+              borderStyle={commanderBorderStyle}
               cornerSize={30}
               className="w-full lg:flex-1 lg:max-w-[700px] h-auto lg:h-[260px] xl:h-[300px] 2xl:min-h-[320px] [@media(max-height:850px)]:h-[220px] shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)] group self-end"
             >
@@ -616,7 +620,7 @@ export function Home() {
                 style={{ height: getWidgetHeight(theme?.widgetHeight) }}
               >
                 <TacticalPanel
-                  borderStyle={borderStyle}
+                  borderStyle={widgetBorderStyle}
                   cornerSize={30}
                   glowLine
                   className="w-full h-full shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)] group flex flex-col"
@@ -654,13 +658,16 @@ export function Home() {
       {/* Fixed bar (when "נעוץ" is on) — any of the 3 layouts can be shown fixed */}
       {externalLinksFixed && externalLinks && externalLinks.length > 0 && (
         externalLinksLayout === 'floating' ? (
-          <ExtLinksFloating links={externalLinks} fixed bordered={externalLinksBordered} showBackground={externalLinksShowBackground} />
+          <ExtLinksFloating links={externalLinks} fixed bordered={externalLinksBordered} showBackground={externalLinksShowBackground} borderStyle={extLinksBorderStyle} />
         ) : (
-          <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-[90] max-w-[95vw] overflow-x-auto rounded-2xl px-4 py-3 ${externalLinksShowBackground ? 'bg-white/80 dark:bg-black/80 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.15)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.6)]' : ''} ${externalLinksShowBackground && externalLinksBordered ? 'border border-gray-200 dark:border-white/10' : ''}`}>
+          <div
+            className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-[90] max-w-[95vw] overflow-x-auto rounded-2xl px-4 py-3 ${externalLinksShowBackground ? 'bg-white/80 dark:bg-black/80 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.15)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.6)]' : ''} ${externalLinksShowBackground && externalLinksBordered ? 'border border-gray-200 dark:border-white/10' : ''}`}
+            style={panelStyle(extLinksBorderStyle, 12)}
+          >
             {externalLinksLayout === 'minimal' ? (
               <ExtLinksMinimal links={externalLinks} compact bordered={externalLinksBordered} />
             ) : (
-              <ExtLinksCards links={externalLinks} compact bordered={externalLinksBordered} />
+              <ExtLinksCards links={externalLinks} compact bordered={externalLinksBordered} borderStyle={extLinksBorderStyle} />
             )}
           </div>
         )

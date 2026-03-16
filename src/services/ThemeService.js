@@ -1,10 +1,11 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { getRequestDigest } from '../utils/sharepointUtils';
+import { normalizeBorderStyle } from '../utils/borderStyles';
 
 const DEFAULT_THEME = {
     primaryColor: '#dc2626',
     displayMode: 'dark',
-    borderStyle: 'tactical-1',
+    borderStyle: 'cyber',
     linksLayout: 'cards',
     showNavCategories: true,
     heroGrayscale: false,
@@ -49,7 +50,7 @@ class ThemeService {
         return {
             primaryColor: data.primaryColor || DEFAULT_THEME.primaryColor,
             displayMode: data.displayMode || DEFAULT_THEME.displayMode,
-            borderStyle: data.borderStyle || DEFAULT_THEME.borderStyle,
+            borderStyle: normalizeBorderStyle(data.borderStyle || DEFAULT_THEME.borderStyle),
             linksLayout: data.linksLayout || DEFAULT_THEME.linksLayout,
             showNavCategories: data.showNavCategories !== undefined ? data.showNavCategories : DEFAULT_THEME.showNavCategories,
             heroGrayscale: data.heroGrayscale !== undefined ? data.heroGrayscale : DEFAULT_THEME.heroGrayscale,

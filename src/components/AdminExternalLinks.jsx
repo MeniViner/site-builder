@@ -234,13 +234,13 @@ export default function AdminExternalLinks() {
                     ))}
 
                     {/* Add card */}
-                    <button
+                    {/* <button
                         onClick={addLink}
                         className="border-2 border-dashed border-gray-300 dark:border-white/10 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 text-gray-400 dark:text-gray-500 hover:text-red-500 hover:border-red-500/40 hover:bg-red-500/5 dark:hover:bg-red-500/10 transition-all min-h-[220px]"
                     >
                         <Plus size={32} />
                         <span className="font-bold text-sm">הוסף קישור חדש</span>
-                    </button>
+                    </button> */}
                 </div>
             )}
 

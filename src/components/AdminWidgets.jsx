@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   AlertTriangle, Bell, BookUser, BusFront, Calendar, Check,
-  Award, Timer, Rss, Vote, PartyPopper, ScrollText, Lightbulb, Save
+  Award, Timer, Rss, Vote, PartyPopper, ScrollText, Lightbulb
 } from 'lucide-react';
 import { useWidget } from '../context/WidgetContext';
 import WidgetLivePreview from './WidgetLivePreview';
@@ -43,7 +43,7 @@ export default function AdminWidgets() {
   const [selected, setSelected] = useState('events');
   const [settingsDraft, setSettingsDraft] = useState({ itemsPerView: 1, autoScroll: true, intervalMs: 5000 });
   const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState(null);
+  const saveTimeoutRef = useRef(null);
 
   useEffect(() => {
     if (widgetConfig?.activeWidget) setSelected(widgetConfig.activeWidget);
@@ -76,26 +76,42 @@ export default function AdminWidgets() {
     return activeChanged || settingsChanged;
   }, [widgetConfig, selected, settingsDraft, supportsSettings]);
 
-  const handleSave = async () => {
-    if (!widgetConfig) return;
-    setIsSaving(true);
-    setSaveMessage(null);
+  // Auto-save (debounced) whenever הווידג׳ט הפעיל או ההגדרות הדינמיות שלו משתנים
+  useEffect(() => {
+    if (!widgetConfig || !hasChanges) return;
 
-    const nextConfig = {
-      ...widgetConfig,
-      activeWidget: selected,
-      widgetSettings: supportsSettings
-        ? { ...(widgetConfig.widgetSettings || {}), [selected]: settingsDraft }
-        : widgetConfig.widgetSettings,
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(async () => {
+      setIsSaving(true);
+
+      const nextConfig = {
+        ...widgetConfig,
+        activeWidget: selected,
+        widgetSettings: supportsSettings
+          ? { ...(widgetConfig.widgetSettings || {}), [selected]: settingsDraft }
+          : widgetConfig.widgetSettings,
+      };
+
+      const success = await saveWidgetConfig(nextConfig);
+      setIsSaving(false);
+
+      if (!success) {
+        // השגיאה תופיע דרך error שמגיע מהקונטקסט
+        console.error('שמירת הגדרות הווידג׳ט נכשלה');
+      }
+
+      saveTimeoutRef.current = null;
+    }, 800);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
     };
-
-    const success = await saveWidgetConfig(nextConfig);
-    setIsSaving(false);
-    setSaveMessage(success
-      ? { type: 'success', text: 'הגדרות הווידג׳ט נשמרו בהצלחה.' }
-      : { type: 'error', text: 'שגיאה בשמירה. אנא נסה שוב.' });
-    setTimeout(() => setSaveMessage(null), 4000);
-  };
+  }, [widgetConfig, selected, settingsDraft, supportsSettings, hasChanges, saveWidgetConfig]);
 
   if (loading && !widgetConfig) {
     return <div className="p-8 text-center text-gray-500 dark:text-gray-400">טוען הגדרות ווידגטים...</div>;
@@ -106,38 +122,34 @@ export default function AdminWidgets() {
   const SelectedIcon = selectedMeta.icon;
 
   return (
-    <div dir="rtl" className="min-h-screen bg-gray-100 p-8 font-heebo text-gray-900 dark:bg-[#1e212b] dark:text-white">
-      <div className="mb-8 flex items-center justify-between border-b border-gray-300 pb-4 dark:border-white/10">
+    <div dir="rtl" className="min-h-screen bg-gray-100 font-heebo text-gray-900 dark:bg-[#1e212b] dark:text-white flex flex-col">
+      <div className="sticky top-0 z-20 bg-gray-100/95 dark:bg-[#1e212b]/95 backdrop-blur border-b border-gray-300 dark:border-white/10 px-8 pt-6 pb-4 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-gray-900 dark:text-white">הגדרות תצוגת ווידגט</h1>
-          <p className="mt-1 text-sm text-gray-400 dark:text-gray-500">כאן בוחרים ווידג׳ט פעיל, רואים תצוגה אמיתית כמו באתר, ומגדירים כמה פריטים יוצגו יחד עם מעבר אוטומטי.</p>
+          <p className="mt-1 text-sm text-gray-400 dark:text-gray-500">
+            כאן בוחרים ווידג׳ט פעיל ורואים תצוגה אמיתית כמו באתר. הגדרות התצוגה נשמרות אוטומטית.
+          </p>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={!hasChanges || isSaving}
-          className="flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 font-bold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <Save size={18} />
-          <span>{isSaving ? 'שומר...' : 'שמור שינויים'}</span>
-        </button>
+        {isSaving && (
+          <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
+            שומר...
+          </span>
+        )}
       </div>
 
       {error && (
-        <div className="mb-6 flex items-center gap-3 rounded-lg border border-red-500 bg-red-50 p-4 dark:bg-red-900/50">
-          <AlertTriangle className="shrink-0 text-red-400" />
-          <span className="text-red-700 dark:text-red-200">{error}</span>
+        <div className="px-8 pt-4">
+          <div className="mb-4 flex items-center gap-3 rounded-lg border border-red-500 bg-red-50 p-4 dark:bg-red-900/50">
+            <AlertTriangle className="shrink-0 text-red-400" />
+            <span className="text-red-700 dark:text-red-200">{error}</span>
+          </div>
         </div>
       )}
 
-      {saveMessage && (
-        <div className={`mb-6 flex items-center gap-3 rounded-lg border p-4 ${saveMessage.type === 'success' ? 'border-green-500 bg-green-50 text-green-700 dark:bg-green-900/50 dark:text-green-200' : 'border-red-500 bg-red-50 text-red-700 dark:bg-red-900/50 dark:text-red-200'}`}>
-          <span>{saveMessage.text}</span>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1.2fr)_430px]">
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="flex-1 px-8 pb-8 pt-4">
+        <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1.2fr)_430px]">
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
             {AVAILABLE_WIDGETS.map((widget) => {
               const isSelected = selected === widget.id;
               const isLive = widgetConfig?.activeWidget === widget.id;
@@ -173,67 +185,14 @@ export default function AdminWidgets() {
                 </button>
               );
             })}
-          </div>
-
-          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#232733]">
-            <div className="mb-5 flex items-center gap-3">
-              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${colors.iconBg}`}>
-                <SelectedIcon size={24} className={colors.iconText} />
-              </div>
-              <div>
-                <h2 className="text-xl font-black text-gray-900 dark:text-white">{selectedMeta.label}</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">הגדרות הצגה דינמיות לווידג׳ט שנבחר</p>
-              </div>
             </div>
-
-            {supportsSettings ? (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <label className="block">
-                  <span className="mb-2 block text-xs font-bold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">כמה פריטים להציג יחד</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max="6"
-                    value={settingsDraft.itemsPerView}
-                    onChange={(event) => setSettingsDraft((prev) => ({ ...prev, itemsPerView: Math.max(1, Number(event.target.value) || 1) }))}
-                    className={inputCls}
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-xs font-bold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">משך מעבר אוטומטי (ms)</span>
-                  <input
-                    type="number"
-                    min="2000"
-                    step="500"
-                    value={settingsDraft.intervalMs}
-                    onChange={(event) => setSettingsDraft((prev) => ({ ...prev, intervalMs: Math.max(2000, Number(event.target.value) || 2000) }))}
-                    className={inputCls}
-                  />
-                </label>
-
-                <label className="flex items-end">
-                  <span className="flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700 dark:border-white/10 dark:bg-[#171a22] dark:text-gray-200">
-                    <input
-                      type="checkbox"
-                      checked={settingsDraft.autoScroll}
-                      onChange={(event) => setSettingsDraft((prev) => ({ ...prev, autoScroll: event.target.checked }))}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    הפעל מעבר/סקרול אוטומטי
-                  </span>
-                </label>
-              </div>
-            ) : (
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-gray-400">
-                לווידג׳ט הזה אין כרגע ריבוי פריטים דינמי להגדרה מתוך המסך הזה.
-              </div>
-            )}
           </div>
-        </div>
 
-        <div className="min-w-0">
-          <WidgetLivePreview widgetConfigOverride={previewConfig} title="תצוגה מקדימה – רנדר אמיתי מהאתר" />
+          <div className="min-w-0">
+            <div className="sticky top-28">
+              <WidgetLivePreview widgetConfigOverride={previewConfig} title="תצוגה מקדימה מהאתר" />
+            </div>
+          </div>
         </div>
       </div>
 

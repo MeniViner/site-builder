@@ -7,6 +7,7 @@ import {
     LayoutGrid, List, Columns, Globe, CircleDot, PanelBottom, PanelRight, Info, CheckCircle2
 } from 'lucide-react';
 import { toast } from 'react-toastify';
+import { normalizeBorderStyle, panelStyle } from '../utils/borderStyles';
 
 const SETTINGS_NAV = [
     { id: 'primaryColor', label: 'צבע ראשי' },
@@ -39,10 +40,23 @@ const DISPLAY_MODES = [
 ];
 
 const BORDER_STYLES = [
-    { value: 'standard', label: 'סטנדרטי', description: 'פינות מעוגלות רגילות' },
-    { value: 'tactical-1', label: 'טקטי 1', description: 'חיתוך פינות אלכסוני' },
-    { value: 'tactical-2', label: 'טקטי 2', description: 'חיתוך צדדי חד' },
-    { value: 'tactical-3', label: 'טקטי 3', description: 'מסגרת צבאית מלאה' },
+    { value: 'standard', label: 'סטנדרטי', description: 'פינות מעוגלות, נקיות ואלגנטיות ללא חיתוך טקטי.' },
+    { value: 'square', label: 'מרובע', description: 'זוויות 90° חדות לגמרי, בלי עיגול בכלל.' },
+    { value: 'cyber', label: 'סייבר', description: 'חיתוך א-סימטרי חד שנותן תחושת ממשק עתידני מתקדם.' },
+    { value: 'armor', label: 'שריון', description: 'ארבע פינות מחוסמות במבנה כמעט משושה, מדויק ויוקרתי.' },
+    { value: 'shield', label: 'מגן', description: 'פינות עליונות חתוכות עם בסיס יציב ונקי כמו לוח פיקוד.' },
+    { value: 'blade', label: 'להב', description: 'חיתוך אלכסוני אגרסיבי בתחתית למראה חד, מהיר ולוחמני.' },
+];
+
+const BORDER_TARGET_OPTIONS = [
+    { key: 'commander', label: 'דבר המפקד', description: 'הפאנל הראשי של דבר המפקד בהירו.' },
+    { key: 'widget', label: 'ווידגט דף הבית', description: 'הכרטיס הדינמי בצד השמאלי התחתון.' },
+    { key: 'search', label: 'שורת חיפוש', description: 'מסגרת החיפוש העליונה באתר.' },
+    { key: 'topNav', label: 'כפתורי ניווט עליונים', description: 'ניהול, החלפת מצב תצוגה וכרטיס הברכה.' },
+    { key: 'sideNav', label: 'תפריט צד טקטי', description: 'רק מלבני ה-L1 בסרגל הצד הימני.' },
+    { key: 'flipCards', label: 'כרטיסי Grid Flip', description: 'החזית והגב של כרטיסי הגריד המסתובבים.' },
+    { key: 'extLinks', label: 'כרטיסי קישורים חיצוניים', description: 'כרטיסי הפוטר והסרגל הצף במצב כרטיסים.' },
+    { key: 'hqDash', label: 'מרכז פיקוד HQ', description: 'כרטיסי ה-HQ Dashboard בתצוגת מרכז פיקוד.' },
 ];
 
 const REGULAR_LINK_LAYOUTS = [
@@ -68,7 +82,7 @@ const WIDGET_HEIGHT_OPTIONS = [
 const SAVE_DEBOUNCE_MS = 500;
 
 export default function AdminTheme() {
-    const { theme, loading, error, saveTheme } = useTheme();
+    const { theme, loading, error, saveTheme, borderTargets, setBorderTargets } = useTheme();
     const [draft, setDraft] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
     const [customColor, setCustomColor] = useState('');
@@ -78,7 +92,7 @@ export default function AdminTheme() {
 
     useEffect(() => {
         if (theme) {
-            setDraft({ ...theme });
+            setDraft({ ...theme, borderStyle: normalizeBorderStyle(theme.borderStyle) });
             setCustomColor(theme.primaryColor || '#dc2626');
         }
     }, [theme]);
@@ -138,6 +152,10 @@ export default function AdminTheme() {
         setActiveSettingId(id);
     };
 
+    const handleBorderTargetToggle = (key) => {
+        setBorderTargets(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
     const showSection = (id) => activeSettingId === id;
 
     return (
@@ -164,7 +182,7 @@ export default function AdminTheme() {
                             key={id}
                             onClick={() => handleNavSettingClick(id)}
                             className={`px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${activeSettingId === id
-                                ? 'bg-red-600 text-white shadow-md ring-2 ring-red-500/30 ring-offset-2 ring-offset-gray-50 dark:ring-offset-[#12141a]'
+                                ? 'bg-primary-600 text-white shadow-md ring-2 ring-primary-500/30 ring-offset-2 ring-offset-gray-50 dark:ring-offset-[#12141a]'
                                 : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-transparent shadow-sm hover:shadow'
                                 }`}
                         >
@@ -175,9 +193,9 @@ export default function AdminTheme() {
             </div>
 
             {error && (
-                <div className="mx-6 sm:mx-10 mt-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-500/50 rounded-xl flex items-center gap-3 shadow-sm">
-                    <AlertTriangle className="text-red-500 shrink-0" />
-                    <span className="text-sm font-medium text-red-800 dark:text-red-200">{error}</span>
+                <div className="mx-6 sm:mx-10 mt-6 p-4 bg-primary-50 dark:bg-primary-900/20 border border-primary-500/50 rounded-xl flex items-center gap-3 shadow-sm">
+                    <AlertTriangle className="text-primary-500 shrink-0" />
+                    <span className="text-sm font-medium text-primary-800 dark:text-primary-200">{error}</span>
                 </div>
             )}
 
@@ -187,8 +205,8 @@ export default function AdminTheme() {
                     {showSection('primaryColor') && (
                         <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
                             <div className="flex items-center gap-3 mb-6 pb-4">
-                                <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
-                                    <Palette size={20} className="text-red-400" />
+                                <div className="bg-primary-500/10 p-2.5 rounded-lg border border-primary-500/20">
+                                    <Palette size={20} className="text-primary-400" />
                                 </div>
                                 <div>
                                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">צבע ראשי</h2>
@@ -241,7 +259,7 @@ export default function AdminTheme() {
                                         type="text"
                                         value={customColor}
                                         onChange={(e) => handleCustomColorChange(e.target.value)}
-                                        className="flex-1 bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2.5 text-sm text-gray-900 dark:text-white outline-none focus:border-red-500 transition font-mono dir-ltr text-left"
+                                        className="flex-1 bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2.5 text-sm text-gray-900 dark:text-white outline-none focus:border-primary-500 transition font-mono dir-ltr text-left"
                                         placeholder="#dc2626"
                                         dir="ltr"
                                         maxLength={7}
@@ -256,8 +274,8 @@ export default function AdminTheme() {
                     {showSection('displayMode') && (
                         <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
                             <div className="flex items-center gap-3 mb-6 pb-4">
-                                <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
-                                    <Sun size={20} className="text-red-400" />
+                                <div className="bg-primary-500/10 p-2.5 rounded-lg border border-primary-500/20">
+                                    <Sun size={20} className="text-primary-400" />
                                 </div>
                                 <div>
                                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">מצב תצוגה</h2>
@@ -275,19 +293,19 @@ export default function AdminTheme() {
                                             key={mode.value}
                                             onClick={() => updateField('displayMode', mode.value)}
                                             className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${isActive
-                                                ? 'bg-red-500/10 border-red-500/40 ring-1 ring-red-500/20'
+                                                ? 'bg-primary-500/10 border-primary-500/40 ring-1 ring-primary-500/20'
                                                 : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
                                                 }`}
                                         >
-                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-red-500/15' : 'bg-gray-100 dark:bg-white/5'
+                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-primary-500/15' : 'bg-gray-100 dark:bg-white/5'
                                                 }`}>
-                                                <Icon size={22} className={isActive ? 'text-red-400' : 'text-gray-500'} />
+                                                <Icon size={22} className={isActive ? 'text-primary-400' : 'text-gray-500'} />
                                             </div>
                                             <div className="flex-1">
                                                 <h3 className={`font-bold ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>{mode.label}</h3>
                                                 <p className={`text-sm ${isActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>{mode.description}</p>
                                             </div>
-                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${isActive ? 'border-red-500 bg-red-500' : 'border-gray-600'
+                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${isActive ? 'border-primary-500 bg-primary-500' : 'border-gray-600'
                                                 }`}>
                                                 {isActive && <div className="w-2 h-2 bg-white rounded-full" />}
                                             </div>
@@ -302,8 +320,8 @@ export default function AdminTheme() {
                     {showSection('borderStyle') && (
                         <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
                             <div className="flex items-center gap-3 mb-6 pb-4">
-                                <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
-                                    <Hexagon size={20} className="text-red-400" />
+                                <div className="bg-primary-500/10 p-2.5 rounded-lg border border-primary-500/20">
+                                    <Hexagon size={20} className="text-primary-400" />
                                 </div>
                                 <div>
                                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">סגנון מסגרות</h2>
@@ -313,26 +331,20 @@ export default function AdminTheme() {
 
                             <div className="grid grid-cols-2 gap-4">
                                 {BORDER_STYLES.map((style) => {
-                                    const isActive = draft.borderStyle === style.value;
-
-                                    const previewClasses = {
-                                        standard: 'rounded-xl',
-                                        'tactical-1': 'tactical-clip-1',
-                                        'tactical-2': 'tactical-clip-2',
-                                        'tactical-3': 'tactical-clip-3',
-                                    };
+                                    const isActive = normalizeBorderStyle(draft.borderStyle) === style.value;
 
                                     return (
                                         <button
                                             key={style.value}
                                             onClick={() => updateField('borderStyle', style.value)}
                                             className={`relative p-5 rounded-xl border-2 text-right transition-all ${isActive
-                                                ? 'bg-red-500/10 border-red-500/40 ring-1 ring-red-500/20'
+                                                ? 'bg-primary-500/10 border-primary-500/40 ring-1 ring-primary-500/20'
                                                 : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
                                                 }`}
                                         >
                                             <div
-                                                className={`w-full h-16 bg-gradient-to-br from-gray-600/30 to-gray-700/20 border border-white/10 mb-4 ${previewClasses[style.value] || 'rounded-xl'}`}
+                                                className="w-full h-16 bg-gradient-to-br from-gray-600/30 to-gray-700/20 border border-white/10 mb-4"
+                                                style={panelStyle(style.value, 14)}
                                             />
                                             <h3 className={`font-bold text-sm mb-1 ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>
                                                 {style.label}
@@ -341,13 +353,92 @@ export default function AdminTheme() {
                                                 {style.description}
                                             </p>
                                             {isActive && (
-                                                <div className="absolute top-3 left-3 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
+                                                <div className="absolute top-3 left-3 w-5 h-5 bg-primary-500 rounded-full flex items-center justify-center">
                                                     <div className="w-2 h-2 bg-white rounded-full" />
                                                 </div>
                                             )}
                                         </button>
                                     );
                                 })}
+                            </div>
+
+                            <div className="mt-8 rounded-[28px] border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#171a22]/80  overflow-hidden">
+                                <div className="px-6 sm:px-7 pt-6 pb-5 border-b border-gray-200 dark:border-white/10 bg-gradient-to-l from-primary/10 via-transparent to-transparent">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className="w-11 h-11 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                                            <Hexagon size={18} className="text-primary" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-black text-gray-900 dark:text-white">החלת סגנון מותאם (Targets)</h3>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">בחר על אילו אלמנטים יחול החיתוך הטקטי. אלמנטים כבויים יישארו עם פינות מעוגלות רגילות.</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="p-5 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {(() => {
+                                        const layout = draft.regularLinksLayout;
+                                        const externalLayout = draft.externalLinksLayout;
+                                        const availabilityMap = {
+                                            commander: true,
+                                            widget: true,
+                                            search: true,
+                                            topNav: layout !== 'sidebar-right',
+                                            sideNav: layout === 'sidebar-right',
+                                            flipCards: layout === 'grid',
+                                            hqDash: layout === 'hq',
+                                            extLinks: externalLayout === 'cards' || externalLayout === 'floating',
+                                        };
+
+                                        return BORDER_TARGET_OPTIONS.map((target) => {
+                                            const isEnabled = !!borderTargets?.[target.key];
+                                            const isAvailable = availabilityMap[target.key];
+                                            const disabledNote = !isAvailable
+                                                ? 'כרגע לא קיים אלמנט זה בתצורת הקטגוריות הנוכחית.'
+                                                : undefined;
+
+                                            return (
+                                                <button
+                                                    key={target.key}
+                                                    type="button"
+                                                    onClick={() => !isAvailable ? undefined : handleBorderTargetToggle(target.key)}
+                                                    className={`group relative overflow-hidden rounded-2xl border text-right p-4 transition-all ${isEnabled
+                                                        ? 'bg-primary/10 border-primary/30 shadow-[0_18px_40px_-28px_var(--color-primary-hex)]'
+                                                        : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
+                                                        } ${!isAvailable ? 'cursor-not-allowed opacity-60 dark:opacity-80' : ''}`}
+                                                    disabled={!isAvailable}
+                                                    title={disabledNote}
+                                                >
+                                                    <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-primary via-primary/40 to-transparent opacity-80" />
+                                                    <div className="flex items-start gap-4">
+                                                        <div className={`mt-0.5 relative w-12 h-7 rounded-full border transition-all ${isEnabled
+                                                            ? 'bg-primary border-primary/60'
+                                                            : 'bg-gray-200 dark:bg-[#252528] border-gray-300 dark:border-white/10'
+                                                            }`}>
+                                                            <div className={`absolute top-0.5 w-[22px] h-[22px] rounded-full shadow-md transition-all flex items-center justify-center ${isEnabled
+                                                                ? 'right-0.5 bg-white text-primary'
+                                                                : 'right-[25px] bg-white dark:bg-gray-300 text-gray-400'
+                                                                }`}>
+                                                                {isEnabled && <CheckCircle2 size={12} strokeWidth={3} />}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center justify-between gap-3 mb-1">
+                                                                <h4 className={`font-bold text-sm ${isEnabled ? 'text-gray-900 dark:text-white' : 'text-gray-800 dark:text-gray-200'}`}>{target.label}</h4>
+                                                                <span className={`text-[10px] font-bold tracking-[0.2em] uppercase ${isEnabled ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}`}>
+                                                                    {isEnabled ? 'ON' : 'OFF'}
+                                                                </span>
+                                                            </div>
+                                                            <p className={`text-xs leading-5 ${isEnabled ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-500'}`}>
+                                                                {target.description}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            );
+                                        });
+                                    })()}
+                                </div>
                             </div>
                         </section>
                     )}
@@ -356,8 +447,8 @@ export default function AdminTheme() {
                     {showSection('widgetHeight') && (
                         <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
                             <div className="flex items-center gap-3 mb-6 pb-4">
-                                <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
-                                    <PanelBottom size={20} className="text-red-400" />
+                                <div className="bg-primary-500/10 p-2.5 rounded-lg border border-primary-500/20">
+                                    <PanelBottom size={20} className="text-primary-400" />
                                 </div>
                                 <div>
                                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">גובה הווידגט הדינמי</h2>
@@ -374,7 +465,7 @@ export default function AdminTheme() {
                                             key={option.value}
                                             onClick={() => updateField('widgetHeight', option.value)}
                                             className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${isActive
-                                                ? 'bg-red-500/10 border-red-500/40 ring-1 ring-red-500/20'
+                                                ? 'bg-primary-500/10 border-primary-500/40 ring-1 ring-primary-500/20'
                                                 : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
                                                 }`}
                                         >
@@ -382,7 +473,7 @@ export default function AdminTheme() {
                                                 <h3 className={`font-bold ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>{option.label}</h3>
                                                 <p className={`text-sm ${isActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>{option.description}</p>
                                             </div>
-                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${isActive ? 'border-red-500 bg-red-500' : 'border-gray-600'}`}>
+                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${isActive ? 'border-primary-500 bg-primary-500' : 'border-gray-600'}`}>
                                                 {isActive && <div className="w-2 h-2 bg-white rounded-full" />}
                                             </div>
                                         </button>
@@ -396,8 +487,8 @@ export default function AdminTheme() {
                     {showSection('toggles') && (
                         <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0 space-y-0">
                             <div className="flex items-center gap-3 mb-6 pb-4">
-                                <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
-                                    <Eye size={20} className="text-red-400" />
+                                <div className="bg-primary-500/10 p-2.5 rounded-lg border border-primary-500/20">
+                                    <Eye size={20} className="text-primary-400" />
                                 </div>
                                 <div>
                                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">הגדרות נוספות</h2>
@@ -435,8 +526,8 @@ export default function AdminTheme() {
                             {/* Toggle: Hero Grayscale */}
                             <div className="flex items-center justify-between p-5 bg-gray-100 dark:bg-[#1e212b] rounded-xl border border-gray-200 dark:border-white/5">
                                 <div className="flex items-center gap-4">
-                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${draft.heroGrayscale ? 'bg-gray-500/15' : 'bg-amber-500/15'}`}>
-                                        <ImageIcon size={20} className={draft.heroGrayscale ? 'text-gray-400' : 'text-amber-400'} />
+                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${draft.heroGrayscale ? 'bg-gray-500/15' : 'bg-primary-500/15'}`}>
+                                        <ImageIcon size={20} className={draft.heroGrayscale ? 'text-gray-400' : 'text-primary-400'} />
                                     </div>
                                     <div>
                                         <h3 className="font-bold text-gray-900 dark:text-white text-sm">אפקט תמונות רקע</h3>
@@ -447,7 +538,7 @@ export default function AdminTheme() {
                                     <button
                                         onClick={() => updateField('heroGrayscale', false)}
                                         className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${!draft.heroGrayscale
-                                            ? 'bg-amber-600 text-white shadow'
+                                            ? 'bg-primary-600 text-white shadow'
                                             : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
                                             }`}
                                     >
@@ -471,8 +562,8 @@ export default function AdminTheme() {
                     {showSection('regularLinksLayout') && (
                         <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
                             <div className="flex items-center gap-3 mb-6 pb-4">
-                                <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
-                                    <LayoutGrid size={20} className="text-red-400" />
+                                <div className="bg-primary-500/10 p-2.5 rounded-lg border border-primary-500/20">
+                                    <LayoutGrid size={20} className="text-primary-400" />
                                 </div>
                                 <div>
                                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">תצוגת קטגוריות וקישורים</h2>
@@ -488,18 +579,18 @@ export default function AdminTheme() {
                                             key={layout.value}
                                             onClick={() => updateField('regularLinksLayout', layout.value)}
                                             className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${isActive
-                                                ? 'bg-red-500/10 border-red-500/40 ring-1 ring-red-500/20'
+                                                ? 'bg-primary-500/10 border-primary-500/40 ring-1 ring-primary-500/20'
                                                 : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
                                                 }`}
                                         >
-                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-red-500/15' : 'bg-gray-100 dark:bg-white/5'}`}>
-                                                <Icon size={22} className={isActive ? 'text-red-400' : 'text-gray-500'} />
+                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-primary-500/15' : 'bg-gray-100 dark:bg-white/5'}`}>
+                                                <Icon size={22} className={isActive ? 'text-primary-400' : 'text-gray-500'} />
                                             </div>
                                             <div className="flex-1">
                                                 <h3 className={`font-bold ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>{layout.label}</h3>
                                                 <p className={`text-sm ${isActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>{layout.description}</p>
                                             </div>
-                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${isActive ? 'border-red-500 bg-red-500' : 'border-gray-600'}`}>
+                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${isActive ? 'border-primary-500 bg-primary-500' : 'border-gray-600'}`}>
                                                 {isActive && <div className="w-2 h-2 bg-white rounded-full" />}
                                             </div>
                                         </button>
@@ -513,8 +604,8 @@ export default function AdminTheme() {
                     {showSection('externalLinksLayout') && (
                         <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
                             <div className="flex items-center gap-3 mb-6 border-b border-gray-200 dark:border-white/10 pb-4">
-                                <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
-                                    <Globe size={20} className="text-red-400" />
+                                <div className="bg-primary-500/10 p-2.5 rounded-lg border border-primary-500/20">
+                                    <Globe size={20} className="text-primary-400" />
                                 </div>
                                 <div>
                                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">תצוגת קישורים חיצוניים</h2>
@@ -530,18 +621,18 @@ export default function AdminTheme() {
                                             key={layout.value}
                                             onClick={() => updateField('externalLinksLayout', layout.value)}
                                             className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${isActive
-                                                ? 'bg-red-500/10 border-red-500/40 ring-1 ring-red-500/20'
+                                                ? 'bg-primary-500/10 border-primary-500/40 ring-1 ring-primary-500/20'
                                                 : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
                                                 }`}
                                         >
-                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-red-500/15' : 'bg-gray-100 dark:bg-white/5'}`}>
-                                                <Icon size={22} className={isActive ? 'text-red-400' : 'text-gray-500'} />
+                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-primary-500/15' : 'bg-gray-100 dark:bg-white/5'}`}>
+                                                <Icon size={22} className={isActive ? 'text-primary-400' : 'text-gray-500'} />
                                             </div>
                                             <div className="flex-1">
                                                 <h3 className={`font-bold ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>{layout.label}</h3>
                                                 <p className={`text-sm ${isActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>{layout.description}</p>
                                             </div>
-                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${isActive ? 'border-red-500 bg-red-500' : 'border-gray-600'}`}>
+                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${isActive ? 'border-primary-500 bg-primary-500' : 'border-gray-600'}`}>
                                                 {isActive && <div className="w-2 h-2 bg-white rounded-full" />}
                                             </div>
                                         </button>
@@ -554,7 +645,7 @@ export default function AdminTheme() {
                                         type="checkbox"
                                         checked={!!draft.externalLinksFixed}
                                         onChange={(e) => updateField('externalLinksFixed', e.target.checked)}
-                                        className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-red-500 focus:ring-red-500"
+                                        className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-primary-500 focus:ring-primary-500"
                                     />
                                     <div>
                                         <span className="font-medium text-gray-800 dark:text-gray-200">הצג כפס נעוץ</span>
@@ -571,9 +662,9 @@ export default function AdminTheme() {
                                 <label className="flex items-center gap-3 cursor-pointer select-none p-3 rounded-xl bg-gray-50 dark:bg-[#1e212b] hover:bg-gray-100 dark:hover:bg-white/5 transition">
                                     <input
                                         type="checkbox"
-                                        checked={draft.externalLinksBordered !== false}
-                                        onChange={(e) => updateField('externalLinksBordered', e.target.checked)}
-                                        className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-red-500 focus:ring-red-500"
+                                        checked={draft.externalLinksBordeprimary !== false}
+                                        onChange={(e) => updateField('externalLinksBordeprimary', e.target.checked)}
+                                        className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-primary-500 focus:ring-primary-500"
                                     />
                                     <div>
                                         <span className="font-medium text-gray-800 dark:text-gray-200">הצג את הלינקים בתחום עם מסגרת (בורדר)</span>
@@ -585,7 +676,7 @@ export default function AdminTheme() {
                                         type="checkbox"
                                         checked={draft.externalLinksShowBackground !== false}
                                         onChange={(e) => updateField('externalLinksShowBackground', e.target.checked)}
-                                        className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-red-500 focus:ring-red-500"
+                                        className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-primary-500 focus:ring-primary-500"
                                     />
                                     <div>
                                         <span className="font-medium text-gray-800 dark:text-gray-200">הצג רקע סביב קישורים חיצוניים</span>

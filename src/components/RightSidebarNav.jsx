@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigation } from '../context/NavigationContext';
+import { useTheme } from '../context/ThemeContext';
 import { DynamicIcon } from './DynamicIcon';
 import { ChevronDown, ExternalLink } from 'lucide-react';
+import { normalizeBorderStyle, panelStyle } from '../utils/borderStyles';
 
 /**
  * RightSidebarNav — Tactical right sidebar navigation.
@@ -12,9 +14,13 @@ import { ChevronDown, ExternalLink } from 'lucide-react';
  */
 export default function RightSidebarNav() {
     const { navItems } = useNavigation();
+    const { theme, borderTargets } = useTheme();
     const [activeLevel1, setActiveLevel1] = useState(null);
     const [expandedLevel2, setExpandedLevel2] = useState(null);
     const sidebarRef = useRef(null);
+    const topLevelBorderStyle = borderTargets?.sideNav
+        ? normalizeBorderStyle(theme?.borderStyle || 'cyber')
+        : 'standard';
 
     // Close on click outside
     useEffect(() => {
@@ -71,6 +77,7 @@ export default function RightSidebarNav() {
                                 rel="noopener noreferrer"
                                 className="sidebar-nav-item flex flex-col items-center gap-1 px-1 py-2.5 rounded-lg bg-white/80 dark:bg-[#1a1d24]/80 backdrop-blur-md border border-gray-200 dark:border-white/10 shadow-md text-gray-500 dark:text-gray-400 hover:text-primary hover:bg-white dark:hover:bg-[#1a1d24] hover:shadow-lg transition-all text-center cursor-pointer"
                                 title={item.label}
+                                style={panelStyle(topLevelBorderStyle, 10)}
                             >
                                 <DynamicIcon name={item.icon} size={20} />
                                 <span className="text-[9px] font-bold leading-tight max-w-[54px] truncate">
@@ -85,6 +92,7 @@ export default function RightSidebarNav() {
                                         : 'text-gray-500 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:text-primary hover:bg-white dark:hover:bg-[#1a1d24]'
                                     }`}
                                 title={item.label}
+                                style={panelStyle(topLevelBorderStyle, 10)}
                             >
                                 <DynamicIcon name={item.icon} size={20} />
                                 <span className="text-[9px] font-bold leading-tight max-w-[54px] truncate">

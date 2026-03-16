@@ -180,14 +180,14 @@ export default function AdminNavigation() {
             <div className="w-64 bg-gray-50 dark:bg-[#0a0a0c] border-l border-gray-200 dark:border-[#1f1f22] flex flex-col shrink-0 custom-scrollbar-thin">
                 {/* Header */}
                 <div className="h-14 border-b border-gray-200 dark:border-[#1f1f22] flex items-center px-4 gap-2 bg-gray-100 dark:bg-[#0f0f11] shrink-0">
-                    <Folder className="text-red-500" size={18} />
+                    <Folder className="text-primary-500" size={18} />
                     <span className="font-bold text-sm tracking-wide text-gray-900 dark:text-gray-100">סייר ניווט</span>
                 </div>
                 {/* Tree */}
                 <div className="flex-1 overflow-y-auto p-2 space-y-0.5" style={{ scrollbarWidth: 'thin', scrollbarColor: sidebarScrollbarColor }}>
                     {/* Root Node */}
                     <div
-                        className={`flex items-center gap-2 py-1.5 px-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/5 rounded-md transition ${selectedPath.length === 0 ? 'bg-red-500/10 text-red-500' : 'text-gray-700 dark:text-gray-300'}`}
+                        className={`flex items-center gap-2 py-1.5 px-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/5 rounded-md transition ${selectedPath.length === 0 ? 'bg-primary-500/10 text-primary-500' : 'text-gray-700 dark:text-gray-300'}`}
                         onClick={() => setSelectedPath([])}
                     >
                         <Home size={16} />
@@ -217,7 +217,7 @@ export default function AdminNavigation() {
                                     </div>
                                     <span className="text-sm truncate select-none flex-1 font-medium">{cat.label}</span>
                                     {cat.isDirectLink && (
-                                        <ExternalLink size={12} className="text-red-500/60 shrink-0" title="Direct Link" />
+                                        <ExternalLink size={12} className="text-primary-500/60 shrink-0" title="Direct Link" />
                                     )}
                                 </div>
 
@@ -254,7 +254,7 @@ export default function AdminNavigation() {
                 {/* Address Bar */}
                 <div className="h-14 border-b border-gray-200 dark:border-[#1f1f22] flex items-center justify-between px-4 bg-gray-50 dark:bg-[#0a0a0c] shrink-0">
                     <div className="flex items-center gap-1 text-sm bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] rounded-md px-2 py-1 shadow-inner h-8 overflow-hidden">
-                        <button onClick={() => setSelectedPath([])} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded transition text-gray-500 dark:text-gray-400 hover:text-red-400">
+                        <button onClick={() => setSelectedPath([])} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded transition text-gray-500 dark:text-gray-400 hover:text-primary-400">
                             <Home size={14} />
                         </button>
                         {selectedPath.length > 0 && (
@@ -286,7 +286,7 @@ export default function AdminNavigation() {
                                 placeholder="חיפוש בתיקייה..."
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
-                                className="w-48 bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] rounded-md pr-8 pl-3 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-red-500 transition shadow-inner"
+                                className="w-48 bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] rounded-md pr-8 pl-3 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-primary-500 transition shadow-inner"
                             />
                         </div>
                     </div>
@@ -294,9 +294,9 @@ export default function AdminNavigation() {
 
                 {/* ERROR BANNER */}
                 {error && (
-                    <div className="mx-6 my-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-500/50 rounded-lg flex items-center gap-3 shrink-0">
-                        <AlertTriangle size={18} className="text-red-400" />
-                        <span className="text-red-700 dark:text-red-200 text-sm">{error}</span>
+                    <div className="mx-6 my-4 p-3 bg-primary-50 dark:bg-primary-900/30 border border-primary-500/50 rounded-lg flex items-center gap-3 shrink-0">
+                        <AlertTriangle size={18} className="text-primary-400" />
+                        <span className="text-primary-700 dark:text-primary-200 text-sm">{error}</span>
                     </div>
                 )}
 
@@ -313,14 +313,14 @@ export default function AdminNavigation() {
                                     type="text"
                                     value={currentModel.title || currentModel.label || ''}
                                     onChange={(e) => updateNode(selectedPath, currentLevel === 1 ? 'label' : 'title', e.target.value)}
-                                    className="w-full bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-gray-900 dark:text-white focus:outline-none focus:border-red-500 focus:bg-gray-100 dark:focus:bg-[#1a1a1f] text-sm font-semibold transition"
+                                    className="w-full bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-gray-900 dark:text-white focus:outline-none focus:border-primary-500 focus:bg-gray-100 dark:focus:bg-[#1a1a1f] text-sm font-semibold transition"
                                 />
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">אייקון (Lucide)</label>
                                 <button
                                     onClick={() => setIconPicker({ isOpen: true, targetPath: selectedPath, currentIcon: currentModel.icon || '' })}
-                                    className="w-full h-[34px] flex items-center justify-between bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-red-400 dark:hover:border-red-500 rounded-md px-3 py-1.5 text-gray-900 dark:text-white transition focus:outline-none focus:ring-1 focus:ring-red-500"
+                                    className="w-full h-[34px] flex items-center justify-between bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-primary-400 dark:hover:border-primary-500 rounded-md px-3 py-1.5 text-gray-900 dark:text-white transition focus:outline-none focus:ring-1 focus:ring-primary-500"
                                 >
                                     <div className="flex items-center gap-2">
                                         <DynamicIcon name={currentModel.icon || 'HelpCircle'} size={16} className="text-blue-500 dark:text-blue-400" />
@@ -335,7 +335,7 @@ export default function AdminNavigation() {
                                     type="url"
                                     value={currentModel.url || ''}
                                     onChange={(e) => updateNode(selectedPath, 'url', e.target.value)}
-                                    className="w-full bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-blue-600 dark:text-blue-300 focus:outline-none focus:border-red-500 focus:bg-gray-100 dark:focus:bg-[#1a1a1f] text-sm transition text-left dir-ltr placeholder-gray-500 dark:placeholder-[#333]"
+                                    className="w-full bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-blue-600 dark:text-blue-300 focus:outline-none focus:border-primary-500 focus:bg-gray-100 dark:focus:bg-[#1a1a1f] text-sm transition text-left dir-ltr placeholder-gray-500 dark:placeholder-[#333]"
                                     placeholder="https://"
                                     dir="ltr"
                                 />
@@ -355,7 +355,7 @@ export default function AdminNavigation() {
                     </h2>
                     <button
                         onClick={addNode}
-                        className="flex items-center gap-1.5 bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-md transition shadow-[0_0_10px_rgba(220,38,38,0.2)] hover:shadow-[0_0_15px_rgba(220,38,38,0.4)] text-sm font-bold"
+                        className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-md transition shadow-[0_0_10px_rgba(220,38,38,0.2)] hover:shadow-[0_0_15px_rgba(220,38,38,0.4)] text-sm font-bold"
                     >
                         <Plus size={16} />
                         <span>{currentLevel === 0 ? 'קטגוריה חדשה' : currentLevel === 1 ? 'כרטיסייה חדשה' : 'לינק חדש'}</span>
@@ -408,13 +408,13 @@ export default function AdminNavigation() {
                                                     else if (currentLevel === 2) field = 'label';
                                                     updateNode(child.nodePath, field, e.target.value);
                                                 }}
-                                                className="bg-transparent border border-transparent hover:border-[#333] focus:border-red-500 focus:bg-gray-50 dark:focus:bg-[#141418] rounded-md pl-2 pr-2 py-1.5 transition w-full text-sm font-bold text-gray-700 dark:text-gray-200 outline-none hover:bg-gray-100 dark:hover:bg-black/20 focus:shadow-inner"
+                                                className="bg-transparent border border-transparent hover:border-[#333] focus:border-primary-500 focus:bg-gray-50 dark:focus:bg-[#141418] rounded-md pl-2 pr-2 py-1.5 transition w-full text-sm font-bold text-gray-700 dark:text-gray-200 outline-none hover:bg-gray-100 dark:hover:bg-black/20 focus:shadow-inner"
                                             />
                                         </td>
                                         <td className="py-2.5 px-2">
                                             <button
                                                 onClick={() => setIconPicker({ isOpen: true, targetPath: child.nodePath, currentIcon: child.icon || '' })}
-                                                className="w-full flex items-center justify-between gap-2 bg-transparent border border-transparent hover:border-[#333] hover:bg-gray-100 dark:hover:bg-black/20 focus:border-red-500 focus:bg-gray-50 dark:focus:bg-[#141418] rounded-md transition pl-2 pr-2 py-1.5 focus:shadow-inner"
+                                                className="w-full flex items-center justify-between gap-2 bg-transparent border border-transparent hover:border-[#333] hover:bg-gray-100 dark:hover:bg-black/20 focus:border-primary-500 focus:bg-gray-50 dark:focus:bg-[#141418] rounded-md transition pl-2 pr-2 py-1.5 focus:shadow-inner"
                                             >
                                                 <div className="flex items-center gap-2 overflow-hidden">
                                                     <div className="w-5 flex justify-center shrink-0">
@@ -431,7 +431,7 @@ export default function AdminNavigation() {
                                                 type="url"
                                                 value={child.url || ''}
                                                 onChange={(e) => updateNode(child.nodePath, 'url', e.target.value)}
-                                                className="bg-transparent border border-transparent hover:border-[#333] focus:border-red-500 focus:bg-gray-50 dark:focus:bg-[#141418] rounded-md pl-2 pr-2 py-1.5 transition w-full text-xs text-blue-600 dark:text-blue-400 outline-none dir-ltr text-left placeholder-gray-500 dark:placeholder-[#333] hover:bg-gray-100 dark:hover:bg-black/20 focus:shadow-inner"
+                                                className="bg-transparent border border-transparent hover:border-[#333] focus:border-primary-500 focus:bg-gray-50 dark:focus:bg-[#141418] rounded-md pl-2 pr-2 py-1.5 transition w-full text-xs text-blue-600 dark:text-blue-400 outline-none dir-ltr text-left placeholder-gray-500 dark:placeholder-[#333] hover:bg-gray-100 dark:hover:bg-black/20 focus:shadow-inner"
                                                 placeholder="https://"
                                                 dir="ltr"
                                             />
@@ -449,7 +449,7 @@ export default function AdminNavigation() {
                                                 )}
                                                 <button
                                                     onClick={() => removeNode(child.nodePath)}
-                                                    className="p-1.5 bg-red-500/10 text-red-500 hover:bg-red-500/20 hover:text-red-400 rounded-lg transition"
+                                                    className="p-1.5 bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 hover:text-primary-400 rounded-lg transition"
                                                     title="מחק"
                                                 >
                                                     <Trash2 size={18} />
