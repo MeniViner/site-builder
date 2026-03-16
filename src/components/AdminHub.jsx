@@ -3,7 +3,7 @@ import { toast } from 'react-toastify';
 import {
     Undo2, Calendar, Menu, Save, FileText, Link as LinkIcon,
     LayoutGrid, Palette, ExternalLink, Sun, Moon,
-    Award, Timer, Rss, BookUser
+    Award, Timer, Rss, BookUser, BusFront, Vote, PartyPopper, ScrollText, Lightbulb
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import AdminEvents from './AdminEvents';
@@ -16,6 +16,12 @@ import AdminOutstanding from './AdminOutstanding';
 import AdminCountdown from './AdminCountdown';
 import AdminNews from './AdminNews';
 import AdminPhonebook from './AdminPhonebook';
+import AdminShuttles from './AdminShuttles';
+import AdminPolls from './AdminPolls';
+import AdminCelebrations from './AdminCelebrations';
+import AdminHeritage from './AdminHeritage';
+import AdminTips from './AdminTips';
+import WidgetLivePreview from './WidgetLivePreview';
 import { createBackup } from '../utils/sharepointUtils';
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { useWidget } from '../context/WidgetContext';
@@ -31,6 +37,11 @@ const WIDGET_MANAGE_MAP = {
     countdown: { label: 'ניהול ספירה לאחור', icon: Timer, path: '/admin/countdown' },
     news: { label: 'ניהול מבזקים', icon: Rss, path: '/admin/news' },
     phonebook: { label: 'ניהול ספר טלפונים', icon: BookUser, path: '/admin/phonebook' },
+    shuttles: { label: 'ניהול היסעים', icon: BusFront, path: '/admin/shuttles' },
+    polls: { label: 'ניהול סקרים', icon: Vote, path: '/admin/polls' },
+    celebrations: { label: 'ניהול חוגגים', icon: PartyPopper, path: '/admin/celebrations' },
+    heritage: { label: 'ניהול מורשת', icon: ScrollText, path: '/admin/heritage' },
+    tips: { label: 'ניהול טיפים', icon: Lightbulb, path: '/admin/tips' },
 };
 
 function SidebarButton({ icon: Icon, label, isActive, onClick, isSidebarOpen, title }) {
@@ -72,13 +83,18 @@ export default function AdminHub() {
         if (path.includes('/admin/countdown')) return 'countdown';
         if (path.includes('/admin/news')) return 'news';
         if (path.includes('/admin/phonebook')) return 'phonebook';
+        if (path.includes('/admin/shuttles')) return 'shuttles';
+        if (path.includes('/admin/polls')) return 'polls';
+        if (path.includes('/admin/celebrations')) return 'celebrations';
+        if (path.includes('/admin/heritage')) return 'heritage';
+        if (path.includes('/admin/tips')) return 'tips';
         return 'info';
     };
 
     const activeTab = getActiveTab();
 
     // Determine the key for the current dynamic widget page
-    const widgetPageKeys = ['events', 'outstanding', 'countdown', 'news', 'phonebook'];
+    const widgetPageKeys = ['events', 'outstanding', 'countdown', 'news', 'phonebook', 'shuttles', 'polls', 'celebrations', 'heritage', 'tips'];
     const isOnWidgetPage = widgetPageKeys.includes(activeTab);
 
     const handleBackup = async () => {
@@ -90,9 +106,7 @@ export default function AdminHub() {
             setIsBackingUp(true);
             const success = await createBackup();
             setIsBackingUp(false);
-            if (success) {
-                toast.success('הגיבוי נוצר בהצלחה!');
-            } else {
+            if (!success) {
                 toast.error('שגיאה ביצירת הגיבוי. אנא נסה שוב או בדוק את הלוגים.');
             }
         }
@@ -223,21 +237,52 @@ export default function AdminHub() {
 
             {/* Main Content */}
             <div className="flex-1 flex flex-col h-full bg-gray-100 dark:bg-[#1e212b] overflow-hidden">
-                <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
-                    <Routes>
-                        <Route path="/" element={<div className="w-full h-full"><AdminSiteContent /></div>} />
-                        <Route path="/links" element={<div className="w-full h-full p-8 max-w-7xl mx-auto"><AdminNavigation /></div>} />
-                        <Route path="/events" element={<div className="w-full h-full"><AdminEvents onClose={() => navigate('/')} inHub={true} /></div>} />
-                        <Route path="/widgets" element={<div className="w-full h-full"><AdminWidgets /></div>} />
-                        <Route path="/theme" element={<div className="w-full h-full"><AdminTheme /></div>} />
-                        <Route path="/external-links" element={<div className="w-full h-full"><AdminExternalLinks /></div>} />
-                        {/* ── New dedicated widget management pages ── */}
-                        <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />
-                        <Route path="/countdown" element={<div className="w-full h-full"><AdminCountdown /></div>} />
-                        <Route path="/news" element={<div className="w-full h-full"><AdminNews /></div>} />
-                        <Route path="/phonebook" element={<div className="w-full h-full"><AdminPhonebook /></div>} />
-                    </Routes>
-                </div>
+                {isOnWidgetPage ? (
+                    <div className="flex-1 flex gap-4 w-full min-h-0 overflow-hidden px-4 py-4">
+                        <div className="flex-1 min-w-0 overflow-y-auto custom-scrollbar">
+                            <Routes>
+                                <Route path="/" element={<div className="w-full h-full"><AdminSiteContent /></div>} />
+                                <Route path="/links" element={<div className="w-full h-full p-8 max-w-7xl mx-auto"><AdminNavigation /></div>} />
+                                <Route path="/events" element={<div className="w-full h-full"><AdminEvents onClose={() => navigate('/')} inHub={true} /></div>} />
+                                <Route path="/widgets" element={<div className="w-full h-full"><AdminWidgets /></div>} />
+                                <Route path="/theme" element={<div className="w-full h-full"><AdminTheme /></div>} />
+                                <Route path="/external-links" element={<div className="w-full h-full"><AdminExternalLinks /></div>} />
+                                <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />
+                                <Route path="/countdown" element={<div className="w-full h-full"><AdminCountdown /></div>} />
+                                <Route path="/news" element={<div className="w-full h-full"><AdminNews /></div>} />
+                                <Route path="/phonebook" element={<div className="w-full h-full"><AdminPhonebook /></div>} />
+                                <Route path="/shuttles" element={<div className="w-full h-full"><AdminShuttles /></div>} />
+                                <Route path="/polls" element={<div className="w-full h-full"><AdminPolls /></div>} />
+                                <Route path="/celebrations" element={<div className="w-full h-full"><AdminCelebrations /></div>} />
+                                <Route path="/heritage" element={<div className="w-full h-full"><AdminHeritage /></div>} />
+                                <Route path="/tips" element={<div className="w-full h-full"><AdminTips /></div>} />
+                            </Routes>
+                        </div>
+                        <aside className="shrink-0 flex items-start pt-2">
+                            <WidgetLivePreview />
+                        </aside>
+                    </div>
+                ) : (
+                    <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
+                        <Routes>
+                            <Route path="/" element={<div className="w-full h-full"><AdminSiteContent /></div>} />
+                            <Route path="/links" element={<div className="w-full h-full p-8 max-w-7xl mx-auto"><AdminNavigation /></div>} />
+                            <Route path="/events" element={<div className="w-full h-full"><AdminEvents onClose={() => navigate('/')} inHub={true} /></div>} />
+                            <Route path="/widgets" element={<div className="w-full h-full"><AdminWidgets /></div>} />
+                            <Route path="/theme" element={<div className="w-full h-full"><AdminTheme /></div>} />
+                            <Route path="/external-links" element={<div className="w-full h-full"><AdminExternalLinks /></div>} />
+                            <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />
+                            <Route path="/countdown" element={<div className="w-full h-full"><AdminCountdown /></div>} />
+                            <Route path="/news" element={<div className="w-full h-full"><AdminNews /></div>} />
+                            <Route path="/phonebook" element={<div className="w-full h-full"><AdminPhonebook /></div>} />
+                            <Route path="/shuttles" element={<div className="w-full h-full"><AdminShuttles /></div>} />
+                            <Route path="/polls" element={<div className="w-full h-full"><AdminPolls /></div>} />
+                            <Route path="/celebrations" element={<div className="w-full h-full"><AdminCelebrations /></div>} />
+                            <Route path="/heritage" element={<div className="w-full h-full"><AdminHeritage /></div>} />
+                            <Route path="/tips" element={<div className="w-full h-full"><AdminTips /></div>} />
+                        </Routes>
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -72,7 +72,7 @@ export default function AdminTheme() {
     const [draft, setDraft] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
     const [customColor, setCustomColor] = useState('');
-    const [activeSettingId, setActiveSettingId] = useState(null);
+    const [activeSettingId, setActiveSettingId] = useState(SETTINGS_NAV[0].id);
     const colorInputRef = useRef(null);
     const saveTimeoutRef = useRef(null);
 
@@ -135,10 +135,10 @@ export default function AdminTheme() {
     };
 
     const handleNavSettingClick = (id) => {
-        setActiveSettingId(prev => (prev === id ? null : id));
+        setActiveSettingId(id);
     };
 
-    const showSection = (id) => activeSettingId === null || activeSettingId === id;
+    const showSection = (id) => activeSettingId === id;
 
     return (
         <div dir="rtl" className="h-full flex flex-col bg-gray-50 dark:bg-[#12141a] text-gray-900 dark:text-white font-heebo relative">

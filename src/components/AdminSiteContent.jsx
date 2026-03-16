@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSiteContent } from '../context/SiteContentContext';
 import {
-    Save, AlertTriangle, Plus, Trash2, Edit2, X,
+    AlertTriangle, Plus, Trash2, Edit2, X,
     Image as ImageIcon, Type, MessageSquare, ChevronDown, ChevronUp, GripVertical, Upload, Loader2
 } from 'lucide-react';
 import { uploadImage } from '../utils/sharepointUtils';
@@ -20,26 +20,29 @@ export default function AdminSiteContent() {
     const [uploadingCommander, setUploadingCommander] = useState(false);
     const heroFileInputRef = useRef(null);
     const commanderFileInputRef = useRef(null);
+    const lastSavedRef = useRef(null);
 
     useEffect(() => {
         if (siteContent) {
             setHero({ ...siteContent.hero });
             setCommander(JSON.parse(JSON.stringify(siteContent.commander)));
+            lastSavedRef.current = JSON.stringify({ hero: siteContent.hero, commander: siteContent.commander });
         }
     }, [siteContent]);
 
-    const handleSave = async () => {
-        setIsSaving(true);
-        setSaveMessage(null);
-        const success = await saveSiteContent({ hero, commander });
-        setIsSaving(false);
-        if (success) {
-            setSaveMessage({ type: 'success', text: 'התוכן נשמר בהצלחה!' });
-        } else {
-            setSaveMessage({ type: 'error', text: 'שגיאה בשמירה. אנא נסה שוב.' });
-        }
-        setTimeout(() => setSaveMessage(null), 4000);
-    };
+    useEffect(() => {
+        const current = JSON.stringify({ hero, commander });
+        if (!lastSavedRef.current || current === lastSavedRef.current) return;
+        const t = setTimeout(async () => {
+            setIsSaving(true);
+            setSaveMessage(null);
+            const success = await saveSiteContent({ hero, commander });
+            setIsSaving(false);
+            if (success) lastSavedRef.current = current;
+            else setSaveMessage({ type: 'error', text: 'שגיאה בשמירה. אנא נסה שוב.' });
+        }, 1200);
+        return () => clearTimeout(t);
+    }, [hero, commander]);
 
     const updateHeroField = (field, value) => {
         setHero(prev => ({ ...prev, [field]: value }));
@@ -156,14 +159,7 @@ export default function AdminSiteContent() {
             {/* Header */}
             <div className="flex justify-between items-center mb-8 border-b border-gray-300 dark:border-white/10 pb-4">
                 <h1 className="text-3xl font-black text-gray-900 dark:text-white">ניהול המידע</h1>
-                <button
-                    onClick={handleSave}
-                    disabled={isSaving || isUploading}
-                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-6 py-2.5 rounded-lg font-bold transition shadow-lg shadow-red-900/20"
-                >
-                    <Save size={18} />
-                    <span>{isSaving ? 'שומר...' : 'שמור שינויים'}</span>
-                </button>
+                {isSaving && <span className="text-sm text-gray-500 dark:text-gray-400">שומר...</span>}
             </div>
 
             {error && (
@@ -173,9 +169,9 @@ export default function AdminSiteContent() {
                 </div>
             )}
 
-            {saveMessage && (
-                <div className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${saveMessage.type === 'success' ? 'bg-green-50 dark:bg-green-900/50 border border-green-300 dark:border-green-500' : 'bg-red-50 dark:bg-red-900/50 border border-red-300 dark:border-red-500'}`}>
-                    <span className={saveMessage.type === 'success' ? 'text-green-700 dark:text-green-200' : 'text-red-700 dark:text-red-200'}>{saveMessage.text}</span>
+            {saveMessage?.type === 'error' && (
+                <div className="mb-6 p-4 rounded-lg flex items-center gap-3 bg-red-50 dark:bg-red-900/50 border border-red-300 dark:border-red-500">
+                    <span className="text-red-700 dark:text-red-200">{saveMessage.text}</span>
                 </div>
             )}
 

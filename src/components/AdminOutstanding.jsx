@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useWidget } from '../context/WidgetContext';
 import {
-    Save, AlertTriangle, Award, Plus, Trash2, Pencil,
+    Award, Plus, Trash2, Pencil,
     X, Check, User, AlignLeft, Image as ImageIcon
 } from 'lucide-react';
 
@@ -17,12 +17,26 @@ export default function AdminOutstanding() {
     const [form, setForm] = useState(EMPTY_PERSON);
     const [isSaving, setIsSaving] = useState(false);
     const [saveMessage, setSaveMessage] = useState(null);
+    const lastSavedRef = useRef(null);
 
     useEffect(() => {
-        setList(widgetConfig?.outstanding ?? []);
+        const server = widgetConfig?.outstanding ?? [];
+        setList(server);
+        lastSavedRef.current = JSON.stringify(server);
     }, [widgetConfig]);
 
-    const isDirty = JSON.stringify(list) !== JSON.stringify(widgetConfig?.outstanding ?? []);
+    useEffect(() => {
+        if (JSON.stringify(list) === lastSavedRef.current) return;
+        const t = setTimeout(async () => {
+            setIsSaving(true);
+            setSaveMessage(null);
+            const success = await saveWidgetConfig({ ...widgetConfig, outstanding: list });
+            setIsSaving(false);
+            if (success) lastSavedRef.current = JSON.stringify(list);
+            else setSaveMessage({ type: 'error', text: 'שגיאה בשמירה. אנא נסה שוב.' });
+        }, 1200);
+        return () => clearTimeout(t);
+    }, [list, widgetConfig]);
 
     const openNew = () => { setForm({ ...EMPTY_PERSON, id: crypto.randomUUID() }); setEditingId('new'); };
     const openEdit = (p) => { setForm({ ...p }); setEditingId(p.id); };
@@ -39,18 +53,6 @@ export default function AdminOutstanding() {
         if (editingId === id) cancelEdit();
     };
 
-    const handleSave = async () => {
-        setIsSaving(true);
-        setSaveMessage(null);
-        const success = await saveWidgetConfig({ ...widgetConfig, outstanding: list });
-        setIsSaving(false);
-        setSaveMessage(success
-            ? { type: 'success', text: 'רשימת המצטיינים עודכנה בהצלחה!' }
-            : { type: 'error', text: 'שגיאה בשמירה. אנא נסה שוב.' }
-        );
-        setTimeout(() => setSaveMessage(null), 4000);
-    };
-
     return (
         <div dir="rtl" className="min-h-screen bg-gray-100 dark:bg-[#1e212b] text-gray-900 dark:text-white font-heebo p-8">
             {/* Header */}
@@ -62,20 +64,12 @@ export default function AdminOutstanding() {
                     </h1>
                     <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">ניהול כרטיסי המצטיינים המוצגים בווידגט היחידה</p>
                 </div>
-                <button
-                    onClick={handleSave}
-                    disabled={!isDirty || isSaving}
-                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg font-bold transition shadow-lg shadow-emerald-900/20"
-                >
-                    <Save size={18} />
-                    <span>{isSaving ? 'שומר...' : 'שמור שינויים'}</span>
-                </button>
+                {isSaving && <span className="text-sm text-gray-500 dark:text-gray-400">שומר...</span>}
             </div>
 
-            {/* Save message */}
-            {saveMessage && (
-                <div className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${saveMessage.type === 'success' ? 'bg-green-50 dark:bg-green-900/50 border border-green-500' : 'bg-red-50 dark:bg-red-900/50 border border-red-500'}`}>
-                    <span className={saveMessage.type === 'success' ? 'text-green-700 dark:text-green-200' : 'text-red-700 dark:text-red-200'}>{saveMessage.text}</span>
+            {saveMessage?.type === 'error' && (
+                <div className="mb-6 p-4 rounded-lg flex items-center gap-3 bg-red-50 dark:bg-red-900/50 border border-red-500">
+                    <span className="text-red-700 dark:text-red-200">{saveMessage.text}</span>
                 </div>
             )}
 
@@ -156,13 +150,6 @@ export default function AdminOutstanding() {
                 ))}
             </div>
 
-            {/* Unsaved warning */}
-            {isDirty && (
-                <div className="mt-8 p-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-500/30 rounded-xl flex items-center gap-3">
-                    <AlertTriangle size={18} className="text-amber-400 shrink-0" />
-                    <span className="text-amber-700 dark:text-amber-200 text-sm font-medium">יש שינויים שלא נשמרו.</span>
-                </div>
-            )}
         </div>
     );
 }

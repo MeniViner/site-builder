@@ -1,9 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useWidget } from '../context/WidgetContext';
-import {
-    Save, AlertTriangle, BookUser, Plus, Trash2, Pencil,
-    X, Check, User, Phone, Hash
-} from 'lucide-react';
+import { BookUser, Plus, Trash2, Pencil, X, Check, User, Phone, Hash } from 'lucide-react';
 
 const inputCls = 'w-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 transition';
 const labelCls = 'block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide';
@@ -17,12 +14,26 @@ export default function AdminPhonebook() {
     const [form, setForm] = useState(EMPTY_CONTACT);
     const [isSaving, setIsSaving] = useState(false);
     const [saveMessage, setSaveMessage] = useState(null);
+    const lastSavedRef = useRef(null);
 
     useEffect(() => {
-        setList(widgetConfig?.phonebook ?? []);
+        const server = widgetConfig?.phonebook ?? [];
+        setList(server);
+        lastSavedRef.current = JSON.stringify(server);
     }, [widgetConfig]);
 
-    const isDirty = JSON.stringify(list) !== JSON.stringify(widgetConfig?.phonebook ?? []);
+    useEffect(() => {
+        if (JSON.stringify(list) === lastSavedRef.current) return;
+        const t = setTimeout(async () => {
+            setIsSaving(true);
+            setSaveMessage(null);
+            const success = await saveWidgetConfig({ ...widgetConfig, phonebook: list });
+            setIsSaving(false);
+            if (success) lastSavedRef.current = JSON.stringify(list);
+            else setSaveMessage({ type: 'error', text: 'שגיאה בשמירה. אנא נסה שוב.' });
+        }, 1200);
+        return () => clearTimeout(t);
+    }, [list, widgetConfig]);
 
     const openNew = () => { setForm({ ...EMPTY_CONTACT, id: crypto.randomUUID() }); setEditingId('new'); };
     const openEdit = (c) => { setForm({ ...c }); setEditingId(c.id); };
@@ -39,18 +50,6 @@ export default function AdminPhonebook() {
         if (editingId === id) cancelEdit();
     };
 
-    const handleSave = async () => {
-        setIsSaving(true);
-        setSaveMessage(null);
-        const success = await saveWidgetConfig({ ...widgetConfig, phonebook: list });
-        setIsSaving(false);
-        setSaveMessage(success
-            ? { type: 'success', text: 'ספר הטלפונים עודכן בהצלחה!' }
-            : { type: 'error', text: 'שגיאה בשמירה. אנא נסה שוב.' }
-        );
-        setTimeout(() => setSaveMessage(null), 4000);
-    };
-
     return (
         <div dir="rtl" className="min-h-screen bg-gray-100 dark:bg-[#1e212b] text-gray-900 dark:text-white font-heebo p-8">
             {/* Header */}
@@ -62,19 +61,12 @@ export default function AdminPhonebook() {
                     </h1>
                     <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">ניהול רשימת אנשי הקשר המוצגת בווידגט</p>
                 </div>
-                <button
-                    onClick={handleSave}
-                    disabled={!isDirty || isSaving}
-                    className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg font-bold transition shadow-lg shadow-violet-900/20"
-                >
-                    <Save size={18} />
-                    <span>{isSaving ? 'שומר...' : 'שמור שינויים'}</span>
-                </button>
+                {isSaving && <span className="text-sm text-gray-500 dark:text-gray-400">שומר...</span>}
             </div>
 
-            {saveMessage && (
-                <div className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${saveMessage.type === 'success' ? 'bg-green-50 dark:bg-green-900/50 border border-green-500' : 'bg-red-50 dark:bg-red-900/50 border border-red-500'}`}>
-                    <span className={saveMessage.type === 'success' ? 'text-green-700 dark:text-green-200' : 'text-red-700 dark:text-red-200'}>{saveMessage.text}</span>
+            {saveMessage?.type === 'error' && (
+                <div className="mb-6 p-4 rounded-lg flex items-center gap-3 bg-red-50 dark:bg-red-900/50 border border-red-500">
+                    <span className="text-red-700 dark:text-red-200">{saveMessage.text}</span>
                 </div>
             )}
 
@@ -162,12 +154,6 @@ export default function AdminPhonebook() {
                 </div>
             )}
 
-            {isDirty && (
-                <div className="mt-8 p-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-500/30 rounded-xl flex items-center gap-3">
-                    <AlertTriangle size={18} className="text-amber-400 shrink-0" />
-                    <span className="text-amber-700 dark:text-amber-200 text-sm font-medium">יש שינויים שלא נשמרו.</span>
-                </div>
-            )}
         </div>
     );
 }

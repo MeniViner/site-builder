@@ -46,7 +46,7 @@ export default function ThemeLivePreview({ draft }) {
     return (
         <div
             ref={containerRef}
-            className="w-full rounded-2xl border-4 border-gray-800 dark:border-white/20 shadow-2xl relative overflow-hidden bg-gray-50 dark:bg-[#1e212b]"
+            className="w-full rounded-2xl  border-gray-800 dark:border-white/20 shadow-2xl relative overflow-hidden bg-gray-50 dark:bg-[#1e212b]"
             style={{ height: 'min(53vh, 640px)' }}
         >
             <div

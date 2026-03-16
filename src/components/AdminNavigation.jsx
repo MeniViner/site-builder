@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
 import { useNavigation } from '../context/NavigationContext';
 import { useTheme } from '../context/ThemeContext';
 import { DynamicIcon } from './DynamicIcon';
 import {
-    Plus, Trash2, Save, AlertTriangle, ChevronLeft, ChevronDown,
+    Plus, Trash2, AlertTriangle, ChevronLeft, ChevronDown,
     Folder, FolderOpen, FileText, Link as LinkIcon, Home, Search,
     ExternalLink
 } from 'lucide-react';
@@ -15,6 +15,27 @@ export default function AdminNavigation() {
     const { effectiveMode } = useTheme();
     const [navItems, setNavItems] = useState(initialNavItems || []);
     const [isSaving, setIsSaving] = useState(false);
+    const lastSavedRef = useRef(null);
+
+    useEffect(() => {
+        if (initialNavItems?.length !== undefined) {
+            setNavItems(initialNavItems);
+            lastSavedRef.current = JSON.stringify(initialNavItems);
+        }
+    }, [initialNavItems]);
+
+    useEffect(() => {
+        const current = JSON.stringify(navItems);
+        if (lastSavedRef.current === null || current === lastSavedRef.current) return;
+        const t = setTimeout(async () => {
+            setIsSaving(true);
+            const success = await saveNavigation(navItems);
+            setIsSaving(false);
+            if (success) lastSavedRef.current = current;
+            else toast.error('שגיאה בשמירת נתוני הניווט.');
+        }, 1200);
+        return () => clearTimeout(t);
+    }, [navItems]);
 
     // Icon Picker State
     const [iconPicker, setIconPicker] = useState({ isOpen: false, targetPath: null, currentIcon: '' });
@@ -33,17 +54,6 @@ export default function AdminNavigation() {
         if (newSet.has(id)) newSet.delete(id);
         else newSet.add(id);
         setExpandedNodes(newSet);
-    };
-
-    const handleSave = async () => {
-        setIsSaving(true);
-        const success = await saveNavigation(navItems);
-        setIsSaving(false);
-        if (success) {
-            toast.success('נתוני הניווט נשמרו בהצלחה!');
-        } else {
-            toast.error('שגיאה בשמירת נתוני הניווט.');
-        }
     };
 
     // Generic Update using deep clone
@@ -235,14 +245,7 @@ export default function AdminNavigation() {
                 </div>
 
                 <div className="p-4 border-t border-gray-200 dark:border-[#1f1f22] bg-gray-100 dark:bg-[#0f0f11] shrink-0">
-                    <button
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        className="w-full flex justify-center items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded-md font-bold transition shadow-lg shadow-red-900/20 text-sm"
-                    >
-                        <Save size={16} />
-                        <span>{isSaving ? 'שומר...' : 'שמור שינויים'}</span>
-                    </button>
+                    {isSaving && <span className="text-sm text-gray-500 dark:text-gray-400">שומר...</span>}
                 </div>
             </div>
 

@@ -1,12 +1,12 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import WidgetService from '../services/WidgetService';
+import WidgetService, { createDefaultWidgetConfig } from '../services/WidgetService';
 
 const WidgetContext = createContext();
 
 export const useWidget = () => useContext(WidgetContext);
 
 export const WidgetProvider = ({ children }) => {
-    const [widgetConfig, setWidgetConfig] = useState(null);
+    const [widgetConfig, setWidgetConfig] = useState(() => createDefaultWidgetConfig());
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 

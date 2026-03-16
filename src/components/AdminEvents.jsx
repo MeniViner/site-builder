@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
 import { useEvents } from '../context/EventsContext';
-import { Undo2, Plus, Trash2, Edit2, AlertTriangle, Calendar, Save, X } from 'lucide-react';
+import { Undo2, Plus, Trash2, Edit2, AlertTriangle, Calendar, X } from 'lucide-react';
 
 const STATUS_OPTIONS = [
     { value: 'gray', label: 'אפור (כלל משתמשי חרום)', colorClass: 'bg-gray-500', textClass: 'text-gray-200' },
@@ -14,26 +14,34 @@ export default function AdminEvents({ onClose, inHub = false }) {
     const [events, setEvents] = useState(initialEvents || []);
     const [displayCount, setDisplayCount] = useState(initialDisplayCount || 3);
     const [isSaving, setIsSaving] = useState(false);
+    const lastSavedRef = useRef(null);
 
-    // UI state
+    useEffect(() => {
+        if (initialEvents && initialDisplayCount !== undefined) {
+            setEvents(initialEvents);
+            setDisplayCount(initialDisplayCount);
+            lastSavedRef.current = JSON.stringify({ events: initialEvents, displayCount: initialDisplayCount });
+        }
+    }, [initialEvents, initialDisplayCount]);
 
-    // Modal state
+    useEffect(() => {
+        const current = JSON.stringify({ events, displayCount });
+        if (lastSavedRef.current === null || current === lastSavedRef.current) return;
+        const t = setTimeout(async () => {
+            setIsSaving(true);
+            const success = await saveEvents(events, displayCount);
+            setIsSaving(false);
+            if (success) lastSavedRef.current = current;
+            else toast.error('שגיאה בעדכון התצוגה. אנא נסה שוב.');
+        }, 1200);
+        return () => clearTimeout(t);
+    }, [events, displayCount]);
+
     const [editingEvent, setEditingEvent] = useState(null);
 
     const handleRemove = (id) => {
         if (window.confirm('האם אתה בטוח שברצונך למחוק אירוע זה?')) {
             setEvents(events.filter(e => e.id !== id));
-        }
-    };
-
-    const handleSaveDisplay = async () => {
-        setIsSaving(true);
-        const success = await saveEvents(events, displayCount);
-        setIsSaving(false);
-        if (success) {
-            toast.success('התצוגה עודכנה בהצלחה!');
-        } else {
-            toast.error('שגיאה בעדכון התצוגה. אנא נסה שוב.');
         }
     };
 
@@ -108,14 +116,7 @@ export default function AdminEvents({ onClose, inHub = false }) {
                         </label>
                     </div>
 
-                    <button
-                        onClick={handleSaveDisplay}
-                        disabled={isSaving}
-                        className="bg-[#4263eb] hover:bg-[#3b5bdb] disabled:opacity-50 text-white px-6 py-2.5 rounded-lg font-bold transition whitespace-nowrap"
-                    >
-                        {isSaving ? 'מעדכן...' : 'עדכן תצוגה'}
-                    </button>
-
+                    {isSaving && <span className="text-sm text-gray-500 dark:text-gray-400">שומר...</span>}
                 </div>
 
                 <div className="absolute top-1 right-6 text-sm font-bold text-gray-900 dark:text-white tracking-wide">
@@ -266,7 +267,7 @@ export default function AdminEvents({ onClose, inHub = false }) {
 
                             <div className="flex gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-800/80">
                                 <button type="submit" className="flex-1 bg-[#4263eb] hover:bg-[#3b5bdb] text-white py-3 rounded-xl font-bold transition">
-                                    שמור שינויים
+                                    {editingEvent.isNew ? 'הוסף' : 'עדכן'}
                                 </button>
                                 <button type="button" onClick={() => setEditingEvent(null)} className="flex-1 bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 text-gray-900 dark:text-white py-3 rounded-xl font-bold transition">
                                     ביטול

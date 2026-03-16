@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useExternalLinks } from '../context/ExternalLinksContext';
 import {
-    Save, AlertTriangle, Plus, Trash2, Edit2, X,
+    AlertTriangle, Plus, Trash2, Edit2, X,
     ExternalLink, GripVertical, Image as ImageIcon, Link as LinkIcon, Type, Upload, Loader2, Star
 } from 'lucide-react';
 import { uploadImage } from '../utils/sharepointUtils';
@@ -22,14 +22,28 @@ export default function AdminExternalLinks() {
     const [uploadingIcon, setUploadingIcon] = useState(false);
     const [iconPickerOpen, setIconPickerOpen] = useState(false);
     const iconFileInputRef = useRef(null);
+    const lastSavedRef = useRef(null);
 
     useEffect(() => {
         if (externalLinks) {
-            setLinks(externalLinks.map(l => ({ ...l })));
+            const next = externalLinks.map(l => ({ ...l }));
+            setLinks(next);
+            lastSavedRef.current = JSON.stringify(next);
         }
     }, [externalLinks]);
 
-    const hasChanges = JSON.stringify(links) !== JSON.stringify(externalLinks);
+    useEffect(() => {
+        const current = JSON.stringify(links);
+        if (lastSavedRef.current === null || current === lastSavedRef.current) return;
+        const t = setTimeout(async () => {
+            setIsSaving(true);
+            const success = await saveExternalLinks(links);
+            setIsSaving(false);
+            if (success) lastSavedRef.current = current;
+            else toast.error(error || 'שגיאה בשמירה. אנא נסה שוב.');
+        }, 1200);
+        return () => clearTimeout(t);
+    }, [links]);
 
     const handleIconFileUpload = async (e) => {
         const file = e.target.files?.[0];
@@ -44,17 +58,6 @@ export default function AdminExternalLinks() {
         } finally {
             setUploadingIcon(false);
             if (iconFileInputRef.current) iconFileInputRef.current.value = '';
-        }
-    };
-
-    const handleSave = async () => {
-        setIsSaving(true);
-        const success = await saveExternalLinks(links);
-        setIsSaving(false);
-        if (success) {
-            toast.success('קישורים חיצוניים נשמרו בהצלחה!');
-        } else {
-            toast.error(error || 'שגיאה בשמירה. אנא נסה שוב.');
         }
     };
 
@@ -146,14 +149,7 @@ export default function AdminExternalLinks() {
                         <Plus size={18} />
                         <span>הוסף קישור</span>
                     </button>
-                    <button
-                        onClick={handleSave}
-                        disabled={isSaving || !hasChanges || uploadingIcon}
-                        className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-xl font-bold transition shadow-lg shadow-red-900/20"
-                    >
-                        <Save size={18} />
-                        <span>{isSaving ? 'שומר...' : 'שמור שינויים'}</span>
-                    </button>
+                    {isSaving && <span className="text-sm text-gray-500 dark:text-gray-400">שומר...</span>}
                 </div>
             </div>
 
@@ -245,15 +241,6 @@ export default function AdminExternalLinks() {
                         <Plus size={32} />
                         <span className="font-bold text-sm">הוסף קישור חדש</span>
                     </button>
-                </div>
-            )}
-
-            {hasChanges && (
-                <div className="mt-8 p-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-500/30 rounded-xl flex items-center gap-3">
-                    <AlertTriangle size={18} className="text-amber-400 shrink-0" />
-                    <span className="text-amber-700 dark:text-amber-200 text-sm font-medium">
-                        יש שינויים שלא נשמרו — לחץ "שמור שינויים" כדי לשמור את רשימת הקישורים.
-                    </span>
                 </div>
             )}
 

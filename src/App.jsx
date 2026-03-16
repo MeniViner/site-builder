@@ -1,14 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import AdminEvents from './components/AdminEvents';
-import EventsList from './components/EventsList';
-import WidgetOutstanding from './components/widgets/WidgetOutstanding';
-import WidgetCountdown from './components/widgets/WidgetCountdown';
-import WidgetNewsTicker from './components/widgets/WidgetNewsTicker';
-import WidgetPhonebook from './components/widgets/WidgetPhonebook';
+import WidgetPanelContent from './components/WidgetPanelContent';
 import {
   Search, ChevronLeft, ChevronRight,
-  Bell, Undo2, Globe,
+  Undo2, Globe,
   Image as ImageIcon, ExternalLink,
   Sun, Moon
 } from 'lucide-react';
@@ -305,29 +301,6 @@ function ExtLinksFloating({ links, fixed: isFixed = true, bordered = true, showB
 }
 
 /* ================================================================
-   WIDGET SECTION
-   ================================================================ */
-function WidgetSection({ activeWidget }) {
-  const { widgetConfig } = useWidget();
-
-  if (activeWidget === 'events') return <EventsList />;
-  if (activeWidget === 'outstanding') return <WidgetOutstanding data={widgetConfig?.outstanding || []} />;
-  if (activeWidget === 'countdown') return <WidgetCountdown data={widgetConfig?.countdown || {}} />;
-  if (activeWidget === 'news') return <WidgetNewsTicker data={widgetConfig?.news || []} />;
-  if (activeWidget === 'phonebook') return <WidgetPhonebook data={widgetConfig?.phonebook || []} />;
-  if (activeWidget === 'alerts') {
-    return (
-      <div className="flex flex-col items-center justify-center h-full text-center py-8 px-4">
-        <Bell size={36} className="text-primary/40 mb-3" />
-        <div className="text-lg font-bold text-themeText-secondary mb-1">לוח הודעות</div>
-        <div className="text-sm text-themeText-tertiary">בקרוב — ממשק ההודעות בפיתוח.</div>
-      </div>
-    );
-  }
-  return <div className="flex items-center justify-center h-full text-themeText-tertiary text-sm">ווידגט לא ידוע</div>;
-}
-
-/* ================================================================
    COMMANDER SECTION
    ================================================================ */
 function CommanderSection({ commander, messages }) {
@@ -463,13 +436,6 @@ export function Home() {
   const externalLinksBordered = theme?.externalLinksBordered !== false;
   const externalLinksShowBackground = theme?.externalLinksShowBackground !== false;
   const activeWidget = widgetConfig?.activeWidget || 'events';
-  const widgetTitle = activeWidget === 'events' ? 'מופעי החודש' :
-    activeWidget === 'outstanding' ? 'מצטייני היחידה' :
-      activeWidget === 'countdown' ? 'ספירה לאחור' :
-        activeWidget === 'alerts' ? 'לוח הודעות' :
-          activeWidget === 'news' ? 'מבזקים ועדכונים' :
-            activeWidget === 'phonebook' ? 'ספר טלפונים' : 'ווידגט';
-
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour >= 6 && hour < 12) return 'בוקר טוב';
@@ -655,14 +621,7 @@ export function Home() {
                   glowLine
                   className="w-full h-full shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)] group flex flex-col"
                 >
-                  <div className="p-6 pt-7 relative z-10 w-full h-full flex flex-col">
-                    <h2 className="text-2xl [@media(max-height:850px)]:text-xl font-black text-gray-900 dark:text-white mb-6 [@media(max-height:850px)]:mb-3 border-b border-gray-200 dark:border-white/20 pb-2 text-shadow-sm">{widgetTitle}</h2>
-                    <div className="overflow-hidden flex-1 relative mask-image-bottom">
-                      <div className="h-full flex flex-col">
-                        <WidgetSection activeWidget={activeWidget} />
-                      </div>
-                    </div>
-                  </div>
+                  <WidgetPanelContent widgetConfig={widgetConfig} activeWidget={activeWidget} />
                 </TacticalPanel>
               </div>
             </div>

@@ -1,9 +1,10 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { getRequestDigest } from '../utils/sharepointUtils';
+import { mergeWidgetSettings } from '../utils/widgetDisplay';
 
-const DEFAULT_WIDGETS_CONFIG = {
+export const DEFAULT_WIDGETS_CONFIG = {
     activeWidget: 'events',
-    widgetSettings: {},
+    widgetSettings: mergeWidgetSettings(),
     outstanding: [],
     countdown: {
         title: '',
@@ -11,7 +12,45 @@ const DEFAULT_WIDGETS_CONFIG = {
     },
     news: [],
     phonebook: [],
+    shuttles: [
+        { id: '1', destination: 'תחנת רכבת באר שבע', departureTime: '17:30', type: 'bus' },
+        { id: '2', destination: 'עיר הבה"דים (שאטל פנימי)', departureTime: '08:00', type: 'minibus' },
+    ],
+    polls: [
+        {
+            id: '1',
+            question: 'איזה שיר תרצו שיושמע במסדר הבוקר?',
+            options: [
+                { id: 'o1', text: 'טונה - גם זה יעבור', votes: 45 },
+                { id: 'o2', text: 'רביד פלוטניק - כפרה שלי', votes: 82 },
+            ],
+            active: true,
+        },
+        {
+            id: '2',
+            question: 'היכן כדאי לקיים את יום הגיבוש המחלקתי?',
+            options: [
+                { id: 'o3', text: 'פארק הירקון', votes: 12 },
+                { id: 'o4', text: 'חוף הים - פלמחים', votes: 30 },
+            ],
+            active: false,
+        },
+    ],
+    celebrations: [
+        { id: '1', name: 'סמל ישראל מנחם', type: 'שחרור', date: '2026-08-01', description: 'משתחרר אחרי שירות משמעותי, בהצלחה באזרחות!' },
+        { id: '2', name: 'רב"ט דוד כהן', type: 'דרגה', date: '2026-03-20', description: 'מזל טוב על קבלת סמל!' },
+    ],
+    heritage: [
+        { id: '1', quote: 'מפקדים ולוחמים, אנו ניצבים בחזית העשייה המבצעית...', author: 'מפקד היחידה', role: "סא\"ל א'" },
+        { id: '2', quote: 'אין לנו ארץ אחרת, גם אם אדמתי בוערת.', author: 'אהוד מנור', role: 'משורר' },
+    ],
+    tips: [
+        { id: '1', title: 'קיצור מקלדת שימושי', text: 'לחיצה על Windows + V תפתח לכם את היסטוריית ההעתקות שלכם. שימושי מאוד למפתחים ופקידים!' },
+        { id: '2', title: 'פקודת מטכ"ל - דיגום', text: 'תזכורת: נעלי הרים מאושרות לנוע אך ורק עם אישור רפואי או תעודת לוחם בתוקף.' },
+    ],
 };
+
+export const createDefaultWidgetConfig = () => JSON.parse(JSON.stringify(DEFAULT_WIDGETS_CONFIG));
 
 class WidgetService {
     constructor() {
@@ -31,21 +70,26 @@ class WidgetService {
             return this._normalizeData(data);
         } catch (e) {
             console.error(e);
-            return { ...DEFAULT_WIDGETS_CONFIG };
+            return createDefaultWidgetConfig();
         }
     }
 
     _normalizeData(data) {
-        if (!data) return { ...DEFAULT_WIDGETS_CONFIG };
+        if (!data) return createDefaultWidgetConfig();
         return {
             activeWidget: data.activeWidget || DEFAULT_WIDGETS_CONFIG.activeWidget,
-            widgetSettings: data.widgetSettings || {},
+            widgetSettings: mergeWidgetSettings(data.widgetSettings || {}),
             outstanding: Array.isArray(data.outstanding) ? data.outstanding : [],
             countdown: data.countdown && typeof data.countdown === 'object'
                 ? { title: data.countdown.title || '', targetDate: data.countdown.targetDate || '' }
                 : { title: '', targetDate: '' },
             news: Array.isArray(data.news) ? data.news : [],
             phonebook: Array.isArray(data.phonebook) ? data.phonebook : [],
+            shuttles: Array.isArray(data.shuttles) ? data.shuttles : createDefaultWidgetConfig().shuttles,
+            polls: Array.isArray(data.polls) ? data.polls : createDefaultWidgetConfig().polls,
+            celebrations: Array.isArray(data.celebrations) ? data.celebrations : createDefaultWidgetConfig().celebrations,
+            heritage: Array.isArray(data.heritage) ? data.heritage : createDefaultWidgetConfig().heritage,
+            tips: Array.isArray(data.tips) ? data.tips : createDefaultWidgetConfig().tips,
         };
     }
 
@@ -63,8 +107,8 @@ class WidgetService {
             if (stored) {
                 return Promise.resolve(JSON.parse(stored));
             }
-            this._saveMockData(DEFAULT_WIDGETS_CONFIG);
-            return Promise.resolve({ ...DEFAULT_WIDGETS_CONFIG });
+            this._saveMockData(createDefaultWidgetConfig());
+            return Promise.resolve(createDefaultWidgetConfig());
         } catch (error) {
             console.error('Error reading mock widget config:', error);
             throw new Error('שגיאה בקריאת הגדרות ווידגטים מהזיכרון המקומי');
@@ -95,7 +139,7 @@ class WidgetService {
             if (!response.ok) {
                 if (response.status === 404) {
                     console.log('SharePoint widgets config file not found, returning defaults');
-                    return { ...DEFAULT_WIDGETS_CONFIG };
+                    return createDefaultWidgetConfig();
                 }
                 throw new Error(`SharePoint request failed: ${response.status} ${response.statusText}`);
             }

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useWidget } from '../context/WidgetContext';
-import { Save, AlertTriangle, Timer, AlignLeft, Clock } from 'lucide-react';
+import { Timer, AlignLeft, Clock } from 'lucide-react';
 
 const inputCls = 'w-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition';
 const labelCls = 'block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide';
@@ -11,14 +11,29 @@ export default function AdminCountdown() {
     const [targetDate, setTargetDate] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [saveMessage, setSaveMessage] = useState(null);
+    const lastSavedRef = useRef(null);
 
     useEffect(() => {
-        setTitle(widgetConfig?.countdown?.title ?? '');
-        setTargetDate(widgetConfig?.countdown?.targetDate ?? '');
+        const t = widgetConfig?.countdown?.title ?? '';
+        const d = widgetConfig?.countdown?.targetDate ?? '';
+        setTitle(t);
+        setTargetDate(d);
+        lastSavedRef.current = JSON.stringify({ title: t, targetDate: d });
     }, [widgetConfig]);
 
-    const isDirty = title !== (widgetConfig?.countdown?.title ?? '') ||
-        targetDate !== (widgetConfig?.countdown?.targetDate ?? '');
+    useEffect(() => {
+        const current = JSON.stringify({ title, targetDate });
+        if (current === lastSavedRef.current) return;
+        const t = setTimeout(async () => {
+            setIsSaving(true);
+            setSaveMessage(null);
+            const success = await saveWidgetConfig({ ...widgetConfig, countdown: { title, targetDate } });
+            setIsSaving(false);
+            if (success) lastSavedRef.current = current;
+            else setSaveMessage({ type: 'error', text: 'שגיאה בשמירה. אנא נסה שוב.' });
+        }, 1200);
+        return () => clearTimeout(t);
+    }, [title, targetDate, widgetConfig]);
 
     const toLocalInputValue = (iso) => {
         if (!iso) return '';
@@ -32,18 +47,6 @@ export default function AdminCountdown() {
     const handleDateChange = (e) => {
         const val = e.target.value;
         setTargetDate(val ? new Date(val).toISOString() : '');
-    };
-
-    const handleSave = async () => {
-        setIsSaving(true);
-        setSaveMessage(null);
-        const success = await saveWidgetConfig({ ...widgetConfig, countdown: { title, targetDate } });
-        setIsSaving(false);
-        setSaveMessage(success
-            ? { type: 'success', text: 'הגדרות הספירה עודכנו בהצלחה!' }
-            : { type: 'error', text: 'שגיאה בשמירה. אנא נסה שוב.' }
-        );
-        setTimeout(() => setSaveMessage(null), 4000);
     };
 
     // Live preview calculation
@@ -63,19 +66,12 @@ export default function AdminCountdown() {
                     </h1>
                     <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">הגדרת כותרת ותאריך היעד של הטיימר</p>
                 </div>
-                <button
-                    onClick={handleSave}
-                    disabled={!isDirty || isSaving}
-                    className="flex items-center gap-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg font-bold transition shadow-lg shadow-sky-900/20"
-                >
-                    <Save size={18} />
-                    <span>{isSaving ? 'שומר...' : 'שמור שינויים'}</span>
-                </button>
+                {isSaving && <span className="text-sm text-gray-500 dark:text-gray-400">שומר...</span>}
             </div>
 
-            {saveMessage && (
-                <div className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${saveMessage.type === 'success' ? 'bg-green-50 dark:bg-green-900/50 border border-green-500' : 'bg-red-50 dark:bg-red-900/50 border border-red-500'}`}>
-                    <span className={saveMessage.type === 'success' ? 'text-green-700 dark:text-green-200' : 'text-red-700 dark:text-red-200'}>{saveMessage.text}</span>
+            {saveMessage?.type === 'error' && (
+                <div className="mb-6 p-4 rounded-lg flex items-center gap-3 bg-red-50 dark:bg-red-900/50 border border-red-500">
+                    <span className="text-red-700 dark:text-red-200">{saveMessage.text}</span>
                 </div>
             )}
 
@@ -121,12 +117,6 @@ export default function AdminCountdown() {
                 )}
             </div>
 
-            {isDirty && (
-                <div className="mt-8 p-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-500/30 rounded-xl flex items-center gap-3 max-w-2xl">
-                    <AlertTriangle size={18} className="text-amber-400 shrink-0" />
-                    <span className="text-amber-700 dark:text-amber-200 text-sm font-medium">יש שינויים שלא נשמרו.</span>
-                </div>
-            )}
         </div>
     );
 }
