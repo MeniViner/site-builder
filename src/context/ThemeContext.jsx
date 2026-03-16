@@ -91,10 +91,10 @@ function applyDisplayMode(effectiveMode) {
     } else {
         root.classList.remove('dark');
     }
-    // Surface tokens are now handled by CSS cascade via data-theme + .dark selectors
+    // Surface tokens are handled by CSS cascade via data-tinted-bg + .dark selectors
 }
 
-/** Apply theme (primary color + display mode + color package) to a container element for scoped preview. */
+/** Apply theme (primary color + display mode + tinted background mode) to a container element for scoped preview. */
 export function applyThemeToElement(el, themeData) {
     if (!el || !themeData) return;
     const hex = themeData.primaryColor || '#dc2626';
@@ -121,8 +121,7 @@ export function applyThemeToElement(el, themeData) {
     } else {
         el.classList.remove('dark');
     }
-    // Apply color package via data-theme attribute (CSS cascade handles surface tokens)
-    el.dataset.theme = themeData.colorPackage || 'classic';
+    el.dataset.tintedBg = themeData.useTintedBackground !== false ? 'true' : 'false';
 }
 
 export const ThemeProvider = ({ children }) => {
@@ -144,7 +143,7 @@ export const ThemeProvider = ({ children }) => {
     const applyThemeToDom = useCallback((themeData) => {
         if (!themeData) return;
         applyPrimaryColorVars(themeData.primaryColor || '#dc2626');
-        document.documentElement.dataset.theme = themeData.colorPackage || 'classic';
+        document.documentElement.dataset.tintedBg = themeData.useTintedBackground !== false ? 'true' : 'false';
         const mode = resolveDisplayMode(themeData.displayMode || 'dark');
         setSiteMode(mode);
     }, []);

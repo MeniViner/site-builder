@@ -11,14 +11,13 @@
    ============================================================ */
 
 /* ============================================================
-   PREMIUM COLOR PACKAGES — 12-Token Architecture
-   Activated via data-theme="<package>" on <html>
-   Classic is the default (no data-theme needed)
+   DYNAMIC THEME TINT ENGINE — 12-Token Architecture
+   Activated via data-tinted-bg="true"
    ============================================================ */
 
-/* ── CLASSIC (DEFAULT) — DARK ── */
+/* ── CLASSIC (DEFAULT / UNTINTED) — DARK ── */
 :root,
-[data-theme="classic"].dark {
+[data-tinted-bg="false"].dark {
   scroll-behavior: smooth;
 
   /* Primary color in HSL components (space-separated for Tailwind) */
@@ -45,12 +44,12 @@
 
   /* ── Premium Surface Tokens (12-variable architecture) ── */
   --color-bg-base:          #0c0d12;
-  --color-bg-gradient-start: #14151c;
-  --color-bg-gradient-end:   #0a0b0f;
-  --color-bg-chrome:         rgba(18, 19, 26, 0.85);
   --color-bg-card:           #1a1c23;
   --color-bg-card-hover:     #20232c;
   --color-bg-elevated:       #252830;
+  --color-bg-gradient-start: #14151c;
+  --color-bg-gradient-end:   #0a0b0f;
+  --color-bg-chrome:         rgba(18, 19, 26, 0.85);
   --color-border-subtle:     rgba(255, 255, 255, 0.06);
   --color-border-strong:     rgba(255, 255, 255, 0.12);
   --color-text-primary:      #f0f1f4;
@@ -67,14 +66,14 @@
 
 /* ── CLASSIC — LIGHT ── */
 html:not(.dark),
-[data-theme="classic"]:not(.dark) {
+[data-tinted-bg="false"]:not(.dark) {
   --color-bg-base:          #f2f3f5;
+  --color-bg-card:          #ffffff;
+  --color-bg-card-hover:    #f9fafb;
+  --color-bg-elevated:      #f3f4f6;
   --color-bg-gradient-start: #eaebef;
   --color-bg-gradient-end:   #f5f6f8;
   --color-bg-chrome:         rgba(248, 249, 251, 0.82);
-  --color-bg-card:           #fafbfc;
-  --color-bg-card-hover:     #f4f5f7;
-  --color-bg-elevated:       #edeef1;
   --color-border-subtle:     rgba(0, 0, 0, 0.06);
   --color-border-strong:     rgba(0, 0, 0, 0.12);
   --color-text-primary:      #111827;
@@ -82,106 +81,38 @@ html:not(.dark),
   --color-text-inverted:     #ffffff;
 }
 
-/* ── OCEAN — DARK ── */
-html.dark[data-theme="ocean"],
-[data-theme="ocean"].dark {
-  --color-bg-base:          #080c14;
-  --color-bg-gradient-start: #0e1726;
-  --color-bg-gradient-end:   #060a10;
-  --color-bg-chrome:         rgba(10, 18, 34, 0.85);
-  --color-bg-card:           #0f1724;
-  --color-bg-card-hover:     #162030;
-  --color-bg-elevated:       #1a2840;
-  --color-border-subtle:     rgba(100, 160, 230, 0.08);
-  --color-border-strong:     rgba(100, 160, 230, 0.16);
-  --color-text-primary:      #e0e8f4;
-  --color-text-muted:        #7a90b5;
-  --color-text-inverted:     #ffffff;
+/* ── DYNAMIC TINTED THEME — DARK ── */
+/* Uses the hue (--color-primary-h) to generate rich dark backgrounds */
+html.dark[data-tinted-bg="true"],
+[data-tinted-bg="true"].dark {
+  --color-bg-base: hsl(var(--color-primary-h), 25%, 5%);
+  --color-bg-card: hsl(var(--color-primary-h), 22%, 9%);
+  --color-bg-card-hover: hsl(var(--color-primary-h), 22%, 13%);
+  --color-bg-elevated: hsl(var(--color-primary-h), 22%, 16%);
+  --color-bg-gradient-start: hsl(var(--color-primary-h), 30%, 8%);
+  --color-bg-gradient-end: hsl(var(--color-primary-h), 25%, 4%);
+  --color-bg-chrome: hsla(var(--color-primary-h), 22%, 9%, 0.85);
+  --color-border-subtle: hsla(var(--color-primary-h), 50%, 60%, 0.1);
+  --color-border-strong: hsla(var(--color-primary-h), 50%, 60%, 0.2);
+  --color-text-primary: hsl(var(--color-primary-h), 20%, 95%);
+  --color-text-muted: hsl(var(--color-primary-h), 20%, 70%);
 }
 
-/* ── OCEAN — LIGHT ── */
-html:not(.dark)[data-theme="ocean"],
-[data-theme="ocean"]:not(.dark) {
-  --color-bg-base:          #ebf0f7;
-  --color-bg-gradient-start: #dce5f2;
-  --color-bg-gradient-end:   #f0f4f9;
-  --color-bg-chrome:         rgba(230, 238, 250, 0.82);
-  --color-bg-card:           #f4f7fc;
-  --color-bg-card-hover:     #eaeff8;
-  --color-bg-elevated:       #dfe6f2;
-  --color-border-subtle:     rgba(30, 80, 160, 0.08);
-  --color-border-strong:     rgba(30, 80, 160, 0.16);
-  --color-text-primary:      #0c1628;
-  --color-text-muted:        #4a6080;
-  --color-text-inverted:     #ffffff;
-}
-
-/* ── CRIMSON — DARK ── */
-html.dark[data-theme="crimson"],
-[data-theme="crimson"].dark {
-  --color-bg-base:          #0e0809;
-  --color-bg-gradient-start: #1a0e10;
-  --color-bg-gradient-end:   #0a0607;
-  --color-bg-chrome:         rgba(28, 12, 16, 0.85);
-  --color-bg-card:           #1a1012;
-  --color-bg-card-hover:     #241618;
-  --color-bg-elevated:       #301c20;
-  --color-border-subtle:     rgba(220, 100, 120, 0.08);
-  --color-border-strong:     rgba(220, 100, 120, 0.16);
-  --color-text-primary:      #f4e4e6;
-  --color-text-muted:        #b08088;
-  --color-text-inverted:     #ffffff;
-}
-
-/* ── CRIMSON — LIGHT ── */
-html:not(.dark)[data-theme="crimson"],
-[data-theme="crimson"]:not(.dark) {
-  --color-bg-base:          #f5ecec;
-  --color-bg-gradient-start: #eedee0;
-  --color-bg-gradient-end:   #f8f0f0;
-  --color-bg-chrome:         rgba(248, 232, 234, 0.82);
-  --color-bg-card:           #faf4f4;
-  --color-bg-card-hover:     #f2e8e9;
-  --color-bg-elevated:       #e8d8da;
-  --color-border-subtle:     rgba(160, 40, 60, 0.08);
-  --color-border-strong:     rgba(160, 40, 60, 0.16);
-  --color-text-primary:      #1a0a0c;
-  --color-text-muted:        #7a4a50;
-  --color-text-inverted:     #ffffff;
-}
-
-/* ── FOREST — DARK ── */
-html.dark[data-theme="forest"],
-[data-theme="forest"].dark {
-  --color-bg-base:          #080c09;
-  --color-bg-gradient-start: #0e1a10;
-  --color-bg-gradient-end:   #060a07;
-  --color-bg-chrome:         rgba(12, 24, 14, 0.85);
-  --color-bg-card:           #0f1810;
-  --color-bg-card-hover:     #162218;
-  --color-bg-elevated:       #1c3020;
-  --color-border-subtle:     rgba(100, 200, 120, 0.08);
-  --color-border-strong:     rgba(100, 200, 120, 0.16);
-  --color-text-primary:      #e0f0e4;
-  --color-text-muted:        #7aaa84;
-  --color-text-inverted:     #ffffff;
-}
-
-/* ── FOREST — LIGHT ── */
-html:not(.dark)[data-theme="forest"],
-[data-theme="forest"]:not(.dark) {
-  --color-bg-base:          #ecf2ed;
-  --color-bg-gradient-start: #dce8de;
-  --color-bg-gradient-end:   #f0f5f1;
-  --color-bg-chrome:         rgba(230, 244, 232, 0.82);
-  --color-bg-card:           #f4f9f5;
-  --color-bg-card-hover:     #e8f0ea;
-  --color-bg-elevated:       #dae6dc;
-  --color-border-subtle:     rgba(40, 120, 50, 0.08);
-  --color-border-strong:     rgba(40, 120, 50, 0.16);
-  --color-text-primary:      #0c1a0e;
-  --color-text-muted:        #4a6e50;
-  --color-text-inverted:     #ffffff;
+/* ── DYNAMIC TINTED THEME — LIGHT ── */
+/* Uses the hue to generate subtle off-white tinted backgrounds */
+html[data-tinted-bg="true"]:not(.dark),
+[data-tinted-bg="true"]:not(.dark) {
+  --color-bg-base: hsl(var(--color-primary-h), 30%, 96%);
+  --color-bg-card: hsl(var(--color-primary-h), 30%, 99%);
+  --color-bg-card-hover: hsl(var(--color-primary-h), 30%, 94%);
+  --color-bg-elevated: hsl(var(--color-primary-h), 30%, 92%);
+  --color-bg-gradient-start: hsl(var(--color-primary-h), 30%, 93%);
+  --color-bg-gradient-end: hsl(var(--color-primary-h), 30%, 97%);
+  --color-bg-chrome: hsla(var(--color-primary-h), 30%, 98%, 0.82);
+  --color-border-subtle: hsla(var(--color-primary-h), 50%, 40%, 0.1);
+  --color-border-strong: hsla(var(--color-primary-h), 50%, 40%, 0.2);
+  --color-text-primary: hsl(var(--color-primary-h), 40%, 10%);
+  --color-text-muted: hsl(var(--color-primary-h), 20%, 40%);
 }
 
 html,

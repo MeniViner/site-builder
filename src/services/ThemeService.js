@@ -4,7 +4,7 @@ import { normalizeBorderStyle } from '../utils/borderStyles';
 
 const DEFAULT_THEME = {
     primaryColor: '#dc2626',
-    colorPackage: 'classic',
+    useTintedBackground: true,
     displayMode: 'dark',
     borderStyle: 'cyber',
     linksLayout: 'cards',
@@ -19,7 +19,6 @@ const DEFAULT_THEME = {
 };
 
 const WIDGET_HEIGHT_OPTIONS = ['full', 'high', 'medium', 'low'];
-const COLOR_PACKAGE_OPTIONS = ['classic', 'ocean', 'crimson', 'forest'];
 
 class ThemeService {
     constructor() {
@@ -48,9 +47,11 @@ class ThemeService {
         const widgetHeight = WIDGET_HEIGHT_OPTIONS.includes(data.widgetHeight)
             ? data.widgetHeight
             : DEFAULT_THEME.widgetHeight;
-        const colorPackage = COLOR_PACKAGE_OPTIONS.includes(data.colorPackage)
-            ? data.colorPackage
-            : DEFAULT_THEME.colorPackage;
+        const useTintedBackground = data.useTintedBackground !== undefined
+            ? data.useTintedBackground
+            : (data.colorPackage !== undefined
+                ? data.colorPackage !== 'classic'
+                : DEFAULT_THEME.useTintedBackground);
         const externalLinksBordered = data.externalLinksBordered !== undefined
             ? data.externalLinksBordered
             : (data.externalLinksBordeprimary !== undefined
@@ -59,7 +60,7 @@ class ThemeService {
 
         return {
             primaryColor: data.primaryColor || DEFAULT_THEME.primaryColor,
-            colorPackage,
+            useTintedBackground,
             displayMode: data.displayMode || DEFAULT_THEME.displayMode,
             borderStyle: normalizeBorderStyle(data.borderStyle || DEFAULT_THEME.borderStyle),
             linksLayout: data.linksLayout || DEFAULT_THEME.linksLayout,

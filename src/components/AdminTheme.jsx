@@ -11,7 +11,6 @@ import { normalizeBorderStyle, panelStyle } from '../utils/borderStyles';
 
 const SETTINGS_NAV = [
     { id: 'primaryColor', label: 'צבע ראשי' },
-    { id: 'colorPackage', label: 'ערכת צבע' },
     { id: 'displayMode', label: 'מצב תצוגה' },
     { id: 'borderStyle', label: 'סגנון מסגרות' },
     { id: 'widgetHeight', label: 'גובה ווידגט' },
@@ -32,29 +31,6 @@ const COLOR_SWATCHES = [
     { hex: '#64748b', label: 'אפור-כחול' },
     { hex: '#78716c', label: 'אפור' },
     { hex: '#7B3F00', label: 'חום' },
-];
-
-const COLOR_PACKAGES = [
-    {
-        value: 'classic', label: 'Classic', labelHe: 'קלאסי',
-        description: 'גווני אפור נקיים עם עומק פרימיום',
-        swatch: { base: '#0c0d12', card: '#1a1c23', elevated: '#252830' },
-    },
-    {
-        value: 'ocean', label: 'Ocean', labelHe: 'כחול ים',
-        description: 'גווני כחול עמוק לתחושת אמינות ופיקוד',
-        swatch: { base: '#080c14', card: '#0f1724', elevated: '#1a2840' },
-    },
-    {
-        value: 'crimson', label: 'Crimson', labelHe: 'אדום עמוק',
-        description: 'בורגנדי עשיר עם נוכחות מפקדת',
-        swatch: { base: '#0e0809', card: '#1a1012', elevated: '#301c20' },
-    },
-    {
-        value: 'forest', label: 'Forest', labelHe: 'ירוק טקטי',
-        description: 'ירוק זית ביער — מראה צבאי טקטי',
-        swatch: { base: '#080c09', card: '#0f1810', elevated: '#1c3020' },
-    },
 ];
 
 const DISPLAY_MODES = [
@@ -199,6 +175,7 @@ export default function AdminTheme() {
     };
 
     const showSection = (id) => activeSettingId === id;
+    const isTintedBackgroundEnabled = draft.useTintedBackground !== false;
 
     return (
         <div dir="rtl" className="h-full flex flex-col bg-gray-50 dark:bg-[#12141a] text-gray-900 dark:text-white font-heebo relative">
@@ -309,75 +286,33 @@ export default function AdminTheme() {
                                 </div>
                             </div>
 
-                        </section>
-                    )}
-
-                    {/* ==================== COLOR PACKAGE ==================== */}
-                    {showSection('colorPackage') && (
-                        <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
-                            <div className="flex items-center gap-3 mb-6 pb-4">
-                                <div className="bg-primary-500/10 p-2.5 rounded-lg border border-primary-500/20">
-                                    <Palette size={20} className="text-primary-400" />
-                                </div>
-                                <div>
-                                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">ערכת צבע</h2>
-                                    <p className="text-sm text-gray-400 dark:text-gray-500">בחר ערכת צבעים שלמה שתשנה את הרקעים, הכרטיסים והבורדרים</p>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                {COLOR_PACKAGES.map((pkg) => {
-                                    const isActive = (draft.colorPackage || 'classic') === pkg.value;
-                                    return (
-                                        <button
-                                            key={pkg.value}
-                                            onClick={() => updateField('colorPackage', pkg.value)}
-                                            className={`relative p-5 rounded-xl border-2 text-right transition-all ${
-                                                isActive
-                                                    ? 'bg-primary-500/10 border-primary-500/40 ring-1 ring-primary-500/20'
-                                                    : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
+                            <div className="mt-5 p-4 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5">
+                                <div className="flex items-start justify-between gap-4" >
+                                    <div>
+                                        <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-1">השתקפות צבע על רקעי האתר</h3>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                                            מחיל גוון עדין של הצבע הראשי שבחרת על כלל רקעי האתר והכרטיסיות. כיבוי אפשרות זו ישאיר את רקעי האתר בגוון קלאסי (אפור/שחור נקי).
+                                        </p>
+                                    </div>
+                                    <button
+                                    dir="ltr"
+                                        type="button"
+                                        onClick={() => updateField('useTintedBackground', !isTintedBackgroundEnabled)}
+                                        className={`relative inline-flex h-7 w-14 shrink-0 items-center rounded-full border transition-all ${isTintedBackgroundEnabled
+                                            ? 'bg-primary-600 border-primary-400/70 shadow-[0_0_16px_rgba(220,38,38,0.35)]'
+                                            : 'bg-gray-300 dark:bg-gray-700 border-gray-400/60 dark:border-gray-500/60'
                                             }`}
-                                        >
-                                            {/* 3-Layer Swatch Preview */}
-                                            <div className="w-full h-20 rounded-lg mb-4 relative overflow-hidden shadow-inner border border-white/5">
-                                                {/* Layer 1: Base */}
-                                                <div className="absolute inset-0" style={{ backgroundColor: pkg.swatch.base }} />
-                                                {/* Layer 2: Card */}
-                                                <div
-                                                    className="absolute bottom-0 left-2 right-2 top-4 rounded-t-md"
-                                                    style={{ backgroundColor: pkg.swatch.card }}
-                                                />
-                                                {/* Layer 3: Elevated */}
-                                                <div
-                                                    className="absolute bottom-2 left-4 right-4 top-8 rounded-sm"
-                                                    style={{ backgroundColor: pkg.swatch.elevated }}
-                                                />
-                                                {/* Subtle glow accent from primary */}
-                                                <div
-                                                    className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/2 h-[2px] rounded-full opacity-70"
-                                                    style={{ backgroundColor: draft.primaryColor || '#dc2626', boxShadow: `0 0 8px ${draft.primaryColor || '#dc2626'}` }}
-                                                />
-                                            </div>
-
-                                            <h3 className={`font-bold text-sm mb-0.5 ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>
-                                                {pkg.label}
-                                            </h3>
-                                            <span className={`text-xs font-medium ${isActive ? 'text-primary-400' : 'text-gray-500 dark:text-gray-500'}`}>
-                                                {pkg.labelHe}
-                                            </span>
-                                            <p className={`text-[11px] mt-1.5 leading-snug ${isActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>
-                                                {pkg.description}
-                                            </p>
-
-                                            {isActive && (
-                                                <div className="absolute top-3 left-3 w-5 h-5 bg-primary-500 rounded-full flex items-center justify-center">
-                                                    <div className="w-2 h-2 bg-white rounded-full" />
-                                                </div>
-                                            )}
-                                        </button>
-                                    );
-                                })}
+                                        aria-pressed={isTintedBackgroundEnabled}
+                                        aria-label="הפעלת השתקפות צבע על רקעים"
+                                    >
+                                        <span
+                                            className={`inline-block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform ${isTintedBackgroundEnabled ? 'translate-x-7' : 'translate-x-1'
+                                                }`}
+                                        />
+                                    </button>
+                                </div>
                             </div>
+
                         </section>
                     )}
 

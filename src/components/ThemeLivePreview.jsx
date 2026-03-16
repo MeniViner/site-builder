@@ -39,7 +39,7 @@ export default function ThemeLivePreview({ draft, displayModeOverride }) {
             ...draft,
             displayMode: previewMode,
         });
-        contentRef.current.dataset.theme = draft.colorPackage || 'classic';
+        contentRef.current.dataset.tintedBg = draft.useTintedBackground !== false ? 'true' : 'false';
     }, [draft, previewMode]);
 
     if (!draft) return null;
