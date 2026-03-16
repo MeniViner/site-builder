@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Home } from '../App';
 import { ThemeContext, useTheme, applyThemeToElement } from '../context/ThemeContext';
 
-export default function ThemeLivePreview({ draft }) {
+export default function ThemeLivePreview({ draft, displayModeOverride }) {
     const containerRef = useRef(null);
     const contentRef = useRef(null);
     const globalThemeContext = useTheme();
@@ -16,38 +16,47 @@ export default function ThemeLivePreview({ draft }) {
         if (!containerRef.current) return;
 
         const observer = new ResizeObserver((entries) => {
-            const { width, height } = entries[0].contentRect;
-            if (!width || !height) return;
-            // Scale so the full desktop size fits inside both the preview width and height.
-            setScale(Math.min(width / DESKTOP_WIDTH, height / DESKTOP_HEIGHT));
+            const { width } = entries[0].contentRect;
+            if (!width) return;
+            // Scale strictly based on width. The aspect-ratio will handle the height perfectly.
+            setScale(width / DESKTOP_WIDTH);
         });
 
         observer.observe(containerRef.current);
         return () => observer.disconnect();
     }, []);
 
-    // Apply the draft CSS variables to the scaled DOM element continuously 
+    const previewMode = displayModeOverride === 'dark'
+        ? 'dark'
+        : displayModeOverride === 'light'
+            ? 'light'
+            : globalThemeContext.effectiveMode;
+
+    // Apply the draft CSS variables to the scaled DOM element continuously
     useEffect(() => {
-        if (contentRef.current && draft) {
-            applyThemeToElement(contentRef.current, draft);
-        }
-    }, [draft]);
+        if (!contentRef.current || !draft) return;
+        applyThemeToElement(contentRef.current, {
+            ...draft,
+            displayMode: previewMode,
+        });
+    }, [draft, previewMode]);
 
     if (!draft) return null;
 
     // Forge a ThemeContext value where the global theme is overridden by our draft theme.
     // This allows `<Home />` (which internally calls `useTheme()`) to instantly read our sliders.
-    const previewContextValue = {
-        ...globalThemeContext,
-        theme: draft,
-        effectiveMode: draft.displayMode === 'user-toggle' ? 'dark' : (draft.displayMode || 'dark')
-    };
+        const previewContextValue = {
+            ...globalThemeContext,
+            theme: draft,
+            effectiveMode: previewMode,
+        };
 
     return (
         <div
             ref={containerRef}
             className="w-full rounded-2xl  border-gray-800 dark:border-white/20 shadow-2xl relative overflow-hidden bg-gray-50 dark:bg-[#1e212b]"
-            style={{ height: 'min(53vh, 640px)' }}
+            // Force the wrapper to match the inner desktop proportions exactly
+            style={{ aspectRatio: `${DESKTOP_WIDTH} / ${DESKTOP_HEIGHT}` }}
         >
             <div
                 ref={contentRef}

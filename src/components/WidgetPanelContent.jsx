@@ -11,6 +11,7 @@ import WidgetCelebrations from './widgets/WidgetCelebrations';
 import WidgetHeritage from './widgets/WidgetHeritage';
 import WidgetTips from './widgets/WidgetTips';
 import WidgetEmptyState from './widgets/WidgetEmptyState';
+import WidgetAlerts from './widgets/WidgetAlerts';
 import { getWidgetSetting } from '../utils/widgetDisplay';
 
 export function getWidgetTitle(activeWidget) {
@@ -41,7 +42,7 @@ export function WidgetContent({ activeWidget, widgetConfig }) {
   if (activeWidget === 'celebrations') return <WidgetCelebrations data={widgetConfig?.celebrations || []} settings={getWidgetSetting(widgetSettings, 'celebrations')} />;
   if (activeWidget === 'heritage') return <WidgetHeritage data={widgetConfig?.heritage || []} settings={getWidgetSetting(widgetSettings, 'heritage')} />;
   if (activeWidget === 'tips') return <WidgetTips data={widgetConfig?.tips || []} settings={getWidgetSetting(widgetSettings, 'tips')} />;
-  if (activeWidget === 'alerts') return <WidgetEmptyState icon={Bell} title="לוח הודעות" description="הרכיב הזה כבר מוכן למיקום, וכעת נשאר לחבר אליו ניהול תוכן והודעות שוטפות." />;
+  if (activeWidget === 'alerts') return <WidgetAlerts data={widgetConfig?.alerts || []} settings={getWidgetSetting(widgetSettings, 'alerts')} />;
   return <WidgetEmptyState icon={Bell} title="ווידג'ט לא ידוע" description="לא זוהתה תצורה מתאימה עבור הרכיב שנבחר." />;
 }
 

@@ -143,7 +143,7 @@ export default function AdminCelebrations() {
 
             <WidgetDisplaySettingsPanel
                 widgetKey="celebrations"
-                title="הגדרות הצגה דינמיות לווידג׳ט הזה"
+                title="הגדרות הצגה דינמיות לווידג׳ט "
             />
         </div>
     );

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { AlertTriangle, Check, Lightbulb, Pencil, Plus, Trash2, X } from 'lucide-react';
+import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
 import { useWidget } from '../context/WidgetContext';
 
 const panelCls = 'bg-themeBg-card bg-white dark:bg-[#232733] text-themeText-primary text-gray-900 dark:text-white border border-gray-200 dark:border-white/10';
@@ -130,6 +131,7 @@ export default function AdminTips() {
                     </div>
                 ))}
             </div>
+            <WidgetDisplaySettingsPanel widgetKey="tips" title="הגדרות הצגה דינמיות לווידג׳ט " />
         </div>
     );
 }

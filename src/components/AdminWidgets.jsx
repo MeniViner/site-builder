@@ -56,17 +56,6 @@ export default function AdminWidgets() {
 
   const supportsSettings = SETTINGS_SUPPORTED.includes(selected);
 
-  const previewConfig = useMemo(() => {
-    if (!widgetConfig) return null;
-    return {
-      ...widgetConfig,
-      activeWidget: selected,
-      widgetSettings: supportsSettings
-        ? { ...(widgetConfig.widgetSettings || {}), [selected]: settingsDraft }
-        : widgetConfig.widgetSettings,
-    };
-  }, [widgetConfig, selected, settingsDraft, supportsSettings]);
-
   const hasChanges = useMemo(() => {
     if (!widgetConfig) return false;
     const activeChanged = selected !== widgetConfig.activeWidget;
@@ -147,9 +136,9 @@ export default function AdminWidgets() {
       )}
 
       <div className="flex-1 px-8 pb-8 pt-4">
-        <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1.2fr)_430px]">
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="flex flex-col gap-6 2xl:flex-row 2xl:items-start">
+          <div className="flex-1 space-y-6">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2  lg:grid-cols-3 1xl:grid-cols-4">
             {AVAILABLE_WIDGETS.map((widget) => {
               const isSelected = selected === widget.id;
               const isLive = widgetConfig?.activeWidget === widget.id;
@@ -188,9 +177,12 @@ export default function AdminWidgets() {
             </div>
           </div>
 
-          <div className="min-w-0">
-            <div className="sticky top-28">
-              <WidgetLivePreview widgetConfigOverride={previewConfig} title="תצוגה מקדימה מהאתר" />
+          {/* קו מפריד צבעוני כמו בעמודי "ניהול X" */}
+          <div className="hidden 2xl:block w-px self-stretch bg-gradient-to-b from-primary/0 via-primary/60 to-primary/0" />
+
+          <div className="min-w-0 2xl:w-[560px] 2xl:max-w-[44vw]">
+            <div className="sticky top-24 h-[calc(100vh-8rem)]">
+              <WidgetLivePreview activeWidget={selected} showStand={false} fillHeight desktopOffsetX={-56} />
             </div>
           </div>
         </div>
@@ -198,7 +190,7 @@ export default function AdminWidgets() {
 
       {!supportsSettings && selected !== 'events' && selected !== 'countdown' && selected !== 'alerts' && (
         <div className="mt-6 text-sm text-amber-600 dark:text-amber-300">
-          שים לב: לווידג׳ט הזה עדיין אין הגדרות פריסה ייעודיות.
+          שים לב: לווידג׳ט זה עדיין אין הגדרות פריסה ייעודיות.
         </div>
       )}
     </div>

@@ -283,7 +283,7 @@ export default function AdminNavigation() {
                             <Search size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
                             <input
                                 type="text"
-                                placeholder="חיפוש בתיקייה..."
+                                placeholder="חפש לינק מסוים"
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
                                 className="w-48 bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] rounded-md pr-8 pl-3 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-primary-500 transition shadow-inner"

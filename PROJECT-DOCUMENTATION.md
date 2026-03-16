@@ -2,7 +2,7 @@
 
 **Document Version:** 1.0  
 **Last Updated:** March 2025  
-**Project:** BIHS 7134 — School Portal for Unit 7134 (Hebrew: בית הספר לחמ"ם 7134)
+**Project:** BIHS 7134 — School Portal for Unit 7134 (Hebrew: צוות אלפא 7134)
 
 ---
 
@@ -276,7 +276,7 @@ All endpoints are relative to the SharePoint site (e.g. `https://tenant.sharepoi
 1. **Home page**
    - Rotating hero backgrounds (6 images, 3s interval).
    - Navbar: logo, category links (scroll or external URL), search (UI only), “ניהול”, greeting + user name.
-   - Hero: unit logo, title “בית הספר לחמ"ם 7134”, short description.
+   - Hero: unit logo, title “צוות אלפא 7134”, short description.
    - “דבר המפקד”: commander image, fixed quote, pagination buttons (visual only).
    - “מופעי החודש”: EventsList with auto-rotation and Hebrew dates.
    - Sections per navigation category (with children and no direct URL): section title + icon, grid of FlipCards (each card: icon, title, optional URL or subLinks on flip).

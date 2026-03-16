@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useWidget } from '../context/WidgetContext';
 import { BookUser, Plus, Trash2, Pencil, X, Check, User, Phone, Hash } from 'lucide-react';
+import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
 
 const inputCls = 'w-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 transition';
 const labelCls = 'block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide';
@@ -154,6 +155,10 @@ export default function AdminPhonebook() {
                 </div>
             )}
 
+            <WidgetDisplaySettingsPanel
+                widgetKey="phonebook"
+                title="הגדרות הצגה דינמיות לווידג׳ט "
+            />
         </div>
     );
 }

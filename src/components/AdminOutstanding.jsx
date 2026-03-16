@@ -150,6 +150,10 @@ export default function AdminOutstanding() {
                 ))}
             </div>
 
+            <WidgetDisplaySettingsPanel
+                widgetKey="outstanding"
+                title="הגדרות הצגה דינמיות לווידג׳ט "
+            />
         </div>
     );
 }

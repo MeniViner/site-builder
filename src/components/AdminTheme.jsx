@@ -176,7 +176,7 @@ export default function AdminTheme() {
                     )}
                 </div>
 
-                <nav className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar w-full">
+                <nav className="flex items-center gap-2 overflow-x-auto p-1 custom-scrollbar w-full">
                     {SETTINGS_NAV.map(({ id, label }) => (
                         <button
                             key={id}
@@ -214,7 +214,7 @@ export default function AdminTheme() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-5 gap-3 mb-5">
+                            <div className="grid grid-cols-4 gap-3 mb-5">
                                 {COLOR_SWATCHES.map((swatch) => (
                                     <button
                                         key={swatch.hex}
@@ -240,7 +240,7 @@ export default function AdminTheme() {
                             </div>
 
                             <div className="flex items-center gap-3 pt-4 border-t border-gray-200 dark:border-white/5">
-                                <label className="text-sm font-bold text-gray-500 dark:text-gray-400 shrink-0">צבע מותאם:</label>
+                                <label className="text-sm font-bold text-gray-500 dark:text-gray-400 shrink-0">צבע מותאם אישית</label>
                                 <div className="flex items-center gap-2 flex-1">
                                     <button
                                         onClick={() => colorInputRef.current?.click()}
@@ -694,7 +694,31 @@ export default function AdminTheme() {
                             <p className="text-sm font-bold text-gray-500 dark:text-gray-400">תצוגה מקדימה </p>
                             <span className="text-[10px] font-bold tracking-widest uppercase bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20">Live</span>
                         </div>
-                        <ThemeLivePreview draft={draft} />
+
+                        {/* Monitor bezel + stand wrapper for live preview */}
+                        <div className="flex flex-col items-center gap-2">
+                            {/* Monitor bezel / screen frame */}
+                            <div className="w-full max-w-[720px] bg-transparent flex justify-center">
+                                <div className="border-[8px] lg:border-[12px] border-[#1e212b] rounded-2xl md:rounded-3xl bg-[#1e212b] shadow-2xl relative z-10 overflow-hidden w-full">
+                                    <ThemeLivePreview draft={draft} displayModeOverride={draft.displayMode} />
+                                </div>
+                            </div>
+
+                            {/* Monitor stand (neck + base + shadow) */}
+                            <div className="flex flex-col items-center relative z-0 -mt-1">
+                                {/* The Monitor Neck */}
+                                <div className="w-16 md:w-20 h-8 md:h-12 bg-gradient-to-b from-[#1e212b] to-gray-600 shadow-inner" />
+
+                                {/* The Monitor Base */}
+                                <div className="w-40 md:w-56 h-4 md:h-6 bg-gradient-to-b from-gray-500 to-gray-800 rounded-t-xl md:rounded-t-2xl shadow-2xl border-b-4 border-gray-900 relative">
+                                    {/* Base highlight for realism */}
+                                    <div className="absolute top-0 left-1/4 right-1/4 h-[1px] bg-white/20" />
+                                </div>
+
+                                {/* Desk shadow effect */}
+                                <div className="w-48 md:w-64 h-2 bg-black/20 blur-md rounded-full mt-1" />
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

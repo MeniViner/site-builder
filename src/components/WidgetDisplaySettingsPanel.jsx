@@ -73,7 +73,7 @@ export default function WidgetDisplaySettingsPanel({ widgetKey, title }) {
                         {title || 'הגדרות הצגה דינמיות לווידג׳ט שנבחר'}
                     </h2>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        קבע כמה פריטים יוצגו בווידג׳ט הזה, האם לעבור אוטומטית, ומה יהיה קצב ההחלפה.
+                        קבע כמה פריטים יוצגו בווידג׳ט זה, האם לעבור אוטומטית, ומה יהיה קצב ההחלפה.
                     </p>
                 </div>
                 {isSaving && (
@@ -112,17 +112,17 @@ export default function WidgetDisplaySettingsPanel({ widgetKey, title }) {
 
                 <label className="block">
                     <span className="mb-2 block text-xs font-bold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
-                        משך מעבר אוטומטי (ms)
+                        משך מעבר אוטומטי (שניות)
                     </span>
                     <input
                         type="number"
-                        min="2000"
-                        step="500"
-                        value={settingsDraft.intervalMs}
+                        min="2"
+                        step="0.1"
+                        value={settingsDraft.intervalMs / 1000}
                         onChange={(event) =>
                             setSettingsDraft((prev) => ({
                                 ...prev,
-                                intervalMs: Math.max(2000, Number(event.target.value) || 2000),
+                                intervalMs: Math.max(2000, Math.round(Number(event.target.value) * 1000) || 2000),
                             }))
                         }
                         className={inputCls}

@@ -1,7 +1,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import SiteContentService from '../services/SiteContentService';
 
-const SiteContentContext = createContext();
+export const SiteContentContext = createContext();
 
 export const useSiteContent = () => useContext(SiteContentContext);
 

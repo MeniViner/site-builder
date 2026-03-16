@@ -3,7 +3,7 @@ import { toast } from 'react-toastify';
 import {
     Undo2, Calendar, Menu, Save, FileText, Link as LinkIcon,
     LayoutGrid, Palette, ExternalLink, Sun, Moon,
-    Award, Timer, Rss, BookUser, BusFront, Vote, PartyPopper, ScrollText, Lightbulb
+    Award, Timer, Rss, BookUser, BusFront, Vote, PartyPopper, ScrollText, Lightbulb, Bell
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import AdminEvents from './AdminEvents';
@@ -15,6 +15,7 @@ import AdminExternalLinks from './AdminExternalLinks';
 import AdminOutstanding from './AdminOutstanding';
 import AdminCountdown from './AdminCountdown';
 import AdminNews from './AdminNews';
+import AdminAlerts from './AdminAlerts';
 import AdminPhonebook from './AdminPhonebook';
 import AdminShuttles from './AdminShuttles';
 import AdminPolls from './AdminPolls';
@@ -33,6 +34,7 @@ import { useTheme } from '../context/ThemeContext';
 // so the link will simply not render.
 const WIDGET_MANAGE_MAP = {
     events: { label: 'ניהול מופעים', icon: Calendar, path: '/admin/events' },
+    alerts: { label: 'ניהול לוח הודעות', icon: Bell, path: '/admin/alerts' },
     outstanding: { label: 'ניהול מצטיינים', icon: Award, path: '/admin/outstanding' },
     countdown: { label: 'ניהול ספירה לאחור', icon: Timer, path: '/admin/countdown' },
     news: { label: 'ניהול מבזקים', icon: Rss, path: '/admin/news' },
@@ -82,6 +84,7 @@ export default function AdminHub() {
         if (path.includes('/admin/outstanding')) return 'outstanding';
         if (path.includes('/admin/countdown')) return 'countdown';
         if (path.includes('/admin/news')) return 'news';
+        if (path.includes('/admin/alerts')) return 'alerts';
         if (path.includes('/admin/phonebook')) return 'phonebook';
         if (path.includes('/admin/shuttles')) return 'shuttles';
         if (path.includes('/admin/polls')) return 'polls';
@@ -94,8 +97,9 @@ export default function AdminHub() {
     const activeTab = getActiveTab();
 
     // Determine the key for the current dynamic widget page
-    const widgetPageKeys = ['events', 'outstanding', 'countdown', 'news', 'phonebook', 'shuttles', 'polls', 'celebrations', 'heritage', 'tips'];
+    const widgetPageKeys = ['events', 'alerts', 'outstanding', 'countdown', 'news', 'phonebook', 'shuttles', 'polls', 'celebrations', 'heritage', 'tips'];
     const isOnWidgetPage = widgetPageKeys.includes(activeTab);
+    const previewActiveWidget = isOnWidgetPage ? activeTab : activeWidget;
 
     const handleBackup = async () => {
         if (SHAREPOINT_CONFIG.useMock) {
@@ -250,6 +254,7 @@ export default function AdminHub() {
                                 <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />
                                 <Route path="/countdown" element={<div className="w-full h-full"><AdminCountdown /></div>} />
                                 <Route path="/news" element={<div className="w-full h-full"><AdminNews /></div>} />
+                                <Route path="/alerts" element={<div className="w-full h-full"><AdminAlerts /></div>} />
                                 <Route path="/phonebook" element={<div className="w-full h-full"><AdminPhonebook /></div>} />
                                 <Route path="/shuttles" element={<div className="w-full h-full"><AdminShuttles /></div>} />
                                 <Route path="/polls" element={<div className="w-full h-full"><AdminPolls /></div>} />
@@ -258,9 +263,9 @@ export default function AdminHub() {
                                 <Route path="/tips" element={<div className="w-full h-full"><AdminTips /></div>} />
                             </Routes>
                         </div>
-                        <aside className="shrink-0 flex items-start pt-2 pr-1">
-                            <div className="sticky top-28 w-[430px] max-w-[430px]">
-                                <WidgetLivePreview title="תצוגה מקדימה מהאתר" />
+                        <aside className="shrink-0 h-full w-[560px] max-w-[44vw]">
+                            <div className="sticky top-4 h-[calc(100vh-2rem)] w-full">
+                                <WidgetLivePreview activeWidget={previewActiveWidget} showStand={false} fillHeight desktopOffsetX={-56} />
                             </div>
                         </aside>
                     </div>
@@ -276,6 +281,7 @@ export default function AdminHub() {
                             <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />
                             <Route path="/countdown" element={<div className="w-full h-full"><AdminCountdown /></div>} />
                             <Route path="/news" element={<div className="w-full h-full"><AdminNews /></div>} />
+                            <Route path="/alerts" element={<div className="w-full h-full"><AdminAlerts /></div>} />
                             <Route path="/phonebook" element={<div className="w-full h-full"><AdminPhonebook /></div>} />
                             <Route path="/shuttles" element={<div className="w-full h-full"><AdminShuttles /></div>} />
                             <Route path="/polls" element={<div className="w-full h-full"><AdminPolls /></div>} />

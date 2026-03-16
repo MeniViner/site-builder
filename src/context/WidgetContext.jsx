@@ -1,7 +1,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import WidgetService, { createDefaultWidgetConfig } from '../services/WidgetService';
 
-const WidgetContext = createContext();
+export const WidgetContext = createContext();
 
 export const useWidget = () => useContext(WidgetContext);
 

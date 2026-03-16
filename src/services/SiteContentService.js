@@ -4,7 +4,7 @@ import { getRequestDigest } from '../utils/sharepointUtils';
 const DEFAULT_SITE_CONTENT = {
     hero: {
         siteName: 'שם האתר',
-        title: 'בית הספר לחמ"ם \n 7134',
+        title: 'צוות אלפא \n בניה',
         subtitle: 'ברוכים הבאים',
         description: 'מרכז ההכשרות המוביל בצה"ל למקצועות החמ"ם.\nאנו אמונים על רצף ההכשרה, פיתוח מקצועי מתמיד ושמירה על כשירות עליונה בתחום המערכות המתקדמות.',
         backgroundImages: [
@@ -19,7 +19,7 @@ const DEFAULT_SITE_CONTENT = {
     commander: {
         image: '/images/אייל זמיר.png',
         sectionTitle: 'דבר המפקד',
-        roleLabel: 'מפקד היחידה',
+        roleLabel: 'שם מפקד היחידה',
         decorativeElement: 'line-diamond-line',
         messages: [
             {

@@ -294,6 +294,7 @@ function ExtLinksFloating({ links, fixed: isFixed = true, bordered = true, showB
 function CommanderSection({ commander, messages }) {
   const [msgIndex, setMsgIndex] = useState(0);
   const hasMultiple = messages.length > 1;
+  const decorativeElement = commander?.decorativeElement || 'line-diamond-line';
 
   useEffect(() => {
     if (!hasMultiple) return;
@@ -324,14 +325,44 @@ function CommanderSection({ commander, messages }) {
         <div className="flex gap-0.5 mt-6 sm:absolute sm:bottom-0 sm:left-0">
           {hasMultiple ? (
             <>
-              <button onClick={goPrev} className="bg-primary w-10 h-10 flex items-center justify-center text-white hover:brightness-110 transition"><ChevronRight size={18} /></button>
-              <button onClick={goNext} className="bg-primary w-10 h-10 flex items-center justify-center text-white hover:brightness-110 transition"><ChevronLeft size={18} /></button>
+              <button
+                onClick={goPrev}
+                className="bg-primary w-10 h-10 flex items-center justify-center text-white hover:brightness-110 transition"
+              >
+                <ChevronRight size={18} />
+              </button>
+              <button
+                onClick={goNext}
+                className="bg-primary w-10 h-10 flex items-center justify-center text-white hover:brightness-110 transition"
+              >
+                <ChevronLeft size={18} />
+              </button>
             </>
           ) : (
-            <div className="flex items-center gap-1.5 opacity-50">
-              <div className="w-8 h-[2px] bg-primary" />
-              <div className="w-2 h-2 rotate-45 border border-primary" />
-              <div className="w-5 h-[2px] bg-primary" />
+            <div className="flex items-center gap-2 opacity-60 text-primary">
+              {decorativeElement === 'line-diamond-line' && (
+                <>
+                  <div className="w-8 h-[2px] bg-current rounded-full" />
+                  <div className="w-2 h-2 rotate-45 border border-current" />
+                  <div className="w-5 h-[2px] bg-current rounded-full" />
+                </>
+              )}
+              {decorativeElement === 'dots' && (
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-current" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-current/70" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-current/40" />
+                </div>
+              )}
+              {decorativeElement === 'line' && (
+                <div className="w-12 h-[2px] rounded-full bg-current" />
+              )}
+              {decorativeElement === 'double-line' && (
+                <div className="flex flex-col gap-1">
+                  <div className="w-12 h-[2px] rounded-full bg-current" />
+                  <div className="w-8 h-[2px] rounded-full bg-current/80 self-end" />
+                </div>
+              )}
             </div>
           )}
         </div>

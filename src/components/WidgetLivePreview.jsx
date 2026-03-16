@@ -1,95 +1,83 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useWidget } from '../context/WidgetContext';
-import { useTheme, applyThemeToElement } from '../context/ThemeContext';
-import WidgetPanelContent, { getWidgetTitle } from './WidgetPanelContent';
+import React, { useEffect, useRef, useState } from 'react';
+import { Home } from '../App';
+import { WidgetContext, useWidget } from '../context/WidgetContext';
 
-const PREVIEW_WIDTH = 380;
-// גובה וירטואלי גדול יותר כדי לראות יותר מהווידג׳ט בתוך המעטפת של הניהול
-const PREVIEW_HEIGHT = 680;
+export default function WidgetLivePreview({
+    activeWidget,
+    showStand = true,
+    fillHeight = false,
+    desktopOffsetX = 0
+}) {
+    const containerRef = useRef(null);
+    const [scale, setScale] = useState(1);
+    const globalWidgetContext = useWidget();
 
-export default function WidgetLivePreview({ widgetConfigOverride = null, title = 'תצוגה מקדימה מהאתר' }) {
-  const containerRef = useRef(null);
-  const previewRef = useRef(null);
-  const [scale, setScale] = useState(1);
-  const [isTallScreen, setIsTallScreen] = useState(false);
-  const { widgetConfig } = useWidget();
-  const { theme, effectiveMode } = useTheme();
+    const DESKTOP_WIDTH = 1440;
+    const DESKTOP_HEIGHT = 900;
+    // We want the camera to focus on the left 480px of the screen
+    const CROP_WIDTH = 480;
 
-  const effectiveWidgetConfig = useMemo(
-    () => widgetConfigOverride || widgetConfig,
-    [widgetConfigOverride, widgetConfig]
-  );
+    useEffect(() => {
+        if (!containerRef.current) return;
+        const observer = new ResizeObserver((entries) => {
+            const { width, height } = entries[0].contentRect;
+            if (!width) return;
+            // In full-height mode we "cover" the frame to avoid dead space.
+            if (fillHeight && height) {
+                setScale(Math.max(width / CROP_WIDTH, height / DESKTOP_HEIGHT));
+                return;
+            }
+            // Scale the desktop so the 480px crop area fits perfectly in our container
+            setScale(width / CROP_WIDTH);
+        });
+        observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, [fillHeight]);
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const observer = new ResizeObserver((entries) => {
-      const { width, height } = entries[0].contentRect;
-      if (!width || !height) return;
-      const nextScale = Math.min(width / PREVIEW_WIDTH, height / PREVIEW_HEIGHT);
-      // במסך הניהול יש לנו מסגרת גבוהה ורחבה מספיק, לכן אפשר לאפשר גם הגדלה
-      // כדי שהווידג׳ט ירונדר קרוב יותר לגודל האמיתי שלו באתר.
-      setScale(nextScale);
-    });
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, []);
-
-  // גובה שונה למסכים גבוהים מאוד, בלי לגעת במסכים קטנים
-  useEffect(() => {
-    const updateTallFlag = () => {
-      setIsTallScreen(window.innerHeight >= 900);
+    // Override the global widget context JUST for this preview,
+    // so it shows the currently hovered/selected widget in the admin panel
+    const previewWidgetContext = {
+        ...globalWidgetContext,
+        widgetConfig: {
+            ...globalWidgetContext.widgetConfig,
+            activeWidget: activeWidget
+        }
     };
-    updateTallFlag();
-    window.addEventListener('resize', updateTallFlag);
-    return () => window.removeEventListener('resize', updateTallFlag);
-  }, []);
 
-  useEffect(() => {
-    if (!previewRef.current || !theme) return;
-    // בתצוגה המקדימה נרצה להשתמש במצב התצוגה האפקטיבי של האדמין (טוגל למעלה)
-    const themedWithMode = {
-      ...theme,
-      displayMode: effectiveMode === 'dark' ? 'dark' : 'light',
-    };
-    applyThemeToElement(previewRef.current, themedWithMode);
-  }, [theme, effectiveWidgetConfig, effectiveMode]);
-
-  const activeWidget = effectiveWidgetConfig?.activeWidget || 'events';
-  const containerHeightStyle = isTallScreen ? 'min(82vh, 760px)' : 'min(72vh, 620px)';
-
-  return (
-    <div
-      ref={containerRef}
-      className="flex w-full shrink-0 flex-col overflow-hidden rounded-2xl border-2 border-gray-300 bg-white shadow-xl dark:border-white/15 dark:bg-[#232733]"
-      style={{ height: containerHeightStyle, minWidth: '320px', maxWidth: '480px' }}
-    >
-      <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-white/10 dark:bg-white/5">
-        <div className="text-xs font-bold text-gray-500 dark:text-gray-400">{title}</div>
-        <div className="mt-1 text-sm font-black text-gray-900 dark:text-white">{getWidgetTitle(activeWidget)}</div>
-      </div>
-
-      <div className="flex min-h-0 flex-1 items-center justify-center bg-gray-100/80 p-3 dark:bg-[#1b1d26]">
-        <div
-          className="origin-center overflow-hidden rounded-[28px]"
-          style={{
-            width: `${PREVIEW_WIDTH}px`,
-            height: `${PREVIEW_HEIGHT}px`,
-            transform: `scale(${scale})`,
-          }}
-        >
-          <div
-            ref={previewRef}
-            dir="rtl"
-            className="relative h-full w-full bg-gray-50 text-gray-900 dark:bg-[#1e212b] dark:text-white"
-          >
-            <div className="h-full w-full p-3">
-              <div className="h-full w-full bg-white shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)] dark:bg-[#232733]">
-                <WidgetPanelContent widgetConfig={effectiveWidgetConfig} activeWidget={activeWidget} />
-              </div>
+    return (
+        <div className={`flex flex-col items-center w-full ${fillHeight ? 'h-full max-w-none' : 'max-w-[400px] mx-auto'}`}>
+            {/* The Screen Bezel */}
+            <div
+                ref={containerRef}
+                className={`w-full rounded-2xl border-[6px] lg:border-[8px] border-[#1e212b] shadow-2xl relative overflow-hidden bg-gray-50 dark:bg-[#1e212b] ${fillHeight ? 'flex-1 min-h-0' : ''}`}
+                style={fillHeight ? undefined : { aspectRatio: '4 / 5' }}
+            >
+                {/* The Virtual Desktop anchored to the bottom left */}
+                <div
+                    className="absolute bottom-0 left-0 origin-bottom-left pointer-events-none select-none bg-gray-50 dark:bg-[#1e212b]"
+                    style={{
+                        left: `${desktopOffsetX}px`,
+                        width: `${DESKTOP_WIDTH}px`,
+                        height: `${DESKTOP_HEIGHT}px`,
+                        transform: `scale(${scale})`
+                    }}
+                >
+                    <WidgetContext.Provider value={previewWidgetContext}>
+                        <Home />
+                    </WidgetContext.Provider>
+                </div>
             </div>
-          </div>
+
+            {/* The Monitor Stand */}
+            {showStand && (
+                <div className="flex flex-col items-center relative z-0 -mt-1">
+                    <div className="w-12 md:w-16 h-6 md:h-8 bg-gradient-to-b from-[#1e212b] to-gray-600 shadow-inner" />
+                    <div className="w-28 md:w-36 h-3 md:h-4 bg-gradient-to-b from-gray-500 to-gray-800 rounded-t-lg shadow-2xl border-b-2 border-gray-900 relative">
+                        <div className="absolute top-0 left-1/4 right-1/4 h-[1px] bg-white/20" />
+                    </div>
+                    <div className="w-36 md:w-48 h-1.5 bg-black/20 blur-sm rounded-full mt-1" />
+                </div>
+            )}
         </div>
-      </div>
-    </div>
-  );
+    );
 }
