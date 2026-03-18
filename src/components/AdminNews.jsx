@@ -52,17 +52,21 @@ export default function AdminNews() {
     };
 
     return (
-        <div dir="rtl" className="min-h-screen bg-gray-100 dark:bg-[#1e212b] text-gray-900 dark:text-white font-heebo p-8">
+        <div dir="rtl" className="min-h-screen text-gray-900 dark:text-white font-heebo p-8">
             {/* Header */}
-            <div className="flex justify-between items-center mb-8 border-b border-gray-300 dark:border-white/10 pb-4">
-                <div>
-                    <h1 className="text-3xl font-black text-gray-900 dark:text-white flex items-center gap-3">
-                        <Rss size={28} className="text-orange-400" />
-                        ניהול מבזקים ועדכונים
-                    </h1>
-                    <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">ניהול פריטי המבזקים המוצגים בווידגט</p>
+            <div className="mb-8 border-b border-gray-300 dark:border-white/10 pb-4">
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <h1 className="text-3xl font-black text-gray-900 dark:text-white flex items-center gap-3">
+                            <Rss size={28} className="text-orange-400" />
+                            ניהול מבזקים ועדכונים
+                        </h1>
+                        <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">ניהול פריטי המבזקים המוצגים בווידגט</p>
+                    </div>
+                    <button onClick={openNew} className="h-10 inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 rounded-lg text-sm font-bold transition shadow shrink-0">
+                        <Plus size={16} />הוסף מבזק
+                    </button>
                 </div>
-                {isSaving && <span className="text-sm text-gray-500 dark:text-gray-400">שומר...</span>}
             </div>
 
             {saveMessage?.type === 'error' && (
@@ -72,11 +76,9 @@ export default function AdminNews() {
             )}
 
             {/* Toolbar */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-6 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[#232733] px-4 py-2.5">
                 <p className="text-sm text-gray-500 dark:text-gray-400">{list.length} מבזקים ברשימה</p>
-                <button onClick={openNew} className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition shadow">
-                    <Plus size={16} />הוסף מבזק
-                </button>
+                <span className="text-sm text-gray-500 dark:text-gray-400">{isSaving ? 'שומר...' : 'מוכן לעריכה'}</span>
             </div>
 
             {/* Inline form */}
@@ -106,10 +108,10 @@ export default function AdminNews() {
                         </span>
                     </label>
                     <div className="flex gap-3 pt-2">
-                        <button onClick={commitEdit} disabled={!form.text.trim()} className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg text-sm font-bold transition">
+                        <button onClick={commitEdit} disabled={!form.text.trim()} className="h-10 inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 rounded-lg text-sm font-bold transition">
                             <Check size={15} />{editingId === 'new' ? 'הוסף' : 'עדכן'}
                         </button>
-                        <button onClick={cancelEdit} className="flex items-center gap-2 bg-gray-200 dark:bg-white/10 hover:bg-gray-300 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300 px-5 py-2 rounded-lg text-sm font-bold transition">
+                        <button onClick={cancelEdit} className="h-10 inline-flex items-center gap-2 bg-gray-200 dark:bg-white/10 hover:bg-gray-300 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300 px-5 rounded-lg text-sm font-bold transition">
                             <X size={15} />ביטול
                         </button>
                     </div>

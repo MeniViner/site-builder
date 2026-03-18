@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import AdminEvents from './components/AdminEvents';
-import WidgetPanelContent from './components/WidgetPanelContent';
+import WidgetPanelContent, { getWidgetTitle } from './components/WidgetPanelContent';
 import {
   Search, ChevronLeft, ChevronRight,
   Undo2, Globe,
@@ -20,7 +20,10 @@ import AdminHub from './components/AdminHub';
 import RightSidebarNav from './components/RightSidebarNav';
 import { ToastContainer } from 'react-toastify';
 import { normalizeBorderStyle, panelStyle, tacticalClip, isTacticalStyle } from './utils/borderStyles';
+import { getOverlayStyle, normalizeOverlayImageConfig } from './utils/overlayImageConfig';
 import 'react-toastify/dist/ReactToastify.css';
+import Tooltip from './components/Tooltip';
+
 
 /* ================================================================
    FLIP CARD (Grid layout)
@@ -150,7 +153,10 @@ function HQDashboardSection({ cat, borderStyle = 'standard' }) {
                 </div>
               )}
             </div>
-            <div className="w-2 h-2 rounded-full bg-green-500/60 group-hover:bg-green-400 shrink-0 shadow-[0_0_6px_rgba(34,197,94,0.4)]" title="פעיל" />
+            <Tooltip text="פעיל">
+              <div className="w-2 h-2 rounded-full bg-green-500/60 group-hover:bg-green-400 shrink-0 shadow-[0_0_6px_rgba(34,197,94,0.4)]" />
+            </Tooltip>
+
           </a>
         ))}
       </div>
@@ -241,16 +247,12 @@ function ExtLinksMinimal({ links, compact, bordered = true }) {
   return (
     <div className={wrapCls}>
       {links.map((link) => (
-        <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
-          className={linkCls}
-          title={link.title}>
-          <ExtLinkIcon icon={link.icon} src={link.iconUrl || link.image} alt={link.title} size={compact ? 16 : 22} />
-          {!compact && (
-            <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-theme-chrome text-theme text-[10px] font-bold px-2.5 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 border border-theme-subtle">
-              {link.title}
-            </div>
-          )}
-        </a>
+        <Tooltip key={link.id} text={link.title}>
+          <a href={link.url} target="_blank" rel="noopener noreferrer"
+            className={linkCls}>
+            <ExtLinkIcon icon={link.icon} src={link.iconUrl || link.image} alt={link.title} size={compact ? 16 : 22} />
+          </a>
+        </Tooltip>
       ))}
     </div>
   );
@@ -267,14 +269,15 @@ function ExtLinksFloating({ links, fixed: isFixed = true, bordered = true, showB
   const content = (
     <div className={`flex items-center gap-2 ${barBg} ${barBorder} rounded-full px-4 py-2.5 overflow-hidden`} style={barShape}>
       {links.map((link) => (
-        <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
-          className="group relative flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-theme-card-hover transition-all"
-          title={link.title}>
-          <div className={`w-6 h-6 rounded-full ${iconBg} flex items-center justify-center overflow-hidden shrink-0`}>
-            <ExtLinkIcon icon={link.icon} src={link.iconUrl || link.image} alt={link.title} size={14} className="!p-0" />
-          </div>
-          <span className="text-xs font-medium text-theme-muted group-hover:text-theme transition hidden sm:inline max-w-[80px] truncate">{link.title}</span>
-        </a>
+        <Tooltip key={link.id} text={link.title}>
+          <a href={link.url} target="_blank" rel="noopener noreferrer"
+            className="group relative flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-theme-card-hover transition-all">
+            <div className={`w-6 h-6 rounded-full ${iconBg} flex items-center justify-center overflow-hidden shrink-0`}>
+              <ExtLinkIcon icon={link.icon} src={link.iconUrl || link.image} alt={link.title} size={14} className="!p-0" />
+            </div>
+            <span className="text-xs font-medium text-theme-muted group-hover:text-theme transition hidden sm:inline max-w-[80px] truncate">{link.title}</span>
+          </a>
+        </Tooltip>
       ))}
     </div>
   );
@@ -310,7 +313,9 @@ function CommanderSection({ commander, messages }) {
     <div className="relative p-6 [@media(max-height:850px)]:p-4 flex flex-col sm:flex-row items-stretch h-full w-full">
       <div className="w-full sm:w-[45%] relative shrink-0 sm:-ml-4 flex items-center justify-center overflow-visible mb-6 sm:mb-0 isolate">
         <div className="absolute left-1/2 top-1/2 -translate-x-[40%] -translate-y-[60%] w-28 lg:w-32 xl:w-36 h-28 lg:h-32 xl:h-36 bg-primary z-[1] hidden sm:block shadow-[0_0_25px_var(--color-primary-600),0_0_50px_var(--color-primary-900)]" aria-hidden="true" />
-        <img src={commander.image} className="w-full sm:w-44 lg:w-52 xl:w-60 h-40 sm:h-full object-contain object-center relative z-[2] border-b sm:border-b-0 border-theme-subtle" alt="Commander" />
+        {commander.image && (
+          <img src={commander.image} className="w-full sm:w-44 lg:w-52 xl:w-60 h-40 sm:h-full object-contain object-center relative z-[2] border-b sm:border-b-0 border-theme-subtle" alt="Commander" />
+        )}
       </div>
       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/3 h-[2px] shadow-[0_0_15px_var(--color-primary-hex)] z-20" style={{ backgroundColor: 'var(--color-primary-hex)' }} />
       <div className="flex-1 flex flex-col justify-between items-start sm:border-r border-theme-subtle sm:pr-6 [@media(max-height:850px)]:pr-4 pt-2 pb-1 relative z-20 overflow-hidden">
@@ -374,7 +379,7 @@ function CommanderSection({ commander, messages }) {
 /* ================================================================
    TACTICAL PANEL — reusable layered card with dynamic border style
    ================================================================ */
-function TacticalPanel({ borderStyle, cornerSize, className, children, glowLine }) {
+function TacticalPanel({ borderStyle, cornerSize, className, children, glowLine, showBorder = true, showBackground = true, showShadow = true }) {
   const normalizedStyle = normalizeBorderStyle(borderStyle);
   const isTactical = isTacticalStyle(normalizedStyle);
   const outerClip = isTactical ? tacticalClip(normalizedStyle, cornerSize) : null;
@@ -384,10 +389,10 @@ function TacticalPanel({ borderStyle, cornerSize, className, children, glowLine 
 
   return (
     <div
-      className={`relative bg-theme-card border border-theme-subtle shadow-md text-theme ${className}`}
+      className={`relative ${showBackground ? 'bg-theme-card' : 'bg-transparent'} ${showShadow ? 'shadow-md' : ''} text-theme ${showBorder ? 'border border-theme-subtle' : ''} ${className}`}
       style={outerClip ? { clipPath: outerClip } : { borderRadius: radius }}
     >
-      {glowLine && (
+      {glowLine && showBackground && (
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/3 h-[2px] shadow-[0_0_15px_var(--color-primary-hex)] z-20" style={{ backgroundColor: 'var(--color-primary-hex)' }} />
       )}
       {children}
@@ -432,9 +437,140 @@ function SearchBar({ borderStyle }) {
 }
 
 /* ================================================================
+   WIDGET SECTION (Dynamic Multi-Widget Carousel)
+   ================================================================ */
+function WidgetSection({ borderStyle, widgetHeight, onWidgetTitleChange, showBorder = true, showBackground = true, showShadow = true }) {
+  const { widgetConfig } = useWidget();
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const activeWidgets = useMemo(() => {
+    if (Array.isArray(widgetConfig?.activeWidgets) && widgetConfig.activeWidgets.length > 0) {
+      return widgetConfig.activeWidgets.slice(0, 3);
+    }
+    if (widgetConfig?.activeWidget) {
+      return [widgetConfig.activeWidget];
+    }
+    return ['events'];
+  }, [widgetConfig?.activeWidgets, widgetConfig?.activeWidget]);
+
+  const rotationInterval = useMemo(() => {
+    const parsed = Number(widgetConfig?.rotationInterval);
+    if (!Number.isFinite(parsed)) return 8;
+    return Math.max(3, Math.min(30, parsed));
+  }, [widgetConfig?.rotationInterval]);
+
+  useEffect(() => {
+    if (currentIndex <= activeWidgets.length - 1) return;
+    setCurrentIndex(0);
+  }, [activeWidgets.length, currentIndex]);
+
+  useEffect(() => {
+    if (activeWidgets.length <= 1) return undefined;
+
+    const timer = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % activeWidgets.length);
+    }, rotationInterval * 1000);
+
+    return () => clearInterval(timer);
+  }, [currentIndex, activeWidgets, rotationInterval]);
+
+  const currentWidget = activeWidgets[currentIndex] || activeWidgets[0] || 'events';
+  const widgetTitle = getWidgetTitle(currentWidget);
+  const hasMultipleWidgets = activeWidgets.length > 1;
+
+  useEffect(() => {
+    if (!onWidgetTitleChange) return;
+    onWidgetTitleChange(widgetTitle);
+  }, [onWidgetTitleChange, widgetTitle]);
+
+  const goPrev = () => {
+    setCurrentIndex((prev) => (prev - 1 + activeWidgets.length) % activeWidgets.length);
+  };
+
+  const goNext = () => {
+    setCurrentIndex((prev) => (prev + 1) % activeWidgets.length);
+  };
+
+  return (
+    <div className="self-end shrink-0 w-full lg:w-[320px] xl:w-[380px] relative z-40 lg:h-0">
+      {hasMultipleWidgets && (
+        <div className="absolute -left-8 lg:-left-10 top-1/2 -button-5px -translate-y-20 flex flex-col gap-1 z-50">
+          <button
+            type="button"
+            onClick={goPrev}
+            aria-label="Previous widget"
+            className="p-1 rounded-none bg-primary border border-primary/40 text-white dark:text-black hover:brightness-110 transition-colors shadow-sm cursor-pointer"
+          >
+            <ChevronRight size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={goNext}
+            aria-label="Next widget"
+            className="p-1 rounded-none bg-primary border border-primary/40 text-white dark:text-black hover:brightness-110 transition-colors shadow-sm cursor-pointer"
+          >
+            <ChevronLeft size={18} />
+          </button>
+        </div>
+      )}
+      <div
+        className="w-full lg:absolute lg:bottom-0 lg:left-0 transition-all duration-300"
+        style={{ height: widgetHeight }}
+      >
+        <TacticalPanel
+          borderStyle={borderStyle}
+          cornerSize={30}
+          glowLine
+          showBorder={showBorder}
+          showBackground={showBackground}
+          showShadow={showShadow}
+          className={`w-full h-full group flex flex-col ${showBackground ? 'shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)]' : ''}`}
+        >
+          <div className="relative h-full">
+            <div key={currentIndex} className="h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <WidgetPanelContent widgetConfig={widgetConfig} activeWidget={currentWidget} widgetTitle={widgetTitle} />
+            </div>
+          </div>
+        </TacticalPanel>
+      </div>
+    </div>
+  );
+}
+
+function OverlayImageElement({ overlayImage, isPreview = false }) {
+  const normalized = normalizeOverlayImageConfig(overlayImage);
+  if (!normalized.enabled || !normalized.imageUrl) return null;
+
+  const hasBorder = normalized.borderStyle !== 'none';
+  const frameStyle = hasBorder ? panelStyle(normalized.borderStyle, 16) : undefined;
+  const overlayStyle = getOverlayStyle(normalized, isPreview);
+
+  return (
+    <div
+      className="pointer-events-none select-none"
+      style={overlayStyle}
+      aria-hidden="true"
+    >
+      <div
+        className={`w-full h-full overflow-hidden ${hasBorder ? 'border border-theme-strong bg-theme-card/30 backdrop-blur-[1px]' : ''}`}
+        style={frameStyle}
+      >
+        <img
+          src={normalized.imageUrl}
+          alt=""
+          className="w-full h-full"
+          style={{ objectFit: normalized.objectFit, opacity: normalized.opacity / 100 }}
+          draggable={false}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================
    HOME
    ================================================================ */
-export function Home() {
+export function Home({ isPreview = false }) {
   const navigate = useNavigate();
   const onOpenAdmin = () => navigate('/admin');
   const [bgIndex, setBgIndex] = useState(0);
@@ -446,11 +582,14 @@ export function Home() {
   const { theme, effectiveMode, toggleUserMode, borderTargets } = useTheme();
   const { widgetConfig } = useWidget();
   const { externalLinks } = useExternalLinks();
+  const [widgetTitle, setWidgetTitle] = useState(() => getWidgetTitle('events'));
 
   const hero = siteContent?.hero || { title: '', subtitle: '', description: '', backgroundImages: [] };
   const commander = siteContent?.commander || { image: '', sectionTitle: '', roleLabel: '', messages: [] };
+  const overlayImage = normalizeOverlayImageConfig(siteContent?.overlayImage);
   const messages = commander.messages || [];
   const backgrounds = (hero.backgroundImages || []).filter(Boolean);
+  const showOverlayImage = overlayImage.enabled && Boolean(overlayImage.imageUrl);
   const heroGrayscale = theme?.heroGrayscale ?? false;
   const showNavCategories = theme?.showNavCategories ?? true;
   const borderStyle = normalizeBorderStyle(theme?.borderStyle || 'cyber');
@@ -459,7 +598,9 @@ export function Home() {
   const externalLinksFixed = theme?.externalLinksFixed ?? false;
   const externalLinksBordered = theme?.externalLinksBordered !== false;
   const externalLinksShowBackground = theme?.externalLinksShowBackground !== false;
-  const activeWidget = widgetConfig?.activeWidget || 'events';
+  const heroPanelsBordered = theme?.heroPanelsBordered !== false;
+  const heroPanelsBackground = theme?.heroPanelsBordered !== false;
+  const heroPanelsShadow = theme?.heroPanelsBordered !== false;
   const commanderBorderStyle = borderTargets?.commander ? borderStyle : 'standard';
   const widgetBorderStyle = borderTargets?.widget ? borderStyle : 'standard';
   const searchBorderStyle = borderTargets?.search ? borderStyle : 'standard';
@@ -601,14 +742,15 @@ export function Home() {
               style={{ ...panelStyle(topNavBorderStyle, 10), borderColor: theme?.primaryColor ?? '#dc2626' }}
             >ניהול</button>
             {theme?.displayMode === 'user-toggle' && (
-              <button
-                onClick={toggleUserMode}
-                className="flex items-center justify-center w-10 h-10 border border-theme-subtle bg-theme-elevated hover:brightness-110 transition text-theme-muted"
-                title={effectiveMode === 'dark' ? 'מעבר למצב בהיר' : 'מעבר למצב כהה'}
-                style={panelStyle(topNavBorderStyle, 10)}
-              >
-                {effectiveMode === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-              </button>
+              <Tooltip text={effectiveMode === 'dark' ? 'מעבר למצב בהיר' : 'מעבר למצב כהה'}>
+                <button
+                  onClick={toggleUserMode}
+                  className="flex items-center justify-center w-10 h-10 border border-theme-subtle bg-theme-elevated hover:brightness-110 transition text-theme-muted"
+                  style={panelStyle(topNavBorderStyle, 10)}
+                >
+                  {effectiveMode === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                </button>
+              </Tooltip>
             )}
             <div
               className="flex items-center text-theme px-4 h-10 whitespace-nowrap bg-theme-elevated border border-theme-subtle"
@@ -621,12 +763,12 @@ export function Home() {
         </nav>
 
         {/* Main Hero Content */}
-        <main className="w-full relative h-[calc(100vh-80px)] min-h-[calc(100vh-80px)] max-h-[calc(100vh-80px)] flex flex-col justify-between overflow-hidden pt-4 [@media(max-height:850px)]:pt-2 lg:pt-8 xl:pt-12">
+        <main data-widget-title={widgetTitle} className="w-full relative h-[calc(100vh-80px)] min-h-[calc(100vh-80px)] max-h-[calc(100vh-80px)] flex flex-col justify-between overflow-hidden pt-4 [@media(max-height:850px)]:pt-2 lg:pt-8 xl:pt-12">
           <div className="flex-1 flex flex-col justify-center px-4 sm:px-8 lg:px-12 xl:px-24 pointer-events-auto z-20">
             <div className="w-full lg:w-[75%] xl:w-[65%] text-right self-end md:self-auto">
               <div className="text-primary font-bold lg:text-lg [@media(max-height:850px)]:text-sm mb-1 mr-1">{hero.subtitle}</div>
               <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 lg:gap-6 [@media(max-height:850px)]:gap-4 mb-4 xl:mb-6 [@media(max-height:850px)]:mb-2 mt-1">
-                <img src="/logo_1734_rmbg.png" alt="Logo החמם" className="h-[70px] md:h-[90px] lg:h-[110px] xl:h-[130px] 2xl:h-[160px] [@media(max-height:850px)]:h-[70px] xl:[@media(max-height:850px)]:h-[80px] w-auto drop-shadow-[0_0_15px_var(--color-primary-900)] transition-transform duration-500 hover:scale-105" />
+                <img src={siteContent?.hero?.logo || "/images/alpha logo1.png"} alt="Logo" className="h-[70px] md:h-[90px] lg:h-[110px] xl:h-[130px] 2xl:h-[160px] [@media(max-height:850px)]:h-[70px] xl:[@media(max-height:850px)]:h-[80px] w-auto drop-shadow-[0_0_15px_var(--color-primary-700)] transition-transform duration-500 hover:scale-105" />
                 <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-[4.2rem] 2xl:text-7xl [@media(max-height:850px)]:text-4xl lg:[@media(max-height:850px)]:text-5xl font-black text-theme drop-shadow-lg tracking-tight leading-tight lg:leading-none break-words">{renderHeroTitle()}</h1>
               </div>
               <p className="text-theme-muted text-base md:text-lg lg:text-xl xl:text-2xl [@media(max-height:850px)]:text-xl [@media(max-height:850px)]:leading-tight leading-relaxed mb-4 lg:mb-8 [@media(max-height:850px)]:mb-3 drop-shadow-md max-w-2xl break-words">{renderDescription()}</p>
@@ -638,29 +780,27 @@ export function Home() {
             <TacticalPanel
               borderStyle={commanderBorderStyle}
               cornerSize={30}
-              className="w-full lg:flex-1 lg:max-w-[700px] h-auto lg:h-[260px] xl:h-[300px] 2xl:min-h-[320px] [@media(max-height:850px)]:h-[220px] shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)] group self-end"
+              showBorder={heroPanelsBordered}
+              showBackground={heroPanelsBackground}
+              showShadow={heroPanelsShadow}
+              className={`w-full lg:flex-1 lg:max-w-[700px] h-auto lg:h-[260px] xl:h-[300px] 2xl:min-h-[320px] [@media(max-height:850px)]:h-[220px] group self-end ${heroPanelsBackground ? 'shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)]' : ''}`}
             >
               <CommanderSection commander={commander} messages={messages} />
             </TacticalPanel>
 
-            {/* Dynamic Widget Controlled Wrapper */}
-            <div className="self-end shrink-0 w-full lg:w-[320px] xl:w-[380px] relative z-40 lg:h-0">
-              {/* On mobile: regular flow. On desktop: absolutely positioned to grow UP from the 0-height wrapper */}
-              <div
-                className="w-full lg:absolute lg:bottom-0 lg:left-0 transition-all duration-300"
-                style={{ height: getWidgetHeight(theme?.widgetHeight) }}
-              >
-                <TacticalPanel
-                  borderStyle={widgetBorderStyle}
-                  cornerSize={30}
-                  glowLine
-                  className="w-full h-full shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)] group flex flex-col"
-                >
-                  <WidgetPanelContent widgetConfig={widgetConfig} activeWidget={activeWidget} />
-                </TacticalPanel>
-              </div>
-            </div>
+            <WidgetSection
+              borderStyle={widgetBorderStyle}
+              widgetHeight={getWidgetHeight(theme?.widgetHeight)}
+              onWidgetTitleChange={setWidgetTitle}
+              showBorder={heroPanelsBordered}
+              showBackground={heroPanelsBackground}
+              showShadow={heroPanelsShadow}
+            />
           </div>
+
+          {showOverlayImage && overlayImage.displayArea === 'hero' && (
+            <OverlayImageElement overlayImage={overlayImage} isPreview={isPreview} />
+          )}
         </main>
 
         {/* Categories Section */}
@@ -703,6 +843,10 @@ export function Home() {
           </div>
         )
       )}
+
+      {showOverlayImage && overlayImage.displayArea === 'site' && (
+        <OverlayImageElement overlayImage={overlayImage} isPreview={isPreview} />
+      )}
     </div>
   );
 }
@@ -716,7 +860,7 @@ export default function App() {
         <Route path="/admin/*" element={<AdminHub />} />
       </Routes>
       <ToastContainer
-        position="top-right"
+        position="top-center"
         rtl
         theme={effectiveMode === 'dark' ? 'dark' : 'light'}
         autoClose={4000}

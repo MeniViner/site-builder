@@ -7,6 +7,9 @@ import {
     ChevronDown, ChevronUp, Upload, Loader2
 } from 'lucide-react';
 import { uploadImage } from '../utils/sharepointUtils';
+import Tooltip from './Tooltip';
+import { DEFAULT_OVERLAY_IMAGE, normalizeOverlayImageConfig } from '../utils/overlayImageConfig';
+import { confirmToast } from '../utils/confirmToast';
 
 const MAX_COMMANDER_MESSAGES = 5;
 
@@ -15,12 +18,14 @@ const SETTINGS_NAV = [
     { id: 'hero-backgrounds', label: 'תמונות רקע', description: 'ניהול תמונות הרקע המתחלפות' },
     { id: 'commander-profile', label: 'פרטי מפקד', description: 'תמונה, כותרת ותפקיד המפקד' },
     { id: 'commander-messages', label: 'הודעות מפקד', description: 'ניהול הודעות וניווט בין הודעות' },
+    { id: 'overlay-image', label: 'אלמנט תמונה', description: 'תמונה צפה עם מיקום, גודל וסגנון מסגרת' },
 ];
 
 const HERO_DEFAULTS = {
     siteName: '',
     title: '',
     subtitle: '',
+    logo: '',
     description: '',
     backgroundImages: [],
 };
@@ -33,6 +38,43 @@ const COMMANDER_DEFAULTS = {
     messages: [],
 };
 
+const OVERLAY_POSITION_OPTIONS = [
+    { value: 'fixed', label: 'Fixed', description: 'נשאר על המסך גם בזמן גלילה' },
+    { value: 'absolute', label: 'Absolute', description: 'ממוקם בנקודה קבועה בדף עצמו' },
+];
+
+const OVERLAY_DISPLAY_AREA_OPTIONS = [
+    { value: 'site', label: 'כל הדף', description: 'על כל דף הבית כולל אזור הגלילה' },
+    { value: 'hero', label: 'אזור ההירו', description: 'רק בתוך מסך ההירו העליון' },
+];
+
+const OVERLAY_ANCHOR_OPTIONS = [
+    { value: 'top-left', label: 'למעלה שמאל' },
+    { value: 'top-center', label: 'למעלה מרכז' },
+    { value: 'top-right', label: 'למעלה ימין' },
+    { value: 'middle-left', label: 'אמצע שמאל' },
+    { value: 'middle-center', label: 'אמצע מרכז' },
+    { value: 'middle-right', label: 'אמצע ימין' },
+    { value: 'bottom-left', label: 'למטה שמאל' },
+    { value: 'bottom-center', label: 'למטה מרכז' },
+    { value: 'bottom-right', label: 'למטה ימין' },
+];
+
+const OVERLAY_BORDER_STYLE_OPTIONS = [
+    { value: 'none', label: 'ללא מסגרת' },
+    { value: 'standard', label: 'סטנדרטי' },
+    { value: 'square', label: 'מרובע' },
+    { value: 'cyber', label: 'סייבר' },
+    { value: 'armor', label: 'שריון' },
+    { value: 'shield', label: 'מגן' },
+    { value: 'blade', label: 'להב' },
+];
+
+const OVERLAY_OBJECT_FIT_OPTIONS = [
+    { value: 'contain', label: 'Contain', description: 'התמונה כולה תישאר גלויה בתוך המסגרת' },
+    { value: 'cover', label: 'Cover', description: 'התמונה תמלא את המסגרת (יכול להיחתך חלק)' },
+];
+
 const inputCls = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:border-gray-700/50 dark:bg-[#1e212b] dark:text-white';
 
 export default function AdminSiteContent() {
@@ -42,11 +84,16 @@ export default function AdminSiteContent() {
     const [activeSettingId, setActiveSettingId] = useState(SETTINGS_NAV[0].id);
     const [hero, setHero] = useState(HERO_DEFAULTS);
     const [commander, setCommander] = useState(COMMANDER_DEFAULTS);
+    const [overlayImage, setOverlayImage] = useState(DEFAULT_OVERLAY_IMAGE);
     const [editingMessage, setEditingMessage] = useState(null);
     const [uploadingHeroIndex, setUploadingHeroIndex] = useState(null);
     const [uploadingCommander, setUploadingCommander] = useState(false);
+    const [uploadingLogo, setUploadingLogo] = useState(false);
+    const [uploadingOverlayImage, setUploadingOverlayImage] = useState(false);
     const heroFileInputRef = useRef(null);
+    const logoFileInputRef = useRef(null);
     const commanderFileInputRef = useRef(null);
+    const overlayImageFileInputRef = useRef(null);
     const lastSavedRef = useRef(null);
 
     useEffect(() => {
@@ -62,20 +109,22 @@ export default function AdminSiteContent() {
             ...(siteContent.commander || {}),
             messages: [...(siteContent.commander?.messages || [])],
         };
+        const nextOverlayImage = normalizeOverlayImageConfig(siteContent.overlayImage);
 
         setHero(nextHero);
         setCommander(nextCommander);
-        lastSavedRef.current = JSON.stringify({ hero: nextHero, commander: nextCommander });
+        setOverlayImage(nextOverlayImage);
+        lastSavedRef.current = JSON.stringify({ hero: nextHero, commander: nextCommander, overlayImage: nextOverlayImage });
     }, [siteContent]);
 
     useEffect(() => {
-        const current = JSON.stringify({ hero, commander });
+        const current = JSON.stringify({ hero, commander, overlayImage });
         if (!lastSavedRef.current || current === lastSavedRef.current) return;
 
         const timeoutId = setTimeout(async () => {
             setIsSaving(true);
             setSaveMessage(null);
-            const success = await saveSiteContent({ hero, commander });
+            const success = await saveSiteContent({ hero, commander, overlayImage });
             setIsSaving(false);
             if (success) {
                 lastSavedRef.current = current;
@@ -85,7 +134,7 @@ export default function AdminSiteContent() {
         }, 1200);
 
         return () => clearTimeout(timeoutId);
-    }, [hero, commander, saveSiteContent]);
+    }, [hero, commander, overlayImage, saveSiteContent]);
 
     const updateHeroField = (field, value) => {
         setHero((prev) => ({ ...prev, [field]: value }));
@@ -93,6 +142,26 @@ export default function AdminSiteContent() {
 
     const updateCommanderField = (field, value) => {
         setCommander((prev) => ({ ...prev, [field]: value }));
+    };
+
+    const clampOverlayNumber = (value, min, max, fallback) => {
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) return fallback;
+        return Math.min(max, Math.max(min, Math.round(parsed)));
+    };
+
+    const updateOverlayField = (field, value) => {
+        setOverlayImage((prev) => normalizeOverlayImageConfig({ ...prev, [field]: value }));
+    };
+
+    const updateOverlayNumberField = (field, value, min, max) => {
+        setOverlayImage((prev) => {
+            const fallback = Number.isFinite(prev[field]) ? prev[field] : DEFAULT_OVERLAY_IMAGE[field];
+            return {
+                ...prev,
+                [field]: clampOverlayNumber(value, min, max, fallback),
+            };
+        });
     };
 
     const removeBackgroundImage = (index) => {
@@ -138,6 +207,46 @@ export default function AdminSiteContent() {
         }
     };
 
+    const handleLogoUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploadingLogo(true);
+        try {
+            const url = await uploadImage(file, 'Logo');
+            setHero((prev) => ({ ...prev, logo: url }));
+        } catch (err) {
+            console.error('שגיאה בהעלאת תמונת לוגו:', err);
+            setSaveMessage({ type: 'error', text: `שגיאה בהעלאת תמונה: ${err.message}` });
+            setTimeout(() => setSaveMessage(null), 4000);
+        } finally {
+            setUploadingLogo(false);
+            if (logoFileInputRef.current) logoFileInputRef.current.value = '';
+        }
+    };
+
+    const handleOverlayImageUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploadingOverlayImage(true);
+        try {
+            const url = await uploadImage(file, 'Overlay');
+            setOverlayImage((prev) => normalizeOverlayImageConfig({
+                ...prev,
+                imageUrl: url,
+                enabled: true,
+            }));
+        } catch (err) {
+            console.error('שגיאה בהעלאת תמונת אלמנט:', err);
+            setSaveMessage({ type: 'error', text: `שגיאה בהעלאת תמונה: ${err.message}` });
+            setTimeout(() => setSaveMessage(null), 4000);
+        } finally {
+            setUploadingOverlayImage(false);
+            if (overlayImageFileInputRef.current) overlayImageFileInputRef.current.value = '';
+        }
+    };
+
     const addMessage = () => {
         if (commander.messages.length >= MAX_COMMANDER_MESSAGES) return;
 
@@ -176,12 +285,19 @@ export default function AdminSiteContent() {
     };
 
     const removeMessage = (id) => {
-        if (!window.confirm('האם למחוק הודעה זו?')) return;
-
-        setCommander((prev) => ({
-            ...prev,
-            messages: prev.messages.filter((message) => message.id !== id),
-        }));
+        confirmToast({
+            title: 'מחיקת הודעה',
+            message: 'האם למחוק הודעה זו?',
+            confirmText: 'מחק',
+            cancelText: 'ביטול',
+            type: 'warning',
+        }).then((confirmed) => {
+            if (!confirmed) return;
+            setCommander((prev) => ({
+                ...prev,
+                messages: prev.messages.filter((message) => message.id !== id),
+            }));
+        });
     };
 
     const moveMessage = (index, direction) => {
@@ -200,6 +316,7 @@ export default function AdminSiteContent() {
     const isHeroBackgroundsTab = showSection('hero-backgrounds');
     const isCommanderProfileTab = showSection('commander-profile');
     const isCommanderMessagesTab = showSection('commander-messages');
+    const isOverlayImageTab = showSection('overlay-image');
     const heroTabActive = isHeroContentTab || isHeroBackgroundsTab;
     const commanderTabActive = isCommanderProfileTab || isCommanderMessagesTab;
 
@@ -253,8 +370,8 @@ export default function AdminSiteContent() {
                 </div>
             )}
 
-            <div className="flex-1 overflow-visible p-6 sm:p-10 space-y-10 lg:space-y-0 lg:flex lg:flex-row-reverse lg:items-start lg:gap-10">
-                <div className="lg:w-[560px] lg:max-w-[44vw] lg:shrink-0">
+            <div className="flex-1 overflow-hidden p-6 sm:p-10 space-y-10 lg:space-y-0 lg:flex lg:flex-row-reverse lg:items-start lg:gap-10">
+                <div className="lg:w-[560px] lg:max-w-[44vw] lg:shrink-0 lg:self-start">
                     <div className="sticky top-[140px]">
                         <div className="flex items-center justify-between mb-3 px-1">
                             <p className="text-sm font-bold text-gray-500 dark:text-gray-400">תצוגה מקדימה </p>
@@ -264,7 +381,7 @@ export default function AdminSiteContent() {
                         <div className="flex flex-col items-center gap-2">
                             <div className="w-full max-w-[720px] bg-transparent flex justify-center">
                                 <div className="border-[8px] lg:border-[12px] border-[#1e212b] rounded-2xl md:rounded-3xl bg-[#1e212b] shadow-2xl relative z-10 overflow-hidden w-full">
-                                    <SiteContentLivePreview draft={{ hero, commander }} />
+                                    <SiteContentLivePreview draft={{ hero, commander, overlayImage }} />
                                 </div>
                             </div>
 
@@ -279,7 +396,7 @@ export default function AdminSiteContent() {
                     </div>
                 </div>
 
-                <div className="space-y-10 lg:flex-1">
+                <div className="space-y-10 lg:flex-1 lg:max-h-[calc(100vh-190px)] lg:overflow-y-auto lg:pl-2 custom-scrollbar">
                     {heroTabActive && (
                         <section className="bg-white dark:bg-[#232733] border border-gray-200 dark:border-white/5 rounded-3xl p-6 sm:p-8 shadow-sm">
                             <div className="flex items-start justify-between gap-4 mb-8 pb-5 border-b border-gray-200 dark:border-white/10">
@@ -310,6 +427,52 @@ export default function AdminSiteContent() {
                                         </div>
 
                                         <div>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">תמונת לוגו</label>
+                                            <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-[#1b1f2a] border border-gray-200 dark:border-white/5 rounded-2xl">
+                                                <div className="w-20 h-20 rounded-xl bg-white dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center shrink-0">
+                                                    {hero.logo ? (
+                                                        <img src={hero.logo} alt="Logo" className="w-full h-full object-contain" />
+                                                    ) : (
+                                                        <div className="text-gray-400 text-[10px] text-center px-1">אין לוגו</div>
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 flex flex-col gap-2">
+                                                    <label
+                                                        className={`flex items-center justify-center gap-2 bg-white dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg transition font-bold text-xs cursor-pointer ${uploadingLogo ? 'opacity-50 pointer-events-none' : ''}`}
+                                                    >
+                                                        {uploadingLogo ? (
+                                                            <>
+                                                                <Loader2 size={14} className="animate-spin" />
+                                                                <span>מעלה...</span>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Upload size={14} />
+                                                                <span>{hero.logo ? 'החלף לוגו' : 'העלה לוגו'}</span>
+                                                            </>
+                                                        )}
+                                                        <input
+                                                            ref={logoFileInputRef}
+                                                            type="file"
+                                                            accept="image/*"
+                                                            onChange={handleLogoUpload}
+                                                            className="hidden"
+                                                            disabled={uploadingLogo}
+                                                        />
+                                                    </label>
+                                                    {hero.logo && (
+                                                        <button 
+                                                            onClick={() => updateHeroField('logo', '')}
+                                                            className="text-[10px] font-bold text-red-400 hover:text-red-300 transition text-right px-1"
+                                                        >
+                                                            הסר לוגו
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div>
                                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">תת-כותרת עליונה</label>
                                             <input
                                                 type="text"
@@ -330,7 +493,7 @@ export default function AdminSiteContent() {
                                                 }}
                                                 rows={2}
                                                 className={`${inputCls} resize-none`}
-                                                placeholder='לדוגמה: "צוות אלפא\n7134"'
+                                                placeholder='לדוגמה: "צוות אלפא"'
                                             />
                                             <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">עד 2 שורות. השתמש ב-Enter לשבירת שורה</p>
                                         </div>
@@ -394,13 +557,14 @@ export default function AdminSiteContent() {
                                                     <span className="flex-1 text-sm text-blue-600 dark:text-blue-300 truncate dir-ltr text-left" dir="ltr">
                                                         {img.startsWith('data:') ? `תמונה מקומית (${Math.round(img.length / 1024)}KB)` : img}
                                                     </span>
-                                                    <button
-                                                        onClick={() => removeBackgroundImage(idx)}
-                                                        className="p-1.5 text-gray-400 dark:text-gray-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition opacity-0 group-hover:opacity-100"
-                                                        title="הסר"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
+                                                    <Tooltip text="הסר">
+                                                        <button
+                                                            onClick={() => removeBackgroundImage(idx)}
+                                                            className="p-1.5 text-gray-400 dark:text-gray-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </Tooltip>
                                                 </div>
                                             ))}
 
@@ -608,22 +772,24 @@ export default function AdminSiteContent() {
                                                 <div key={msg.id} className="bg-gray-50 dark:bg-[#1b1f2a] border border-gray-200 dark:border-white/5 rounded-2xl p-5 flex gap-4 group relative">
                                                     <div className="flex flex-col items-center gap-1 shrink-0 pt-1">
                                                         <span className="text-xs text-gray-400 dark:text-gray-600 font-bold mb-1">{idx + 1}</span>
-                                                        <button
-                                                            onClick={() => moveMessage(idx, -1)}
-                                                            disabled={idx === 0}
-                                                            className="p-1 text-gray-400 dark:text-gray-600 hover:text-gray-900 dark:hover:text-white disabled:opacity-20 transition rounded"
-                                                            title="הזז למעלה"
-                                                        >
-                                                            <ChevronUp size={14} />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => moveMessage(idx, 1)}
-                                                            disabled={idx === commander.messages.length - 1}
-                                                            className="p-1 text-gray-400 dark:text-gray-600 hover:text-gray-900 dark:hover:text-white disabled:opacity-20 transition rounded"
-                                                            title="הזז למטה"
-                                                        >
-                                                            <ChevronDown size={14} />
-                                                        </button>
+                                                        <Tooltip text="הזז למעלה">
+                                                            <button
+                                                                onClick={() => moveMessage(idx, -1)}
+                                                                disabled={idx === 0}
+                                                                className="p-1 text-gray-400 dark:text-gray-600 hover:text-gray-900 dark:hover:text-white disabled:opacity-20 transition rounded"
+                                                            >
+                                                                <ChevronUp size={14} />
+                                                            </button>
+                                                        </Tooltip>
+                                                        <Tooltip text="הזז למטה">
+                                                            <button
+                                                                onClick={() => moveMessage(idx, 1)}
+                                                                disabled={idx === commander.messages.length - 1}
+                                                                className="p-1 text-gray-400 dark:text-gray-600 hover:text-gray-900 dark:hover:text-white disabled:opacity-20 transition rounded"
+                                                            >
+                                                                <ChevronDown size={14} />
+                                                            </button>
+                                                        </Tooltip>
                                                     </div>
 
                                                     <div className="flex-1 min-w-0">
@@ -632,20 +798,22 @@ export default function AdminSiteContent() {
                                                     </div>
 
                                                     <div className="flex items-start gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button
-                                                            onClick={() => setEditingMessage({ ...msg, isNew: false })}
-                                                            className="p-2 bg-white dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg transition"
-                                                            title="ערוך"
-                                                        >
-                                                            <Edit2 size={16} />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => removeMessage(msg.id)}
-                                                            className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-red-400 rounded-lg transition"
-                                                            title="מחק"
-                                                        >
-                                                            <Trash2 size={16} />
-                                                        </button>
+                                                        <Tooltip text="ערוך">
+                                                            <button
+                                                                onClick={() => setEditingMessage({ ...msg, isNew: false })}
+                                                                className="p-2 bg-white dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg transition"
+                                                            >
+                                                                <Edit2 size={16} />
+                                                            </button>
+                                                        </Tooltip>
+                                                        <Tooltip text="מחק">
+                                                            <button
+                                                                onClick={() => removeMessage(msg.id)}
+                                                                className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-red-400 rounded-lg transition"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </Tooltip>
                                                     </div>
                                                 </div>
                                             ))}
@@ -659,6 +827,299 @@ export default function AdminSiteContent() {
                                     )}
                                 </>
                             )}
+                        </section>
+                    )}
+
+                    {isOverlayImageTab && (
+                        <section className="bg-white dark:bg-[#232733] border border-gray-200 dark:border-white/5 rounded-3xl p-6 sm:p-8 shadow-sm">
+                            <div className="flex items-start justify-between gap-4 mb-8 pb-5 border-b border-gray-200 dark:border-white/10">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-primary-500/10 p-2.5 rounded-xl border border-primary-500/20">
+                                        <ImageIcon size={20} className="text-primary-400" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">אלמנט תמונה חדש</h2>
+                                        <p className="text-sm text-gray-400 dark:text-gray-500">העלאה, גודל, בורדרים, מיקום והתנהגות בגלילה</p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => updateOverlayField('enabled', !overlayImage.enabled)}
+                                    className={`px-4 py-2 rounded-xl text-sm font-bold transition ${overlayImage.enabled
+                                        ? 'bg-green-500/20 text-green-700 dark:text-green-300 border border-green-500/40'
+                                        : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-white/10'
+                                        }`}
+                                >
+                                    {overlayImage.enabled ? 'פעיל' : 'כבוי'}
+                                </button>
+                            </div>
+
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-1 xl:grid-cols-[260px_1fr] gap-5">
+                                    <div className="rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-[#1b1f2a] p-4">
+                                        <div className="w-full h-40 rounded-xl bg-white dark:bg-[#141824] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center mb-3">
+                                            {overlayImage.imageUrl ? (
+                                                <img
+                                                    src={overlayImage.imageUrl}
+                                                    alt="Overlay preview"
+                                                    className="w-full h-full"
+                                                    style={{ objectFit: overlayImage.objectFit, opacity: overlayImage.opacity / 100 }}
+                                                />
+                                            ) : (
+                                                <span className="text-xs text-gray-400 dark:text-gray-600">אין תמונה</span>
+                                            )}
+                                        </div>
+
+                                        <label
+                                            className={`flex items-center justify-center gap-2 bg-white dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg transition font-bold text-xs cursor-pointer ${uploadingOverlayImage ? 'opacity-50 pointer-events-none' : ''}`}
+                                        >
+                                            {uploadingOverlayImage ? (
+                                                <>
+                                                    <Loader2 size={14} className="animate-spin" />
+                                                    <span>מעלה...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Upload size={14} />
+                                                    <span>{overlayImage.imageUrl ? 'החלף תמונה' : 'העלה תמונה'}</span>
+                                                </>
+                                            )}
+                                            <input
+                                                ref={overlayImageFileInputRef}
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleOverlayImageUpload}
+                                                className="hidden"
+                                                disabled={uploadingOverlayImage}
+                                            />
+                                        </label>
+
+                                        {overlayImage.imageUrl && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setOverlayImage((prev) => normalizeOverlayImageConfig({ ...prev, imageUrl: '', enabled: false }))}
+                                                className="w-full mt-2 text-[11px] font-bold text-red-500 hover:text-red-400 transition"
+                                            >
+                                                הסר תמונה
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-5">
+                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">רוחב (px)</label>
+                                                <input
+                                                    type="number"
+                                                    min={48}
+                                                    max={1800}
+                                                    value={overlayImage.width}
+                                                    onChange={(e) => updateOverlayNumberField('width', e.target.value, 48, 1800)}
+                                                    className={`${inputCls} dir-ltr text-left`}
+                                                    dir="ltr"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">גובה (px)</label>
+                                                <input
+                                                    type="number"
+                                                    min={48}
+                                                    max={1800}
+                                                    value={overlayImage.height}
+                                                    onChange={(e) => updateOverlayNumberField('height', e.target.value, 48, 1800)}
+                                                    className={`${inputCls} dir-ltr text-left`}
+                                                    dir="ltr"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">שקיפות (%)</label>
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    max={100}
+                                                    value={overlayImage.opacity}
+                                                    onChange={(e) => updateOverlayNumberField('opacity', e.target.value, 0, 100)}
+                                                    className={`${inputCls} dir-ltr text-left`}
+                                                    dir="ltr"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">z-index</label>
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    max={9999}
+                                                    value={overlayImage.zIndex}
+                                                    onChange={(e) => updateOverlayNumberField('zIndex', e.target.value, 1, 9999)}
+                                                    className={`${inputCls} dir-ltr text-left`}
+                                                    dir="ltr"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <div className="flex items-center justify-between gap-3 mb-2">
+                                                <label className="text-sm font-bold text-gray-700 dark:text-gray-300">שקיפות</label>
+                                                <span className="text-xs font-bold text-gray-500 dark:text-gray-400">{overlayImage.opacity}%</span>
+                                            </div>
+                                            <input
+                                                type="range"
+                                                min={0}
+                                                max={100}
+                                                value={overlayImage.opacity}
+                                                onChange={(e) => updateOverlayNumberField('opacity', e.target.value, 0, 100)}
+                                                className="w-full accent-primary"
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {OVERLAY_POSITION_OPTIONS.map((option) => (
+                                                <button
+                                                    key={option.value}
+                                                    type="button"
+                                                    onClick={() => updateOverlayField('positionMode', option.value)}
+                                                    className={`text-right rounded-xl border px-4 py-3 transition ${overlayImage.positionMode === option.value
+                                                        ? 'border-primary-500 bg-primary-500/10'
+                                                        : 'border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-[#1b1f2a] hover:border-primary/40'
+                                                        }`}
+                                                >
+                                                    <div className="text-sm font-bold text-gray-800 dark:text-gray-200">{option.label}</div>
+                                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{option.description}</div>
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {OVERLAY_DISPLAY_AREA_OPTIONS.map((option) => (
+                                                <button
+                                                    key={option.value}
+                                                    type="button"
+                                                    onClick={() => updateOverlayField('displayArea', option.value)}
+                                                    className={`text-right rounded-xl border px-4 py-3 transition ${overlayImage.displayArea === option.value
+                                                        ? 'border-primary-500 bg-primary-500/10'
+                                                        : 'border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-[#1b1f2a] hover:border-primary/40'
+                                                        }`}
+                                                >
+                                                    <div className="text-sm font-bold text-gray-800 dark:text-gray-200">{option.label}</div>
+                                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{option.description}</div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">נקודת עיגון באתר</label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {OVERLAY_ANCHOR_OPTIONS.map((option) => (
+                                            <button
+                                                key={option.value}
+                                                type="button"
+                                                onClick={() => updateOverlayField('anchor', option.value)}
+                                                className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${overlayImage.anchor === option.value
+                                                    ? 'border-primary-500 bg-primary-500/10 text-primary-600 dark:text-primary-300'
+                                                    : 'border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-[#1b1f2a] text-gray-600 dark:text-gray-300 hover:border-primary/40'
+                                                    }`}
+                                            >
+                                                {option.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div>
+                                        <div className="flex items-center justify-between gap-3 mb-2">
+                                            <label className="text-sm font-bold text-gray-700 dark:text-gray-300">מיקום אופקי (% מרוחב המסך)</label>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                max={100}
+                                                value={overlayImage.offsetX}
+                                                onChange={(e) => updateOverlayNumberField('offsetX', e.target.value, 0, 100)}
+                                                className="w-32 rounded-lg border border-gray-300 dark:border-gray-700/60 bg-white dark:bg-[#1e212b] px-3 py-1.5 text-sm dir-ltr text-left"
+                                                dir="ltr"
+                                            />
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={100}
+                                            value={overlayImage.offsetX}
+                                            onChange={(e) => updateOverlayNumberField('offsetX', e.target.value, 0, 100)}
+                                            className="w-full accent-primary"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <div className="flex items-center justify-between gap-3 mb-2">
+                                            <label className="text-sm font-bold text-gray-700 dark:text-gray-300">מיקום אנכי (% מגובה המסך)</label>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                max={100}
+                                                value={overlayImage.offsetY}
+                                                onChange={(e) => updateOverlayNumberField('offsetY', e.target.value, 0, 100)}
+                                                className="w-32 rounded-lg border border-gray-300 dark:border-gray-700/60 bg-white dark:bg-[#1e212b] px-3 py-1.5 text-sm dir-ltr text-left"
+                                                dir="ltr"
+                                            />
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={100}
+                                            value={overlayImage.offsetY}
+                                            onChange={(e) => updateOverlayNumberField('offsetY', e.target.value, 0, 100)}
+                                            className="w-full accent-primary"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">סגנון בורדר</label>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                        {OVERLAY_BORDER_STYLE_OPTIONS.map((option) => (
+                                            <button
+                                                key={option.value}
+                                                type="button"
+                                                onClick={() => updateOverlayField('borderStyle', option.value)}
+                                                className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${overlayImage.borderStyle === option.value
+                                                    ? 'border-primary-500 bg-primary-500/10 text-primary-600 dark:text-primary-300'
+                                                    : 'border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-[#1b1f2a] text-gray-600 dark:text-gray-300 hover:border-primary/40'
+                                                    }`}
+                                            >
+                                                {option.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">Object Fit</label>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {OVERLAY_OBJECT_FIT_OPTIONS.map((option) => (
+                                            <button
+                                                key={option.value}
+                                                type="button"
+                                                onClick={() => updateOverlayField('objectFit', option.value)}
+                                                className={`text-right rounded-xl border px-4 py-3 transition ${overlayImage.objectFit === option.value
+                                                    ? 'border-primary-500 bg-primary-500/10'
+                                                    : 'border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-[#1b1f2a] hover:border-primary/40'
+                                                    }`}
+                                            >
+                                                <div className="text-sm font-bold text-gray-800 dark:text-gray-200">{option.label}</div>
+                                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{option.description}</div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {!overlayImage.imageUrl && (
+                                    <p className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-500/20 rounded-lg px-3 py-2">
+                                        כדי להציג את האלמנט באתר, צריך להעלות תמונה ולהפעיל את האפשרות.
+                                    </p>
+                                )}
+                            </div>
                         </section>
                     )}
                 </div>

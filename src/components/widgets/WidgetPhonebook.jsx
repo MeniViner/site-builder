@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Building2, Phone, Search, X } from 'lucide-react';
 import WidgetEmptyState, { getInitials } from './WidgetEmptyState';
+import Tooltip from '../Tooltip';
 import { useRotatingWidgetItems } from '../../utils/widgetDisplay';
 
 export default function WidgetPhonebook({ data = [], settings = {} }) {
@@ -100,21 +101,22 @@ export default function WidgetPhonebook({ data = [], settings = {} }) {
                   </div>
 
                   {contact.number ? (
-                    <a
-                      href={`tel:${contact.number}`}
-                      className="mt-3 flex items-center justify-between rounded-2xl border border-primary/15 bg-primary/[0.06] px-3.5 py-2.5 text-right transition hover:border-primary/30 hover:bg-primary/[0.1]"
-                      title={`התקשר ל-${contact.name}`}
-                    >
-                      <div className="flex items-center gap-2 text-primary">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/15">
-                          <Phone size={15} />
+                    <Tooltip text={`התקשר ל-${contact.name}`}>
+                      <a
+                        href={`tel:${contact.number}`}
+                        className="mt-3 flex items-center justify-between rounded-2xl border border-primary/15 bg-primary/[0.06] px-3.5 py-2.5 text-right transition hover:border-primary/30 hover:bg-primary/[0.1]"
+                      >
+                        <div className="flex items-center gap-2 text-primary">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/15">
+                            <Phone size={15} />
+                          </div>
+                          <span className="text-xs font-bold uppercase tracking-[0.2em] text-primary/80">חיוג מהיר</span>
                         </div>
-                        <span className="text-xs font-bold uppercase tracking-[0.2em] text-primary/80">חיוג מהיר</span>
-                      </div>
-                      <span className="text-sm font-black tracking-[0.18em] text-gray-700 dark:text-gray-100" dir="ltr">
-                        {contact.number}
-                      </span>
-                    </a>
+                        <span className="text-sm font-black tracking-[0.18em] text-gray-700 dark:text-gray-100" dir="ltr">
+                          {contact.number}
+                        </span>
+                      </a>
+                    </Tooltip>
                   ) : (
                     <div className="mt-3 rounded-2xl border border-dashed border-gray-200 px-3.5 py-2.5 text-xs font-medium text-gray-400 dark:border-white/10 dark:text-gray-500">
                       לא הוגדר מספר טלפון לאיש קשר זה

@@ -46,7 +46,7 @@ export default function SiteContentLivePreview({ draft }) {
             >
                 <SiteContentContext.Provider value={previewContextValue}>
                     <div className="pointer-events-none select-none w-full h-full pb-32">
-                        <Home />
+                        <Home isPreview />
                     </div>
                 </SiteContentContext.Provider>
             </div>

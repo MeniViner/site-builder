@@ -8,13 +8,13 @@ export default function WidgetPolls({ data = [], settings = {} }) {
   const [selectedOptionId, setSelectedOptionId] = useState(null);
 
   const activePoll = useMemo(() => data.find((item) => item.active === true), [data]);
+  const options = activePoll?.options || [];
+  const { visibleItems, page, totalPages } = useRotatingWidgetItems(options, settings, 5000);
 
   if (!activePoll) {
     return <WidgetEmptyState icon={Vote} title="אין סקר פעיל כרגע" description="כאשר יופעל סקר יחידתי חדש, הוא יוצג כאן להצבעה מהירה." />;
   }
 
-  const options = activePoll.options || [];
-  const { visibleItems, page, totalPages } = useRotatingWidgetItems(options, settings, 5000);
   const totalVotes = options.reduce((sum, option) => sum + (option.votes || 0), 0) || 1;
 
   const handleVote = (optionId) => {

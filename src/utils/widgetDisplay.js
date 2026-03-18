@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 export const DEFAULT_WIDGET_SETTINGS = {
+  alerts: { itemsPerView: 3, autoScroll: true, intervalMs: 5000 },
   outstanding: { itemsPerView: 1, autoScroll: true, intervalMs: 5000 },
   news: { itemsPerView: 3, autoScroll: true, intervalMs: 5000 },
   phonebook: { itemsPerView: 4, autoScroll: true, intervalMs: 5000 },

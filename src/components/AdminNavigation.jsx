@@ -9,6 +9,8 @@ import {
     ExternalLink
 } from 'lucide-react';
 import IconPickerModal from './IconPickerModal';
+import Tooltip from './Tooltip';
+import { confirmToast } from '../utils/confirmToast';
 
 export default function AdminNavigation() {
     const { navItems: initialNavItems, loading, error, saveNavigation } = useNavigation();
@@ -121,26 +123,36 @@ export default function AdminNavigation() {
 
     // Remover
     const removeNode = (path) => {
-        if (!confirm('האם אתה בטוח שברצונך למחוק פריט זה?')) return;
-        setNavItems(prev => {
-            const copy = JSON.parse(JSON.stringify(prev));
-            if (path.length === 1) {
-                return copy.filter(c => c.id !== path[0]);
-            } else if (path.length === 2) {
-                const cat = copy.find(c => c.id === path[0]);
-                if (cat && cat.children) cat.children = cat.children.filter(c => c.id !== path[1]);
-            } else if (path.length === 3) {
-                const cat = copy.find(c => c.id === path[0]);
-                const sub = cat?.children?.find(c => c.id === path[1]);
-                if (sub && sub.subLinks) sub.subLinks = sub.subLinks.filter(l => (l.id || l.label) !== path[2]);
-            }
-            return copy;
-        });
+        confirmToast({
+            title: 'מחיקת פריט ניווט',
+            message: 'האם אתה בטוח שברצונך למחוק פריט זה?',
+            confirmText: 'מחק',
+            cancelText: 'ביטול',
+            type: 'warning',
+        }).then((confirmed) => {
+            if (!confirmed) return;
 
-        // If we deleted the folder we are currently viewing, go up one level
-        if (selectedPath.join(',') === path.join(',')) {
-            setSelectedPath(path.slice(0, -1));
-        }
+            setNavItems(prev => {
+                const copy = JSON.parse(JSON.stringify(prev));
+                if (path.length === 1) {
+                    return copy.filter(c => c.id !== path[0]);
+                } else if (path.length === 2) {
+                    const cat = copy.find(c => c.id === path[0]);
+                    if (cat && cat.children) cat.children = cat.children.filter(c => c.id !== path[1]);
+                } else if (path.length === 3) {
+                    const cat = copy.find(c => c.id === path[0]);
+                    const sub = cat?.children?.find(c => c.id === path[1]);
+                    if (sub && sub.subLinks) sub.subLinks = sub.subLinks.filter(l => (l.id || l.label) !== path[2]);
+                }
+                return copy;
+            });
+
+            // If we deleted the folder we are currently viewing, go up one level
+            setSelectedPath((prevSelected) => {
+                if (prevSelected.join(',') !== path.join(',')) return prevSelected;
+                return path.slice(0, -1);
+            });
+        });
     };
 
     // Derived State
@@ -216,9 +228,9 @@ export default function AdminNavigation() {
                                         <DynamicIcon name={isCatExpanded || isCatSelected ? 'FolderOpen' : 'Folder'} size={14} className={isCatSelected || isCatPathActive ? 'text-blue-400 drop-shadow-[0_0_5px_rgba(96,165,250,0.5)]' : 'text-blue-500'} />
                                     </div>
                                     <span className="text-sm truncate select-none flex-1 font-medium">{cat.label}</span>
-                                    {cat.isDirectLink && (
-                                        <ExternalLink size={12} className="text-primary-500/60 shrink-0" title="Direct Link" />
-                                    )}
+                                        <Tooltip text="Direct Link">
+                                            <ExternalLink size={12} className="text-primary-500/60 shrink-0" />
+                                        </Tooltip>
                                 </div>
 
                                 {/* Subcategories (if expanded) */}
@@ -438,22 +450,22 @@ export default function AdminNavigation() {
                                         </td>
                                         <td className="py-2.5 px-2">
                                             <div className="flex items-center gap-2 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                {child.type === 'folder' && (
+                                                <Tooltip text="פתח תיקייה">
                                                     <button
                                                         onClick={() => setSelectedPath(child.nodePath)}
                                                         className="p-1.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg transition"
-                                                        title="פתח תיקייה"
                                                     >
                                                         <ChevronLeft size={18} />
                                                     </button>
-                                                )}
-                                                <button
-                                                    onClick={() => removeNode(child.nodePath)}
-                                                    className="p-1.5 bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 hover:text-primary-400 rounded-lg transition"
-                                                    title="מחק"
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
+                                                </Tooltip>
+                                                <Tooltip text="מחק">
+                                                    <button
+                                                        onClick={() => removeNode(child.nodePath)}
+                                                        className="p-1.5 bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 hover:text-primary-400 rounded-lg transition"
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                </Tooltip>
                                             </div>
                                         </td>
                                     </tr>

@@ -1,7 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { Search, X, Check } from 'lucide-react';
 import { DynamicIcon } from './DynamicIcon';
+import Tooltip from './Tooltip';
 import { ICON_CATEGORIES } from '../utils/iconsData';
+import { getIconHebrewLabel, getIconSearchHaystack } from '../utils/iconSearchHe';
 
 export default function IconPickerModal({ isOpen, onClose, onSelect, currentIcon }) {
     const [searchTerm, setSearchTerm] = useState('');
@@ -17,7 +19,12 @@ export default function IconPickerModal({ isOpen, onClose, onSelect, currentIcon
         }
 
         if (searchTerm) {
-            result = result.filter(icon => icon.toLowerCase().includes(searchTerm.toLowerCase()));
+            const needle = searchTerm.trim().toLowerCase();
+            result = result.filter((iconName) => {
+                // Match English name or Hebrew keywords/label
+                if (iconName.toLowerCase().includes(needle)) return true;
+                return getIconSearchHaystack(iconName).includes(needle);
+            });
         }
 
         // Remove duplicates if any
@@ -49,7 +56,7 @@ export default function IconPickerModal({ isOpen, onClose, onSelect, currentIcon
                         <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                         <input
                             type="text"
-                            placeholder="חפש אייקון באנגלית (למשל: Home, Folder, User)..."
+                            placeholder="חפש אייקון בעברית או באנגלית (למשל: בית / Home, תיקייה / Folder, משתמש / User)..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="w-full bg-gray-100 dark:bg-[#1e212b] border border-transparent focus:border-primary focus:bg-white dark:focus:bg-[#12141a] rounded-xl pl-4 pr-10 py-3 text-gray-900 dark:text-white transition outline-none"
@@ -86,30 +93,39 @@ export default function IconPickerModal({ isOpen, onClose, onSelect, currentIcon
                         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
                             {filteredIcons.map(iconName => {
                                 const isSelected = currentIcon === iconName;
+                                const heLabel = getIconHebrewLabel(iconName);
+                                const tooltipText = heLabel ? `${heLabel} · ${iconName}` : iconName;
                                 return (
-                                    <button
-                                        key={iconName}
-                                        onClick={() => {
-                                            onSelect(iconName);
-                                            onClose();
-                                        }}
-                                        className={`relative flex flex-col items-center justify-center gap-2 p-3 rounded-xl transition group ${isSelected ? 'bg-primary/10 border-2 border-primary' : 'bg-white dark:bg-[#1a1d24] border border-gray-200 dark:border-white/5 hover:border-primary/50 hover:shadow-md'}`}
-                                        title={iconName}
-                                    >
-                                        <DynamicIcon
-                                            name={iconName}
-                                            size={28}
-                                            className={isSelected ? 'text-primary' : 'text-gray-600 dark:text-gray-300 group-hover:text-primary transition-colors'}
-                                        />
-                                        <span className={`text-[10px] sm:text-xs truncate w-full text-center ${isSelected ? 'font-bold text-primary' : 'text-gray-500 dark:text-gray-400'}`}>
-                                            {iconName}
-                                        </span>
-                                        {isSelected && (
-                                            <div className="absolute top-1 right-1 bg-primary text-white rounded-full p-0.5 shadow-sm">
-                                                <Check size={12} strokeWidth={3} />
-                                            </div>
-                                        )}
-                                    </button>
+                                    <Tooltip key={iconName} text={tooltipText}>
+                                        <button
+                                            onClick={() => {
+                                                onSelect(iconName);
+                                                onClose();
+                                            }}
+                                            className={[
+                                                'relative flex flex-col items-center justify-center gap-2 p-3 rounded-xl transition group',
+                                                'aspect-square w-full',
+                                                'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-50 dark:focus-visible:ring-offset-[#0f1115]',
+                                                isSelected
+                                                    ? 'bg-primary/10 border-2 border-primary shadow-md shadow-primary/10'
+                                                    : 'bg-white dark:bg-[#1a1d24] border border-gray-200 dark:border-white/5 hover:border-primary/50 hover:shadow-md',
+                                            ].join(' ')}
+                                        >
+                                            <DynamicIcon
+                                                name={iconName}
+                                                size={28}
+                                                className={isSelected ? 'text-primary' : 'text-gray-600 dark:text-gray-300 group-hover:text-primary transition-colors'}
+                                            />
+                                            <span className={`text-[10px] sm:text-xs truncate w-full text-center leading-tight ${isSelected ? 'font-bold text-primary' : 'text-gray-500 dark:text-gray-400'}`}>
+                                                {heLabel || iconName}
+                                            </span>
+                                            {isSelected && (
+                                                <div className="absolute top-1 right-1 bg-primary text-white rounded-full p-0.5 shadow-sm">
+                                                    <Check size={12} strokeWidth={3} />
+                                                </div>
+                                            )}
+                                        </button>
+                                    </Tooltip>
                                 );
                             })}
                         </div>

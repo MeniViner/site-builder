@@ -72,7 +72,7 @@ export default function ThemeLivePreview({ draft, displayModeOverride }) {
                 <ThemeContext.Provider value={previewContextValue}>
                     {/* Disable interactions so admin doesn't accidentally click links inside the preview */}
                     <div className="pointer-events-none select-none w-full h-full pb-32">
-                        <Home />
+                        <Home isPreview />
                     </div>
                 </ThemeContext.Provider>
             </div>

@@ -1,35 +1,62 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { AlertTriangle } from 'lucide-react';
-import { useWidget } from '../context/WidgetContext';
-import { DEFAULT_WIDGET_SETTINGS, getWidgetSetting } from '../utils/widgetDisplay';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, Settings2 } from 'lucide-react';
+import { useConfig } from '../context/ConfigProvider';
+import { DEFAULT_WIDGET_SETTINGS } from '../utils/widgetDisplay';
 
-const inputCls =
-    'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 outline-none transition focus:border-primary/30 focus:ring-2 focus:ring-primary/10 dark:border-white/10 dark:bg-[#171a22] dark:text-white';
+const inputCls = 'mt-1.5 w-full rounded-lg border border-theme-subtle bg-theme-elevated px-3 py-1.5 text-sm text-theme outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/20';
 
-const SETTINGS_SUPPORTED = Object.keys(DEFAULT_WIDGET_SETTINGS);
+function normalizeSettings(value, defaults) {
+    return {
+        itemsPerView: Math.max(1, Number(value?.itemsPerView ?? defaults.itemsPerView) || defaults.itemsPerView),
+        autoScroll: value?.autoScroll ?? defaults.autoScroll,
+        intervalMs: Math.max(2000, Number(value?.intervalMs ?? defaults.intervalMs) || defaults.intervalMs),
+    };
+}
 
-export default function WidgetDisplaySettingsPanel({ widgetKey, title }) {
-    const { widgetConfig, saveWidgetConfig, error } = useWidget();
-    const [settingsDraft, setSettingsDraft] = useState(DEFAULT_WIDGET_SETTINGS[widgetKey] || { itemsPerView: 1, autoScroll: true, intervalMs: 5000 });
+export default function WidgetDisplaySettingsPanel({ widgetId, widgetKey }) {
+    const resolvedWidgetId = widgetId || widgetKey;
+    const defaults = DEFAULT_WIDGET_SETTINGS[resolvedWidgetId];
+    const supportsSettings = Boolean(defaults);
+
+    const { config, updateConfig, saveNow, error } = useConfig();
+    const [settingsDraft, setSettingsDraft] = useState(
+        supportsSettings ? normalizeSettings({}, defaults) : { itemsPerView: 1, autoScroll: true, intervalMs: 5000 }
+    );
     const [isSaving, setIsSaving] = useState(false);
     const saveTimeoutRef = useRef(null);
 
-    const supportsSettings = SETTINGS_SUPPORTED.includes(widgetKey);
+    const currentSettings = useMemo(() => {
+        if (!supportsSettings) return null;
+        return normalizeSettings(config?.widgets?.display?.[resolvedWidgetId], defaults);
+    }, [config?.widgets?.display, defaults, resolvedWidgetId, supportsSettings]);
+
+    const maxItemsPerView = useMemo(() => {
+        const branch = config?.widgets?.data?.[resolvedWidgetId];
+        const itemsCount = Array.isArray(branch?.items)
+            ? branch.items.length
+            : (Array.isArray(branch) ? branch.length : 0);
+        return Math.max(1, itemsCount || 1);
+    }, [config?.widgets?.data, resolvedWidgetId]);
 
     useEffect(() => {
-        if (!supportsSettings || !widgetConfig) return;
-        setSettingsDraft(getWidgetSetting(widgetConfig.widgetSettings, widgetKey));
-    }, [widgetConfig, widgetKey, supportsSettings]);
+        if (!supportsSettings || !currentSettings) return;
+        setSettingsDraft(currentSettings);
+    }, [currentSettings, supportsSettings]);
+
+    useEffect(() => {
+        setSettingsDraft((prev) => ({
+            ...prev,
+            itemsPerView: Math.min(maxItemsPerView, Math.max(1, Number(prev.itemsPerView) || 1)),
+        }));
+    }, [maxItemsPerView]);
 
     const hasChanges = useMemo(() => {
-        if (!supportsSettings || !widgetConfig) return false;
-        const current = getWidgetSetting(widgetConfig.widgetSettings, widgetKey);
-        return JSON.stringify(current) !== JSON.stringify(settingsDraft);
-    }, [widgetConfig, widgetKey, supportsSettings, settingsDraft]);
+        if (!supportsSettings || !currentSettings) return false;
+        return JSON.stringify(settingsDraft) !== JSON.stringify(currentSettings);
+    }, [currentSettings, settingsDraft, supportsSettings]);
 
-    // Auto-save (debounced) להגדרות הווידג׳ט הספציפי
     useEffect(() => {
-        if (!supportsSettings || !widgetConfig || !hasChanges) return;
+        if (!supportsSettings || !hasChanges) return;
 
         if (saveTimeoutRef.current) {
             clearTimeout(saveTimeoutRef.current);
@@ -37,116 +64,114 @@ export default function WidgetDisplaySettingsPanel({ widgetKey, title }) {
 
         saveTimeoutRef.current = setTimeout(async () => {
             setIsSaving(true);
-
-            const nextConfig = {
-                ...widgetConfig,
-                widgetSettings: {
-                    ...(widgetConfig.widgetSettings || {}),
-                    [widgetKey]: settingsDraft,
-                },
-            };
-
-            const success = await saveWidgetConfig(nextConfig);
-            setIsSaving(false);
-
-            if (!success) {
-                console.error('שמירת הגדרות התצוגה הדינמיות נכשלה');
+            try {
+                const nextSettings = {
+                    ...normalizeSettings(settingsDraft, defaults),
+                    itemsPerView: Math.min(maxItemsPerView, Math.max(1, Number(settingsDraft.itemsPerView) || 1)),
+                };
+                updateConfig((prev) => ({
+                    ...prev,
+                    widgets: {
+                        ...(prev?.widgets || {}),
+                        display: {
+                            ...(prev?.widgets?.display || {}),
+                            [resolvedWidgetId]: nextSettings,
+                        },
+                    },
+                }));
+                await saveNow();
+            } catch (saveError) {
+                console.error('Failed to save widget display settings:', saveError);
+            } finally {
+                setIsSaving(false);
+                saveTimeoutRef.current = null;
             }
-
-            saveTimeoutRef.current = null;
-        }, 800);
+        }, 700);
 
         return () => {
             if (saveTimeoutRef.current) {
                 clearTimeout(saveTimeoutRef.current);
             }
         };
-    }, [supportsSettings, widgetConfig, hasChanges, widgetKey, settingsDraft, saveWidgetConfig]);
+    }, [defaults, hasChanges, maxItemsPerView, resolvedWidgetId, saveNow, settingsDraft, supportsSettings, updateConfig]);
 
     if (!supportsSettings) return null;
 
     return (
-        <div className="mt-10 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#232733]">
-            <div className="mb-5 flex items-center justify-between gap-3">
-                <div>
-                    <h2 className="text-lg font-black text-gray-900 dark:text-white">
-                        {title || 'הגדרות הצגה דינמיות לווידג׳ט שנבחר'}
-                    </h2>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        קבע כמה פריטים יוצגו בווידג׳ט זה, האם לעבור אוטומטית, ומה יהיה קצב ההחלפה.
-                    </p>
-                </div>
-                {isSaving && (
-                    <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">
-                        שומר...
-                    </span>
-                )}
+        <div className="bg-theme-card border border-theme-subtle rounded-xl p-4 mt-6">
+            <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-base font-bold text-theme flex items-center gap-2">
+                    <Settings2 size={18} className="text-primary" />
+                    הגדרות תצוגה לווידגט
+                </h3>
+                {isSaving && <span className="text-xs font-semibold text-theme-muted">שומר...</span>}
             </div>
 
             {error && (
-                <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-400 bg-red-50 p-3 text-xs text-red-700 dark:border-red-500 dark:bg-red-900/30 dark:text-red-200">
+                <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-500">
                     <AlertTriangle size={14} className="shrink-0" />
                     <span>{error}</span>
                 </div>
             )}
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <label className="block">
-                    <span className="mb-2 block text-xs font-bold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
-                        כמה פריטים להציג יחד
-                    </span>
+                    <span className="text-sm font-semibold text-theme">הפעל גלילה/החלפה אוטומטית</span>
+                    <button
+                        dir="ltr"
+                        type="button"
+                        onClick={() => setSettingsDraft((prev) => ({ ...prev, autoScroll: !prev.autoScroll }))}
+                        className={`mt-1.5 flex h-8 w-14 items-center rounded-full border px-1 transition ${
+                            settingsDraft.autoScroll
+                                ? 'border-primary bg-primary'
+                                : 'border-theme-subtle bg-theme-elevated'
+                        }`}
+                        aria-pressed={settingsDraft.autoScroll}
+                        aria-label="הפעל גלילה או החלפה אוטומטית"
+                    >
+                        <span
+                            className={`h-6 w-6 rounded-full bg-white border border-black/10 shadow transition-transform ${
+                                settingsDraft.autoScroll ? 'translate-x-6' : 'translate-x-0'
+                            }`}
+                        />
+                    </button>
+                </label>
+
+                <label className="block">
+                    <span className="text-sm font-semibold text-theme">משך זמן לפריט (שניות)</span>
+                    <input
+                        type="number"
+                        min="2"
+                        step="1"
+                        value={Math.round(settingsDraft.intervalMs / 1000)}
+                        onChange={(event) =>
+                            setSettingsDraft((prev) => ({
+                                ...prev,
+                                intervalMs: Math.max(2000, (Number(event.target.value) || 2) * 1000),
+                            }))
+                        }
+                        className={inputCls}
+                    />
+                </label>
+
+                <label className="block">
+                    <span className="text-sm font-semibold text-theme">כמות פריטים להצגה יחד</span>
                     <input
                         type="number"
                         min="1"
-                        max="6"
+                        max={maxItemsPerView}
                         value={settingsDraft.itemsPerView}
                         onChange={(event) =>
                             setSettingsDraft((prev) => ({
                                 ...prev,
-                                itemsPerView: Math.max(1, Number(event.target.value) || 1),
+                                itemsPerView: Math.min(maxItemsPerView, Math.max(1, Number(event.target.value) || 1)),
                             }))
                         }
                         className={inputCls}
                     />
-                </label>
-
-                <label className="block">
-                    <span className="mb-2 block text-xs font-bold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
-                        משך מעבר אוטומטי (שניות)
-                    </span>
-                    <input
-                        type="number"
-                        min="2"
-                        step="0.1"
-                        value={settingsDraft.intervalMs / 1000}
-                        onChange={(event) =>
-                            setSettingsDraft((prev) => ({
-                                ...prev,
-                                intervalMs: Math.max(2000, Math.round(Number(event.target.value) * 1000) || 2000),
-                            }))
-                        }
-                        className={inputCls}
-                    />
-                </label>
-
-                <label className="flex items-end">
-                    <span className="flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700 dark:border-white/10 dark:bg-[#171a22] dark:text-gray-200">
-                        <input
-                            type="checkbox"
-                            checked={settingsDraft.autoScroll}
-                            onChange={(event) =>
-                                setSettingsDraft((prev) => ({
-                                    ...prev,
-                                    autoScroll: event.target.checked,
-                                }))
-                            }
-                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                        />
-                        הפעל מעבר/סקרול אוטומטי
-                    </span>
+                    <span className="mt-1 block text-xs text-theme-muted">מקסימום לפי נתונים קיימים: {maxItemsPerView}</span>
                 </label>
             </div>
         </div>
     );
 }
-

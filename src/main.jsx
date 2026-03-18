@@ -10,25 +10,28 @@ import { SiteContentProvider } from './context/SiteContentContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { WidgetProvider } from './context/WidgetContext'
 import { ExternalLinksProvider } from './context/ExternalLinksContext'
+import { ConfigProvider } from './context/ConfigProvider'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
-      <AuthProvider>
-        <NavigationProvider>
-          <EventsProvider>
-            <SiteContentProvider>
-              <ThemeProvider>
-                <WidgetProvider>
-                  <ExternalLinksProvider>
-                    <App />
-                  </ExternalLinksProvider>
-                </WidgetProvider>
-              </ThemeProvider>
-            </SiteContentProvider>
-          </EventsProvider>
-        </NavigationProvider>
-      </AuthProvider>
+      <ConfigProvider>
+        <AuthProvider>
+          <NavigationProvider>
+            <EventsProvider>
+              <SiteContentProvider>
+                <ThemeProvider>
+                  <WidgetProvider>
+                    <ExternalLinksProvider>
+                      <App />
+                    </ExternalLinksProvider>
+                  </WidgetProvider>
+                </ThemeProvider>
+              </SiteContentProvider>
+            </EventsProvider>
+          </NavigationProvider>
+        </AuthProvider>
+      </ConfigProvider>
     </BrowserRouter>
   </StrictMode>,
 )

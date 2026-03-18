@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTheme } from '../context/ThemeContext';
+import { useConfig } from '../context/ConfigProvider';
 import ThemeLivePreview from './ThemeLivePreview';
 import {
     AlertTriangle, Palette, Sun, Moon, Monitor,
@@ -8,6 +9,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { normalizeBorderStyle, panelStyle } from '../utils/borderStyles';
+import Tooltip from './Tooltip';
 
 const SETTINGS_NAV = [
     { id: 'primaryColor', label: 'צבע ראשי' },
@@ -23,6 +25,7 @@ const COLOR_SWATCHES = [
     { hex: '#dc2626', label: 'אדום' },
     { hex: '#ea580c', label: 'כתום' },
     { hex: '#d97706', label: 'ענבר' },
+    { hex: '#ffd700', label: 'צהוב' },
     { hex: '#16a34a', label: 'ירוק' },
     { hex: '#0891b2', label: 'ציאן' },
     { hex: '#2563eb', label: 'כחול' },
@@ -31,6 +34,9 @@ const COLOR_SWATCHES = [
     { hex: '#64748b', label: 'אפור-כחול' },
     { hex: '#78716c', label: 'אפור' },
     { hex: '#7B3F00', label: 'חום' },
+    
+
+
 ];
 
 const DISPLAY_MODES = [
@@ -60,10 +66,10 @@ const BORDER_TARGET_OPTIONS = [
 ];
 
 const REGULAR_LINK_LAYOUTS = [
+    { value: 'sidebar-right', label: 'תפריט צד טקטי', description: 'סרגל ניווט צדדי קבוע בצד ימין', icon: PanelRight },
     { value: 'grid', label: 'Grid', description: 'כרטיסי Flip בתצוגת גריד', icon: LayoutGrid },
     { value: 'compact', label: 'Compact List', description: 'רשימה מינימליסטית עם שורות פשוטות', icon: List },
     { value: 'hq', label: 'HQ Dashboard', description: 'עיצוב מרכז פיקוד טקטי מתקדם', icon: Columns },
-    { value: 'sidebar-right', label: 'תפריט צד טקטי', description: 'סרגל ניווט צדדי קבוע בצד ימין', icon: PanelRight },
 ];
 
 const EXTERNAL_LINK_LAYOUTS = [
@@ -83,8 +89,10 @@ const SAVE_DEBOUNCE_MS = 500;
 
 export default function AdminTheme() {
     const { theme, loading, error, saveTheme, borderTargets, setBorderTargets } = useTheme();
+    const { factoryReset } = useConfig();
     const [draft, setDraft] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [isResetting, setIsResetting] = useState(false);
     const [customColor, setCustomColor] = useState('');
     const [activeSettingId, setActiveSettingId] = useState(SETTINGS_NAV[0].id);
     const colorInputRef = useRef(null);
@@ -95,7 +103,7 @@ export default function AdminTheme() {
     useEffect(() => {
         if (theme) {
             setDraft({ ...theme, borderStyle: normalizeBorderStyle(theme.borderStyle) });
-            setCustomColor(theme.primaryColor || '#dc2626');
+            setCustomColor(theme.primaryColor || '#0891b2');
         }
     }, [theme]);
 
@@ -174,8 +182,21 @@ export default function AdminTheme() {
         setBorderTargets(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
+    const handleFactoryReset = async () => {
+        if (isResetting || typeof factoryReset !== 'function') return;
+        setIsResetting(true);
+        try {
+            await factoryReset();
+        } finally {
+            setIsResetting(false);
+        }
+    };
+
     const showSection = (id) => activeSettingId === id;
     const isTintedBackgroundEnabled = draft.useTintedBackground !== false;
+    const tintStrength = Number.isFinite(Number(draft.tintedBackgroundStrength))
+        ? Math.min(100, Math.max(0, Math.round(Number(draft.tintedBackgroundStrength))))
+        : 72;
 
     return (
         <div dir="rtl" className="h-full flex flex-col bg-gray-50 dark:bg-[#12141a] text-gray-900 dark:text-white font-heebo relative">
@@ -218,8 +239,8 @@ export default function AdminTheme() {
                 </div>
             )}
 
-            <div className="flex-1 overflow-visible p-6 sm:p-10 space-y-10 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-10">
-                <div className="space-y-10 order-2 lg:order-1">
+            <div className="flex-1 overflow-hidden p-6 sm:p-10 space-y-10 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-10">
+                <div className="space-y-10 order-2 lg:order-1 lg:max-h-[calc(100vh-190px)] lg:overflow-y-auto lg:pl-2 custom-scrollbar">
                     {/* ==================== PRIMARY COLOR ==================== */}
                     {showSection('primaryColor') && (
                         <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
@@ -236,13 +257,11 @@ export default function AdminTheme() {
                             <div className="grid grid-cols-4 gap-3 mb-5">
                                 {COLOR_SWATCHES.map((swatch) => (
                                     <button
-                                        key={swatch.hex}
                                         onClick={() => handleColorSwatchClick(swatch.hex)}
                                         className={`group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${draft.primaryColor === swatch.hex
                                             ? 'border-gray-400 dark:border-white/40 bg-gray-100 dark:bg-white/5 ring-2 ring-gray-300 dark:ring-white/20'
                                             : 'border-transparent hover:border-gray-300 dark:hover:border-white/10 hover:bg-gray-100 dark:hover:bg-white/5'
                                             }`}
-                                        title={swatch.label}
                                     >
                                         <div
                                             className="w-10 h-10 rounded-lg shadow-lg transition-transform group-hover:scale-110"
@@ -261,12 +280,13 @@ export default function AdminTheme() {
                             <div className="flex items-center gap-3 pt-4 border-t border-gray-200 dark:border-white/5">
                                 <label className="text-sm font-bold text-gray-500 dark:text-gray-400 shrink-0">צבע מותאם אישית</label>
                                 <div className="flex items-center gap-2 flex-1">
-                                    <button
-                                        onClick={() => colorInputRef.current?.click()}
-                                        className="w-10 h-10 rounded-lg border-2 border-gray-700 cursor-pointer shadow-inner shrink-0 hover:border-gray-500 transition"
-                                        style={{ backgroundColor: draft.primaryColor }}
-                                        title="פתח בורר צבע"
-                                    />
+                                    <Tooltip text="פתח בורר צבע">
+                                        <button
+                                            onClick={() => colorInputRef.current?.click()}
+                                            className="w-10 h-10 rounded-lg border-2 border-gray-700 cursor-pointer shadow-inner shrink-0 hover:border-gray-500 transition"
+                                            style={{ backgroundColor: draft.primaryColor }}
+                                        />
+                                    </Tooltip>
                                     <input
                                         ref={colorInputRef}
                                         type="color"
@@ -287,29 +307,62 @@ export default function AdminTheme() {
                             </div>
 
                             <div className="mt-5 p-4 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5">
-                                <div className="flex items-start justify-between gap-4" >
+                                <div className="flex items-start justify-between gap-4">
                                     <div>
-                                        <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-1">השתקפות צבע על רקעי האתר</h3>
+                                        <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-1">השתקפות צבע על רקעי האתר - מומלץ!</h3>
                                         <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                                             מחיל גוון עדין של הצבע הראשי שבחרת על כלל רקעי האתר והכרטיסיות. כיבוי אפשרות זו ישאיר את רקעי האתר בגוון קלאסי (אפור/שחור נקי).
                                         </p>
                                     </div>
-                                    <button
-                                    dir="ltr"
-                                        type="button"
-                                        onClick={() => updateField('useTintedBackground', !isTintedBackgroundEnabled)}
-                                        className={`relative inline-flex h-7 w-14 shrink-0 items-center rounded-full border transition-all ${isTintedBackgroundEnabled
-                                            ? 'bg-primary-600 border-primary-400/70 shadow-[0_0_16px_rgba(220,38,38,0.35)]'
-                                            : 'bg-gray-300 dark:bg-gray-700 border-gray-400/60 dark:border-gray-500/60'
-                                            }`}
-                                        aria-pressed={isTintedBackgroundEnabled}
-                                        aria-label="הפעלת השתקפות צבע על רקעים"
-                                    >
-                                        <span
-                                            className={`inline-block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform ${isTintedBackgroundEnabled ? 'translate-x-7' : 'translate-x-1'
+                                    <div className="flex flex-col items-center gap-1.5 shrink-0">
+                                        <button
+                                            dir="ltr"
+                                            type="button"
+                                            role="switch"
+                                            aria-checked={isTintedBackgroundEnabled}
+                                            onClick={() => updateField('useTintedBackground', !isTintedBackgroundEnabled)}
+                                            className={`relative inline-flex h-8 w-16 shrink-0 items-center rounded-full border transition-all duration-300 ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#12141a] ${isTintedBackgroundEnabled
+                                                ? 'bg-primary-600 border-primary-400/70 shadow-[0_0_16px_var(--color-primary-hex)]'
+                                                : 'bg-gray-300 dark:bg-gray-700 border-gray-400/60 dark:border-gray-500/60'
                                                 }`}
-                                        />
-                                    </button>
+                                            aria-label="הפעלת השתקפות צבע על רקעים"
+                                        >
+                                            <span
+                                                className={`inline-block h-6 w-6 rounded-full bg-white shadow-[0_2px_10px_rgba(0,0,0,0.28)] transform-gpu transition-transform duration-300 ease-out ${isTintedBackgroundEnabled ? 'translate-x-9' : 'translate-x-1'
+                                                    }`}
+                                            />
+                                        </button>
+                                        <span className={`text-[10px] font-bold tracking-wide ${isTintedBackgroundEnabled ? 'text-primary-500' : 'text-gray-500 dark:text-gray-400'}`}>
+                                            {isTintedBackgroundEnabled ? 'מופעל' : 'כבוי'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className={`mt-4 pt-4 border-t border-gray-200 dark:border-white/10 ${isTintedBackgroundEnabled ? '' : 'opacity-60'}`} dir="ltr"   >
+                                    <div className="flex items-center justify-between mb-2" dir="rtl">
+                                        <span className="text-xs font-bold text-gray-700 dark:text-gray-300 ">עוצמת חוזק ההשפעה</span>
+                                        <span className="text-xs font-black text-primary">{tintStrength}%</span>
+                                    </div>
+                                    <input
+                                        dir="ltr"
+                                        type="range"
+                                        min={0}
+                                        max={100}
+                                        step={1}
+                                        value={tintStrength}
+                                        disabled={!isTintedBackgroundEnabled}
+                                        onChange={(e) => updateField('tintedBackgroundStrength', Number(e.target.value))}
+                                        className="tint-strength-slider w-full cursor-pointer disabled:cursor-not-allowed"
+                                        style={{ '--slider-fill': `${tintStrength}%` }}
+                                        aria-label="עוצמת השתקפות צבע על רקעים"
+                                    />
+                                    <div className="mt-1 flex items-center justify-between text-[10px] font-semibold text-gray-500 dark:text-gray-400">
+                                        <span>0</span>
+                                        <span>50</span>
+                                        <span>100</span>
+                                    </div>
+                                    <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400" dir="rtl">
+                                        עובד גם בתצוגה בהירה וגם בכהה. בתצוגה בהירה מומלץ בד״כ בין 45%–75%, ובכהה אפשר גם גבוה יותר.
+                                    </p>
                                 </div>
                             </div>
 
@@ -408,6 +461,27 @@ export default function AdminTheme() {
                                 })}
                             </div>
 
+                            <div className="mt-6 rounded-2xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#171a22]/80 p-5">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${draft.heroPanelsBordered !== false ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400'}`}>
+                                            {draft.heroPanelsBordered !== false ? <Eye size={18} /> : <EyeOff size={18} />}
+                                        </div>
+                                        <div>
+                                            <h3 className="text-sm font-black text-gray-900 dark:text-white">מסגרת בהירו העליון</h3>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">משפיע רק על דבר המפקד ועל הווידג׳ט בהירו: מסגרת פעילה או ללא מסגרת.</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => updateField('heroPanelsBordered', !(draft.heroPanelsBordered !== false))}
+                                        className={`relative w-14 h-8 rounded-full border transition-all ${draft.heroPanelsBordered !== false ? 'bg-primary border-primary/70' : 'bg-gray-200 dark:bg-[#252528] border-gray-300 dark:border-white/10'}`}
+                                    >
+                                        <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-md transition-all ${draft.heroPanelsBordered !== false ? 'right-0.5' : 'right-[29px]'}`} />
+                                    </button>
+                                </div>
+                            </div>
+
                             <div className="mt-8 rounded-[28px] border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#171a22]/80  overflow-hidden">
                                 <div className="px-6 sm:px-7 pt-6 pb-5 border-b border-gray-200 dark:border-white/10 bg-gradient-to-l from-primary/10 via-transparent to-transparent">
                                     <div className="flex items-center gap-3 mb-2">
@@ -444,43 +518,43 @@ export default function AdminTheme() {
                                                 : undefined;
 
                                             return (
-                                                <button
-                                                    key={target.key}
-                                                    type="button"
-                                                    onClick={() => !isAvailable ? undefined : handleBorderTargetToggle(target.key)}
-                                                    className={`group relative overflow-hidden rounded-2xl border text-right p-4 transition-all ${isEnabled
-                                                        ? 'bg-primary/10 border-primary/30 shadow-[0_18px_40px_-28px_var(--color-primary-hex)]'
-                                                        : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
-                                                        } ${!isAvailable ? 'cursor-not-allowed opacity-60 dark:opacity-80' : ''}`}
-                                                    disabled={!isAvailable}
-                                                    title={disabledNote}
-                                                >
-                                                    <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-primary via-primary/40 to-transparent opacity-80" />
-                                                    <div className="flex items-start gap-4">
-                                                        <div className={`mt-0.5 relative w-12 h-7 rounded-full border transition-all ${isEnabled
-                                                            ? 'bg-primary border-primary/60'
-                                                            : 'bg-gray-200 dark:bg-[#252528] border-gray-300 dark:border-white/10'
-                                                            }`}>
-                                                            <div className={`absolute top-0.5 w-[22px] h-[22px] rounded-full shadow-md transition-all flex items-center justify-center ${isEnabled
-                                                                ? 'right-0.5 bg-white text-primary'
-                                                                : 'right-[25px] bg-white dark:bg-gray-300 text-gray-400'
+                                                <Tooltip key={target.key} text={disabledNote}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => !isAvailable ? undefined : handleBorderTargetToggle(target.key)}
+                                                        className={`group relative overflow-hidden rounded-2xl border text-right p-4 transition-all ${isEnabled
+                                                            ? 'bg-primary/10 border-primary/30 shadow-[0_18px_40px_-28px_var(--color-primary-hex)]'
+                                                            : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
+                                                            } ${!isAvailable ? 'cursor-not-allowed opacity-60 dark:opacity-80' : ''}`}
+                                                        disabled={!isAvailable}
+                                                    >
+                                                        <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-primary via-primary/40 to-transparent opacity-80" />
+                                                        <div className="flex items-start gap-4">
+                                                            <div className={`mt-0.5 relative w-12 h-7 rounded-full border transition-all ${isEnabled
+                                                                ? 'bg-primary border-primary/60'
+                                                                : 'bg-gray-200 dark:bg-[#252528] border-gray-300 dark:border-white/10'
                                                                 }`}>
-                                                                {isEnabled && <CheckCircle2 size={12} strokeWidth={3} />}
+                                                                <div className={`absolute top-0.5 w-[22px] h-[22px] rounded-full shadow-md transition-all flex items-center justify-center ${isEnabled
+                                                                    ? 'right-0.5 bg-white text-primary'
+                                                                    : 'right-[25px] bg-white dark:bg-gray-300 text-gray-400'
+                                                                    }`}>
+                                                                    {isEnabled && <CheckCircle2 size={12} strokeWidth={3} />}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <div className="flex items-center justify-between gap-3 mb-1">
+                                                                    <h4 className={`font-bold text-sm ${isEnabled ? 'text-gray-900 dark:text-white' : 'text-gray-800 dark:text-gray-200'}`}>{target.label}</h4>
+                                                                    <span className={`text-[10px] font-bold tracking-[0.2em] uppercase ${isEnabled ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}`}>
+                                                                        {isEnabled ? 'ON' : 'OFF'}
+                                                                    </span>
+                                                                </div>
+                                                                <p className={`text-xs leading-5 ${isEnabled ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-500'}`}>
+                                                                    {target.description}
+                                                                </p>
                                                             </div>
                                                         </div>
-                                                        <div className="flex-1">
-                                                            <div className="flex items-center justify-between gap-3 mb-1">
-                                                                <h4 className={`font-bold text-sm ${isEnabled ? 'text-gray-900 dark:text-white' : 'text-gray-800 dark:text-gray-200'}`}>{target.label}</h4>
-                                                                <span className={`text-[10px] font-bold tracking-[0.2em] uppercase ${isEnabled ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}`}>
-                                                                    {isEnabled ? 'ON' : 'OFF'}
-                                                                </span>
-                                                            </div>
-                                                            <p className={`text-xs leading-5 ${isEnabled ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-500'}`}>
-                                                                {target.description}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                </button>
+                                                    </button>
+                                                </Tooltip>
                                             );
                                         });
                                     })()}
@@ -543,31 +617,32 @@ export default function AdminTheme() {
                             </div>
 
                             {/* Toggle: Show Nav Categories */}
-                            <div
-                                className={`flex items-center justify-between p-5 bg-gray-100 dark:bg-[#1e212b] rounded-xl border border-gray-200 dark:border-white/5 mb-4 transition-opacity ${draft.regularLinksLayout === 'sidebar-right' ? 'opacity-50 pointer-events-none' : ''}`}
-                                title={draft.regularLinksLayout === 'sidebar-right' ? 'לא ניתן להציג ניווט עליון כאשר תפריט צד נבחר' : undefined}
-                            >
-                                <div className="flex items-center gap-4">
-                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${draft.showNavCategories ? 'bg-green-500/15' : 'bg-gray-100 dark:bg-white/5'}`}>
-                                        {draft.showNavCategories ? <Eye size={20} className="text-green-400" /> : <EyeOff size={20} className="text-gray-500" />}
+                            <Tooltip text={draft.regularLinksLayout === 'sidebar-right' ? 'לא ניתן להציג ניווט עליון כאשר תפריט צד נבחר' : undefined}>
+                                <div
+                                    className={`flex items-center justify-between p-5 bg-gray-100 dark:bg-[#1e212b] rounded-xl border border-gray-200 dark:border-white/5 mb-4 transition-opacity ${draft.regularLinksLayout === 'sidebar-right' ? 'opacity-50 pointer-events-none' : ''}`}
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${draft.showNavCategories ? 'bg-green-500/15' : 'bg-gray-100 dark:bg-white/5'}`}>
+                                            {draft.showNavCategories ? <Eye size={20} className="text-green-400" /> : <EyeOff size={20} className="text-gray-500" />}
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-gray-900 dark:text-white text-sm">הצגת קטגוריות בניווט עליון</h3>
+                                            <p className="text-xs text-gray-400 dark:text-gray-500">הצג/הסתר את הקטגוריות בסרגל הניווט העליון של האתר</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h3 className="font-bold text-gray-900 dark:text-white text-sm">הצגת קטגוריות בניווט עליון</h3>
-                                        <p className="text-xs text-gray-400 dark:text-gray-500">הצג/הסתר את הקטגוריות בסרגל הניווט העליון של האתר</p>
-                                    </div>
+                                    <label className="relative cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            checked={draft.showNavCategories}
+                                            disabled={draft.regularLinksLayout === 'sidebar-right'}
+                                            onChange={(e) => updateField('showNavCategories', e.target.checked)}
+                                        />
+                                        <div className="w-12 h-7 bg-gray-200 dark:bg-[#252528] rounded-full peer-checked:bg-green-600 transition-colors" />
+                                        <div className="absolute top-0.5 left-0.5 w-6 h-6 bg-gray-300 rounded-full peer-checked:translate-x-5 peer-checked:bg-white transition-transform shadow-sm" />
+                                    </label>
                                 </div>
-                                <label className="relative cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        className="sr-only peer"
-                                        checked={draft.showNavCategories}
-                                        disabled={draft.regularLinksLayout === 'sidebar-right'}
-                                        onChange={(e) => updateField('showNavCategories', e.target.checked)}
-                                    />
-                                    <div className="w-12 h-7 bg-gray-200 dark:bg-[#252528] rounded-full peer-checked:bg-green-600 transition-colors" />
-                                    <div className="absolute top-0.5 left-0.5 w-6 h-6 bg-gray-300 rounded-full peer-checked:translate-x-5 peer-checked:bg-white transition-transform shadow-sm" />
-                                </label>
-                            </div>
+                            </Tooltip>
 
                             {/* Toggle: Hero Grayscale */}
                             <div className="flex items-center justify-between p-5 bg-gray-100 dark:bg-[#1e212b] rounded-xl border border-gray-200 dark:border-white/5">
@@ -599,6 +674,28 @@ export default function AdminTheme() {
                                     >
                                         שחור לבן
                                     </button>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 rounded-xl border border-red-300/70 bg-red-50/70 p-5 dark:border-red-500/40 dark:bg-red-900/20">
+                                <div className="flex items-start gap-3">
+                                    <div className="mt-0.5 rounded-lg bg-red-100 p-2 text-red-600 dark:bg-red-500/20 dark:text-red-300">
+                                        <AlertTriangle size={18} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="text-sm font-black text-red-700 dark:text-red-200">איפוס נתוני אתר לברירת מחדל</h3>
+                                        <p className="mt-1 text-xs leading-5 text-red-700/80 dark:text-red-100/80">
+                                            פעולה זו תמחק את כלל ההגדרות, העיצוב, הניווט ותוכן הווידג'טים ותשחזר את האתר למצב יצרן.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={handleFactoryReset}
+                                            disabled={isResetting || isSaving}
+                                            className="mt-4 inline-flex items-center rounded-lg border border-red-500/60 bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {isResetting ? 'מבצע איפוס...' : 'איפוס נתוני אתר לברירת מחדל'}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </section>
@@ -695,13 +792,14 @@ export default function AdminTheme() {
                                     />
                                     <div>
                                         <span className="font-medium text-gray-800 dark:text-gray-200">הצג כפס נעוץ</span>
-                                        <span
-                                            className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 dark:bg-white/10 text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-white/20 transition-colors cursor-help mr-1.5 align-middle"
-                                            title="נעוץ: הקישורים יוצגו בפס קבוע בתחתית המסך (תמיד גלוי בגלילה)."
-                                            aria-label="הסבר על פס נעוץ"
-                                        >
-                                            <Info size={12} strokeWidth={2.5} />
-                                        </span>
+                                        <Tooltip text="נעוץ: הקישורים יוצגו בפס קבוע בתחתית המסך (תמיד גלוי בגלילה).">
+                                            <span
+                                                className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 dark:bg-white/10 text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-white/20 transition-colors cursor-help mr-1.5 align-middle"
+                                                aria-label="הסבר על פס נעוץ"
+                                            >
+                                                <Info size={12} strokeWidth={2.5} />
+                                            </span>
+                                        </Tooltip>
                                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">הקישורים יישארו קבועים בתחתית המסך ויהיו תמיד גלויים גם בגלילה.</p>
                                     </div>
                                 </label>
@@ -734,7 +832,7 @@ export default function AdminTheme() {
                     )}
                 </div>
 
-                <div className="order-1 lg:order-2">
+                <div className="order-1 lg:order-2 lg:self-start">
                     <div className="sticky top-[140px]">
                         <div className="flex items-center justify-between mb-3 px-1">
                             <p className="text-sm font-bold text-gray-500 dark:text-gray-400">תצוגה מקדימה </p>

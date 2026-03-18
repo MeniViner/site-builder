@@ -3,7 +3,8 @@ import { getRequestDigest } from '../utils/sharepointUtils';
 import { mergeWidgetSettings } from '../utils/widgetDisplay';
 
 export const DEFAULT_WIDGETS_CONFIG = {
-    activeWidget: 'events',
+    activeWidgets: ['events'],
+    rotationInterval: 8,
     widgetSettings: mergeWidgetSettings(),
     outstanding: [],
     countdown: {
@@ -18,20 +19,29 @@ export const DEFAULT_WIDGETS_CONFIG = {
     ],
     polls: [
         {
-            id: '1',
-            question: 'איזה שיר תרצו שיושמע במסדר הבוקר?',
+            id: '3',
+            question: 'מה הכי מחזק תחושת אחריות אישית ביחידה?',
             options: [
-                { id: 'o1', text: 'טונה - גם זה יעבור', votes: 45 },
-                { id: 'o2', text: 'רביד פלוטניק - כפרה שלי', votes: 82 },
+                { id: 'o5', text: 'הובלת משימות עצמאית', votes: 55 },
+                { id: 'o6', text: 'משוב אישי מהמפקדים', votes: 33 },
             ],
-            active: true,
+            active: false,
         },
         {
-            id: '2',
-            question: 'היכן כדאי לקיים את יום הגיבוש המחלקתי?',
+            id: '4',
+            question: 'איזה כלי הכי חסר לנו היום לשיפור ביצועים?',
             options: [
-                { id: 'o3', text: 'פארק הירקון', votes: 12 },
-                { id: 'o4', text: 'חוף הים - פלמחים', votes: 30 },
+                { id: 'o7', text: 'תחקירים מסודרים אחרי פעילות', votes: 28 },
+                { id: 'o8', text: 'הגדרת יעדים ברורה לכל חייל', votes: 61 },
+            ],
+            active: false,
+        },
+        {
+            id: '5',
+            question: 'מהו הגורם המרכזי לשחיקה בתקופה האחרונה?',
+            options: [
+                { id: 'o9', text: 'עומס משימות', votes: 70 },
+                { id: 'o10', text: 'חוסר בהירות בדרישות', votes: 26 },
             ],
             active: false,
         },
@@ -76,8 +86,21 @@ class WidgetService {
 
     _normalizeData(data) {
         if (!data) return createDefaultWidgetConfig();
+        const activeWidgets = Array.isArray(data.activeWidgets) && data.activeWidgets.length > 0
+            ? data.activeWidgets
+            : (data.activeWidget ? [data.activeWidget] : [...DEFAULT_WIDGETS_CONFIG.activeWidgets]);
+        const normalizedActiveWidgets = Array.from(new Set(activeWidgets.filter(Boolean))).slice(0, 3);
+        const resolvedActiveWidgets = normalizedActiveWidgets.length > 0
+            ? normalizedActiveWidgets
+            : [...DEFAULT_WIDGETS_CONFIG.activeWidgets];
+        const rotationInterval = Number.isFinite(Number(data.rotationInterval))
+            ? Math.max(3, Math.min(30, Number(data.rotationInterval)))
+            : DEFAULT_WIDGETS_CONFIG.rotationInterval;
+
         return {
-            activeWidget: data.activeWidget || DEFAULT_WIDGETS_CONFIG.activeWidget,
+            activeWidgets: resolvedActiveWidgets,
+            activeWidget: resolvedActiveWidgets[0],
+            rotationInterval,
             widgetSettings: mergeWidgetSettings(data.widgetSettings || {}),
             outstanding: Array.isArray(data.outstanding) ? data.outstanding : [],
             countdown: data.countdown && typeof data.countdown === 'object'

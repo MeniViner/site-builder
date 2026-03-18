@@ -126,15 +126,15 @@ export default function AdminExternalLinks() {
                         <p className="text-gray-900 dark:text-white font-bold text-lg mb-4">האם למחוק קישור זה?</p>
                         <div className="flex gap-3 justify-end">
                             <button type="button" onClick={() => setConfirmDeleteId(null)} className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 transition font-medium">ביטול</button>
-                            <button type="button" onClick={confirmRemoveLink} className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-medium transition">מחוק</button>
+                            <button type="button" onClick={confirmRemoveLink} className="px-4 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-medium transition">מחוק</button>
                         </div>
                     </div>
                 </div>
             )}
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-6 mb-8 pb-6 border-b border-gray-200 dark:border-white/10">
                 <div className="flex items-start gap-4">
-                    <div className="bg-red-500/10 p-3 rounded-xl border border-red-500/20 shrink-0">
-                        <ExternalLink size={24} className="text-red-500" />
+                    <div className="bg-primary-500/10 p-3 rounded-xl border border-primary-500/20 shrink-0">
+                        <ExternalLink size={24} className="text-primary-500" />
                     </div>
                     <div>
                         <h1 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">ניהול קישורים חיצוניים</h1>
@@ -154,9 +154,9 @@ export default function AdminExternalLinks() {
             </div>
 
             {error && (
-                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/50 border border-red-300 dark:border-red-500 rounded-lg flex items-center gap-3">
-                    <AlertTriangle className="text-red-400 shrink-0" />
-                    <span className="text-red-700 dark:text-red-200">{error}</span>
+                <div className="mb-6 p-4 bg-primary-50 dark:bg-primary-900/50 border border-primary-300 dark:border-primary-500 rounded-lg flex items-center gap-3">
+                    <AlertTriangle className="text-primary-400 shrink-0" />
+                    <span className="text-primary-700 dark:text-primary-200">{error}</span>
                 </div>
             )}
 
@@ -167,7 +167,7 @@ export default function AdminExternalLinks() {
                     <p className="text-gray-400 dark:text-gray-600 text-sm mb-6">לחץ על "הוסף קישור" כדי להוסיף קישור חיצוני ראשון לפוטר.</p>
                     <button
                         onClick={addLink}
-                        className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg shadow-red-900/20"
+                        className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg shadow-primary-900/20"
                     >
                         <Plus size={18} />
                         <span>הוסף קישור ראשון</span>
@@ -178,7 +178,7 @@ export default function AdminExternalLinks() {
                     {links.map((link) => (
                         <div
                             key={link.id}
-                            className="bg-white dark:bg-[#232733] border border-gray-200 dark:border-white/10 rounded-2xl p-6 flex flex-col group hover:border-red-500/30 hover:shadow-lg hover:shadow-red-500/5 transition-all relative shadow-sm"
+                            className="bg-white dark:bg-[#232733] border border-gray-200 dark:border-white/10 rounded-2xl p-6 flex flex-col group hover:border-primary-500/30 hover:shadow-lg hover:shadow-primary-500/5 transition-all relative shadow-sm"
                         >
                             <div className="flex items-start gap-4 mb-4">
                                 <div className="relative w-16 h-16 rounded-xl bg-gray-100 dark:bg-[#1e212b] border border-gray-200 dark:border-white/10 overflow-hidden flex items-center justify-center shrink-0">
@@ -217,14 +217,14 @@ export default function AdminExternalLinks() {
                             <div className="flex items-center gap-2 mt-auto pt-4 border-t border-gray-100 dark:border-white/5">
                                 <button
                                     onClick={() => startEdit(link)}
-                                    className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-gray-100 dark:bg-white/5 hover:bg-red-500 hover:text-white text-gray-700 dark:text-gray-300 rounded-xl transition text-sm font-bold"
+                                    className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-gray-100 dark:bg-white/5 hover:bg-primary-500 hover:text-white text-gray-700 dark:text-gray-300 rounded-xl transition text-sm font-bold"
                                 >
                                     <Edit2 size={14} />
                                     <span>ערוך</span>
                                 </button>
                                 <button
                                     onClick={() => removeLink(link.id)}
-                                    className="flex items-center justify-center gap-2 py-2.5 px-4 bg-red-500/10 hover:bg-red-500/25 text-red-500 hover:text-red-400 rounded-xl transition text-sm font-medium"
+                                    className="flex items-center justify-center gap-2 py-2.5 px-4 bg-primary-500/10 hover:bg-primary-500/25 text-primary-500 hover:text-primary-400 rounded-xl transition text-sm font-medium"
                                 >
                                     <Trash2 size={14} />
                                     <span>מחק</span>
@@ -236,7 +236,7 @@ export default function AdminExternalLinks() {
                     {/* Add card */}
                     {/* <button
                         onClick={addLink}
-                        className="border-2 border-dashed border-gray-300 dark:border-white/10 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 text-gray-400 dark:text-gray-500 hover:text-red-500 hover:border-red-500/40 hover:bg-red-500/5 dark:hover:bg-red-500/10 transition-all min-h-[220px]"
+                        className="border-2 border-dashed border-gray-300 dark:border-white/10 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 text-gray-400 dark:text-gray-500 hover:text-primary-500 hover:border-primary-500/40 hover:bg-primary-500/5 dark:hover:bg-primary-500/10 transition-all min-h-[220px]"
                     >
                         <Plus size={32} />
                         <span className="font-bold text-sm">הוסף קישור חדש</span>
@@ -267,8 +267,8 @@ export default function AdminExternalLinks() {
                                     name="title"
                                     type="text"
                                     defaultValue={editingLink.title}
-                                    required
-                                    className="w-full bg-gray-50 dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-red-500 transition text-sm"
+                                    requiprimary
+                                    className="w-full bg-gray-50 dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-primary-500 transition text-sm"
                                     placeholder='לדוגמה: "פורטל מילואים"'
                                 />
                             </div>
@@ -282,8 +282,8 @@ export default function AdminExternalLinks() {
                                     name="url"
                                     type="text"
                                     defaultValue={editingLink.url}
-                                    required
-                                    className="w-full bg-gray-50 dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-red-500 transition text-sm font-mono dir-ltr text-left"
+                                    requiprimary
+                                    className="w-full bg-gray-50 dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-primary-500 transition text-sm font-mono dir-ltr text-left"
                                     placeholder="https://example.idf.il"
                                     dir="ltr"
                                 />
@@ -329,7 +329,7 @@ export default function AdminExternalLinks() {
                                         <button
                                             type="button"
                                             onClick={() => setIconPickerOpen(true)}
-                                            className="px-4 py-2 bg-gray-200 dark:bg-white/10 hover:bg-red-500 text-gray-700 hover:text-white dark:text-gray-300 rounded-lg transition text-sm font-bold"
+                                            className="px-4 py-2 bg-gray-200 dark:bg-white/10 hover:bg-primary-500 text-gray-700 hover:text-white dark:text-gray-300 rounded-lg transition text-sm font-bold"
                                         >
                                             בחר
                                         </button>
@@ -337,11 +337,11 @@ export default function AdminExternalLinks() {
                                 ) : (
                                     <>
                                         <label
-                                            className={`flex items-center justify-center gap-2 w-full bg-gray-50 dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 border-dashed rounded-xl px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hover:border-red-500/50 hover:text-gray-700 dark:hover:text-gray-300 transition cursor-pointer ${uploadingIcon ? 'opacity-50 pointer-events-none' : ''}`}
+                                            className={`flex items-center justify-center gap-2 w-full bg-gray-50 dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 border-dashed rounded-xl px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hover:border-primary-500/50 hover:text-gray-700 dark:hover:text-gray-300 transition cursor-pointer ${uploadingIcon ? 'opacity-50 pointer-events-none' : ''}`}
                                         >
                                             {uploadingIcon ? (
                                                 <>
-                                                    <Loader2 size={16} className="animate-spin text-red-400" />
+                                                    <Loader2 size={16} className="animate-spin text-primary-400" />
                                                     <span>מעלה תמונה...</span>
                                                 </>
                                             ) : (
@@ -374,7 +374,7 @@ export default function AdminExternalLinks() {
                                                     <button
                                                         type="button"
                                                         onClick={() => setEditingLink(prev => ({ ...prev, iconUrl: '' }))}
-                                                        className="text-xs text-red-400 hover:text-red-300 transition text-right"
+                                                        className="text-xs text-primary-400 hover:text-primary-300 transition text-right"
                                                     >
                                                         הסר תמונה
                                                     </button>
@@ -389,7 +389,7 @@ export default function AdminExternalLinks() {
                                 <button
                                     type="submit"
                                     disabled={uploadingIcon}
-                                    className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold transition"
+                                    className="flex-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold transition"
                                 >
                                     {uploadingIcon ? 'ממתין להעלאה...' : editingLink.isNew ? 'הוסף' : 'שמור'}
                                 </button>

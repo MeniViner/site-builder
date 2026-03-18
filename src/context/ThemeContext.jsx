@@ -1,7 +1,6 @@
 import React, { createContext, useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
-import ThemeService from '../services/ThemeService';
-import { DEFAULT_BORDER_TARGETS, normalizeBorderTargets } from '../utils/borderStyles';
+import { useConfig } from './ConfigProvider';
 
 export const ThemeContext = createContext();
 
@@ -9,17 +8,6 @@ export const useTheme = () => useContext(ThemeContext);
 
 const USER_MODE_KEY = 'bihs_user_display_mode';
 const ADMIN_MODE_KEY = 'bihs_admin_display_mode';
-const BORDER_TARGETS_KEY = 'bihs_border_targets';
-
-function resolveBorderTargets() {
-    try {
-        const saved = localStorage.getItem(BORDER_TARGETS_KEY);
-        return saved ? normalizeBorderTargets(JSON.parse(saved)) : { ...DEFAULT_BORDER_TARGETS };
-    } catch (error) {
-        console.error('Failed to read border targets from localStorage:', error);
-        return { ...DEFAULT_BORDER_TARGETS };
-    }
-}
 
 function hexToHsl(hex) {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -42,6 +30,7 @@ function hexToHsl(hex) {
             case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
             case g: h = ((b - r) / d + 2) / 6; break;
             case b: h = ((r - g) / d + 4) / 6; break;
+            default: break;
         }
     }
 
@@ -84,6 +73,17 @@ function resolveAdminMode() {
     return 'dark';
 }
 
+function normalizeTintStrength(value) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return 72;
+    return Math.min(100, Math.max(0, Math.round(parsed)));
+}
+
+function toCssTintStrength(value) {
+    const normalized = normalizeTintStrength(value);
+    return Math.round(normalized * 1.8);
+}
+
 function applyDisplayMode(effectiveMode) {
     const root = document.documentElement;
     if (effectiveMode === 'dark') {
@@ -91,7 +91,77 @@ function applyDisplayMode(effectiveMode) {
     } else {
         root.classList.remove('dark');
     }
-    // Surface tokens are handled by CSS cascade via data-tinted-bg + .dark selectors
+}
+
+function toLegacyTheme(config) {
+    const theme = config?.theme || {};
+    const layout = config?.layout || {};
+
+    return {
+        primaryColor: theme.primaryColor || '#0891b2',
+        displayMode: theme.displayMode || 'dark',
+        borderStyle: theme.borderStyle || 'cyber',
+        useTintedBackground: theme.backgrounds?.tinted?.enabled ?? true,
+        tintedBackgroundStrength: theme.backgrounds?.tinted?.strength ?? 72,
+        borderTargets: theme.borderTargets || {},
+        heroGrayscale: theme.backgrounds?.hero?.grayscale ?? false,
+        heroPanelsBordered: layout.hero?.panelsBordered ?? true,
+        showNavCategories: layout.navigation?.showCategories ?? false,
+        regularLinksLayout: layout.navigation?.mode || 'sidebar-right',
+        externalLinksLayout: layout.externalLinks?.mode || 'cards',
+        externalLinksFixed: layout.externalLinks?.fixed ?? false,
+        externalLinksBordered: layout.externalLinks?.bordered ?? true,
+        externalLinksShowBackground: layout.externalLinks?.showBackground ?? true,
+        widgetHeight: layout.hero?.widgetHeight || 'full',
+        linksLayout: 'cards',
+    };
+}
+
+function patchConfigFromLegacyTheme(prev, newTheme) {
+    return {
+        ...prev,
+        theme: {
+            ...prev.theme,
+            primaryColor: newTheme?.primaryColor ?? prev.theme.primaryColor,
+            displayMode: newTheme?.displayMode ?? prev.theme.displayMode,
+            borderStyle: newTheme?.borderStyle ?? prev.theme.borderStyle,
+            borderTargets: newTheme?.borderTargets ?? prev.theme.borderTargets,
+            backgrounds: {
+                ...prev.theme.backgrounds,
+                tinted: {
+                    ...prev.theme.backgrounds.tinted,
+                    enabled: newTheme?.useTintedBackground ?? prev.theme.backgrounds.tinted.enabled,
+                    strength: Number.isFinite(Number(newTheme?.tintedBackgroundStrength))
+                        ? Number(newTheme.tintedBackgroundStrength)
+                        : prev.theme.backgrounds.tinted.strength,
+                },
+                hero: {
+                    ...prev.theme.backgrounds.hero,
+                    grayscale: newTheme?.heroGrayscale ?? prev.theme.backgrounds.hero.grayscale,
+                },
+            },
+        },
+        layout: {
+            ...prev.layout,
+            navigation: {
+                ...prev.layout.navigation,
+                showCategories: newTheme?.showNavCategories ?? prev.layout.navigation.showCategories,
+                mode: newTheme?.regularLinksLayout ?? prev.layout.navigation.mode,
+            },
+            hero: {
+                ...prev.layout.hero,
+                widgetHeight: newTheme?.widgetHeight ?? prev.layout.hero.widgetHeight,
+                panelsBordered: newTheme?.heroPanelsBordered ?? prev.layout.hero.panelsBordered,
+            },
+            externalLinks: {
+                ...prev.layout.externalLinks,
+                mode: newTheme?.externalLinksLayout ?? prev.layout.externalLinks.mode,
+                fixed: newTheme?.externalLinksFixed ?? prev.layout.externalLinks.fixed,
+                bordered: newTheme?.externalLinksBordered ?? prev.layout.externalLinks.bordered,
+                showBackground: newTheme?.externalLinksShowBackground ?? prev.layout.externalLinks.showBackground,
+            },
+        },
+    };
 }
 
 /** Apply theme (primary color + display mode + tinted background mode) to a container element for scoped preview. */
@@ -115,6 +185,7 @@ export function applyThemeToElement(el, themeData) {
     el.style.setProperty('--color-primary-800', `hsl(${h}, ${s}%, ${Math.max(l - 27, 6)}%)`);
     el.style.setProperty('--color-primary-900', `hsl(${h}, ${s}%, ${Math.max(l - 36, 4)}%)`);
     el.style.setProperty('--color-primary-950', `hsl(${h}, ${s}%, ${Math.max(l - 41, 3)}%)`);
+    el.style.setProperty('--color-bg-tint-strength', String(toCssTintStrength(themeData.tintedBackgroundStrength)));
     const mode = themeData.displayMode === 'user-toggle' ? 'dark' : (themeData.displayMode || 'dark');
     if (mode === 'dark') {
         el.classList.add('dark');
@@ -125,12 +196,10 @@ export function applyThemeToElement(el, themeData) {
 }
 
 export const ThemeProvider = ({ children }) => {
-    const [theme, setTheme] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const { config, status, error, updateConfig, saveNow, reload } = useConfig();
     const [siteMode, setSiteMode] = useState('dark');
     const [adminMode, setAdminMode] = useState(() => resolveAdminMode());
-    const [borderTargets, setBorderTargets] = useState(() => resolveBorderTargets());
+
     const location = useLocation();
     const isAdminRoute = useMemo(() => {
         const path = (location.pathname || '').toLowerCase();
@@ -138,100 +207,105 @@ export const ThemeProvider = ({ children }) => {
         const adminSegmentRegex = /(?:^|\/)admin(?:\/|$)/;
         return adminSegmentRegex.test(path) || adminSegmentRegex.test(hash.replace(/^#/, ''));
     }, [location.pathname, location.hash]);
-    const effectiveMode = isAdminRoute ? adminMode : siteMode;
 
-    const applyThemeToDom = useCallback((themeData) => {
-        if (!themeData) return;
-        applyPrimaryColorVars(themeData.primaryColor || '#dc2626');
-        document.documentElement.dataset.tintedBg = themeData.useTintedBackground !== false ? 'true' : 'false';
-        const mode = resolveDisplayMode(themeData.displayMode || 'dark');
+    const mappedTheme = useMemo(() => toLegacyTheme(config), [config]);
+    const borderTargets = config?.theme?.borderTargets || {};
+    const effectiveMode = isAdminRoute ? adminMode : siteMode;
+    const loading = status === 'loading' || status === 'saving';
+
+    const applyThemeToDom = useCallback((mappedTheme) => {
+        if (!mappedTheme) return;
+        applyPrimaryColorVars(mappedTheme.primaryColor || '#dc2626');
+        document.documentElement.style.setProperty('--color-bg-tint-strength', String(toCssTintStrength(mappedTheme.tintedBackgroundStrength)));
+        document.documentElement.dataset.tintedBg = mappedTheme.useTintedBackground ? 'true' : 'false';
+        const mode = resolveDisplayMode(mappedTheme.displayMode || 'dark');
         setSiteMode(mode);
     }, []);
 
-    const fetchTheme = async () => {
-        try {
-            setLoading(true);
-            const data = await ThemeService.getTheme();
-            setTheme(data);
-            applyThemeToDom(data);
-            setError(null);
-        } catch (err) {
-            console.error(err);
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
+    useEffect(() => {
+        applyThemeToDom(mappedTheme);
+    }, [mappedTheme, applyThemeToDom]);
 
-    const saveTheme = async (newTheme) => {
+    useEffect(() => {
+        applyDisplayMode(effectiveMode);
+    }, [effectiveMode]);
+
+    const fetchTheme = useCallback(async () => {
         try {
-            setLoading(true);
-            await ThemeService.saveTheme(newTheme);
-            setTheme(newTheme);
-            applyThemeToDom(newTheme);
-            setError(null);
+            await reload();
             return true;
         } catch (err) {
-            setError(err.message);
+            console.error(err);
             return false;
-        } finally {
-            setLoading(false);
         }
-    };
+    }, [reload]);
+
+    const saveTheme = useCallback(async (newTheme) => {
+        try {
+            updateConfig((prev) => patchConfigFromLegacyTheme(prev, newTheme));
+            await saveNow();
+            return true;
+        } catch (err) {
+            console.error(err);
+            return false;
+        }
+    }, [saveNow, updateConfig]);
+
+    const setBorderTargets = useCallback((nextTargets) => {
+        updateConfig((prev) => {
+            const resolvedTargets = typeof nextTargets === 'function'
+                ? nextTargets(prev.theme.borderTargets)
+                : nextTargets;
+
+            return {
+                ...prev,
+                theme: {
+                    ...prev.theme,
+                    borderTargets: {
+                        ...prev.theme.borderTargets,
+                        ...(resolvedTargets || {}),
+                    },
+                },
+            };
+        });
+        saveNow().catch((err) => {
+            console.error('ThemeContext: failed to persist borderTargets', err);
+        });
+    }, [saveNow, updateConfig]);
 
     const toggleUserMode = useCallback(() => {
-        if (!theme || theme.displayMode !== 'user-toggle') return;
+        if (!mappedTheme || mappedTheme.displayMode !== 'user-toggle') return;
         const next = siteMode === 'dark' ? 'light' : 'dark';
         localStorage.setItem(USER_MODE_KEY, next);
         setSiteMode(next);
-    }, [theme, siteMode]);
+    }, [mappedTheme, siteMode]);
 
     const toggleAdminMode = useCallback(() => {
-        setAdminMode(prevMode => {
+        setAdminMode((prevMode) => {
             const next = prevMode === 'dark' ? 'light' : 'dark';
             localStorage.setItem(ADMIN_MODE_KEY, next);
             return next;
         });
     }, []);
 
-    useEffect(() => {
-        fetchTheme();
-    }, []);
-
-    useEffect(() => {
-        if (theme) {
-            applyThemeToDom(theme);
-        }
-    }, [theme, applyThemeToDom]);
-
-    useEffect(() => {
-        applyDisplayMode(effectiveMode);
-    }, [effectiveMode]);
-
-    useEffect(() => {
-        try {
-            localStorage.setItem(BORDER_TARGETS_KEY, JSON.stringify(borderTargets));
-        } catch (error) {
-            console.error('Failed to save border targets to localStorage:', error);
-        }
-    }, [borderTargets]);
-
     return (
-        <ThemeContext.Provider value={{
-            theme,
-            loading,
-            error,
-            siteMode,
-            adminMode,
-            isAdminRoute,
-            effectiveMode,
-            saveTheme,
-            fetchTheme,
-            toggleUserMode,
-            toggleAdminMode,
-            borderTargets,
-            setBorderTargets,
-        }}>
+        <ThemeContext.Provider
+            value={{
+                theme: mappedTheme,
+                loading,
+                error,
+                siteMode,
+                adminMode,
+                isAdminRoute,
+                effectiveMode,
+                saveTheme,
+                fetchTheme,
+                toggleUserMode,
+                toggleAdminMode,
+                borderTargets,
+                setBorderTargets,
+            }}
+        >
             {children}
         </ThemeContext.Provider>
     );

@@ -68,16 +68,21 @@ export default function AdminShuttles() {
     };
 
     return (
-        <div dir="rtl" className="min-h-screen bg-gray-100 p-8 font-heebo text-gray-900 dark:bg-[#1e212b] dark:text-white">
-            <div className="mb-8 flex items-center justify-between border-b border-gray-300 pb-4 dark:border-white/10">
-                <div>
-                    <h1 className="flex items-center gap-3 text-3xl font-black">
-                        <BusFront size={28} className="text-blue-400" />
-                        ניהול היסעים
-                    </h1>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">הגדרת יעדים, שעות יציאה וסוג ההיסע עבור הווידג&apos;ט.</p>
+        <div dir="rtl" className="min-h-screen p-8 font-heebo text-gray-900 dark:text-white">
+            <div className="mb-8 border-b border-gray-300 pb-4 dark:border-white/10">
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <h1 className="flex items-center gap-3 text-3xl font-black">
+                            <BusFront size={28} className="text-blue-400" />
+                            ניהול היסעים
+                        </h1>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">הגדרת יעדים, שעות יציאה וסוג ההיסע עבור הווידג&apos;ט.</p>
+                    </div>
+                    <button onClick={openNew} className="h-10 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-bold text-white transition hover:bg-blue-700 shrink-0">
+                        <Plus size={16} />
+                        הוסף היסע
+                    </button>
                 </div>
-                {isSaving && <span className="text-sm text-gray-500 dark:text-gray-400">שומר...</span>}
             </div>
 
             {saveMessage?.type === 'error' && (
@@ -87,12 +92,9 @@ export default function AdminShuttles() {
                 </div>
             )}
 
-            <div className="mb-6 flex items-center justify-between">
+            <div className="mb-6 flex items-center justify-between rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[#232733] px-4 py-2.5">
                 <p className="text-sm text-gray-500 dark:text-gray-400">{list.length} היסעים מוגדרים</p>
-                <button onClick={openNew} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700">
-                    <Plus size={16} />
-                    הוסף היסע
-                </button>
+                <span className="text-sm text-gray-500 dark:text-gray-400">{isSaving ? 'שומר...' : 'מוכן לעריכה'}</span>
             </div>
 
             {editingId !== null && (
@@ -107,11 +109,11 @@ export default function AdminShuttles() {
                         </select>
                     </div>
                     <div className="mt-4 flex gap-3">
-                        <button onClick={commitEdit} className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-bold text-white transition hover:bg-blue-700">
+                        <button onClick={commitEdit} className="h-10 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 text-sm font-bold text-white transition hover:bg-blue-700">
                             <Check size={16} />
                             {editingId === 'new' ? 'הוסף' : 'עדכן'}
                         </button>
-                        <button onClick={cancelEdit} className="flex items-center gap-2 rounded-lg bg-gray-200 px-5 py-2 text-sm font-bold text-gray-700 transition hover:bg-gray-300 dark:bg-white/10 dark:text-gray-300 dark:hover:bg-white/15">
+                        <button onClick={cancelEdit} className="h-10 inline-flex items-center gap-2 rounded-lg bg-gray-200 px-5 text-sm font-bold text-gray-700 transition hover:bg-gray-300 dark:bg-white/10 dark:text-gray-300 dark:hover:bg-white/15">
                             <X size={16} />
                             ביטול
                         </button>

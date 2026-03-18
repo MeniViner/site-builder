@@ -3,19 +3,20 @@ import { getRequestDigest } from '../utils/sharepointUtils';
 import { normalizeBorderStyle } from '../utils/borderStyles';
 
 const DEFAULT_THEME = {
-    primaryColor: '#dc2626',
+    primaryColor: '#0891b2',
     useTintedBackground: true,
+    tintedBackgroundStrength: 72,
     displayMode: 'dark',
     borderStyle: 'cyber',
     linksLayout: 'cards',
-    showNavCategories: true,
+    showNavCategories: false,
     heroGrayscale: false,
-    regularLinksLayout: 'grid',
+    regularLinksLayout: 'sidebar-right',
     externalLinksLayout: 'cards',
     externalLinksFixed: false,
     externalLinksBordered: true,
     externalLinksShowBackground: true,
-    widgetHeight: 'low',
+    widgetHeight: 'full',
 };
 
 const WIDGET_HEIGHT_OPTIONS = ['full', 'high', 'medium', 'low'];
@@ -52,6 +53,10 @@ class ThemeService {
             : (data.colorPackage !== undefined
                 ? data.colorPackage !== 'classic'
                 : DEFAULT_THEME.useTintedBackground);
+        const tintStrengthNumber = Number(data.tintedBackgroundStrength);
+        const tintedBackgroundStrength = Number.isFinite(tintStrengthNumber)
+            ? Math.min(100, Math.max(0, Math.round(tintStrengthNumber)))
+            : DEFAULT_THEME.tintedBackgroundStrength;
         const externalLinksBordered = data.externalLinksBordered !== undefined
             ? data.externalLinksBordered
             : (data.externalLinksBordeprimary !== undefined
@@ -61,6 +66,7 @@ class ThemeService {
         return {
             primaryColor: data.primaryColor || DEFAULT_THEME.primaryColor,
             useTintedBackground,
+            tintedBackgroundStrength,
             displayMode: data.displayMode || DEFAULT_THEME.displayMode,
             borderStyle: normalizeBorderStyle(data.borderStyle || DEFAULT_THEME.borderStyle),
             linksLayout: data.linksLayout || DEFAULT_THEME.linksLayout,

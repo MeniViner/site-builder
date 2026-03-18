@@ -29,11 +29,12 @@ class EventsService {
 
     _normalizeData(data) {
         if (Array.isArray(data)) {
-            data = { displayCount: 3, events: data };
+            data = { displayCount: 3, displayMode: 'default', events: data };
         }
-        if (!data) data = { displayCount: 3, events: [] };
+        if (!data) data = { displayCount: 3, displayMode: 'default', events: [] };
         if (!data.events) data.events = [];
         if (!data.displayCount) data.displayCount = 3;
+        if (!data.displayMode) data.displayMode = 'default';
 
         // Migration for old events
         data.events = data.events.map(ev => {
@@ -75,6 +76,7 @@ class EventsService {
             // Default mock events if empty
             return Promise.resolve({
                 displayCount: 3,
+                displayMode: 'default',
                 events: [
                     { id: '1', date: '2024-10-06', title: 'ביקורת כשירות רבעונית', subtitle: 'כולל תרגול חרום', color: 'red' },
                     { id: '2', date: '2024-12-27', title: 'כנס מפקדים חילי', subtitle: 'מרכז ההדרכה הראשי', color: 'gray' },

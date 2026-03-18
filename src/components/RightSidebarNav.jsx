@@ -4,6 +4,7 @@ import { useTheme } from '../context/ThemeContext';
 import { DynamicIcon } from './DynamicIcon';
 import { ChevronDown, ExternalLink } from 'lucide-react';
 import { normalizeBorderStyle, panelStyle } from '../utils/borderStyles';
+import Tooltip from './Tooltip';
 
 /**
  * RightSidebarNav — Tactical right sidebar navigation.
@@ -61,7 +62,7 @@ export default function RightSidebarNav() {
     };
 
     return (
-        <aside ref={sidebarRef} className="fixed right-0 top-32 z-[9999] flex flex-col gap-3 p-2 w-[70px]">
+        <aside ref={sidebarRef} className="fixed right-0 top-32 z-[9999] flex flex-col items-center gap-3 p-2 w-[84px]">
             {categories.map((item) => {
                 const hasChildren = item.children && item.children.length > 0;
                 const isDirectLink = item.url || item.isDirectLink;
@@ -71,34 +72,33 @@ export default function RightSidebarNav() {
                     <div className="relative" key={item.id}>
                         {/* Level 1 Button */}
                         {isDirectLink ? (
-                            <a
-                                href={item.url || '#'}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="sidebar-nav-item flex flex-col items-center gap-1 px-1 py-2.5 rounded-lg bg-theme-chrome backdrop-blur-md border border-theme-subtle shadow-md text-theme-muted hover:text-primary hover:brightness-110 hover:shadow-lg transition-all text-center cursor-pointer"
-                                title={item.label}
-                                style={panelStyle(topLevelBorderStyle, 10)}
-                            >
-                                <DynamicIcon name={item.icon} size={20} />
-                                <span className="text-[9px] font-bold leading-tight max-w-[54px] truncate">
-                                    {item.label}
-                                </span>
-                            </a>
+                            <Tooltip text={item.label}>
+                                <a
+                                    href={item.url || '#'}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="sidebar-nav-item sidebar-trigger flex flex-col items-center justify-center text-center cursor-pointer"
+                                    style={panelStyle(topLevelBorderStyle, 10)}
+                                >
+                                    <DynamicIcon name={item.icon} size={18} />
+                                    <span className="sidebar-trigger__label max-w-[64px] truncate">
+                                        {item.label}
+                                    </span>
+                                </a>
+                            </Tooltip>
                         ) : (
-                            <button
-                                onClick={() => handleLevel1Click(item)}
-                                className={`sidebar-nav-item w-full flex flex-col items-center gap-1 px-1 py-2.5 rounded-lg bg-theme-chrome backdrop-blur-md border shadow-md hover:shadow-lg transition-all text-center cursor-pointer ${isOpen
-                                        ? 'text-primary border-primary/30 brightness-110'
-                                        : 'text-theme-muted border-theme-subtle hover:text-primary hover:brightness-110'
-                                    }`}
-                                title={item.label}
-                                style={panelStyle(topLevelBorderStyle, 10)}
-                            >
-                                <DynamicIcon name={item.icon} size={20} />
-                                <span className="text-[9px] font-bold leading-tight max-w-[54px] truncate">
-                                    {item.label}
-                                </span>
-                            </button>
+                            <Tooltip text={item.label}>
+                                <button
+                                    onClick={() => handleLevel1Click(item)}
+                                    className={`sidebar-nav-item sidebar-trigger flex flex-col items-center justify-center text-center cursor-pointer ${isOpen ? 'is-active' : ''}`}
+                                    style={panelStyle(topLevelBorderStyle, 10)}
+                                >
+                                    <DynamicIcon name={item.icon} size={18} />
+                                    <span className="sidebar-trigger__label max-w-[64px] truncate">
+                                        {item.label}
+                                    </span>
+                                </button>
+                            </Tooltip>
                         )}
 
                         {/* Level 2 Flyout — click-controlled, absolutely free over the page */}

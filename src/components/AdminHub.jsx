@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 import {
-    Undo2, Calendar, Menu, Save, FileText, Link as LinkIcon,
-    LayoutGrid, Palette, ExternalLink, Sun, Moon,
-    Award, Timer, Rss, BookUser, BusFront, Vote, PartyPopper, ScrollText, Lightbulb, Bell
+    Undo2, Menu, Save, FileText, Link as LinkIcon,
+    LayoutGrid, Palette, ExternalLink, Sun, Moon
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import AdminEvents from './AdminEvents';
 import AdminNavigation from './AdminNavigation';
 import AdminSiteContent from './AdminSiteContent';
 import AdminWidgets from './AdminWidgets';
+import AdminCurrentWidgets from './AdminCurrentWidgets';
 import AdminTheme from './AdminTheme';
 import AdminExternalLinks from './AdminExternalLinks';
 import AdminOutstanding from './AdminOutstanding';
@@ -23,42 +23,32 @@ import AdminCelebrations from './AdminCelebrations';
 import AdminHeritage from './AdminHeritage';
 import AdminTips from './AdminTips';
 import WidgetLivePreview from './WidgetLivePreview';
+import Tooltip from './Tooltip';
 import { createBackup } from '../utils/sharepointUtils';
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { useWidget } from '../context/WidgetContext';
 import { useTheme } from '../context/ThemeContext';
+import { confirmToast } from '../utils/confirmToast';
 
-// ─── Dynamic widget management link config ────────────────────────────────────
-// Maps activeWidget value → sidebar label, icon, and route path.
-// Widgets without a dedicated management page (e.g. 'alerts') are omitted
-// so the link will simply not render.
-const WIDGET_MANAGE_MAP = {
-    events: { label: 'ניהול מופעים', icon: Calendar, path: '/admin/events' },
-    alerts: { label: 'ניהול לוח הודעות', icon: Bell, path: '/admin/alerts' },
-    outstanding: { label: 'ניהול מצטיינים', icon: Award, path: '/admin/outstanding' },
-    countdown: { label: 'ניהול ספירה לאחור', icon: Timer, path: '/admin/countdown' },
-    news: { label: 'ניהול מבזקים', icon: Rss, path: '/admin/news' },
-    phonebook: { label: 'ניהול ספר טלפונים', icon: BookUser, path: '/admin/phonebook' },
-    shuttles: { label: 'ניהול היסעים', icon: BusFront, path: '/admin/shuttles' },
-    polls: { label: 'ניהול סקרים', icon: Vote, path: '/admin/polls' },
-    celebrations: { label: 'ניהול חוגגים', icon: PartyPopper, path: '/admin/celebrations' },
-    heritage: { label: 'ניהול מורשת', icon: ScrollText, path: '/admin/heritage' },
-    tips: { label: 'ניהול טיפים', icon: Lightbulb, path: '/admin/tips' },
-};
 
 function SidebarButton({ icon: Icon, label, isActive, onClick, isSidebarOpen, title }) {
     return (
-        <button
-            onClick={onClick}
-            className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all ${isActive
-                ? 'bg-gray-200 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm border border-gray-300 dark:border-white/10'
-                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-700 dark:hover:text-gray-200 border border-transparent'
-                }`}
-            title={title || label}
-        >
-            <Icon size={22} className={isActive ? 'text-gray-700 dark:text-gray-200' : ''} />
-            {isSidebarOpen && <span className="font-medium whitespace-nowrap text-[15px]">{label}</span>}
-        </button>
+        <Tooltip text={title || label} wrapperClassName="block w-full">
+            <button
+                onClick={onClick}
+                className={[
+                    'w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all',
+                    'border',
+                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#232733]',
+                    isActive
+                        ? 'bg-gray-200 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm border-gray-300 dark:border-white/10'
+                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-700 dark:hover:text-gray-200 border-transparent',
+                ].join(' ')}
+            >
+                <Icon size={22} className={isActive ? 'text-gray-700 dark:text-gray-200' : ''} />
+                {isSidebarOpen && <span className="font-medium whitespace-nowrap text-[15px]">{label}</span>}
+            </button>
+        </Tooltip>
     );
 }
 
@@ -70,8 +60,10 @@ export default function AdminHub() {
     const { widgetConfig } = useWidget();
     const { effectiveMode, toggleAdminMode } = useTheme();
 
-    const activeWidget = widgetConfig?.activeWidget || 'events';
-    const widgetManageMeta = WIDGET_MANAGE_MAP[activeWidget] ?? null;
+    const activeWidgets = Array.isArray(widgetConfig?.activeWidgets) && widgetConfig.activeWidgets.length > 0
+        ? widgetConfig.activeWidgets.slice(0, 3)
+        : [widgetConfig?.activeWidget || 'events'];
+    const primaryWidget = activeWidgets[0] || 'events';
     const isLightMode = effectiveMode === 'light';
 
     const getActiveTab = () => {
@@ -79,6 +71,7 @@ export default function AdminHub() {
         if (path.includes('/admin/links')) return 'links';
         if (path.includes('/admin/events')) return 'events';
         if (path.includes('/admin/widgets')) return 'widgets';
+        if (path.includes('/admin/current-widgets')) return 'current-widgets';
         if (path.includes('/admin/theme')) return 'theme';
         if (path.includes('/admin/external-links')) return 'external-links';
         if (path.includes('/admin/outstanding')) return 'outstanding';
@@ -99,14 +92,20 @@ export default function AdminHub() {
     // Determine the key for the current dynamic widget page
     const widgetPageKeys = ['events', 'alerts', 'outstanding', 'countdown', 'news', 'phonebook', 'shuttles', 'polls', 'celebrations', 'heritage', 'tips'];
     const isOnWidgetPage = widgetPageKeys.includes(activeTab);
-    const previewActiveWidget = isOnWidgetPage ? activeTab : activeWidget;
+    const previewActiveWidget = isOnWidgetPage ? activeTab : primaryWidget;
 
     const handleBackup = async () => {
         if (SHAREPOINT_CONFIG.useMock) {
             toast.info('גיבוי לא נתמך במצב פיתוח (Mock)');
             return;
         }
-        if (window.confirm('האם ליצור גיבוי של כלל הנתונים עכשיו?')) {
+        const confirmed = await confirmToast({
+            title: 'גיבוי מערכת',
+            message: 'האם ליצור גיבוי של כלל הנתונים עכשיו?',
+            confirmText: 'צור גיבוי',
+            cancelText: 'ביטול',
+        });
+        if (confirmed) {
             setIsBackingUp(true);
             const success = await createBackup();
             setIsBackingUp(false);
@@ -129,26 +128,28 @@ export default function AdminHub() {
                                 </button>
                                 <h1 className="text-xl font-bold text-gray-700 dark:text-gray-200 whitespace-nowrap">ממשק ניהול</h1>
                             </div>
-                            <button
-                                onClick={toggleAdminMode}
-                                className="w-10 h-10 shrink-0 rounded-lg border border-gray-300 dark:border-white/10 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition flex items-center justify-center"
-                                title={isLightMode ? 'מעבר למצב כהה (ניהול בלבד)' : 'מעבר למצב בהיר (ניהול בלבד)'}
-                            >
-                                {isLightMode ? <Moon size={18} /> : <Sun size={18} />}
-                            </button>
+                            <Tooltip text={isLightMode ? 'מעבר למצב כהה (ניהול בלבד)' : 'מעבר למצב בהיר (ניהול בלבד)'}>
+                                <button
+                                    onClick={toggleAdminMode}
+                                    className="w-10 h-10 shrink-0 rounded-lg border border-gray-300 dark:border-white/10 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition flex items-center justify-center"
+                                >
+                                    {isLightMode ? <Moon size={18} /> : <Sun size={18} />}
+                                </button>
+                            </Tooltip>
                         </>
                     ) : (
                         <div className="flex flex-col items-center gap-2 mx-auto">
                             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition">
                                 <Menu size={24} />
                             </button>
-                            <button
-                                onClick={toggleAdminMode}
-                                className="w-10 h-10 rounded-lg border border-gray-300 dark:border-white/10 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition flex items-center justify-center"
-                                title={isLightMode ? 'מעבר למצב כהה' : 'מעבר למצב בהיר'}
-                            >
-                                {isLightMode ? <Moon size={18} /> : <Sun size={18} />}
-                            </button>
+                            <Tooltip text={isLightMode ? 'מעבר למצב כהה' : 'מעבר למצב בהיר'}>
+                                <button
+                                    onClick={toggleAdminMode}
+                                    className="w-10 h-10 rounded-lg border border-gray-300 dark:border-white/10 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition flex items-center justify-center"
+                                >
+                                    {isLightMode ? <Moon size={18} /> : <Sun size={18} />}
+                                </button>
+                            </Tooltip>
                         </div>
                     )}
                 </div>
@@ -172,19 +173,8 @@ export default function AdminHub() {
                         isActive={activeTab === 'links'}
                         onClick={() => navigate('/admin/links')}
                         isSidebarOpen={isSidebarOpen}
+                        title="עריכת כפתורי קישורים במערכת"
                     />
-
-                    {/* Dynamic widget management link — updates based on activeWidget */}
-                    {widgetManageMeta && (
-                        <SidebarButton
-                            icon={widgetManageMeta.icon}
-                            label={widgetManageMeta.label}
-                            isActive={isOnWidgetPage && activeTab !== 'info' && activeTab !== 'links'}
-                            onClick={() => navigate(widgetManageMeta.path)}
-                            isSidebarOpen={isSidebarOpen}
-                            title={`${widgetManageMeta.label} (ווידגט פעיל)`}
-                        />
-                    )}
 
                     {isSidebarOpen && (
                         <div className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest px-4 mt-6 mb-2">הגדרות מערכת</div>
@@ -192,20 +182,32 @@ export default function AdminHub() {
                     {!isSidebarOpen && <div className="my-4 border-t border-gray-300 dark:border-white/10" />}
 
                     <SidebarButton
-                        icon={LayoutGrid}
-                        label="הגדרות ווידגט"
-                        isActive={activeTab === 'widgets'}
-                        onClick={() => navigate('/admin/widgets')}
-                        isSidebarOpen={isSidebarOpen}
-                    />
-
-                    <SidebarButton
                         icon={Palette}
                         label="ניהול עיצוב האתר"
                         isActive={activeTab === 'theme'}
                         onClick={() => navigate('/admin/theme')}
                         isSidebarOpen={isSidebarOpen}
+                        title="הגדרת עיצוב מתקדם לכל מקום באתר"
                     />
+
+                    <SidebarButton
+                        icon={LayoutGrid}
+                        label="בחירת ווידג׳טים פעילים"
+                        isActive={activeTab === 'widgets'}
+                        onClick={() => navigate('/admin/widgets')}
+                        isSidebarOpen={isSidebarOpen}
+                        title="בחירת עד 3 ווידג׳טים שיוצגו בקרוסלה"
+                    />
+
+                    <SidebarButton
+                        icon={LayoutGrid}
+                        label="ניהול הווידגטים העכשוויים"
+                        isActive={activeTab === 'current-widgets'}
+                        onClick={() => navigate('/admin/current-widgets')}
+                        isSidebarOpen={isSidebarOpen}
+                        title="ניהול 3 הווידג׳טים הנבחרים מעמוד אחד"
+                    />
+
 
                     <SidebarButton
                         icon={ExternalLink}
@@ -213,6 +215,7 @@ export default function AdminHub() {
                         isActive={activeTab === 'external-links'}
                         onClick={() => navigate('/admin/external-links')}
                         isSidebarOpen={isSidebarOpen}
+                        title="הגדרת לינקים לכתובות חיצוניות"
                     />
 
                     <div className="flex-1" />
@@ -224,17 +227,19 @@ export default function AdminHub() {
                             isActive={false}
                             onClick={() => navigate('/')}
                             isSidebarOpen={isSidebarOpen}
+                            title="יציאה מתפריט הניהול"
                         />
 
-                        <button
-                            onClick={handleBackup}
-                            disabled={isBackingUp}
-                            className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all ${isBackingUp ? 'opacity-50 cursor-not-allowed' : 'text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 hover:text-blue-700 dark:hover:text-blue-300'} border border-transparent`}
-                            title="גיבוי מערכת"
-                        >
-                            <Save size={22} className={isBackingUp ? 'animate-pulse' : ''} />
-                            {isSidebarOpen && <span className="font-medium whitespace-nowrap text-[15px]">{isBackingUp ? 'מגבה נתונים...' : 'גיבוי מערכת ידני'}</span>}
-                        </button>
+                        <Tooltip text="גיבוי מערכת" wrapperClassName="block w-full">
+                            <button
+                                onClick={handleBackup}
+                                disabled={isBackingUp}
+                                className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all ${isBackingUp ? 'opacity-50 cursor-not-allowed' : 'text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 hover:text-blue-700 dark:hover:text-blue-300'} border border-transparent`}
+                            >
+                                <Save size={22} className={isBackingUp ? 'animate-pulse' : ''} />
+                                {isSidebarOpen && <span className="font-medium whitespace-nowrap text-[15px]">{isBackingUp ? 'מגבה נתונים...' : 'גיבוי מערכת ידני'}</span>}
+                            </button>
+                        </Tooltip>
                     </div>
                 </div>
             </div>
@@ -249,6 +254,7 @@ export default function AdminHub() {
                                 <Route path="/links" element={<div className="w-full h-full p-8 max-w-7xl mx-auto"><AdminNavigation /></div>} />
                                 <Route path="/events" element={<div className="w-full h-full"><AdminEvents onClose={() => navigate('/')} inHub={true} /></div>} />
                                 <Route path="/widgets" element={<div className="w-full h-full"><AdminWidgets /></div>} />
+                                <Route path="/current-widgets" element={<div className="w-full h-full"><AdminCurrentWidgets /></div>} />
                                 <Route path="/theme" element={<div className="w-full h-full"><AdminTheme /></div>} />
                                 <Route path="/external-links" element={<div className="w-full h-full"><AdminExternalLinks /></div>} />
                                 <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />
@@ -276,6 +282,7 @@ export default function AdminHub() {
                             <Route path="/links" element={<div className="w-full h-full p-8 max-w-7xl mx-auto"><AdminNavigation /></div>} />
                             <Route path="/events" element={<div className="w-full h-full"><AdminEvents onClose={() => navigate('/')} inHub={true} /></div>} />
                             <Route path="/widgets" element={<div className="w-full h-full"><AdminWidgets /></div>} />
+                            <Route path="/current-widgets" element={<div className="w-full h-full"><AdminCurrentWidgets /></div>} />
                             <Route path="/theme" element={<div className="w-full h-full"><AdminTheme /></div>} />
                             <Route path="/external-links" element={<div className="w-full h-full"><AdminExternalLinks /></div>} />
                             <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />

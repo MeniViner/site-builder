@@ -33,11 +33,34 @@ function TimeBlock({ value, label }) {
 }
 
 export default function WidgetCountdown({ data = {} }) {
-  const { title = '', targetDate = '' } = data;
-  const [timeLeft, setTimeLeft] = useState(() => calcTimeLeft(targetDate));
+  const items = Array.isArray(data?.items)
+    ? data.items
+    : ((data?.title || data?.targetDate || data?.details)
+      ? [{ id: 'countdown-1', title: data.title, targetDate: data.targetDate, details: data.details, showDetails: data.showDetails }]
+      : []);
+
+  const activeItem = useMemo(() => {
+    if (items.length === 0) return null;
+    if (data?.activeItemId) {
+      const matched = items.find((item) => String(item?.id) === String(data.activeItemId));
+      if (matched) return matched;
+    }
+    return items[0];
+  }, [data?.activeItemId, items]);
+
+  const title = activeItem?.title ?? data?.title ?? '';
+  const targetDate = activeItem?.targetDate ?? data?.targetDate ?? '';
+  const details = activeItem?.details ?? data?.details ?? '';
+  const showDetails = activeItem?.showDetails ?? data?.showDetails ?? false;
+  const visibleItem = activeItem;
+  const visibleTitle = visibleItem?.title ?? title;
+  const visibleTargetDate = visibleItem?.targetDate ?? targetDate;
+  const visibleDetails = visibleItem?.details ?? details;
+  const visibleShowDetails = visibleItem?.showDetails ?? showDetails;
+  const [timeLeft, setTimeLeft] = useState(() => calcTimeLeft(visibleTargetDate));
   const formattedTargetDate = useMemo(() => {
-    if (!targetDate) return '';
-    const date = new Date(targetDate);
+    if (!visibleTargetDate) return '';
+    const date = new Date(visibleTargetDate);
     if (Number.isNaN(date.getTime())) return '';
     return new Intl.DateTimeFormat('he-IL', {
       day: '2-digit',
@@ -46,16 +69,16 @@ export default function WidgetCountdown({ data = {} }) {
       hour: '2-digit',
       minute: '2-digit',
     }).format(date);
-  }, [targetDate]);
+  }, [visibleTargetDate]);
 
   useEffect(() => {
-    if (!targetDate) return;
-    setTimeLeft(calcTimeLeft(targetDate));
-    const id = setInterval(() => setTimeLeft(calcTimeLeft(targetDate)), 1000);
+    if (!visibleTargetDate) return;
+    setTimeLeft(calcTimeLeft(visibleTargetDate));
+    const id = setInterval(() => setTimeLeft(calcTimeLeft(visibleTargetDate)), 1000);
     return () => clearInterval(id);
-  }, [targetDate]);
+  }, [visibleTargetDate]);
 
-  if (!targetDate) {
+  if (!visibleTargetDate) {
     return <WidgetEmptyState icon={Target} title="לא הוגדר תאריך יעד" description="הזן תאריך ושעה בממשק הניהול כדי להפעיל את הספירה לאחור." />;
   }
 
@@ -78,9 +101,9 @@ export default function WidgetCountdown({ data = {} }) {
           </div>
         </div>
 
-        {title && (
+        {visibleTitle && (
           <div className="mt-3 rounded-[18px] border border-primary/15 bg-primary/[0.06] px-4 py-3 text-sm font-black text-gray-800 dark:text-gray-100">
-            {title}
+            {visibleTitle}
           </div>
         )}
       </div>
@@ -105,12 +128,15 @@ export default function WidgetCountdown({ data = {} }) {
               <TimeBlock value={timeLeft.seconds} label="שניות" />
             </div>
 
-            <div className="mt-4 rounded-[20px] border border-gray-200/80 bg-gray-50/80 p-3 dark:border-white/10 dark:bg-black/20">
-              <div className="text-[11px] font-black uppercase tracking-[0.24em] text-primary/80">סטטוס</div>
-              <div className="mt-2 text-sm leading-7 text-gray-600 dark:text-gray-300">
-                הספירה מתעדכנת בכל שנייה ומציגה את הזמן שנותר עד ליעד.
+            {visibleShowDetails && visibleDetails && (
+              <div className="mt-4 rounded-[20px] border border-gray-200/80 bg-gray-50/80 p-3 dark:border-white/10 dark:bg-black/20">
+                <div className="text-[11px] font-black uppercase tracking-[0.24em] text-primary/80">פרטים</div>
+                <div className="mt-2 text-sm leading-7 text-gray-600 dark:text-gray-300">
+                  {visibleDetails}
+                </div>
               </div>
-            </div>
+            )}
+
           </div>
         )}
       </div>

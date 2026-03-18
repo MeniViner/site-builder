@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useWidget } from '../context/WidgetContext';
-import { BookUser, Plus, Trash2, Pencil, X, Check, User, Phone, Hash } from 'lucide-react';
+import { BookUser, Plus, Trash2, Pencil, X, Check, User, Phone, Hash, AlertTriangle } from 'lucide-react';
 import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
+import Tooltip from './Tooltip';
+import { useConfig } from '../context/ConfigProvider';
 
-const inputCls = 'w-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 transition';
-const labelCls = 'block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide';
+const inputCls = 'w-full bg-theme-elevated border border-theme-subtle rounded-lg px-4 py-2.5 text-sm text-theme placeholder-theme-muted focus:outline-none focus:ring-2 focus:ring-violet-500/40 transition';
+const labelCls = 'block text-xs font-semibold text-theme-muted mb-1.5 uppercase tracking-wide';
 
 const EMPTY_CONTACT = { id: '', name: '', number: '', department: '' };
+const makeId = () => crypto.randomUUID?.() || Date.now().toString();
 
 export default function AdminPhonebook() {
-    const { widgetConfig, saveWidgetConfig } = useWidget();
+    const { config, updateConfig, saveNow, error } = useConfig();
     const [list, setList] = useState([]);
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(EMPTY_CONTACT);
@@ -18,147 +20,185 @@ export default function AdminPhonebook() {
     const lastSavedRef = useRef(null);
 
     useEffect(() => {
-        const server = widgetConfig?.phonebook ?? [];
+        const server = config?.widgets?.data?.phonebook?.items ?? [];
         setList(server);
         lastSavedRef.current = JSON.stringify(server);
-    }, [widgetConfig]);
+    }, [config?.widgets?.data?.phonebook?.items]);
 
     useEffect(() => {
         if (JSON.stringify(list) === lastSavedRef.current) return;
+
         const t = setTimeout(async () => {
             setIsSaving(true);
             setSaveMessage(null);
-            const success = await saveWidgetConfig({ ...widgetConfig, phonebook: list });
-            setIsSaving(false);
-            if (success) lastSavedRef.current = JSON.stringify(list);
-            else setSaveMessage({ type: 'error', text: 'שגיאה בשמירה. אנא נסה שוב.' });
+            try {
+                updateConfig((prev) => ({
+                    ...prev,
+                    widgets: {
+                        ...(prev?.widgets || {}),
+                        data: {
+                            ...(prev?.widgets?.data || {}),
+                            phonebook: {
+                                ...(prev?.widgets?.data?.phonebook || {}),
+                                items: list,
+                            },
+                        },
+                    },
+                }));
+                await saveNow();
+                lastSavedRef.current = JSON.stringify(list);
+            } catch (saveError) {
+                console.error(saveError);
+                setSaveMessage({ type: 'error', text: 'שגיאה בשמירה. אנא נסה שוב.' });
+            } finally {
+                setIsSaving(false);
+            }
         }, 1200);
-        return () => clearTimeout(t);
-    }, [list, widgetConfig]);
 
-    const openNew = () => { setForm({ ...EMPTY_CONTACT, id: crypto.randomUUID() }); setEditingId('new'); };
-    const openEdit = (c) => { setForm({ ...c }); setEditingId(c.id); };
-    const cancelEdit = () => { setEditingId(null); setForm(EMPTY_CONTACT); };
+        return () => clearTimeout(t);
+    }, [list, saveNow, updateConfig]);
+
+    const openNew = () => {
+        setForm({ ...EMPTY_CONTACT, id: makeId() });
+        setEditingId('new');
+    };
+
+    const openEdit = (contact) => {
+        setForm({ ...contact });
+        setEditingId(contact.id);
+    };
+
+    const cancelEdit = () => {
+        setEditingId(null);
+        setForm(EMPTY_CONTACT);
+    };
 
     const commitEdit = () => {
         if (!form.name.trim()) return;
-        setList(prev => editingId === 'new' ? [...prev, form] : prev.map(c => c.id === editingId ? form : c));
+        setList((prev) => (
+            editingId === 'new'
+                ? [...prev, form]
+                : prev.map((contact) => (contact.id === editingId ? form : contact))
+        ));
         cancelEdit();
     };
 
     const deleteContact = (id) => {
-        setList(prev => prev.filter(c => c.id !== id));
+        setList((prev) => prev.filter((contact) => contact.id !== id));
         if (editingId === id) cancelEdit();
     };
 
     return (
-        <div dir="rtl" className="min-h-screen bg-gray-100 dark:bg-[#1e212b] text-gray-900 dark:text-white font-heebo p-8">
-            {/* Header */}
-            <div className="flex justify-between items-center mb-8 border-b border-gray-300 dark:border-white/10 pb-4">
-                <div>
-                    <h1 className="text-3xl font-black text-gray-900 dark:text-white flex items-center gap-3">
-                        <BookUser size={28} className="text-violet-400" />
-                        ניהול ספר טלפונים
-                    </h1>
-                    <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">ניהול רשימת אנשי הקשר המוצגת בווידגט</p>
-                </div>
-                {isSaving && <span className="text-sm text-gray-500 dark:text-gray-400">שומר...</span>}
-            </div>
-
-            {saveMessage?.type === 'error' && (
-                <div className="mb-6 p-4 rounded-lg flex items-center gap-3 bg-red-50 dark:bg-red-900/50 border border-red-500">
-                    <span className="text-red-700 dark:text-red-200">{saveMessage.text}</span>
-                </div>
-            )}
-
-            {/* Toolbar */}
-            <div className="flex items-center justify-between mb-6">
-                <p className="text-sm text-gray-500 dark:text-gray-400">{list.length} אנשי קשר ברשימה</p>
-                <button onClick={openNew} className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition shadow">
-                    <Plus size={16} />הוסף איש קשר
-                </button>
-            </div>
-
-            {/* Inline form */}
-            {editingId !== null && (
-                <div className="bg-white dark:bg-[#232733] border border-violet-500/30 rounded-2xl p-6 shadow-lg space-y-4 mb-6">
-                    <h3 className="text-base font-bold text-violet-400">{editingId === 'new' ? 'הוספת איש קשר' : 'עריכת פרטים'}</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div dir="rtl" className="min-h-screen text-theme font-heebo p-8">
+            <div className="space-y-6">
+                <div className="border-b border-theme-subtle pb-4">
+                    <div className="flex items-start justify-between gap-4">
                         <div>
-                            <label className={labelCls}><User size={10} className="inline ml-1" />שם</label>
-                            <input className={inputCls} placeholder="ישראל ישראלי" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+                            <h1 className="text-3xl font-black text-theme flex items-center gap-2">
+                                <BookUser className="text-violet-500" />
+                                ניהול ספר טלפונים
+                            </h1>
+                            <p className="text-theme-muted">ניהול אנשי הקשר שיוצגו בווידגט הטלפונים של היחידה.</p>
                         </div>
-                        <div>
-                            <label className={labelCls}><Phone size={10} className="inline ml-1" />מספר טלפון</label>
-                            <input className={inputCls} placeholder="050-0000000" value={form.number} dir="ltr" onChange={e => setForm(f => ({ ...f, number: e.target.value }))} />
-                        </div>
-                    </div>
-                    <div>
-                        <label className={labelCls}><Hash size={10} className="inline ml-1" />מחלקה / יחידת משנה</label>
-                        <input className={inputCls} placeholder="מחלקה א׳ / מטה / לוגיסטיקה..." value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value }))} />
-                    </div>
-                    <div className="flex gap-3 pt-2">
-                        <button onClick={commitEdit} disabled={!form.name.trim()} className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg text-sm font-bold transition">
-                            <Check size={15} />{editingId === 'new' ? 'הוסף' : 'עדכן'}
-                        </button>
-                        <button onClick={cancelEdit} className="flex items-center gap-2 bg-gray-200 dark:bg-white/10 hover:bg-gray-300 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300 px-5 py-2 rounded-lg text-sm font-bold transition">
-                            <X size={15} />ביטול
+                        <button onClick={openNew} className="h-10 inline-flex items-center bg-violet-600 hover:bg-violet-700 text-white px-4 rounded-lg text-sm font-bold transition shrink-0">
+                            <span className="inline-flex items-center gap-2">
+                                <Plus size={16} />
+                                הוסף איש קשר
+                            </span>
                         </button>
                     </div>
                 </div>
-            )}
 
-            {/* Empty state */}
-            {list.length === 0 && editingId === null && (
-                <div className="py-20 text-center text-gray-400 dark:text-gray-600 border-2 border-dashed border-gray-200 dark:border-white/10 rounded-2xl">
-                    <BookUser size={40} className="mx-auto mb-3 opacity-30" />
-                    <p className="font-medium">אין אנשי קשר. לחץ "הוסף איש קשר" להתחיל.</p>
+                <div className="flex items-center justify-between gap-4 bg-theme-card px-4 py-2.5 rounded-lg border border-theme-subtle">
+                    <p className="text-sm text-theme-muted">{list.length} אנשי קשר ברשימה</p>
+                    <div className="text-sm text-theme-muted">
+                        {isSaving ? 'שומר...' : 'מוכן לעריכה'}
+                    </div>
                 </div>
-            )}
 
-            {/* Contact table */}
-            {list.length > 0 && (
-                <div className="bg-white dark:bg-[#232733] rounded-2xl border border-gray-200 dark:border-white/8 overflow-hidden">
-                    {list.map((contact, idx) => (
-                        <div
-                            key={contact.id}
-                            className={`flex items-center justify-between px-5 py-3.5 border-b border-gray-100 dark:border-white/5 last:border-0 transition ${editingId === contact.id ? 'bg-violet-500/5' : 'hover:bg-gray-50 dark:hover:bg-white/[0.03]'}`}
-                        >
-                            <div className="flex items-center gap-4">
-                                <div className="w-8 h-8 rounded-full bg-violet-500/10 flex items-center justify-center shrink-0">
-                                    <span className="text-xs font-black text-violet-400">{idx + 1}</span>
-                                </div>
-                                <div className="min-w-0">
-                                    <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{contact.name}</p>
-                                    {contact.department && <p className="text-xs text-gray-400 truncate">{contact.department}</p>}
-                                </div>
+                {(saveMessage?.type === 'error' || error) && (
+                    <div className="p-4 rounded-lg flex items-center gap-3 bg-red-500/10 border border-red-500/40 text-red-500">
+                        <AlertTriangle size={16} className="shrink-0" />
+                        <span>{saveMessage?.text || error}</span>
+                    </div>
+                )}
+
+                {editingId !== null && (
+                    <div className="bg-theme-card border border-theme-subtle rounded-2xl p-6 shadow-lg space-y-4">
+                        <h3 className="text-base font-bold text-violet-500">{editingId === 'new' ? 'הוספת איש קשר' : 'עריכת פרטי איש קשר'}</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className={labelCls}><User size={10} className="inline ml-1" />שם</label>
+                                <input className={inputCls} placeholder="ישראל ישראלי" value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} />
                             </div>
-                            <div className="flex items-center gap-4 shrink-0">
-                                {contact.number && (
-                                    <a
-                                        href={`tel:${contact.number}`}
-                                        className="flex items-center gap-1.5 text-sm font-mono text-gray-500 dark:text-gray-400 hover:text-violet-400 transition"
-                                        dir="ltr"
-                                        title="התקשר"
-                                    >
-                                        <Phone size={13} className="text-violet-400" />
-                                        {contact.number}
-                                    </a>
-                                )}
-                                <div className="flex gap-1">
-                                    <button onClick={() => openEdit(contact)} className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400 hover:text-blue-400 transition"><Pencil size={14} /></button>
-                                    <button onClick={() => deleteContact(contact.id)} className="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-400 transition"><Trash2 size={14} /></button>
-                                </div>
+                            <div>
+                                <label className={labelCls}><Phone size={10} className="inline ml-1" />מספר טלפון</label>
+                                <input className={inputCls} placeholder="050-0000000" value={form.number} dir="ltr" onChange={(e) => setForm((prev) => ({ ...prev, number: e.target.value }))} />
                             </div>
                         </div>
-                    ))}
-                </div>
-            )}
+                        <div>
+                            <label className={labelCls}><Hash size={10} className="inline ml-1" />מחלקה / יחידת משנה</label>
+                            <input className={inputCls} placeholder="מחלקה א׳ / מטה / לוגיסטיקה..." value={form.department} onChange={(e) => setForm((prev) => ({ ...prev, department: e.target.value }))} />
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                            <button onClick={commitEdit} disabled={!form.name.trim()} className="h-10 inline-flex items-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 rounded-lg text-sm font-bold transition">
+                                <Check size={15} />
+                                {editingId === 'new' ? 'הוסף' : 'עדכן'}
+                            </button>
+                            <button onClick={cancelEdit} className="h-10 inline-flex items-center gap-2 bg-theme-elevated hover:bg-theme-card-hover border border-theme-subtle text-theme px-5 rounded-lg text-sm font-bold transition">
+                                <X size={15} />
+                                ביטול
+                            </button>
+                        </div>
+                    </div>
+                )}
 
-            <WidgetDisplaySettingsPanel
-                widgetKey="phonebook"
-                title="הגדרות הצגה דינמיות לווידג׳ט "
-            />
+                {list.length === 0 && editingId === null ? (
+                    <div className="py-20 text-center text-theme-muted border-2 border-dashed border-theme-subtle rounded-2xl bg-theme-card">
+                        <BookUser size={40} className="mx-auto mb-3 opacity-30" />
+                        <p className="font-medium">אין אנשי קשר. לחץ "הוסף איש קשר" כדי להתחיל.</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 gap-3">
+                        {list.map((contact, index) => (
+                            <div
+                                key={contact.id}
+                                className={`flex items-center justify-between px-5 py-4 rounded-xl border transition ${editingId === contact.id ? 'border-violet-500/40 bg-violet-500/10' : 'bg-theme-card border-theme-subtle'}`}
+                            >
+                                <div className="flex items-center gap-4 min-w-0">
+                                    <div className="w-8 h-8 rounded-full bg-violet-500/10 flex items-center justify-center shrink-0">
+                                        <span className="text-xs font-black text-violet-500">{index + 1}</span>
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-bold text-theme truncate">{contact.name}</p>
+                                        {contact.department && <p className="text-xs text-theme-muted truncate">{contact.department}</p>}
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-4 shrink-0">
+                                    {contact.number && (
+                                        <Tooltip text="התקשר">
+                                            <a
+                                                href={`tel:${contact.number}`}
+                                                className="flex items-center gap-1.5 text-sm font-mono text-theme-muted hover:text-violet-500 transition"
+                                                dir="ltr"
+                                            >
+                                                <Phone size={13} className="text-violet-500" />
+                                                {contact.number}
+                                            </a>
+                                        </Tooltip>
+                                    )}
+                                    <div className="flex gap-1">
+                                        <button onClick={() => openEdit(contact)} className="p-1.5 rounded-md hover:bg-theme-card-hover text-theme-muted hover:text-blue-500 transition"><Pencil size={14} /></button>
+                                        <button onClick={() => deleteContact(contact.id)} className="p-1.5 rounded-md hover:bg-red-500/10 text-theme-muted hover:text-red-500 transition"><Trash2 size={14} /></button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                <WidgetDisplaySettingsPanel widgetId="phonebook" />
+            </div>
         </div>
     );
 }

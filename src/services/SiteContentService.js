@@ -1,11 +1,13 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { getRequestDigest } from '../utils/sharepointUtils';
+import { DEFAULT_OVERLAY_IMAGE, normalizeOverlayImageConfig } from '../utils/overlayImageConfig';
 
 const DEFAULT_SITE_CONTENT = {
     hero: {
         siteName: 'שם האתר',
-        title: 'צוות אלפא \n בניה',
+        title: 'צוות אלפא מקשאפ \n כאן בונים',
         subtitle: 'ברוכים הבאים',
+        logo: '/images/alpha logo1.png',
         description: 'מרכז ההכשרות המוביל בצה"ל למקצועות החמ"ם.\nאנו אמונים על רצף ההכשרה, פיתוח מקצועי מתמיד ושמירה על כשירות עליונה בתחום המערכות המתקדמות.',
         backgroundImages: [
             '/images/לח1.jpeg',
@@ -28,7 +30,8 @@ const DEFAULT_SITE_CONTENT = {
                 signature: 'סא"ל א\', מפקד בית הספר'
             }
         ]
-    }
+    },
+    overlayImage: { ...DEFAULT_OVERLAY_IMAGE },
 };
 
 class SiteContentService {
@@ -60,6 +63,7 @@ class SiteContentService {
         const commander = data.commander || DEFAULT_SITE_CONTENT.commander;
 
         if (hero && !hero.siteName) hero.siteName = DEFAULT_SITE_CONTENT.hero.siteName;
+        if (hero && !hero.logo) hero.logo = DEFAULT_SITE_CONTENT.hero.logo;
         if (!hero.backgroundImages || !hero.backgroundImages.length) {
             hero.backgroundImages = DEFAULT_SITE_CONTENT.hero.backgroundImages;
         }
@@ -70,7 +74,9 @@ class SiteContentService {
             commander.decorativeElement = DEFAULT_SITE_CONTENT.commander.decorativeElement || 'line-diamond-line';
         }
 
-        return { hero, commander };
+        const overlayImage = normalizeOverlayImageConfig(data.overlayImage);
+
+        return { hero, commander, overlayImage };
     }
 
     async saveSiteContent(payload) {

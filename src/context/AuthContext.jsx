@@ -42,7 +42,7 @@ export const AuthProvider = ({ children }) => {
 
                 // Check if admin
                 setIsAdmin(SHAREPOINT_CONFIG.useMock || adminNames.includes(storedUserName));
-            } else {
+            } else if (!SHAREPOINT_CONFIG.useMock) {
                 // Attempt to auto-login via SharePoint if no user in session
                 await trySharePointLogin(adminNames);
             }

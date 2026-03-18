@@ -40,7 +40,8 @@ export default function WidgetLivePreview({
         ...globalWidgetContext,
         widgetConfig: {
             ...globalWidgetContext.widgetConfig,
-            activeWidget: activeWidget
+            activeWidget: activeWidget,
+            activeWidgets: activeWidget ? [activeWidget] : (globalWidgetContext.widgetConfig?.activeWidgets || ['events'])
         }
     };
 
@@ -63,7 +64,7 @@ export default function WidgetLivePreview({
                     }}
                 >
                     <WidgetContext.Provider value={previewWidgetContext}>
-                        <Home />
+                        <Home isPreview />
                     </WidgetContext.Provider>
                 </div>
             </div>

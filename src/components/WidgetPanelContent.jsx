@@ -46,13 +46,14 @@ export function WidgetContent({ activeWidget, widgetConfig }) {
   return <WidgetEmptyState icon={Bell} title="ווידג'ט לא ידוע" description="לא זוהתה תצורה מתאימה עבור הרכיב שנבחר." />;
 }
 
-export default function WidgetPanelContent({ widgetConfig, activeWidget, compact = false }) {
-  const resolvedWidget = activeWidget || widgetConfig?.activeWidget || 'events';
+export default function WidgetPanelContent({ widgetConfig, activeWidget, compact = false, widgetTitle }) {
+  const resolvedWidget = activeWidget || widgetConfig?.activeWidgets?.[0] || widgetConfig?.activeWidget || 'events';
+  const resolvedTitle = widgetTitle || getWidgetTitle(resolvedWidget);
 
   return (
     <div className={`relative z-10 flex h-full w-full flex-col ${compact ? 'p-4 pt-5' : 'p-6 pt-7'}`}>
-      <h2 className={`border-b border-gray-200 pb-2 font-black text-gray-900 dark:border-white/20 dark:text-white ${compact ? 'mb-4 text-xl' : 'mb-6 text-2xl [@media(max-height:850px)]:mb-3 [@media(max-height:850px)]:text-xl'}`}>
-        {getWidgetTitle(resolvedWidget)}
+      <h2 className={`border-b border-theme-subtle pb-2 font-black text-theme ${compact ? 'mb-4 text-xl' : 'mb-6 text-2xl [@media(max-height:850px)]:mb-3 [@media(max-height:850px)]:text-xl'}`}>
+        {resolvedTitle}
       </h2>
       <div className="mask-image-bottom relative flex-1 overflow-hidden">
         <div className="flex h-full flex-col">

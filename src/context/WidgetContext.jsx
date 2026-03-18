@@ -1,50 +1,337 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
-import WidgetService, { createDefaultWidgetConfig } from '../services/WidgetService';
+import React, { createContext, useMemo, useContext, useCallback } from 'react';
+import { useConfig } from './ConfigProvider';
+import { mergeWidgetSettings } from '../utils/widgetDisplay';
 
 export const WidgetContext = createContext();
 
 export const useWidget = () => useContext(WidgetContext);
 
-export const WidgetProvider = ({ children }) => {
-    const [widgetConfig, setWidgetConfig] = useState(() => createDefaultWidgetConfig());
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+const VALID_WIDGET_IDS = new Set([
+    'events',
+    'alerts',
+    'outstanding',
+    'countdown',
+    'news',
+    'phonebook',
+    'shuttles',
+    'polls',
+    'celebrations',
+    'heritage',
+    'tips',
+]);
 
-    const fetchWidgetConfig = async () => {
-        try {
-            setLoading(true);
-            const data = await WidgetService.getWidgetConfig();
-            setWidgetConfig(data);
-            setError(null);
-        } catch (err) {
-            console.error(err);
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
+function normalizeActiveWidgets(value, fallback = ['events']) {
+    const source = Array.isArray(value)
+        ? value
+        : (typeof value === 'string' ? [value] : []);
+    const next = [];
+    const seen = new Set();
+
+    source.forEach((item) => {
+        const id = typeof item === 'string' ? item : '';
+        if (!VALID_WIDGET_IDS.has(id) || seen.has(id)) return;
+        seen.add(id);
+        next.push(id);
+    });
+
+    if (next.length === 0) return fallback;
+    return next.slice(0, 3);
+}
+
+function toLegacyPolls(pollsBranch) {
+    const branch = pollsBranch || {};
+    const activePollId = branch.activePollId || null;
+    const items = Array.isArray(branch.items) ? branch.items : [];
+
+    return items.map((poll) => ({
+        ...poll,
+        active: activePollId !== null && String(activePollId) === String(poll?.id),
+    }));
+}
+
+function normalizeCountdownItems(countdownBranch) {
+    const branch = countdownBranch || {};
+    const rawItems = Array.isArray(branch.items) ? branch.items : [];
+    const items = (rawItems.length > 0 ? rawItems : ((branch.title || branch.targetDate || branch.details)
+        ? [{ id: 'countdown-1', title: branch.title, targetDate: branch.targetDate, details: branch.details, showDetails: branch.showDetails }]
+        : []))
+        .map((item, index) => ({
+            id: String(item?.id ?? `countdown-${index + 1}`),
+            title: item?.title ?? '',
+            targetDate: item?.targetDate ?? '',
+            details: item?.details ?? '',
+            showDetails: item?.showDetails ?? false,
+        }));
+
+    const validIds = new Set(items.map((item) => item.id));
+    const activeItemId = validIds.has(String(branch.activeItemId ?? ''))
+        ? String(branch.activeItemId)
+        : (items[0]?.id ?? null);
+
+    return { items, activeItemId };
+}
+
+function resolvePollActiveId(polls) {
+    const source = Array.isArray(polls) ? polls : [];
+    const activePoll = source.find((poll) => poll?.active === true);
+    return activePoll?.id ? String(activePoll.id) : null;
+}
+
+function toV1Polls(polls) {
+    const source = Array.isArray(polls) ? polls : [];
+    const items = source.map((poll, index) => {
+        const id = String(poll?.id ?? `${index + 1}`);
+        return {
+            id,
+            question: poll?.question ?? '',
+            options: Array.isArray(poll?.options)
+                ? poll.options.map((option, optionIndex) => ({
+                    id: String(option?.id ?? `${id}-opt-${optionIndex + 1}`),
+                    text: option?.text ?? '',
+                    votes: Number.isFinite(Number(option?.votes)) ? Number(option.votes) : 0,
+                }))
+                : [],
+        };
+    });
+
+    const activePollId = resolvePollActiveId(source);
+    return { activePollId, items };
+}
+
+function toLegacyWidgetConfig(widgets) {
+    const source = widgets || {};
+    const data = source.data || {};
+    const display = mergeWidgetSettings(source.display || {});
+
+    const activeWidgets = normalizeActiveWidgets(source.active, ['events']);
+    const eventsBranch = data.events || {};
+    const eventItems = Array.isArray(eventsBranch.items)
+        ? eventsBranch.items
+        : (Array.isArray(eventsBranch.events)
+            ? eventsBranch.events
+            : (Array.isArray(source.events) ? source.events : []));
+    const alertItems = Array.isArray(data.alerts?.items)
+        ? data.alerts.items
+        : (Array.isArray(source.alerts) ? source.alerts : []);
+
+    return {
+        activeWidgets,
+        // Polyfill for legacy consumers (e.g. App.jsx) that still read a single widget id.
+        activeWidget: activeWidgets[0] || 'events',
+        rotationInterval: Number.isFinite(Number(source.carousel?.rotationIntervalSeconds))
+            ? Number(source.carousel.rotationIntervalSeconds)
+            : 8,
+        widgetSettings: display,
+        ...display,
+        events: eventItems,
+        displayCount: Number.isFinite(Number(eventsBranch.displayCount)) ? Number(eventsBranch.displayCount) : 3,
+        displayMode: typeof eventsBranch.displayMode === 'string' ? eventsBranch.displayMode : 'default',
+        alerts: alertItems,
+        outstanding: Array.isArray(data.outstanding?.items)
+            ? data.outstanding.items.map((item) => ({
+                ...item,
+                image: item?.imageUrl ?? item?.image ?? '',
+            }))
+            : [],
+        countdown: (() => {
+            const { items, activeItemId } = normalizeCountdownItems(data.countdown || {});
+            const activeItem = items.find((item) => item.id === activeItemId) || null;
+            return {
+                title: activeItem?.title ?? data.countdown?.title ?? '',
+                targetDate: activeItem?.targetDate ?? data.countdown?.targetDate ?? '',
+                details: activeItem?.details ?? data.countdown?.details ?? '',
+                showDetails: activeItem?.showDetails ?? data.countdown?.showDetails ?? false,
+                switchIntervalSeconds: Number.isFinite(Number(data.countdown?.switchIntervalSeconds))
+                    ? Math.min(30, Math.max(3, Number(data.countdown.switchIntervalSeconds)))
+                    : 8,
+                items,
+                activeItemId,
+            };
+        })(),
+        news: Array.isArray(data.news?.items) ? data.news.items : [],
+        phonebook: Array.isArray(data.phonebook?.items) ? data.phonebook.items : [],
+        shuttles: Array.isArray(data.shuttles?.items) ? data.shuttles.items : [],
+        polls: toLegacyPolls(data.polls),
+        celebrations: Array.isArray(data.celebrations?.items) ? data.celebrations.items : [],
+        heritage: Array.isArray(data.heritage?.items) ? data.heritage.items : [],
+        tips: Array.isArray(data.tips?.items) ? data.tips.items : [],
     };
+}
 
-    const saveWidgetConfig = async (newConfig) => {
+function pickDisplaySettingsFromFlatConfig(flatConfig, currentDisplay) {
+    const directDisplayCandidates = {};
+    Object.keys(currentDisplay || {}).forEach((key) => {
+        const candidate = flatConfig?.[key];
+        if (
+            candidate
+            && typeof candidate === 'object'
+            && candidate.itemsPerView !== undefined
+            && candidate.intervalMs !== undefined
+        ) {
+            directDisplayCandidates[key] = candidate;
+        }
+    });
+
+    return mergeWidgetSettings(flatConfig?.widgetSettings || directDisplayCandidates || currentDisplay || {});
+}
+
+function toV1WidgetPatch(flatConfig, prevWidgets) {
+    const prev = prevWidgets || {};
+    const prevData = prev.data || {};
+    const prevDisplay = prev.display || {};
+    const input = flatConfig || {};
+
+    const activeWidgets = normalizeActiveWidgets(
+        input.activeWidgets ?? input.activeWidget ?? prev.active ?? ['events'],
+        Array.isArray(prev.active) && prev.active.length > 0 ? prev.active : ['events']
+    );
+
+    const rotationInterval = Number.isFinite(Number(input.rotationInterval))
+        ? Number(input.rotationInterval)
+        : Number(prev.carousel?.rotationIntervalSeconds ?? 8);
+
+    const displaySettings = pickDisplaySettingsFromFlatConfig(input, prevDisplay);
+    const polls = toV1Polls(input.polls ?? toLegacyPolls(prevData.polls));
+
+    return {
+        ...prev,
+        active: activeWidgets,
+        carousel: {
+            ...prev.carousel,
+            rotationIntervalSeconds: rotationInterval,
+        },
+        display: displaySettings,
+        data: {
+            ...prevData,
+            events: {
+                ...prevData.events,
+                items: Array.isArray(input.events) ? input.events : (prevData.events?.items || []),
+                displayCount: Number.isFinite(Number(input.displayCount))
+                    ? Number(input.displayCount)
+                    : Number(prevData.events?.displayCount ?? 3),
+                displayMode: typeof input.displayMode === 'string'
+                    ? input.displayMode
+                    : (prevData.events?.displayMode || 'default'),
+            },
+            alerts: {
+                items: Array.isArray(input.alerts) ? input.alerts : (prevData.alerts?.items || []),
+            },
+            outstanding: {
+                items: Array.isArray(input.outstanding)
+                    ? input.outstanding.map((item) => ({
+                        ...item,
+                        imageUrl: item?.imageUrl ?? item?.image ?? '',
+                    }))
+                    : (prevData.outstanding?.items || []),
+            },
+            countdown: (() => {
+                if (!input.countdown || typeof input.countdown !== 'object') {
+                    const fallback = prevData.countdown || { title: '', targetDate: '', details: '', showDetails: false, items: [], activeItemId: null };
+                    const normalizedFallback = normalizeCountdownItems(fallback);
+                    const activeFallback = normalizedFallback.items.find((item) => item.id === normalizedFallback.activeItemId) || null;
+                    return {
+                        ...fallback,
+                        title: activeFallback?.title ?? fallback.title ?? '',
+                        targetDate: activeFallback?.targetDate ?? fallback.targetDate ?? '',
+                        details: activeFallback?.details ?? fallback.details ?? '',
+                        showDetails: activeFallback?.showDetails ?? fallback.showDetails ?? false,
+                        switchIntervalSeconds: Number.isFinite(Number(fallback.switchIntervalSeconds))
+                            ? Math.min(30, Math.max(3, Number(fallback.switchIntervalSeconds)))
+                            : 8,
+                        items: normalizedFallback.items,
+                        activeItemId: normalizedFallback.activeItemId,
+                    };
+                }
+
+                const normalized = normalizeCountdownItems(input.countdown);
+                const active = normalized.items.find((item) => item.id === normalized.activeItemId) || null;
+                return {
+                    title: active?.title ?? input.countdown.title ?? '',
+                    targetDate: active?.targetDate ?? input.countdown.targetDate ?? '',
+                    details: active?.details ?? input.countdown.details ?? '',
+                    showDetails: active?.showDetails ?? input.countdown.showDetails ?? false,
+                    switchIntervalSeconds: Number.isFinite(Number(input.countdown.switchIntervalSeconds))
+                        ? Math.min(30, Math.max(3, Number(input.countdown.switchIntervalSeconds)))
+                        : 8,
+                    items: normalized.items,
+                    activeItemId: normalized.activeItemId,
+                };
+            })(),
+            news: {
+                items: Array.isArray(input.news) ? input.news : (prevData.news?.items || []),
+            },
+            phonebook: {
+                items: Array.isArray(input.phonebook) ? input.phonebook : (prevData.phonebook?.items || []),
+            },
+            shuttles: {
+                items: Array.isArray(input.shuttles) ? input.shuttles : (prevData.shuttles?.items || []),
+            },
+            polls,
+            celebrations: {
+                items: Array.isArray(input.celebrations) ? input.celebrations : (prevData.celebrations?.items || []),
+            },
+            heritage: {
+                items: Array.isArray(input.heritage) ? input.heritage : (prevData.heritage?.items || []),
+            },
+            tips: {
+                items: Array.isArray(input.tips) ? input.tips : (prevData.tips?.items || []),
+            },
+        },
+    };
+}
+
+export const WidgetProvider = ({ children }) => {
+    const { config, status, error, updateConfig, saveNow, reload } = useConfig();
+
+    const widgetConfig = useMemo(
+        () => toLegacyWidgetConfig(config?.widgets),
+        [config?.widgets]
+    );
+
+    const loading = status === 'loading';
+
+    const fetchWidgetConfig = useCallback(async () => {
         try {
-            setLoading(true);
-            await WidgetService.saveWidgetConfig(newConfig);
-            setWidgetConfig(newConfig);
-            setError(null);
+            await reload();
             return true;
         } catch (err) {
-            setError(err.message);
             return false;
-        } finally {
-            setLoading(false);
         }
-    };
+    }, [reload]);
 
-    useEffect(() => {
-        fetchWidgetConfig();
-    }, []);
+    const saveWidgetConfig = useCallback(async (newWidgetConfig) => {
+        try {
+            updateConfig((prev) => ({
+                ...prev,
+                widgets: toV1WidgetPatch(newWidgetConfig, prev.widgets),
+            }));
+            await saveNow();
+            return true;
+        } catch (err) {
+            console.error(err);
+            return false;
+        }
+    }, [saveNow, updateConfig]);
+
+    const updateField = useCallback((field, value) => {
+        const nextConfig = {
+            ...widgetConfig,
+            [field]: value,
+        };
+        return saveWidgetConfig(nextConfig);
+    }, [saveWidgetConfig, widgetConfig]);
 
     return (
-        <WidgetContext.Provider value={{ widgetConfig, loading, error, saveWidgetConfig, fetchWidgetConfig }}>
+        <WidgetContext.Provider
+            value={{
+                widgetConfig,
+                loading,
+                error,
+                saveWidgetConfig,
+                fetchWidgetConfig,
+                updateField,
+            }}
+        >
             {children}
         </WidgetContext.Provider>
     );

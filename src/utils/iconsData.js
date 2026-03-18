@@ -9,7 +9,8 @@ export const ICON_CATEGORIES = [
             'XCircle', 'AlertCircle', 'AlertTriangle', 'Eye', 'EyeOff', 'Hash',
             'Filter', 'Slider', 'Sliders', 'Activity', 'Anchor', 'Aperture', 'Zap',
             'Layout', 'LayoutDashboard', 'LayoutGrid', 'LayoutList', 'LayoutTemplate',
-            'Command', 'Compass', 'Crosshair', 'ToggleLeft', 'ToggleRight'
+            'Command', 'Compass', 'Crosshair', 'ToggleLeft', 'ToggleRight',
+            'Sparkles', 'Wand2', 'Badge', 'BadgeInfo', 'BadgeAlert'
         ]
     },
     {
@@ -44,7 +45,8 @@ export const ICON_CATEGORIES = [
             'Phone', 'PhoneCall', 'PhoneForwarded', 'PhoneIncoming', 'PhoneMissed', 'PhoneOff', 'PhoneOutgoing',
             'Bell', 'BellRing', 'BellOff', 'BellPlus', 'BellMinus',
             'Send', 'Share', 'Share2', 'AtSign', 'Rss',
-            'Inbox', 'ThumbsUp', 'ThumbsDown', 'Megaphone', 'Radio'
+            'Inbox', 'ThumbsUp', 'ThumbsDown', 'Megaphone', 'Radio',
+            'Mic', 'MicOff', 'Headphones', 'BadgeCheck'
         ]
     },
     {
@@ -104,7 +106,33 @@ export const ICON_CATEGORIES = [
             'BarChart3', 'BarChart4', 'LineChart', 'AreaChart', 'TrendingUp', 'TrendingDown',
             'CreditCard', 'DollarSign', 'Percent', 'ShoppingCart', 'ShoppingBag',
             'Banknote', 'Calculator', 'GraduationCap', 'Landmark', 'Store',
-            'Gift', 'Gem', 'BadgeCheck', 'PiggyBank'
+            'Gift', 'Gem', 'BadgeCheck', 'PiggyBank',
+            'Building2', 'Factory', 'Warehouse', 'Receipt', 'TicketPercent'
+        ]
+    },
+    {
+        id: 'transport',
+        label: 'תחבורה ונסיעות',
+        icons: [
+            'Car', 'Bus', 'Train', 'Plane', 'Ship', 'Bike',
+            'Navigation', 'MapPinned', 'MapPin', 'Compass',
+            'Luggage', 'Backpack', 'Route'
+        ]
+    },
+    {
+        id: 'food_sport',
+        label: 'אוכל וכושר',
+        icons: [
+            'Coffee', 'Pizza', 'Apple', 'Wheat',
+            'Dumbbell', 'Activity', 'HeartPulse', 'BottleWine', 'CupSoda'
+        ]
+    },
+    {
+        id: 'security_emergency',
+        label: 'אבטחה וחירום',
+        icons: [
+            'Shield', 'ShieldCheck', 'ShieldAlert', 'ShieldQuestion', 'ShieldBan',
+            'Siren', 'AlarmClock', 'Lock', 'Unlock', 'Key', 'Fingerprint'
         ]
     },
     {
@@ -116,7 +144,8 @@ export const ICON_CATEGORIES = [
             'Wifi', 'WifiOff', 'Bluetooth', 'BluetoothOff', 'BluetoothConnected',
             'Battery', 'BatteryCharging', 'BatteryFull', 'BatteryLow', 'BatteryMedium', 'BatteryWarning',
             'Database', 'DatabaseBackup', 'DatabaseZap', 'Terminal', 'Code', 'Code2',
-            'Modem', 'Router', 'Usb', 'Speaker', 'Gamepad', 'Gamepad2'
+            'Modem', 'Router', 'Usb', 'Speaker', 'Gamepad', 'Gamepad2',
+            'QrCode', 'ScanLine', 'ScanFace'
         ]
     },
     {
