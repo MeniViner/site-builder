@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { AlertTriangle, CalendarDays, Check, PartyPopper, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useWidget } from '../context/WidgetContext';
 import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
+import { AdminPageHelpButton, HelpTooltipButton } from './AdminHelp';
 
 const panelCls = 'bg-themeBg-card bg-white dark:bg-[#232733] text-themeText-primary text-gray-900 dark:text-white border border-gray-200 dark:border-white/10';
 const inputCls = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20 dark:border-white/10 dark:bg-[#1a1d24] dark:text-white';
@@ -78,10 +79,13 @@ export default function AdminCelebrations() {
                         </h1>
                         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">שחרורים, דרגות ואירועים משמחים של היחידה.</p>
                     </div>
-                    <button onClick={openNew} className="h-10 inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-bold text-white transition hover:bg-primary-700 shrink-0">
-                        <Plus size={16} />
-                        הוסף אירוע
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <AdminPageHelpButton pageId="celebrations" />
+                        <button onClick={openNew} className="h-10 inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-bold text-white transition hover:bg-primary-700">
+                            <Plus size={16} />
+                            הוסף אירוע
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -99,12 +103,42 @@ export default function AdminCelebrations() {
 
             {editingId !== null && (
                 <div className={`${panelCls} mb-6 rounded-2xl p-6 shadow-lg`}>
-                    <h3 className="mb-4 text-base font-bold text-primary-400">{editingId === 'new' ? 'הוספת אירוע' : 'עריכת אירוע'}</h3>
+                    <div className="mb-4 flex items-center gap-2">
+                        <h3 className="text-base font-bold text-primary-400">{editingId === 'new' ? 'הוספת אירוע' : 'עריכת אירוע'}</h3>
+                        <HelpTooltipButton
+                            title="אירוע חגיגי"
+                            description="כל שורה כאן מייצגת אדם אחד או אירוע משמח אחד שיופיע בווידג׳ט."
+                        />
+                    </div>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <input className={inputCls} placeholder="שם החוגג/ת" value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} />
-                        <input className={inputCls} placeholder="סוג (שחרור / דרגה / יום הולדת)" value={form.type} onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value }))} />
-                        <input className={inputCls} type="date" value={form.date} onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))} />
-                        <input className={inputCls} placeholder="תיאור קצר" value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} />
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">שם החוגג או החוגגת</span>
+                                <HelpTooltipButton title="שם" description="השם שיופיע בכרטיס החגיגה." />
+                            </div>
+                            <input className={inputCls} placeholder="שם החוגג/ת" value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} />
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">סוג האירוע</span>
+                                <HelpTooltipButton title="סוג האירוע" description="לדוגמה: יום הולדת, דרגה חדשה או שחרור." />
+                            </div>
+                            <input className={inputCls} placeholder="סוג (שחרור / דרגה / יום הולדת)" value={form.type} onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value }))} />
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">תאריך</span>
+                                <HelpTooltipButton title="תאריך" description="היום שבו האירוע המשמח מתקיים או מצוין." />
+                            </div>
+                            <input className={inputCls} type="date" value={form.date} onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))} />
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">תיאור קצר</span>
+                                <HelpTooltipButton title="תיאור קצר" description="שדה משלים אם רוצים להוסיף כמה מילים על האירוע." />
+                            </div>
+                            <input className={inputCls} placeholder="תיאור קצר" value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} />
+                        </div>
                     </div>
                     <div className="mt-4 flex gap-3">
                         <button onClick={commitEdit} className="h-10 inline-flex items-center gap-2 rounded-lg bg-primary-600 px-5 text-sm font-bold text-white transition hover:bg-primary-700">

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { AlertTriangle, Check, ListChecks, Pencil, Plus, Trash2, Vote, X } from 'lucide-react';
 import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
 import { useWidget } from '../context/WidgetContext';
+import { AdminPageHelpButton, HelpTooltipButton } from './AdminHelp';
 
 const panelCls = 'bg-themeBg-card bg-white dark:bg-[#232733] text-themeText-primary text-gray-900 dark:text-white border border-gray-200 dark:border-white/10';
 const inputCls = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-500/20 dark:border-white/10 dark:bg-[#1a1d24] dark:text-white';
@@ -97,10 +98,13 @@ export default function AdminPolls() {
                         </h1>
                         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">הגדרת שאלות ואפשרויות הצבעה בפורמט פשוט ומהיר.</p>
                     </div>
-                    <button onClick={openNew} className="h-10 inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 text-sm font-bold text-white transition hover:bg-pink-700 shrink-0">
-                        <Plus size={16} />
-                        הוסף סקר
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <AdminPageHelpButton pageId="polls" />
+                        <button onClick={openNew} className="h-10 inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 text-sm font-bold text-white transition hover:bg-pink-700">
+                            <Plus size={16} />
+                            הוסף סקר
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -118,13 +122,48 @@ export default function AdminPolls() {
 
             {editingId !== null && (
                 <div className={`${panelCls} mb-6 rounded-2xl p-6 shadow-lg`}>
-                    <h3 className="mb-4 text-base font-bold text-pink-400">{editingId === 'new' ? 'הוספת סקר' : 'עריכת סקר'}</h3>
+                    <div className="mb-4 flex items-center gap-2">
+                        <h3 className="text-base font-bold text-pink-400">{editingId === 'new' ? 'הוספת סקר' : 'עריכת סקר'}</h3>
+                        <HelpTooltipButton
+                            title="עריכת סקר"
+                            description="כאן מגדירים שאלה אחת ואת כל אפשרויות התשובה עבורה."
+                            items={[
+                                'כל אפשרות תשובה נכתבת באותו שדה, מופרדת בפסיק.',
+                                'סקר פעיל יופיע למשתמשים. סקר סגור יישמר אבל לא יהיה זמין להצבעה.',
+                            ]}
+                        />
+                    </div>
                     <div className="space-y-4">
-                        <input className={inputCls} placeholder="שאלת הסקר" value={form.question} onChange={(e) => setForm((prev) => ({ ...prev, question: e.target.value }))} />
-                        <textarea className={`${inputCls} min-h-[110px] resize-none`} placeholder="אפשרויות מופרדות בפסיקים" value={form.optionsInput} onChange={(e) => setForm((prev) => ({ ...prev, optionsInput: e.target.value }))} />
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">שאלת הסקר</span>
+                                <HelpTooltipButton
+                                    title="שאלת הסקר"
+                                    description="השאלה המרכזית שהמשתמשים יראו לפני ההצבעה."
+                                />
+                            </div>
+                            <input className={inputCls} placeholder="שאלת הסקר" value={form.question} onChange={(e) => setForm((prev) => ({ ...prev, question: e.target.value }))} />
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">אפשרויות תשובה</span>
+                                <HelpTooltipButton
+                                    title="אפשרויות תשובה"
+                                    description="כותבים את כל האפשרויות בשדה אחד, ומפרידים ביניהן בפסיקים."
+                                    items={[
+                                        'לדוגמה: כן, לא, אולי',
+                                    ]}
+                                />
+                            </div>
+                            <textarea className={`${inputCls} min-h-[110px] resize-none`} placeholder="אפשרויות מופרדות בפסיקים" value={form.optionsInput} onChange={(e) => setForm((prev) => ({ ...prev, optionsInput: e.target.value }))} />
+                        </div>
                         <label className="flex items-center gap-3 text-sm font-medium text-gray-600 dark:text-gray-300">
                             <input type="checkbox" checked={form.active} onChange={(e) => setForm((prev) => ({ ...prev, active: e.target.checked }))} className="h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500" />
                             סקר פעיל
+                            <HelpTooltipButton
+                                title="סקר פעיל"
+                                description="כאשר האפשרות פעילה, הסקר יופיע למשתמשים. כשהיא כבויה, הסקר יישמר אך לא יוצג."
+                            />
                         </label>
                     </div>
                     <div className="mt-4 flex gap-3">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useWidget } from '../context/WidgetContext';
 import { Timer, AlignLeft, Clock, Plus, Check, X, Pencil, Trash2, AlertTriangle, Info } from 'lucide-react';
+import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 
 const inputCls = 'w-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition';
 const labelCls = 'block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide';
@@ -177,10 +178,13 @@ export default function AdminCountdown() {
                         </h1>
                         <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">ניהול כמה ספירות לאחור, בחירת ספירה פעילה ופרטים אופציונליים.</p>
                     </div>
-                    <button onClick={openNew} className={`${primaryBtnCls} shrink-0`}>
-                        <Plus size={16} />
-                        הוסף ספירה
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <AdminPageHelpButton pageId="countdown" />
+                        <button onClick={openNew} className={primaryBtnCls}>
+                            <Plus size={16} />
+                            הוסף ספירה
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -198,10 +202,27 @@ export default function AdminCountdown() {
 
             {editingId !== null && (
                 <div className="bg-white dark:bg-[#232733] border border-sky-500/20 rounded-2xl p-6 shadow-lg max-w-2xl space-y-5 mb-6">
-                    <h3 className="text-base font-bold text-sky-400">{editingId === 'new' ? 'הוספת ספירה' : 'עריכת ספירה'}</h3>
+                    <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-sky-400">{editingId === 'new' ? 'הוספת ספירה' : 'עריכת ספירה'}</h3>
+                        <HelpTooltipButton
+                            title="ספירה לאחור"
+                            description="כל פריט כאן הוא יעד אחד שסופרים אליו זמן."
+                            items={[
+                                'אפשר לשמור כמה יעדים שונים.',
+                                'רק יעד אחד יהיה פעיל ויוצג כרגע באתר.',
+                            ]}
+                        />
+                    </div>
 
                     <div>
-                        <label className={labelCls}><AlignLeft size={10} className="inline ml-1" />כותרת הספירה</label>
+                        <HelpLabel
+                            as="span"
+                            className={labelCls}
+                            helpTitle="כותרת הספירה"
+                            helpDescription="המשפט הקצר שמסביר למה סופרים, למשל לקראת אירוע או תאריך יעד."
+                        >
+                            <><AlignLeft size={10} className="inline ml-1" />כותרת הספירה</>
+                        </HelpLabel>
                         <input
                             className={inputCls}
                             placeholder="לדוגמה: ימים לסיום הקורס"
@@ -211,7 +232,14 @@ export default function AdminCountdown() {
                     </div>
 
                     <div>
-                        <label className={labelCls}><Clock size={10} className="inline ml-1" />תאריך ושעת יעד</label>
+                        <HelpLabel
+                            as="span"
+                            className={labelCls}
+                            helpTitle="תאריך ושעת יעד"
+                            helpDescription="הרגע המדויק שאליו הספירה תרד. כשהתאריך יעבור, תופיע הודעה שהתאריך עבר."
+                        >
+                            <><Clock size={10} className="inline ml-1" />תאריך ושעת יעד</>
+                        </HelpLabel>
                         <input
                             type="datetime-local"
                             className={inputCls}
@@ -231,11 +259,22 @@ export default function AdminCountdown() {
                             className="h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
                         />
                         האם להוסיף פרטים
+                        <HelpTooltipButton
+                            title="פרטים נוספים"
+                            description="האפשרות הזאת מוסיפה טקסט משלים מתחת לספירה, למשל הסבר או הנחיה."
+                        />
                     </label>
 
                     {form.showDetails && (
                         <div>
-                            <label className={labelCls}><Info size={10} className="inline ml-1" />פרטים</label>
+                            <HelpLabel
+                                as="span"
+                                className={labelCls}
+                                helpTitle="פרטים"
+                                helpDescription="טקסט משלים שמופיע יחד עם הספירה, אם בחרת להציג פרטים נוספים."
+                            >
+                                <><Info size={10} className="inline ml-1" />פרטים</>
+                            </HelpLabel>
                             <textarea
                                 rows={3}
                                 className={`${inputCls} resize-none`}

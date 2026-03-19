@@ -10,6 +10,7 @@ import {
 import { toast } from 'react-toastify';
 import { normalizeBorderStyle, panelStyle } from '../utils/borderStyles';
 import Tooltip from './Tooltip';
+import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 
 const SETTINGS_NAV = [
     { id: 'primaryColor', label: 'צבע ראשי' },
@@ -208,12 +209,15 @@ export default function AdminTheme() {
                         <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">ניהול עיצוב האתר</h1>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">התאם צבעים, מצב תצוגה, סגנון מסגרות ואפקטים באתר</p>
                     </div>
-                    {isSaving && (
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-full shadow-sm">
-                            <div className="w-3.5 h-3.5 border-[2px] border-primary border-t-transparent rounded-full animate-spin" style={{ borderColor: draft.primaryColor, borderTopColor: 'transparent' }} />
-                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">שומר...</span>
-                        </div>
-                    )}
+                    <div className="flex items-center gap-3">
+                        <AdminPageHelpButton pageId="theme" />
+                        {isSaving && (
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-full shadow-sm">
+                                <div className="w-3.5 h-3.5 border-[2px] border-primary border-t-transparent rounded-full animate-spin" style={{ borderColor: draft.primaryColor, borderTopColor: 'transparent' }} />
+                                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">שומר...</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <nav className="flex items-center gap-2 overflow-x-auto p-1 custom-scrollbar w-full">
@@ -249,7 +253,10 @@ export default function AdminTheme() {
                                     <Palette size={20} className="text-primary-400" />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">צבע ראשי</h2>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">צבע ראשי</h2>
+                                        <HelpTooltipButton title="צבע ראשי" description="זה הצבע המוביל של האתר, והוא ישפיע על כפתורים, הדגשות וקישורים." />
+                                    </div>
                                     <p className="text-sm text-gray-400 dark:text-gray-500">הצבע הדומיננטי שחל על כפתורים, קישורים ואלמנטים מודגשים</p>
                                 </div>
                             </div>
@@ -278,7 +285,15 @@ export default function AdminTheme() {
                             </div>
 
                             <div className="flex items-center gap-3 pt-4 border-t border-gray-200 dark:border-white/5">
-                                <label className="text-sm font-bold text-gray-500 dark:text-gray-400 shrink-0">צבע מותאם אישית</label>
+                                <HelpLabel
+                                    as="span"
+                                    className="text-sm font-bold text-gray-500 dark:text-gray-400 shrink-0"
+                                    wrapperClassName="flex items-center gap-2 shrink-0"
+                                    helpTitle="צבע מותאם אישית"
+                                    helpDescription="כאן אפשר לבחור גוון מדויק בעזרת בורר צבע או להזין קוד צבע ידני."
+                                >
+                                    צבע מותאם אישית
+                                </HelpLabel>
                                 <div className="flex items-center gap-2 flex-1">
                                     <Tooltip text="פתח בורר צבע">
                                         <button
@@ -309,7 +324,13 @@ export default function AdminTheme() {
                             <div className="mt-5 p-4 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5">
                                 <div className="flex items-start justify-between gap-4">
                                     <div>
-                                        <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-1">השתקפות צבע על רקעי האתר - מומלץ!</h3>
+                                        <div className="mb-1 flex items-center gap-2">
+                                            <h3 className="text-sm font-bold text-gray-900 dark:text-white">השתקפות צבע על רקעי האתר - מומלץ!</h3>
+                                            <HelpTooltipButton
+                                                title="השתקפות צבע"
+                                                description="מוסיף גוון עדין של הצבע הראשי לרקעים, כדי ליצור מראה אחיד יותר."
+                                            />
+                                        </div>
                                         <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                                             מחיל גוון עדין של הצבע הראשי שבחרת על כלל רקעי האתר והכרטיסיות. כיבוי אפשרות זו ישאיר את רקעי האתר בגוון קלאסי (אפור/שחור נקי).
                                         </p>
@@ -377,7 +398,10 @@ export default function AdminTheme() {
                                     <Sun size={20} className="text-primary-400" />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">מצב תצוגה</h2>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">מצב תצוגה</h2>
+                                        <HelpTooltipButton title="מצב תצוגה" description="כאן מחליטים אם האתר יהיה בהיר, כהה או ייתן למשתמש לבחור לבד." />
+                                    </div>
                                     <p className="text-sm text-gray-400 dark:text-gray-500">קבע האם האתר יוצג במצב כהה, בהיר, או בבחירת המשתמש</p>
                                 </div>
                             </div>
@@ -388,27 +412,35 @@ export default function AdminTheme() {
                                     const Icon = mode.icon;
 
                                     return (
-                                        <button
-                                            key={mode.value}
-                                            onClick={() => updateField('displayMode', mode.value)}
-                                            className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${isActive
-                                                ? 'bg-primary-500/10 border-primary-500/40 ring-1 ring-primary-500/20'
-                                                : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
-                                                }`}
-                                        >
-                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-primary-500/15' : 'bg-gray-100 dark:bg-white/5'
-                                                }`}>
-                                                <Icon size={22} className={isActive ? 'text-primary-400' : 'text-gray-500'} />
+                                        <div key={mode.value} className="relative">
+                                            <div className="absolute left-3 top-3 z-10">
+                                                <HelpTooltipButton
+                                                    title={mode.label}
+                                                    description={mode.description}
+                                                    buttonClassName="h-7 w-7 bg-white/95 dark:bg-[#111827]"
+                                                />
                                             </div>
-                                            <div className="flex-1">
-                                                <h3 className={`font-bold ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>{mode.label}</h3>
-                                                <p className={`text-sm ${isActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>{mode.description}</p>
-                                            </div>
-                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${isActive ? 'border-primary-500 bg-primary-500' : 'border-gray-600'
-                                                }`}>
-                                                {isActive && <div className="w-2 h-2 bg-white rounded-full" />}
-                                            </div>
-                                        </button>
+                                            <button
+                                                onClick={() => updateField('displayMode', mode.value)}
+                                                className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${isActive
+                                                    ? 'bg-primary-500/10 border-primary-500/40 ring-1 ring-primary-500/20'
+                                                    : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
+                                                    }`}
+                                            >
+                                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-primary-500/15' : 'bg-gray-100 dark:bg-white/5'
+                                                    }`}>
+                                                    <Icon size={22} className={isActive ? 'text-primary-400' : 'text-gray-500'} />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h3 className={`font-bold ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>{mode.label}</h3>
+                                                    <p className={`text-sm ${isActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>{mode.description}</p>
+                                                </div>
+                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${isActive ? 'border-primary-500 bg-primary-500' : 'border-gray-600'
+                                                    }`}>
+                                                    {isActive && <div className="w-2 h-2 bg-white rounded-full" />}
+                                                </div>
+                                            </button>
+                                        </div>
                                     );
                                 })}
                             </div>
@@ -423,7 +455,10 @@ export default function AdminTheme() {
                                     <Hexagon size={20} className="text-primary-400" />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">סגנון מסגרות</h2>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">סגנון מסגרות</h2>
+                                        <HelpTooltipButton title="סגנון מסגרות" description="כאן בוחרים את צורת המסגרות והפינות של חלקים שונים באתר." />
+                                    </div>
                                     <p className="text-sm text-gray-400 dark:text-gray-500">בחר את סגנון הפינות והמסגרות של אלמנטים באתר</p>
                                 </div>
                             </div>
@@ -433,30 +468,31 @@ export default function AdminTheme() {
                                     const isActive = normalizeBorderStyle(draft.borderStyle) === style.value;
 
                                     return (
-                                        <button
-                                            key={style.value}
-                                            onClick={() => updateField('borderStyle', style.value)}
-                                            className={`relative p-5 rounded-xl border-2 text-right transition-all ${isActive
-                                                ? 'bg-primary-500/10 border-primary-500/40 ring-1 ring-primary-500/20'
-                                                : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
-                                                }`}
-                                        >
-                                            <div
-                                                className="w-full h-16 bg-gradient-to-br from-gray-600/30 to-gray-700/20 border border-white/10 mb-4"
-                                                style={panelStyle(style.value, 14)}
-                                            />
-                                            <h3 className={`font-bold text-sm mb-1 ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>
-                                                {style.label}
-                                            </h3>
-                                            <p className={`text-xs ${isActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>
-                                                {style.description}
-                                            </p>
-                                            {isActive && (
-                                                <div className="absolute top-3 left-3 w-5 h-5 bg-primary-500 rounded-full flex items-center justify-center">
-                                                    <div className="w-2 h-2 bg-white rounded-full" />
-                                                </div>
-                                            )}
-                                        </button>
+                                        <div key={style.value} className="relative">
+                                            <button
+                                                onClick={() => updateField('borderStyle', style.value)}
+                                                className={`relative w-full p-5 rounded-xl border-2 text-right transition-all ${isActive
+                                                    ? 'bg-primary-500/10 border-primary-500/40 ring-1 ring-primary-500/20'
+                                                    : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
+                                                    }`}
+                                            >
+                                                <div
+                                                    className="w-full h-16 bg-gradient-to-br from-gray-600/30 to-gray-700/20 border border-white/10 mb-4"
+                                                    style={panelStyle(style.value, 14)}
+                                                />
+                                                <h3 className={`font-bold text-sm mb-1 ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>
+                                                    {style.label}
+                                                </h3>
+                                                <p className={`text-xs ${isActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>
+                                                    {style.description}
+                                                </p>
+                                                {isActive && (
+                                                    <div className="absolute top-3 left-12 w-5 h-5 bg-primary-500 rounded-full flex items-center justify-center">
+                                                        <div className="w-2 h-2 bg-white rounded-full" />
+                                                    </div>
+                                                )}
+                                            </button>
+                                        </div>
                                     );
                                 })}
                             </div>
@@ -468,7 +504,10 @@ export default function AdminTheme() {
                                             {(draft.commanderPanelBordered !== false || draft.widgetPanelBordered !== false) ? <Eye size={18} /> : <EyeOff size={18} />}
                                         </div>
                                         <div>
-                                            <h3 className="text-sm font-black text-gray-900 dark:text-white">מסגרת בהירו העליון</h3>
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-sm font-black text-gray-900 dark:text-white">מסגרת בהירו העליון</h3>
+                                                <HelpTooltipButton title="מסגרת בהירו העליון" description="כאן מחליטים אם לאזור דבר המפקד והווידג׳ט העליון תהיה מסגרת גלויה." />
+                                            </div>
                                             <p className="text-xs text-gray-500 dark:text-gray-400">פיצול שליטה נפרדת לדבר המפקד ולווידג׳ט בהירו: מסגרת פעילה או ללא מסגרת.</p>
                                         </div>
                                     </div>
@@ -506,7 +545,10 @@ export default function AdminTheme() {
                                             <Hexagon size={18} className="text-primary" />
                                         </div>
                                         <div>
-                                            <h3 className="text-lg font-black text-gray-900 dark:text-white">החלת סגנון מותאם (Targets)</h3>
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-lg font-black text-gray-900 dark:text-white">החלת סגנון מותאם (Targets)</h3>
+                                                <HelpTooltipButton title="איפה להחיל את הסגנון" description="כאן בוחרים על אילו חלקים באתר יחול סגנון המסגרת שבחרת." />
+                                            </div>
                                             <p className="text-sm text-gray-500 dark:text-gray-400">בחר על אילו אלמנטים יחול החיתוך הטקטי. אלמנטים כבויים יישארו עם פינות מעוגלות רגילות.</p>
                                         </div>
                                     </div>
@@ -588,7 +630,10 @@ export default function AdminTheme() {
                                     <PanelBottom size={20} className="text-primary-400" />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">גובה הווידגט הדינמי</h2>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">גובה הווידגט הדינמי</h2>
+                                        <HelpTooltipButton title="גובה הווידג׳ט" description="כאן קובעים כמה מקום הווידג׳ט הראשי יתפוס בגובה המסך." />
+                                    </div>
                                     <p className="text-sm text-gray-400 dark:text-gray-500">שליטה בגובה Section 3 בלבד, תוך שמירה על יישור תחתון קבוע</p>
                                 </div>
                             </div>
@@ -598,22 +643,23 @@ export default function AdminTheme() {
                                     const isActive = draft.widgetHeight === option.value;
 
                                     return (
-                                        <button
-                                            key={option.value}
-                                            onClick={() => updateField('widgetHeight', option.value)}
-                                            className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${isActive
-                                                ? 'bg-primary-500/10 border-primary-500/40 ring-1 ring-primary-500/20'
-                                                : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
-                                                }`}
-                                        >
-                                            <div className="flex-1">
-                                                <h3 className={`font-bold ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>{option.label}</h3>
-                                                <p className={`text-sm ${isActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>{option.description}</p>
-                                            </div>
-                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${isActive ? 'border-primary-500 bg-primary-500' : 'border-gray-600'}`}>
-                                                {isActive && <div className="w-2 h-2 bg-white rounded-full" />}
-                                            </div>
-                                        </button>
+                                        <div key={option.value} className="relative">
+                                            <button
+                                                onClick={() => updateField('widgetHeight', option.value)}
+                                                className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${isActive
+                                                    ? 'bg-primary-500/10 border-primary-500/40 ring-1 ring-primary-500/20'
+                                                    : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
+                                                    }`}
+                                            >
+                                                <div className="flex-1">
+                                                    <h3 className={`font-bold ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>{option.label}</h3>
+                                                    <p className={`text-sm ${isActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>{option.description}</p>
+                                                </div>
+                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${isActive ? 'border-primary-500 bg-primary-500' : 'border-gray-600'}`}>
+                                                    {isActive && <div className="w-2 h-2 bg-white rounded-full" />}
+                                                </div>
+                                            </button>
+                                        </div>
                                     );
                                 })}
                             </div>
@@ -628,7 +674,10 @@ export default function AdminTheme() {
                                     <Eye size={20} className="text-primary-400" />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">הגדרות נוספות</h2>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">הגדרות נוספות</h2>
+                                        <HelpTooltipButton title="הגדרות נוספות" description="כאן נמצאים מתגים קטנים שמשפיעים על פרטים חשובים במראה ובמבנה של האתר." />
+                                    </div>
                                     <p className="text-sm text-gray-400 dark:text-gray-500">שליטה בנראות אלמנטים ואפקטים ויזואליים</p>
                                 </div>
                             </div>
@@ -643,7 +692,10 @@ export default function AdminTheme() {
                                             {draft.showNavCategories ? <Eye size={20} className="text-green-400" /> : <EyeOff size={20} className="text-gray-500" />}
                                         </div>
                                         <div>
-                                            <h3 className="font-bold text-gray-900 dark:text-white text-sm">הצגת קטגוריות בניווט עליון</h3>
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="font-bold text-gray-900 dark:text-white text-sm">הצגת קטגוריות בניווט עליון</h3>
+                                                <HelpTooltipButton title="קטגוריות בניווט עליון" description="האפשרות הזאת קובעת אם שמות הקטגוריות יוצגו בסרגל העליון של האתר." />
+                                            </div>
                                             <p className="text-xs text-gray-400 dark:text-gray-500">הצג/הסתר את הקטגוריות בסרגל הניווט העליון של האתר</p>
                                         </div>
                                     </div>
@@ -668,7 +720,10 @@ export default function AdminTheme() {
                                         <ImageIcon size={20} className={draft.heroGrayscale ? 'text-gray-400' : 'text-primary-400'} />
                                     </div>
                                     <div>
-                                        <h3 className="font-bold text-gray-900 dark:text-white text-sm">אפקט תמונות רקע</h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="font-bold text-gray-900 dark:text-white text-sm">אפקט תמונות רקע</h3>
+                                            <HelpTooltipButton title="אפקט תמונות רקע" description="כאן בוחרים אם תמונות הרקע יוצגו בצבע מלא או בשחור לבן." />
+                                        </div>
                                         <p className="text-xs text-gray-400 dark:text-gray-500">בחר בין תצוגה צבעונית לשחור-לבן עבור תמונות ה-Hero</p>
                                     </div>
                                 </div>
@@ -726,7 +781,10 @@ export default function AdminTheme() {
                                     <LayoutGrid size={20} className="text-primary-400" />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">תצוגת קטגוריות וקישורים</h2>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">תצוגת קטגוריות וקישורים</h2>
+                                        <HelpTooltipButton title="קטגוריות וקישורים" description="כאן בוחרים איך האזורים והקישורים הפנימיים יוצגו באתר למשתמשים." />
+                                    </div>
                                     <p className="text-sm text-gray-400 dark:text-gray-500">בחר את אופן הצגת הקטגוריות והקישורים הפנימיים באתר</p>
                                 </div>
                             </div>
@@ -735,25 +793,26 @@ export default function AdminTheme() {
                                     const isActive = draft.regularLinksLayout === layout.value;
                                     const Icon = layout.icon;
                                     return (
-                                        <button
-                                            key={layout.value}
-                                            onClick={() => updateField('regularLinksLayout', layout.value)}
-                                            className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${isActive
-                                                ? 'bg-primary-500/10 border-primary-500/40 ring-1 ring-primary-500/20'
-                                                : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
-                                                }`}
-                                        >
-                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-primary-500/15' : 'bg-gray-100 dark:bg-white/5'}`}>
-                                                <Icon size={22} className={isActive ? 'text-primary-400' : 'text-gray-500'} />
-                                            </div>
-                                            <div className="flex-1">
-                                                <h3 className={`font-bold ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>{layout.label}</h3>
-                                                <p className={`text-sm ${isActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>{layout.description}</p>
-                                            </div>
-                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${isActive ? 'border-primary-500 bg-primary-500' : 'border-gray-600'}`}>
-                                                {isActive && <div className="w-2 h-2 bg-white rounded-full" />}
-                                            </div>
-                                        </button>
+                                        <div key={layout.value} className="relative">
+                                            <button
+                                                onClick={() => updateField('regularLinksLayout', layout.value)}
+                                                className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${isActive
+                                                    ? 'bg-primary-500/10 border-primary-500/40 ring-1 ring-primary-500/20'
+                                                    : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
+                                                    }`}
+                                            >
+                                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-primary-500/15' : 'bg-gray-100 dark:bg-white/5'}`}>
+                                                    <Icon size={22} className={isActive ? 'text-primary-400' : 'text-gray-500'} />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h3 className={`font-bold ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>{layout.label}</h3>
+                                                    <p className={`text-sm ${isActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>{layout.description}</p>
+                                                </div>
+                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${isActive ? 'border-primary-500 bg-primary-500' : 'border-gray-600'}`}>
+                                                    {isActive && <div className="w-2 h-2 bg-white rounded-full" />}
+                                                </div>
+                                            </button>
+                                        </div>
                                     );
                                 })}
                             </div>
@@ -768,7 +827,10 @@ export default function AdminTheme() {
                                     <Globe size={20} className="text-primary-400" />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">תצוגת קישורים חיצוניים</h2>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">תצוגת קישורים חיצוניים</h2>
+                                        <HelpTooltipButton title="קישורים חיצוניים" description="כאן מחליטים איך רשימת הקישורים החיצוניים תיראה בחלק התחתון של האתר." />
+                                    </div>
                                     <p className="text-sm text-gray-400 dark:text-gray-500">בחר את אופן הצגת הקישורים החיצוניים בפוטר</p>
                                 </div>
                             </div>
@@ -777,25 +839,26 @@ export default function AdminTheme() {
                                     const isActive = draft.externalLinksLayout === layout.value;
                                     const Icon = layout.icon;
                                     return (
-                                        <button
-                                            key={layout.value}
-                                            onClick={() => updateField('externalLinksLayout', layout.value)}
-                                            className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${isActive
-                                                ? 'bg-primary-500/10 border-primary-500/40 ring-1 ring-primary-500/20'
-                                                : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
-                                                }`}
-                                        >
-                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-primary-500/15' : 'bg-gray-100 dark:bg-white/5'}`}>
-                                                <Icon size={22} className={isActive ? 'text-primary-400' : 'text-gray-500'} />
-                                            </div>
-                                            <div className="flex-1">
-                                                <h3 className={`font-bold ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>{layout.label}</h3>
-                                                <p className={`text-sm ${isActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>{layout.description}</p>
-                                            </div>
-                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${isActive ? 'border-primary-500 bg-primary-500' : 'border-gray-600'}`}>
-                                                {isActive && <div className="w-2 h-2 bg-white rounded-full" />}
-                                            </div>
-                                        </button>
+                                        <div key={layout.value} className="relative">
+                                            <button
+                                                onClick={() => updateField('externalLinksLayout', layout.value)}
+                                                className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${isActive
+                                                    ? 'bg-primary-500/10 border-primary-500/40 ring-1 ring-primary-500/20'
+                                                    : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
+                                                    }`}
+                                            >
+                                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-primary-500/15' : 'bg-gray-100 dark:bg-white/5'}`}>
+                                                    <Icon size={22} className={isActive ? 'text-primary-400' : 'text-gray-500'} />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h3 className={`font-bold ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>{layout.label}</h3>
+                                                    <p className={`text-sm ${isActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>{layout.description}</p>
+                                                </div>
+                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${isActive ? 'border-primary-500 bg-primary-500' : 'border-gray-600'}`}>
+                                                    {isActive && <div className="w-2 h-2 bg-white rounded-full" />}
+                                                </div>
+                                            </button>
+                                        </div>
                                     );
                                 })}
                             </div>
@@ -829,6 +892,12 @@ export default function AdminTheme() {
                                     />
                                     <div>
                                         <span className="font-medium text-gray-800 dark:text-gray-200">הצג את הלינקים בתחום עם מסגרת (בורדר)</span>
+                                        <HelpTooltipButton
+                                            title="מסגרת לקישורים חיצוניים"
+                                            description="כאשר האפשרות פעילה, לכל קישור חיצוני תהיה מסגרת ברורה סביבו."
+                                            buttonClassName="mr-1.5 h-5 w-5 align-middle"
+                                            iconSize={12}
+                                        />
                                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">כאשר כבוי — הקישורים יוצגו ללא מסגרת מסביב.</p>
                                     </div>
                                 </label>
@@ -841,6 +910,12 @@ export default function AdminTheme() {
                                     />
                                     <div>
                                         <span className="font-medium text-gray-800 dark:text-gray-200">הצג רקע סביב קישורים חיצוניים</span>
+                                        <HelpTooltipButton
+                                            title="רקע לקישורים חיצוניים"
+                                            description="כאשר האפשרות פעילה, הקישורים יוצגו על גבי רקע בולט יותר ולא ישבו ישירות על הדף."
+                                            buttonClassName="mr-1.5 h-5 w-5 align-middle"
+                                            iconSize={12}
+                                        />
                                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">כאשר כבוי — הפס/הכרטיסים יוצגו בלי רקע לבן ומטושטש (שקוף).</p>
                                     </div>
                                 </label>

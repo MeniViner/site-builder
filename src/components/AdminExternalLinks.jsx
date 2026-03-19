@@ -8,6 +8,7 @@ import { uploadImage } from '../utils/sharepointUtils';
 import { toast } from 'react-toastify';
 import IconPickerModal from './IconPickerModal';
 import { DynamicIcon } from './DynamicIcon';
+import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 
 function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -142,6 +143,7 @@ export default function AdminExternalLinks() {
                     </div>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
+                    <AdminPageHelpButton pageId="external-links" />
                     <button
                         onClick={addLink}
                         className="flex items-center gap-2 bg-white dark:bg-white/5 hover:bg-gray-50 dark:hover:bg-white/10 border-2 border-gray-200 dark:border-white/10 text-gray-900 dark:text-white px-5 py-2.5 rounded-xl font-bold transition text-sm"
@@ -259,10 +261,15 @@ export default function AdminExternalLinks() {
 
                         <form onSubmit={saveEdit} className="p-6 flex flex-col gap-5">
                             <div>
-                                <label className="flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                    <Type size={14} className="text-gray-400 dark:text-gray-500" />
-                                    כותרת
-                                </label>
+                                <HelpLabel
+                                    as="span"
+                                    className="flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-300"
+                                    wrapperClassName="mb-2 flex items-center gap-2"
+                                    helpTitle="כותרת"
+                                    helpDescription="השם שהמשתמשים יראו מתחת לאייקון או על גבי הקישור."
+                                >
+                                    <><Type size={14} className="text-gray-400 dark:text-gray-500" />כותרת</>
+                                </HelpLabel>
                                 <input
                                     name="title"
                                     type="text"
@@ -274,10 +281,15 @@ export default function AdminExternalLinks() {
                             </div>
 
                             <div>
-                                <label className="flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                    <LinkIcon size={14} className="text-gray-400 dark:text-gray-500" />
-                                    כתובת URL
-                                </label>
+                                <HelpLabel
+                                    as="span"
+                                    className="flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-300"
+                                    wrapperClassName="mb-2 flex items-center gap-2"
+                                    helpTitle="כתובת קישור"
+                                    helpDescription="הכתובת שאליה המשתמש יגיע אחרי לחיצה. צריך להזין כתובת מלאה."
+                                >
+                                    <><LinkIcon size={14} className="text-gray-400 dark:text-gray-500" />כתובת URL</>
+                                </HelpLabel>
                                 <input
                                     name="url"
                                     type="text"
@@ -290,12 +302,16 @@ export default function AdminExternalLinks() {
                             </div>
 
                             <div>
-                                <label className="flex items-center justify-between text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">
-                                    <span className="flex items-center gap-2">
+                                <div className="mb-3 flex items-center gap-2">
+                                    <span className="flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-300">
                                         <ImageIcon size={14} className="text-gray-400 dark:text-gray-500" />
                                         תצוגה חזותית <span className="text-gray-400 dark:text-gray-600 font-normal">(אופציונלי)</span>
                                     </span>
-                                </label>
+                                    <HelpTooltipButton
+                                        title="תצוגה חזותית"
+                                        description="כאן בוחרים איך הקישור ייראה לעין: בעזרת אייקון פשוט או תמונה מותאמת."
+                                    />
+                                </div>
 
                                 {/* Visual Type Toggle */}
                                 <div className="flex bg-gray-100 dark:bg-[#151821] p-1 rounded-lg mb-4 text-sm font-medium border border-gray-300 dark:border-gray-700/50">

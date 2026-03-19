@@ -13,6 +13,7 @@ import AdminPolls from './AdminPolls';
 import AdminCelebrations from './AdminCelebrations';
 import AdminHeritage from './AdminHeritage';
 import AdminTips from './AdminTips';
+import { AdminPageHelpButton, HelpTooltipButton } from './AdminHelp';
 
 const AVAILABLE_WIDGETS = [
   { id: 'events', label: 'לוח אירועים', icon: Calendar },
@@ -78,9 +79,12 @@ export default function AdminCurrentWidgets() {
           <h1 className="text-3xl font-black text-grey">ניהול הווידגטים העכשוויים</h1>
           <p className="mt-1 text-sm text-grey-muted">מעבר בין 3 הווידג׳טים שנבחרו וניהול כל אחד מהם מתוך אותו עמוד.</p>
         </div>
-        <span className="rounded-full border border-grey-subtle bg-grey-card px-3 py-1 text-xs font-bold text-grey-muted">
-          פעילים עכשיו: {activeWidgets.length}/3
-        </span>
+        <div className="flex items-center gap-2">
+          <AdminPageHelpButton pageId="current-widgets" />
+          <span className="rounded-full border border-grey-subtle bg-grey-card px-3 py-1 text-xs font-bold text-grey-muted">
+            פעילים עכשיו: {activeWidgets.length}/3
+          </span>
+        </div>
       </div>
 
       {error && (
@@ -125,7 +129,13 @@ export default function AdminCurrentWidgets() {
 
                 <div className="w-full xl:w-[300px] xl:shrink-0 rounded-lg border border-grey-subtle bg-grey-elevated px-3 py-2.5">
                   <div className="mb-1.5 flex items-center justify-between text-sm">
-                    <span className="font-semibold text-grey">זמן החלפה אוטומטית בין ווידגטים</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-grey">זמן החלפה אוטומטית בין ווידגטים</span>
+                      <HelpTooltipButton
+                        title="זמן החלפה אוטומטית"
+                        description="המספר הזה קובע כל כמה שניות המערכת תעבור לווידג׳ט הפעיל הבא."
+                      />
+                    </div>
                     <span className="text-base font-black text-primary">{rotationInterval}s</span>
                   </div>
                   <input

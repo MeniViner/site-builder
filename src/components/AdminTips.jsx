@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { AlertTriangle, Check, Lightbulb, Pencil, Plus, Trash2, X } from 'lucide-react';
 import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
 import { useWidget } from '../context/WidgetContext';
+import { AdminPageHelpButton, HelpTooltipButton } from './AdminHelp';
 
 const panelCls = 'bg-themeBg-card bg-white dark:bg-[#232733] text-themeText-primary text-gray-900 dark:text-white border border-gray-200 dark:border-white/10';
 const inputCls = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 outline-none transition focus:border-yellow-400 focus:ring-2 focus:ring-yellow-500/20 dark:border-white/10 dark:bg-[#1a1d24] dark:text-white';
@@ -78,10 +79,13 @@ export default function AdminTips() {
                         </h1>
                         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">טיפים, נהלים ותזכורות קצרות להצגה במחזוריות.</p>
                     </div>
-                    <button onClick={openNew} className="h-10 inline-flex items-center gap-2 rounded-lg bg-yellow-500 px-4 text-sm font-bold text-white transition hover:bg-yellow-600 shrink-0">
-                        <Plus size={16} />
-                        הוסף טיפ
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <AdminPageHelpButton pageId="tips" />
+                        <button onClick={openNew} className="h-10 inline-flex items-center gap-2 rounded-lg bg-yellow-500 px-4 text-sm font-bold text-white transition hover:bg-yellow-600">
+                            <Plus size={16} />
+                            הוסף טיפ
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -99,10 +103,28 @@ export default function AdminTips() {
 
             {editingId !== null && (
                 <div className={`${panelCls} mb-6 rounded-2xl p-6 shadow-lg`}>
-                    <h3 className="mb-4 text-base font-bold text-yellow-500">{editingId === 'new' ? 'הוספת טיפ' : 'עריכת טיפ'}</h3>
+                    <div className="mb-4 flex items-center gap-2">
+                        <h3 className="text-base font-bold text-yellow-500">{editingId === 'new' ? 'הוספת טיפ' : 'עריכת טיפ'}</h3>
+                        <HelpTooltipButton
+                            title="טיפ"
+                            description="כל כרטיס כאן מכיל טיפ אחד, נוהל קצר אחד או תזכורת אחת."
+                        />
+                    </div>
                     <div className="space-y-4">
-                        <input className={inputCls} placeholder="כותרת הטיפ" value={form.title} onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))} />
-                        <textarea className={`${inputCls} min-h-[120px] resize-none`} placeholder="תוכן הטיפ" value={form.text} onChange={(e) => setForm((prev) => ({ ...prev, text: e.target.value }))} />
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">כותרת הטיפ</span>
+                                <HelpTooltipButton title="כותרת הטיפ" description="שורה קצרה שתופסת את העין ומסכמת את הנושא." />
+                            </div>
+                            <input className={inputCls} placeholder="כותרת הטיפ" value={form.title} onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))} />
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">תוכן הטיפ</span>
+                                <HelpTooltipButton title="תוכן הטיפ" description="ההסבר עצמו. עדיף ניסוח קצר, ברור וישיר." />
+                            </div>
+                            <textarea className={`${inputCls} min-h-[120px] resize-none`} placeholder="תוכן הטיפ" value={form.text} onChange={(e) => setForm((prev) => ({ ...prev, text: e.target.value }))} />
+                        </div>
                     </div>
                     <div className="mt-4 flex gap-3">
                         <button onClick={commitEdit} className="h-10 inline-flex items-center gap-2 rounded-lg bg-yellow-500 px-5 text-sm font-bold text-white transition hover:bg-yellow-600">

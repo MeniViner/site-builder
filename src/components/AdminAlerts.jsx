@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Plus, Trash2, Pencil, X, Check, AlertTriangle } from 'lucide-react';
 import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
 import { useConfig } from '../context/ConfigProvider';
+import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 
 const inputCls = 'w-full bg-theme-elevated border border-theme-subtle rounded-lg px-4 py-2.5 text-sm text-theme placeholder-theme-muted focus:outline-none focus:ring-2 focus:ring-amber-500/40 transition';
 const labelCls = 'block text-xs font-semibold text-theme-muted mb-1.5 uppercase tracking-wide';
@@ -100,12 +101,15 @@ export default function AdminAlerts() {
                             </h1>
                             <p className="text-theme-muted">ניהול הודעות שוטפות וקריטיות המוצגות בווידגט ההתראות.</p>
                         </div>
-                        <button onClick={openNew} className="h-10 inline-flex items-center bg-amber-500 hover:bg-amber-600 text-white px-4 rounded-lg text-sm font-bold transition shrink-0">
-                            <span className="inline-flex items-center gap-2">
-                                <Plus size={16} />
-                                הוסף הודעה
-                            </span>
-                        </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                            <AdminPageHelpButton pageId="alerts" />
+                            <button onClick={openNew} className="h-10 inline-flex items-center bg-amber-500 hover:bg-amber-600 text-white px-4 rounded-lg text-sm font-bold transition">
+                                <span className="inline-flex items-center gap-2">
+                                    <Plus size={16} />
+                                    הוסף הודעה
+                                </span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -125,9 +129,26 @@ export default function AdminAlerts() {
 
                 {editingId !== null && (
                     <div className="bg-theme-card border border-theme-subtle rounded-2xl p-6 shadow-lg space-y-4">
-                        <h3 className="text-base font-bold text-amber-500">{editingId === 'new' ? 'הוספת הודעה חדשה' : 'עריכת הודעה'}</h3>
+                        <div className="flex items-center gap-2">
+                            <h3 className="text-base font-bold text-amber-500">{editingId === 'new' ? 'הוספת הודעה חדשה' : 'עריכת הודעה'}</h3>
+                            <HelpTooltipButton
+                                title="עריכת הודעה"
+                                description="כאן ממלאים את התוכן שיופיע בווידג׳ט ההתראות."
+                                items={[
+                                    'כותרת היא לא חובה, אבל היא עוזרת להבליט נושא.',
+                                    'תוכן ההודעה הוא החלק החשוב באמת, ולכן כדאי לכתוב אותו בקצרה ובבהירות.',
+                                ]}
+                            />
+                        </div>
                         <div>
-                            <label className={labelCls}>כותרת (אופציונלי)</label>
+                            <HelpLabel
+                                as="span"
+                                className={labelCls}
+                                helpTitle="כותרת"
+                                helpDescription="שדה קצר לבחירת כותרת להודעה. אפשר להשאיר ריק אם אין צורך."
+                            >
+                                כותרת (אופציונלי)
+                            </HelpLabel>
                             <input
                                 className={inputCls}
                                 placeholder="כותרת קצרה להודעה..."
@@ -136,7 +157,14 @@ export default function AdminAlerts() {
                             />
                         </div>
                         <div>
-                            <label className={labelCls}>תוכן ההודעה</label>
+                            <HelpLabel
+                                as="span"
+                                className={labelCls}
+                                helpTitle="תוכן ההודעה"
+                                helpDescription="זה הטקסט שהמשתמשים יקראו. עדיף לכתוב משפט אחד ברור או שתי שורות קצרות."
+                            >
+                                תוכן ההודעה
+                            </HelpLabel>
                             <textarea
                                 rows={3}
                                 className={`${inputCls} resize-none`}
@@ -152,9 +180,15 @@ export default function AdminAlerts() {
                             >
                                 <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-200 ${form.isUrgent ? 'left-5' : 'left-0.5'}`} />
                             </div>
-                            <span className={`text-sm font-semibold ${form.isUrgent ? 'text-red-500' : 'text-theme-muted'}`}>
-                                {form.isUrgent ? 'הודעה קריטית' : 'הודעה רגילה'}
-                            </span>
+                            <div className="flex items-center gap-2">
+                                <span className={`text-sm font-semibold ${form.isUrgent ? 'text-red-500' : 'text-theme-muted'}`}>
+                                    {form.isUrgent ? 'הודעה קריטית' : 'הודעה רגילה'}
+                                </span>
+                                <HelpTooltipButton
+                                    title="סוג ההודעה"
+                                    description="הודעה רגילה מתאימה לעדכון שוטף. הודעה קריטית מתאימה למשהו שחייב למשוך תשומת לב מיידית."
+                                />
+                            </div>
                         </label>
                         <div className="flex gap-3 pt-2">
                             <button onClick={commitEdit} disabled={!form.text.trim()} className="h-10 inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 rounded-lg text-sm font-bold transition">

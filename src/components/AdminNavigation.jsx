@@ -11,6 +11,7 @@ import {
 import IconPickerModal from './IconPickerModal';
 import Tooltip from './Tooltip';
 import { confirmToast } from '../utils/confirmToast';
+import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 
 export default function AdminNavigation() {
     const { navItems: initialNavItems, loading, error, saveNavigation } = useNavigation();
@@ -161,6 +162,35 @@ export default function AdminNavigation() {
     let currentChildren = [];
     let currentTitle = 'כל התוכן';
     let currentModel = null;
+    // ספירה: אם קטגוריה/תת־קטגוריה מוגדרת כלינק (יש לה URL) — לא סופרים את התוכן שבתוכה
+    const navigationStats = navItems.reduce(
+        (acc, category) => {
+            acc.categories += 1;
+            const subcategories = Array.isArray(category.children) ? category.children : [];
+            acc.subcategories += subcategories.length;
+
+            const categoryHasUrl = (category.url || '').trim();
+            if (categoryHasUrl) {
+                acc.activeLinks += 1;
+                return acc;
+            }
+
+            subcategories.forEach((subcategory) => {
+                const subHasUrl = (subcategory.url || '').trim();
+                if (subHasUrl) {
+                    acc.activeLinks += 1;
+                    return;
+                }
+                const subLinks = Array.isArray(subcategory.subLinks) ? subcategory.subLinks : [];
+                const linksWithUrl = subLinks.filter((link) => (link.url || '').trim());
+                acc.innerLinks += linksWithUrl.length;
+                acc.activeLinks += linksWithUrl.length;
+            });
+
+            return acc;
+        },
+        { categories: 0, subcategories: 0, innerLinks: 0, activeLinks: 0 }
+    );
 
     if (currentLevel === 0) {
         currentChildren = navItems.map(c => ({ ...c, nodePath: [c.id], type: 'folder', title: c.label }));
@@ -187,7 +217,7 @@ export default function AdminNavigation() {
     }
 
     return (
-        <div className="flex h-[calc(100vh-140px)] min-h-[600px] border border-gray-200 dark:border-[#1f1f22] rounded-xl overflow-hidden text-gray-700 dark:text-gray-200 bg-white dark:bg-[#050505] shadow-2xl font-sans" dir="rtl">
+        <div className="flex h-[calc(100vh-40px)] min-h-[600px] border border-gray-200 dark:border-[#1f1f22] rounded-xl overflow-hidden text-gray-700 dark:text-gray-200 bg-white dark:bg-[#050505] shadow-2xl font-sans" dir="rtl">
             {/* SIDEBAR */}
             <div className="w-64 bg-gray-50 dark:bg-[#0a0a0c] border-l border-gray-200 dark:border-[#1f1f22] flex flex-col shrink-0 custom-scrollbar-thin">
                 {/* Header */}
@@ -256,8 +286,18 @@ export default function AdminNavigation() {
                     })}
                 </div>
 
-                <div className="p-4 border-t border-gray-200 dark:border-[#1f1f22] bg-gray-100 dark:bg-[#0f0f11] shrink-0">
-                    {isSaving && <span className="text-sm text-gray-500 dark:text-gray-400">שומר...</span>}
+                <div className="p-3 border-t border-gray-200 dark:border-[#1f1f22] bg-gray-100 dark:bg-[#0f0f11] shrink-0 space-y-3">
+                    <div className="rounded-lg bg-white dark:bg-[#141418] border border-gray-200 dark:border-[#252528] p-3 space-y-2.5 shadow-inner">
+                        <p className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                            <Folder size={14} className="text-blue-500 dark:text-blue-400 shrink-0" />
+                            <span>סה"כ <strong className="text-gray-800 dark:text-gray-200">{navigationStats.categories}</strong> קטגוריות, <strong className="text-gray-800 dark:text-gray-200">{navigationStats.subcategories}</strong> תתי קטגוריות ובתוכן <strong className="text-gray-800 dark:text-gray-200">{navigationStats.innerLinks}</strong> לינקים</span>
+                        </p>
+                        <p className="flex items-center gap-2 text-xs font-medium text-primary-600 dark:text-primary-400 pt-1 border-t border-gray-100 dark:border-[#252528]">
+                            <LinkIcon size={14} className="shrink-0" />
+                            <span>סה"כ לינקים פעילים: <strong>{navigationStats.activeLinks}</strong></span>
+                        </p>
+                    </div>
+                    {isSaving && <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">שומר...</span>}
                 </div>
             </div>
 
@@ -291,6 +331,7 @@ export default function AdminNavigation() {
                     </div>
 
                     <div className="flex items-center gap-3">
+                        <AdminPageHelpButton pageId="navigation" />
                         <div className="relative">
                             <Search size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
                             <input
@@ -320,7 +361,15 @@ export default function AdminNavigation() {
                         </div>
                         <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-5">
                             <div className="space-y-1.5">
-                                <label className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">שם תצוגה</label>
+                                <HelpLabel
+                                    as="span"
+                                    className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider"
+                                    wrapperClassName="flex items-center gap-2"
+                                    helpTitle="שם תצוגה"
+                                    helpDescription="זה השם שהמשתמשים יראו בתוך האתר."
+                                >
+                                    שם תצוגה
+                                </HelpLabel>
                                 <input
                                     type="text"
                                     value={currentModel.title || currentModel.label || ''}
@@ -329,7 +378,15 @@ export default function AdminNavigation() {
                                 />
                             </div>
                             <div className="space-y-1.5">
-                                <label className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">אייקון (Lucide)</label>
+                                <HelpLabel
+                                    as="span"
+                                    className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider"
+                                    wrapperClassName="flex items-center gap-2"
+                                    helpTitle="אייקון"
+                                    helpDescription="האייקון הקטן שמופיע ליד הפריט ועוזר לזהות אותו במהירות."
+                                >
+                                    אייקון (Lucide)
+                                </HelpLabel>
                                 <button
                                     onClick={() => setIconPicker({ isOpen: true, targetPath: selectedPath, currentIcon: currentModel.icon || '' })}
                                     className="w-full h-[34px] flex items-center justify-between bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-primary-400 dark:hover:border-primary-500 rounded-md px-3 py-1.5 text-gray-900 dark:text-white transition focus:outline-none focus:ring-1 focus:ring-primary-500"
@@ -342,7 +399,15 @@ export default function AdminNavigation() {
                                 </button>
                             </div>
                             <div className="space-y-1.5">
-                                <label className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">קישור ישיר (URL)</label>
+                                <HelpLabel
+                                    as="span"
+                                    className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider"
+                                    wrapperClassName="flex items-center gap-2"
+                                    helpTitle="קישור ישיר"
+                                    helpDescription="אם מזינים כאן כתובת מלאה, לחיצה על הפריט תפתח את הכתובת הזאת ישירות."
+                                >
+                                    קישור ישיר (URL)
+                                </HelpLabel>
                                 <input
                                     type="url"
                                     value={currentModel.url || ''}
@@ -365,13 +430,19 @@ export default function AdminNavigation() {
                             {currentChildren.length} פריטים
                         </span>
                     </h2>
-                    <button
-                        onClick={addNode}
-                        className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-md transition shadow-[0_0_10px_rgba(220,38,38,0.2)] hover:shadow-[0_0_15px_rgba(220,38,38,0.4)] text-sm font-bold"
-                    >
-                        <Plus size={16} />
-                        <span>{currentLevel === 0 ? 'קטגוריה חדשה' : currentLevel === 1 ? 'כרטיסייה חדשה' : 'לינק חדש'}</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <HelpTooltipButton
+                            title="הוספת פריט"
+                            description={currentLevel === 0 ? 'כאן מוסיפים קטגוריה חדשה לרמה הראשית.' : currentLevel === 1 ? 'כאן מוסיפים תת קטגוריה בתוך הקטגוריה הנוכחית.' : 'כאן מוסיפים קישור חדש בתוך הכרטיסייה הנוכחית.'}
+                        />
+                        <button
+                            onClick={addNode}
+                            className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-md transition shadow-[0_0_10px_rgba(220,38,38,0.2)] hover:shadow-[0_0_15px_rgba(220,38,38,0.4)] text-sm font-bold"
+                        >
+                            <Plus size={16} />
+                            <span>{currentLevel === 0 ? 'קטגוריה חדשה' : currentLevel === 1 ? 'כרטיסייה חדשה' : 'לינק חדש'}</span>
+                        </button>
+                    </div>
                 </div>
 
                 {/* Table Content */}

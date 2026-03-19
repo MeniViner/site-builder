@@ -10,6 +10,7 @@ import { uploadImage } from '../utils/sharepointUtils';
 import Tooltip from './Tooltip';
 import { DEFAULT_OVERLAY_IMAGE, normalizeOverlayImageConfig } from '../utils/overlayImageConfig';
 import { confirmToast } from '../utils/confirmToast';
+import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 
 const MAX_COMMANDER_MESSAGES = 5;
 
@@ -44,9 +45,9 @@ const OVERLAY_POSITION_OPTIONS = [
 ];
 
 const OVERLAY_DISPLAY_AREA_OPTIONS = [
-    { value: 'fixed-site', label: 'קבוע על כל המסך (Fixed to screen)', description: 'Fixed to screen' },
-    { value: 'hero-full', label: 'אזור ההירו המלא (Absolute to full hero width)', description: 'Absolute to full hero width' },
-    { value: 'hero-content', label: 'גבולות התוכן בלבד (Anchors relative to the inner text/logo)', description: 'Anchors relative to the inner text/logo' },
+    { value: 'fixed-site', label: 'בכל מקום באתר ', description: 'האלמנט יוכל להופיע בכל מקום באתר' },
+    { value: 'hero-full', label: 'אזור ההירו המלא ', description: 'האלמנט יוכל להופיע רק באזור העליון' },
+    { value: 'hero-content', label: 'בתוך הכותרת בלבד ', description: 'האלמנט יוכל להופיע רק בתוך אזור כותרת האתר' },
 ];
 
 const OVERLAY_ANCHOR_OPTIONS = [
@@ -333,12 +334,15 @@ export default function AdminSiteContent() {
                         <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">ניהול המידע</h1>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">עריכה חיה של תוכן ההירו ודבר המפקד, באותו מבנה עבודה כמו מסך עיצוב האתר</p>
                     </div>
-                    {isSaving && (
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-full shadow-sm">
-                            <div className="w-3.5 h-3.5 border-[2px] border-primary border-t-transparent rounded-full animate-spin" />
-                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">שומר...</span>
-                        </div>
-                    )}
+                    <div className="flex items-center gap-3">
+                        <AdminPageHelpButton pageId="site-content" />
+                        {isSaving && (
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-full shadow-sm">
+                                <div className="w-3.5 h-3.5 border-[2px] border-primary border-t-transparent rounded-full animate-spin" />
+                                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">שומר...</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <nav className="flex items-center gap-2 overflow-x-auto p-1 custom-scrollbar w-full">
@@ -406,7 +410,13 @@ export default function AdminSiteContent() {
                                         {isHeroBackgroundsTab ? <ImageIcon size={20} className="text-primary-400" /> : <Type size={20} className="text-primary-400" />}
                                     </div>
                                     <div>
-                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">{isHeroBackgroundsTab ? 'תמונות רקע' : 'טקסט Hero'}</h2>
+                                        <div className="flex items-center gap-2">
+                                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{isHeroBackgroundsTab ? 'תמונות רקע' : 'טקסט Hero'}</h2>
+                                            <HelpTooltipButton
+                                                title={isHeroBackgroundsTab ? 'תמונות רקע' : 'טקסט אזור הפתיחה'}
+                                                description={isHeroBackgroundsTab ? 'כאן מנהלים את כל התמונות שמתחלפות ברקע החלק העליון של האתר.' : 'כאן משנים את הטקסטים הראשיים שרואים מיד כשנכנסים לאתר.'}
+                                            />
+                                        </div>
                                         <p className="text-sm text-gray-400 dark:text-gray-500">{SETTINGS_NAV.find((item) => item.id === activeSettingId)?.description}</p>
                                     </div>
                                 </div>
@@ -416,7 +426,15 @@ export default function AdminSiteContent() {
                                 {isHeroContentTab && (
                                     <div className="space-y-5">
                                         <div>
-                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">שם האתר (בתפריט העליון)</label>
+                                            <HelpLabel
+                                                as="span"
+                                                className="block text-sm font-bold text-gray-700 dark:text-gray-300"
+                                                wrapperClassName="mb-2 flex items-center gap-2"
+                                                helpTitle="שם האתר"
+                                                helpDescription="השם שיופיע בתפריט העליון של האתר."
+                                            >
+                                                שם האתר (בתפריט העליון)
+                                            </HelpLabel>
                                             <input
                                                 type="text"
                                                 value={hero.siteName ?? ''}
@@ -428,7 +446,15 @@ export default function AdminSiteContent() {
                                         </div>
 
                                         <div>
-                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">תמונת לוגו</label>
+                                            <HelpLabel
+                                                as="span"
+                                                className="block text-sm font-bold text-gray-700 dark:text-gray-300"
+                                                wrapperClassName="mb-2 flex items-center gap-2"
+                                                helpTitle="תמונת לוגו"
+                                                helpDescription="הלוגו שמופיע באזור העליון של האתר. אפשר להעלות חדש או להסיר את הקיים."
+                                            >
+                                                תמונת לוגו
+                                            </HelpLabel>
                                             <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-[#1b1f2a] border border-gray-200 dark:border-white/5 rounded-2xl">
                                                 <div className="w-20 h-20 rounded-xl bg-white dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center shrink-0">
                                                     {hero.logo ? (
@@ -474,7 +500,15 @@ export default function AdminSiteContent() {
                                         </div>
 
                                         <div>
-                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">תת-כותרת עליונה</label>
+                                            <HelpLabel
+                                                as="span"
+                                                className="block text-sm font-bold text-gray-700 dark:text-gray-300"
+                                                wrapperClassName="mb-2 flex items-center gap-2"
+                                                helpTitle="תת-כותרת עליונה"
+                                                helpDescription="שורת פתיחה קצרה שמופיעה מעל הכותרת הראשית."
+                                            >
+                                                תת-כותרת עליונה
+                                            </HelpLabel>
                                             <input
                                                 type="text"
                                                 value={hero.subtitle}
@@ -485,7 +519,18 @@ export default function AdminSiteContent() {
                                         </div>
 
                                         <div>
-                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">כותרת ראשית</label>
+                                            <HelpLabel
+                                                as="span"
+                                                className="block text-sm font-bold text-gray-700 dark:text-gray-300"
+                                                wrapperClassName="mb-2 flex items-center gap-2"
+                                                helpTitle="כותרת ראשית"
+                                                helpDescription="הכותרת הגדולה שרואים במרכז אזור הפתיחה."
+                                                helpItems={[
+                                                    'אפשר להשתמש בשתי שורות לכל היותר.',
+                                                ]}
+                                            >
+                                                כותרת ראשית
+                                            </HelpLabel>
                                             <textarea
                                                 value={hero.title}
                                                 onChange={(e) => {
@@ -500,7 +545,18 @@ export default function AdminSiteContent() {
                                         </div>
 
                                         <div>
-                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">תיאור</label>
+                                            <HelpLabel
+                                                as="span"
+                                                className="block text-sm font-bold text-gray-700 dark:text-gray-300"
+                                                wrapperClassName="mb-2 flex items-center gap-2"
+                                                helpTitle="תיאור"
+                                                helpDescription="טקסט הסבר קצר שמופיע מתחת לכותרת הראשית."
+                                                helpItems={[
+                                                    'מומלץ לשמור על עד שלוש שורות כדי שהמסך יישאר נקי.',
+                                                ]}
+                                            >
+                                                תיאור
+                                            </HelpLabel>
                                             <textarea
                                                 value={hero.description}
                                                 onChange={(e) => {
@@ -519,10 +575,20 @@ export default function AdminSiteContent() {
                                 {isHeroBackgroundsTab && (
                                     <div className="bg-gray-50 dark:bg-[#1b1f2a] border border-gray-200 dark:border-white/5 rounded-2xl p-5">
                                         <div className="flex items-center justify-between mb-4">
-                                            <label className="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                                                <ImageIcon size={16} className="text-gray-400 dark:text-gray-500" />
-                                                תמונות רקע מתחלפות
-                                            </label>
+                                            <div className="flex items-center gap-2">
+                                                <label className="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                                    <ImageIcon size={16} className="text-gray-400 dark:text-gray-500" />
+                                                    תמונות רקע מתחלפות
+                                                </label>
+                                                <HelpTooltipButton
+                                                    title="תמונות רקע מתחלפות"
+                                                    description="אלו התמונות שמתחלפות ברקע העליון של האתר."
+                                                    items={[
+                                                        'כדאי לבחור תמונות חדות ולא עמוסות מדי.',
+                                                        'רצוי לבדוק שהטקסט עדיין נקרא היטב מעל התמונה.',
+                                                    ]}
+                                                />
+                                            </div>
                                             <label
                                                 className={`flex items-center gap-1 text-xs bg-white dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg transition font-medium cursor-pointer ${uploadingHeroIndex !== null ? 'opacity-50 pointer-events-none' : ''}`}
                                             >
@@ -596,7 +662,13 @@ export default function AdminSiteContent() {
                                         <MessageSquare size={20} className="text-primary-400" />
                                     </div>
                                     <div>
-                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">{isCommanderProfileTab ? 'פרטי מפקד' : 'הודעות מפקד'}</h2>
+                                        <div className="flex items-center gap-2">
+                                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{isCommanderProfileTab ? 'פרטי מפקד' : 'הודעות מפקד'}</h2>
+                                            <HelpTooltipButton
+                                                title={isCommanderProfileTab ? 'פרטי מפקד' : 'הודעות מפקד'}
+                                                description={isCommanderProfileTab ? 'כאן מגדירים את האזור שמציג את פרטי המפקד והתמונה שלו.' : 'כאן מנהלים את ההודעות שמופיעות באזור דבר המפקד.'}
+                                            />
+                                        </div>
                                         <p className="text-sm text-gray-400 dark:text-gray-500">{SETTINGS_NAV.find((item) => item.id === activeSettingId)?.description}</p>
                                     </div>
                                 </div>
@@ -606,7 +678,6 @@ export default function AdminSiteContent() {
                                 <>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
                                         <div>
-                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">כותרת אזור</label>
                                             <input
                                                 type="text"
                                                 value={commander.sectionTitle}
@@ -617,7 +688,6 @@ export default function AdminSiteContent() {
                                         </div>
 
                                         <div>
-                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">תפקיד</label>
                                             <input
                                                 type="text"
                                                 value={commander.roleLabel}
@@ -628,7 +698,6 @@ export default function AdminSiteContent() {
                                         </div>
 
                                         <div>
-                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">תמונת מפקד</label>
                                             <label
                                                 className={`flex items-center justify-center gap-2 w-full bg-gray-50 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 border-dashed rounded-xl px-3 py-3 text-sm text-gray-500 dark:text-gray-400 hover:border-primary/50 hover:text-gray-700 dark:hover:text-gray-300 transition cursor-pointer ${uploadingCommander ? 'opacity-50 pointer-events-none' : ''}`}
                                             >
@@ -680,9 +749,15 @@ export default function AdminSiteContent() {
                                     {/* אלמנט עיצובי (כשיש רק הודעה אחת) */}
                                     {commander.messages.length === 1 && (
                                         <div className="mb-6">
-                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">
+                                            <HelpLabel
+                                                as="span"
+                                                className="block text-sm font-bold text-gray-700 dark:text-gray-300"
+                                                wrapperClassName="mb-3 flex items-center gap-2"
+                                                helpTitle="אלמנט עיצובי"
+                                                helpDescription="כאן בוחרים קישוט קטן שיופיע במקום כפתורי הניווט כשיש רק הודעה אחת."
+                                            >
                                                 אלמנט עיצובי (כשיש רק הודעה אחת)
-                                            </label>
+                                            </HelpLabel>
 
                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                                 {[
@@ -746,12 +821,22 @@ export default function AdminSiteContent() {
                             {isCommanderMessagesTab && (
                                 <>
                                     <div className="flex items-center justify-between mb-4">
-                                        <h3 className="text-lg font-bold text-gray-700 dark:text-gray-200">
-                                            הודעות מפקד
-                                            <span className="text-sm font-normal text-gray-400 dark:text-gray-500 mr-2">
-                                                ({commander.messages.length}/{MAX_COMMANDER_MESSAGES})
-                                            </span>
-                                        </h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-lg font-bold text-gray-700 dark:text-gray-200">
+                                                הודעות מפקד
+                                                <span className="text-sm font-normal text-gray-400 dark:text-gray-500 mr-2">
+                                                    ({commander.messages.length}/{MAX_COMMANDER_MESSAGES})
+                                                </span>
+                                            </h3>
+                                            <HelpTooltipButton
+                                                title="הודעות מפקד"
+                                                description="כאן מוסיפים ומסדרים את ההודעות שמתחלפות באזור דבר המפקד."
+                                                items={[
+                                                    'אפשר לשמור עד חמש הודעות.',
+                                                    'אם יש רק הודעה אחת, כפתורי המעבר יוסתרו אוטומטית באתר.',
+                                                ]}
+                                            />
+                                        </div>
                                         <button
                                             onClick={addMessage}
                                             disabled={commander.messages.length >= MAX_COMMANDER_MESSAGES}
@@ -839,7 +924,17 @@ export default function AdminSiteContent() {
                                         <ImageIcon size={20} className="text-primary-400" />
                                     </div>
                                     <div>
-                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">אלמנט תמונה חדש</h2>
+                                        <div className="flex items-center gap-2">
+                                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">אלמנט תמונה חדש</h2>
+                                            <HelpTooltipButton
+                                                title="אלמנט תמונה"
+                                                description="זהו פריט תמונה נוסף שאפשר להציג מעל האתר או בתוך אזור הפתיחה."
+                                                items={[
+                                                    'הוא לא מחליף את תמונות הרקע, אלא מתווסף מעליהן.',
+                                                    'כאן קובעים אם להציג אותו, איפה לשים אותו וכמה בולט הוא יהיה.',
+                                                ]}
+                                            />
+                                        </div>
                                         <p className="text-sm text-gray-400 dark:text-gray-500">העלאה, גודל, בורדרים, מיקום והתנהגות בגלילה</p>
                                     </div>
                                 </div>
@@ -909,7 +1004,15 @@ export default function AdminSiteContent() {
                                     <div className="space-y-5">
                                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                             <div>
-                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">רוחב (px)</label>
+                                                <HelpLabel
+                                                    as="span"
+                                                    className="block text-sm font-bold text-gray-700 dark:text-gray-300"
+                                                    wrapperClassName="mb-2 flex items-center gap-2"
+                                                    helpTitle="רוחב"
+                                                    helpDescription="כמה מקום התמונה תתפוס לרוחב."
+                                                >
+                                                    רוחב (px)
+                                                </HelpLabel>
                                                 <input
                                                     type="number"
                                                     min={48}
@@ -921,7 +1024,15 @@ export default function AdminSiteContent() {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">גובה (px)</label>
+                                                <HelpLabel
+                                                    as="span"
+                                                    className="block text-sm font-bold text-gray-700 dark:text-gray-300"
+                                                    wrapperClassName="mb-2 flex items-center gap-2"
+                                                    helpTitle="גובה"
+                                                    helpDescription="כמה מקום התמונה תתפוס לגובה."
+                                                >
+                                                    גובה (px)
+                                                </HelpLabel>
                                                 <input
                                                     type="number"
                                                     min={48}
@@ -933,7 +1044,15 @@ export default function AdminSiteContent() {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">שקיפות (%)</label>
+                                                <HelpLabel
+                                                    as="span"
+                                                    className="block text-sm font-bold text-gray-700 dark:text-gray-300"
+                                                    wrapperClassName="mb-2 flex items-center gap-2"
+                                                    helpTitle="שקיפות"
+                                                    helpDescription="קובע כמה התמונה תהיה בולטת או שקופה."
+                                                >
+                                                    שקיפות (%)
+                                                </HelpLabel>
                                                 <input
                                                     type="number"
                                                     min={0}
@@ -945,7 +1064,15 @@ export default function AdminSiteContent() {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">z-index</label>
+                                                <HelpLabel
+                                                    as="span"
+                                                    className="block text-sm font-bold text-gray-700 dark:text-gray-300"
+                                                    wrapperClassName="mb-2 flex items-center gap-2"
+                                                    helpTitle="סדר שכבות"
+                                                    helpDescription="קובע אם התמונה תופיע מעל אלמנטים אחרים או מתחתיהם."
+                                                >
+                                                    z-index
+                                                </HelpLabel>
                                                 <input
                                                     type="number"
                                                     min={1}
@@ -960,7 +1087,13 @@ export default function AdminSiteContent() {
 
                                         <div>
                                             <div className="flex items-center justify-between gap-3 mb-2">
-                                                <label className="text-sm font-bold text-gray-700 dark:text-gray-300">שקיפות</label>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300">שקיפות</label>
+                                                    <HelpTooltipButton
+                                                        title="מחוון שקיפות"
+                                                        description="אפשר לגרור את המחוון כדי לשנות מהר את רמת השקיפות."
+                                                    />
+                                                </div>
                                                 <span className="text-xs font-bold text-gray-500 dark:text-gray-400">{overlayImage.opacity}%</span>
                                             </div>
                                             <input
@@ -990,7 +1123,8 @@ export default function AdminSiteContent() {
                                             ))}
                                         </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <p className="text-xs text-gray-400 dark:text-gray-600">אפשרויות מיקום אלמנט התמונה באתר</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                             {OVERLAY_DISPLAY_AREA_OPTIONS.map((option) => (
                                                 <button
                                                     key={option.value}
@@ -1009,7 +1143,13 @@ export default function AdminSiteContent() {
 
                                         <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-[#1b1f2a] px-4 py-3">
                                             <div>
-                                                <div className="text-sm font-bold text-gray-800 dark:text-gray-200">הטמעת רקע (שילוב טשטוש ברקע)</div>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="text-sm font-bold text-gray-800 dark:text-gray-200">הטמעת רקע (שילוב טשטוש ברקע)</div>
+                                                    <HelpTooltipButton
+                                                        title="הטמעת רקע"
+                                                        description="מוסיף סביב התמונה אפקט רך שעוזר לה להשתלב טוב יותר עם הרקע."
+                                                    />
+                                                </div>
                                                 <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Glow חיצוני עדין סביב האלמנט</div>
                                             </div>
                                             <button
@@ -1045,13 +1185,19 @@ export default function AdminSiteContent() {
                                     </div>
                                 </div> */}
 
-                                <div className="space-y-4">
-                                    <div>
-                                        <div className="flex items-center justify-between gap-3 mb-2">
-                                            <label className="text-sm font-bold text-gray-700 dark:text-gray-300">מיקום אופקי (% מרוחב המסך)</label>
-                                            <input
-                                                type="number"
-                                                min={0}
+                                    <div className="space-y-4">
+                                        <div>
+                                            <div className="flex items-center justify-between gap-3 mb-2">
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300">מיקום אופקי (% מרוחב המסך)</label>
+                                                    <HelpTooltipButton
+                                                        title="מיקום אופקי"
+                                                        description="כמה ימינה או שמאלה התמונה תופיע."
+                                                    />
+                                                </div>
+                                                <input
+                                                    type="number"
+                                                    min={0}
                                                 max={100}
                                                 value={overlayImage.offsetX}
                                                 onChange={(e) => updateOverlayNumberField('offsetX', e.target.value, 0, 100)}
@@ -1069,12 +1215,18 @@ export default function AdminSiteContent() {
                                         />
                                     </div>
 
-                                    <div>
-                                        <div className="flex items-center justify-between gap-3 mb-2">
-                                            <label className="text-sm font-bold text-gray-700 dark:text-gray-300">מיקום אנכי (% מגובה המסך)</label>
-                                            <input
-                                                type="number"
-                                                min={0}
+                                        <div>
+                                            <div className="flex items-center justify-between gap-3 mb-2">
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300">מיקום אנכי (% מגובה המסך)</label>
+                                                    <HelpTooltipButton
+                                                        title="מיקום אנכי"
+                                                        description="כמה למעלה או למטה התמונה תופיע."
+                                                    />
+                                                </div>
+                                                <input
+                                                    type="number"
+                                                    min={0}
                                                 max={100}
                                                 value={overlayImage.offsetY}
                                                 onChange={(e) => updateOverlayNumberField('offsetY', e.target.value, 0, 100)}
@@ -1113,7 +1265,15 @@ export default function AdminSiteContent() {
                                 </div> */}
 
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">Object Fit</label>
+                                    <HelpLabel
+                                        as="span"
+                                        className="block text-sm font-bold text-gray-700 dark:text-gray-300"
+                                        wrapperClassName="mb-3 flex items-center gap-2"
+                                        helpTitle="התאמת התמונה למסגרת"
+                                        helpDescription="כאן בוחרים אם לשמור את כל התמונה גלויה או למלא את המסגרת גם במחיר של חיתוך קצוות."
+                                    >
+                                        Object Fit
+                                    </HelpLabel>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         {OVERLAY_OBJECT_FIT_OPTIONS.map((option) => (
                                             <button
@@ -1157,7 +1317,15 @@ export default function AdminSiteContent() {
 
                         <form onSubmit={saveMessageEdit} className="p-6 flex flex-col gap-5">
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">תוכן ההודעה</label>
+                                <HelpLabel
+                                    as="span"
+                                    className="block text-sm font-bold text-gray-700 dark:text-gray-300"
+                                    wrapperClassName="mb-2 flex items-center gap-2"
+                                    helpTitle="תוכן ההודעה"
+                                    helpDescription="הטקסט המלא שיופיע באזור דבר המפקד."
+                                >
+                                    תוכן ההודעה
+                                </HelpLabel>
                                 <textarea
                                     name="text"
                                     defaultValue={editingMessage.text}
@@ -1169,7 +1337,15 @@ export default function AdminSiteContent() {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">חתימה</label>
+                                <HelpLabel
+                                    as="span"
+                                    className="block text-sm font-bold text-gray-700 dark:text-gray-300"
+                                    wrapperClassName="mb-2 flex items-center gap-2"
+                                    helpTitle="חתימה"
+                                    helpDescription="שדה קצר לשם הכותב או לתפקיד שלו, כפי שיופיע מתחת להודעה."
+                                >
+                                    חתימה
+                                </HelpLabel>
                                 <input
                                     name="signature"
                                     type="text"

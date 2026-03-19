@@ -87,18 +87,16 @@ export default function RightSidebarNav() {
                                 </a>
                             </Tooltip>
                         ) : (
-                            <Tooltip text={item.label}>
-                                <button
-                                    onClick={() => handleLevel1Click(item)}
-                                    className={`sidebar-nav-item sidebar-trigger flex flex-col items-center justify-center text-center cursor-pointer ${isOpen ? 'is-active' : ''}`}
-                                    style={panelStyle(topLevelBorderStyle, 10)}
-                                >
-                                    <DynamicIcon name={item.icon} size={18} />
-                                    <span className="sidebar-trigger__label max-w-[64px] truncate">
-                                        {item.label}
-                                    </span>
-                                </button>
-                            </Tooltip>
+                            <button
+                                onClick={() => handleLevel1Click(item)}
+                                className={`gap-2 sidebar-nav-item sidebar-trigger flex flex-col items-center justify-center text-center cursor-pointer ${isOpen ? 'is-active' : ''}`}
+                                style={panelStyle(topLevelBorderStyle, 10)}
+                            >
+                                <DynamicIcon name={item.icon} size={18} />
+                                <span className="sidebar-trigger__label max-w-[64px] truncate ">
+                                    {item.label}
+                                </span>
+                            </button>
                         )}
 
                         {/* Level 2 Flyout — click-controlled, absolutely free over the page */}

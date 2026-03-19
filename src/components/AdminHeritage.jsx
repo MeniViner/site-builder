@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { AlertTriangle, Check, Pencil, Plus, ScrollText, Trash2, X } from 'lucide-react';
 import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
 import { useWidget } from '../context/WidgetContext';
+import { AdminPageHelpButton, HelpTooltipButton } from './AdminHelp';
 
 const panelCls = 'bg-themeBg-card bg-white dark:bg-[#232733] text-themeText-primary text-gray-900 dark:text-white border border-gray-200 dark:border-white/10';
 const inputCls = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-[#1a1d24] dark:text-white';
@@ -78,10 +79,13 @@ export default function AdminHeritage() {
                         </h1>
                         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">מסרי השראה, מורשת קרב וציטוטים מייצגים.</p>
                     </div>
-                    <button onClick={openNew} className="h-10 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-bold text-white transition hover:bg-indigo-700 shrink-0">
-                        <Plus size={16} />
-                        הוסף ציטוט
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <AdminPageHelpButton pageId="heritage" />
+                        <button onClick={openNew} className="h-10 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-bold text-white transition hover:bg-indigo-700">
+                            <Plus size={16} />
+                            הוסף ציטוט
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -99,12 +103,36 @@ export default function AdminHeritage() {
 
             {editingId !== null && (
                 <div className={`${panelCls} mb-6 rounded-2xl p-6 shadow-lg`}>
-                    <h3 className="mb-4 text-base font-bold text-indigo-400">{editingId === 'new' ? 'הוספת פריט מורשת' : 'עריכת פריט מורשת'}</h3>
+                    <div className="mb-4 flex items-center gap-2">
+                        <h3 className="text-base font-bold text-indigo-400">{editingId === 'new' ? 'הוספת פריט מורשת' : 'עריכת פריט מורשת'}</h3>
+                        <HelpTooltipButton
+                            title="פריט מורשת"
+                            description="כאן שומרים מסר אחד, ציטוט אחד או משפט השראה אחד."
+                        />
+                    </div>
                     <div className="space-y-4">
-                        <textarea className={`${inputCls} min-h-[120px] resize-none`} placeholder="הציטוט או המסר" value={form.quote} onChange={(e) => setForm((prev) => ({ ...prev, quote: e.target.value }))} />
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">הציטוט או המסר</span>
+                                <HelpTooltipButton title="הציטוט או המסר" description="זה המשפט הראשי שיופיע למשתמשים. עדיף שיהיה ברור ולא ארוך מדי." />
+                            </div>
+                            <textarea className={`${inputCls} min-h-[120px] resize-none`} placeholder="הציטוט או המסר" value={form.quote} onChange={(e) => setForm((prev) => ({ ...prev, quote: e.target.value }))} />
+                        </div>
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            <input className={inputCls} placeholder="מחבר / דובר" value={form.author} onChange={(e) => setForm((prev) => ({ ...prev, author: e.target.value }))} />
-                            <input className={inputCls} placeholder="תפקיד / שיוך" value={form.role} onChange={(e) => setForm((prev) => ({ ...prev, role: e.target.value }))} />
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">מחבר או דובר</span>
+                                    <HelpTooltipButton title="מחבר או דובר" description="השם של מי שאמר או כתב את המשפט." />
+                                </div>
+                                <input className={inputCls} placeholder="מחבר / דובר" value={form.author} onChange={(e) => setForm((prev) => ({ ...prev, author: e.target.value }))} />
+                            </div>
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">תפקיד או שיוך</span>
+                                    <HelpTooltipButton title="תפקיד או שיוך" description="שדה משלים שמסביר מי האדם או מאיפה הוא מוכר." />
+                                </div>
+                                <input className={inputCls} placeholder="תפקיד / שיוך" value={form.role} onChange={(e) => setForm((prev) => ({ ...prev, role: e.target.value }))} />
+                            </div>
                         </div>
                     </div>
                     <div className="mt-4 flex gap-3">

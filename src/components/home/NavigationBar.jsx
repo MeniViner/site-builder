@@ -42,6 +42,7 @@ export default function NavigationBar({
   showNavCategories,
   onNavTo,
   onOpenAdmin,
+  canOpenAdmin = false,
   topNavBorderStyle,
   searchBorderStyle,
   effectiveMode,
@@ -66,13 +67,15 @@ export default function NavigationBar({
       </div>
       <div className="flex flex-row-reverse items-center gap-3">
         <SearchBar borderStyle={searchBorderStyle} />
-        <button
-          onClick={onOpenAdmin}
-          className="border text-theme px-6 h-10 font-bold transition text-sm whitespace-nowrap hidden sm:block bg-theme-elevated hover:brightness-110"
-          style={{ ...panelStyle(topNavBorderStyle, 10), borderColor: theme?.primaryColor ?? '#dc2626' }}
-        >
-          ניהול
-        </button>
+        {canOpenAdmin && (
+          <button
+            onClick={onOpenAdmin}
+            className="border text-theme px-6 h-10 font-bold transition text-sm whitespace-nowrap hidden sm:block bg-theme-elevated hover:brightness-110"
+            style={{ ...panelStyle(topNavBorderStyle, 10), borderColor: theme?.primaryColor ?? '#dc2626' }}
+          >
+            ניהול
+          </button>
+        )}
         {theme?.displayMode === 'user-toggle' && (
           <Tooltip text={effectiveMode === 'dark' ? 'מעבר למצב בהיר' : 'מעבר למצב כהה'}>
             <button

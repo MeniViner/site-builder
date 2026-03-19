@@ -251,7 +251,7 @@ export default function AdminHub() {
                         <div className="flex-1 min-w-0 overflow-y-auto custom-scrollbar">
                             <Routes>
                                 <Route path="/" element={<div className="w-full h-full"><AdminSiteContent /></div>} />
-                                <Route path="/links" element={<div className="w-full h-full p-8 max-w-7xl mx-auto"><AdminNavigation /></div>} />
+                                <Route path="/links" element={<div className="w-full h-full "><AdminNavigation /></div>} />
                                 <Route path="/events" element={<div className="w-full h-full"><AdminEvents onClose={() => navigate('/')} inHub={true} /></div>} />
                                 <Route path="/widgets" element={<div className="w-full h-full"><AdminWidgets /></div>} />
                                 <Route path="/current-widgets" element={<div className="w-full h-full"><AdminCurrentWidgets /></div>} />
@@ -279,7 +279,7 @@ export default function AdminHub() {
                     <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
                         <Routes>
                             <Route path="/" element={<div className="w-full h-full"><AdminSiteContent /></div>} />
-                            <Route path="/links" element={<div className="w-full h-full p-8 max-w-7xl mx-auto"><AdminNavigation /></div>} />
+                            <Route path="/links" element={<div className="w-full h-full p-8 max-w-8xl mx-auto"><AdminNavigation /></div>} />
                             <Route path="/events" element={<div className="w-full h-full"><AdminEvents onClose={() => navigate('/')} inHub={true} /></div>} />
                             <Route path="/widgets" element={<div className="w-full h-full"><AdminWidgets /></div>} />
                             <Route path="/current-widgets" element={<div className="w-full h-full"><AdminCurrentWidgets /></div>} />

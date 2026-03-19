@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useWidget } from '../context/WidgetContext';
 import { Rss, Plus, Trash2, Pencil, X, Check } from 'lucide-react';
 import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
+import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 
 const inputCls = 'w-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition';
 const labelCls = 'block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide';
@@ -63,9 +64,12 @@ export default function AdminNews() {
                         </h1>
                         <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">ניהול פריטי המבזקים המוצגים בווידגט</p>
                     </div>
-                    <button onClick={openNew} className="h-10 inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 rounded-lg text-sm font-bold transition shadow shrink-0">
-                        <Plus size={16} />הוסף מבזק
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <AdminPageHelpButton pageId="news" />
+                        <button onClick={openNew} className="h-10 inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 rounded-lg text-sm font-bold transition shadow">
+                            <Plus size={16} />הוסף מבזק
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -84,9 +88,26 @@ export default function AdminNews() {
             {/* Inline form */}
             {editingId !== null && (
                 <div className="bg-white dark:bg-[#232733] border border-orange-500/30 rounded-2xl p-6 shadow-lg space-y-4 mb-6">
-                    <h3 className="text-base font-bold text-orange-400">{editingId === 'new' ? 'הוספת מבזק חדש' : 'עריכת מבזק'}</h3>
+                    <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-orange-400">{editingId === 'new' ? 'הוספת מבזק חדש' : 'עריכת מבזק'}</h3>
+                        <HelpTooltipButton
+                            title="מבזק"
+                            description="מבזק הוא שורת עדכון קצרה שמופיעה למשתמשים במהירות."
+                            items={[
+                                'כדאי לכתוב משפט אחד ברור.',
+                                'אם זה חשוב במיוחד, אפשר לסמן כמבזק דחוף.',
+                            ]}
+                        />
+                    </div>
                     <div>
-                        <label className={labelCls}>טקסט המבזק</label>
+                        <HelpLabel
+                            as="span"
+                            className={labelCls}
+                            helpTitle="טקסט המבזק"
+                            helpDescription="הטקסט שיופיע למשתמשים. עדיף קצר, ברור, וללא מידע מיותר."
+                        >
+                            טקסט המבזק
+                        </HelpLabel>
                         <textarea
                             rows={3}
                             className={`${inputCls} resize-none`}
@@ -103,9 +124,15 @@ export default function AdminNews() {
                         >
                             <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-200 ${form.isUrgent ? 'left-5' : 'left-0.5'}`} />
                         </div>
-                        <span className={`text-sm font-semibold ${form.isUrgent ? 'text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
-                            {form.isUrgent ? '🔴 דחוף' : 'רגיל'}
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <span className={`text-sm font-semibold ${form.isUrgent ? 'text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                                {form.isUrgent ? 'דחוף' : 'רגיל'}
+                            </span>
+                            <HelpTooltipButton
+                                title="רמת דחיפות"
+                                description="מבזק דחוף יוצג בצורה בולטת יותר ומתאים למסרים שצריך לשים לב אליהם מהר."
+                            />
+                        </div>
                     </label>
                     <div className="flex gap-3 pt-2">
                         <button onClick={commitEdit} disabled={!form.text.trim()} className="h-10 inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 rounded-lg text-sm font-bold transition">

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Route, Routes, useNavigate } from 'react-router-dom';
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import AdminHub from './components/AdminHub';
 import RightSidebarNav from './components/RightSidebarNav';
@@ -26,7 +26,7 @@ export function Home({ isPreview = false }) {
   const [flippedCardId, setFlippedCardId] = useState(null);
 
   const { navItems, loading } = useNavigation();
-  const { currentUser } = useAuth();
+  const { currentUser, isAdmin, loading: authLoading } = useAuth();
   const { siteContent } = useSiteContent();
   const { theme, effectiveMode, toggleUserMode, borderTargets } = useTheme();
   const { externalLinks } = useExternalLinks();
@@ -148,6 +148,7 @@ export function Home({ isPreview = false }) {
           showNavCategories={showNavCategories}
           onNavTo={handleNavTo}
           onOpenAdmin={onOpenAdmin}
+          canOpenAdmin={isAdmin && !authLoading}
           topNavBorderStyle={topNavBorderStyle}
           searchBorderStyle={searchBorderStyle}
           effectiveMode={effectiveMode}
@@ -243,13 +244,31 @@ export function Home({ isPreview = false }) {
   );
 }
 
+function AdminRoute() {
+  const { isAdmin, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div dir="rtl" className="min-h-screen w-full flex items-center justify-center bg-[#0c0d12] text-white font-heebo">
+        טוען הרשאות...
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <AdminHub />;
+}
+
 export default function App() {
   const { effectiveMode } = useTheme();
   return (
     <>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/admin/*" element={<AdminHub />} />
+        <Route path="/admin/*" element={<AdminRoute />} />
       </Routes>
       <ToastContainer
         position="top-center"

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useWidget } from '../context/WidgetContext';
 import WidgetLivePreview from './WidgetLivePreview';
+import { AdminPageHelpButton, HelpTooltipButton } from './AdminHelp';
 
 const AVAILABLE_WIDGETS = [
   { id: 'events', label: 'לוח אירועים', description: 'הצגת אירועים קרובים עם ניהול מלא דרך ממשק האירועים.', icon: Calendar },
@@ -61,9 +62,12 @@ export default function AdminWidgets() {
             בחר עד 3 ווידג׳טים שיוצגו בקרוסלה בעמוד הבית.
           </p>
         </div>
-        <span className="rounded-full border border-grey-subtle bg-grey-card px-3 py-1 text-xs font-bold text-grey-muted">
-          נבחרו {activeWidgets.length}/3
-        </span>
+        <div className="flex items-center gap-2">
+          <AdminPageHelpButton pageId="widgets" />
+          <span className="rounded-full border border-grey-subtle bg-grey-card px-3 py-1 text-xs font-bold text-grey-muted">
+            נבחרו {activeWidgets.length}/3
+          </span>
+        </div>
       </div>
 
       {error && (
@@ -80,7 +84,17 @@ export default function AdminWidgets() {
           <div className="flex-1 min-h-0 space-y-6 2xl:overflow-y-auto 2xl:pr-2 custom-scrollbar">
             <div className="rounded-2xl border border-grey-subtle bg-grey-card p-4">
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg font-bold text-grey">רשימת הווידג׳טים</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-grey">רשימת הווידג׳טים</h2>
+                  <HelpTooltipButton
+                    title="רשימת הווידג׳טים"
+                    description="לחיצה על כרטיס מוסיפה או מסירה את הווידג׳ט מהרשימה הפעילה."
+                    items={[
+                      'אפשר לבחור עד שלושה ווידג׳טים.',
+                      'סדר הבחירה קובע גם את סדר ההופעה באתר.',
+                    ]}
+                  />
+                </div>
                 <span className="text-xs text-grey-muted">מינימום 1, מקסימום 3</span>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Settings2 } from 'lucide-react';
 import { useConfig } from '../context/ConfigProvider';
 import { DEFAULT_WIDGET_SETTINGS } from '../utils/widgetDisplay';
+import { HelpLabel, HelpTooltipButton } from './AdminHelp';
 
 const inputCls = 'mt-1.5 w-full rounded-lg border border-theme-subtle bg-theme-elevated px-3 py-1.5 text-sm text-theme outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/20';
 
@@ -100,10 +101,20 @@ export default function WidgetDisplaySettingsPanel({ widgetId, widgetKey }) {
     return (
         <div className="bg-theme-card border border-theme-subtle rounded-xl p-4 mt-6">
             <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="text-base font-bold text-theme flex items-center gap-2">
-                    <Settings2 size={18} className="text-primary" />
-                    הגדרות תצוגה לווידגט
-                </h3>
+                <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-theme flex items-center gap-2">
+                        <Settings2 size={18} className="text-primary" />
+                        הגדרות תצוגה לווידגט
+                    </h3>
+                    <HelpTooltipButton
+                        title="הגדרות תצוגה"
+                        description="החלק הזה שולט רק בדרך שבה הווידג׳ט מוצג למשתמשים, ולא בתוכן עצמו."
+                        items={[
+                            'כאן קובעים אם התוכן יתחלף לבד, כמה זמן הוא יוצג, וכמה פריטים יופיעו יחד.',
+                            'אם יש מעט פריטים, כדאי לשמור על כמות קטנה כדי שהתצוגה תישאר נקייה.',
+                        ]}
+                    />
+                </div>
                 {isSaving && <span className="text-xs font-semibold text-theme-muted">שומר...</span>}
             </div>
 
@@ -116,7 +127,19 @@ export default function WidgetDisplaySettingsPanel({ widgetId, widgetKey }) {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <label className="block">
-                    <span className="text-sm font-semibold text-theme">הפעל גלילה/החלפה אוטומטית</span>
+                    <HelpLabel
+                        as="span"
+                        className="text-sm font-semibold text-theme"
+                        wrapperClassName="flex items-center gap-2"
+                        helpTitle="החלפה אוטומטית"
+                        helpDescription="כאשר האפשרות פעילה, הווידג׳ט יעבור לבד בין פריטים בלי שהמשתמש יצטרך ללחוץ."
+                        helpItems={[
+                            'כדאי להפעיל כשיש כמה פריטים ורוצים שכולם יקבלו חשיפה.',
+                            'אם יש רק פריט אחד, ההשפעה כמעט לא תורגש.',
+                        ]}
+                    >
+                        הפעל גלילה/החלפה אוטומטית
+                    </HelpLabel>
                     <button
                         dir="ltr"
                         type="button"
@@ -138,7 +161,19 @@ export default function WidgetDisplaySettingsPanel({ widgetId, widgetKey }) {
                 </label>
 
                 <label className="block">
-                    <span className="text-sm font-semibold text-theme">משך זמן לתצוגת עמוד (שניות)</span>
+                    <HelpLabel
+                        as="span"
+                        className="text-sm font-semibold text-theme"
+                        wrapperClassName="flex items-center gap-2"
+                        helpTitle="משך זמן לתצוגת עמוד"
+                        helpDescription="כאן קובעים כמה שניות כל מסך או קבוצה של פריטים תישאר על המסך לפני המעבר הבא."
+                        helpItems={[
+                            'זמן קצר מתאים לעדכונים קצרים.',
+                            'זמן ארוך מתאים כשיש טקסט שצריך זמן לקרוא.',
+                        ]}
+                    >
+                        משך זמן לתצוגת עמוד (שניות)
+                    </HelpLabel>
                     <input
                         type="number"
                         min="2"
@@ -155,7 +190,19 @@ export default function WidgetDisplaySettingsPanel({ widgetId, widgetKey }) {
                 </label>
 
                 <label className="block">
-                    <span className="text-sm font-semibold text-theme">כמות פריטים להצגה יחד</span>
+                    <HelpLabel
+                        as="span"
+                        className="text-sm font-semibold text-theme"
+                        wrapperClassName="flex items-center gap-2"
+                        helpTitle="כמות פריטים להצגה יחד"
+                        helpDescription="המספר הזה קובע כמה פריטים יוצגו באותו זמן בתוך הווידג׳ט."
+                        helpItems={[
+                            'כמות קטנה נותנת יותר מקום לכל פריט.',
+                            'כמות גדולה מתאימה רק אם כל פריט קצר ופשוט.',
+                        ]}
+                    >
+                        כמות פריטים להצגה יחד
+                    </HelpLabel>
                     <input
                         type="number"
                         min="1"

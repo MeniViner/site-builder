@@ -3,6 +3,7 @@ import { BookUser, Plus, Trash2, Pencil, X, Check, User, Phone, Hash, AlertTrian
 import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
 import Tooltip from './Tooltip';
 import { useConfig } from '../context/ConfigProvider';
+import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 
 const inputCls = 'w-full bg-theme-elevated border border-theme-subtle rounded-lg px-4 py-2.5 text-sm text-theme placeholder-theme-muted focus:outline-none focus:ring-2 focus:ring-violet-500/40 transition';
 const labelCls = 'block text-xs font-semibold text-theme-muted mb-1.5 uppercase tracking-wide';
@@ -100,12 +101,15 @@ export default function AdminPhonebook() {
                             </h1>
                             <p className="text-theme-muted">ניהול אנשי הקשר שיוצגו בווידגט הטלפונים של היחידה.</p>
                         </div>
-                        <button onClick={openNew} className="h-10 inline-flex items-center bg-violet-600 hover:bg-violet-700 text-white px-4 rounded-lg text-sm font-bold transition shrink-0">
-                            <span className="inline-flex items-center gap-2">
-                                <Plus size={16} />
-                                הוסף איש קשר
-                            </span>
-                        </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                            <AdminPageHelpButton pageId="phonebook" />
+                            <button onClick={openNew} className="h-10 inline-flex items-center bg-violet-600 hover:bg-violet-700 text-white px-4 rounded-lg text-sm font-bold transition">
+                                <span className="inline-flex items-center gap-2">
+                                    <Plus size={16} />
+                                    הוסף איש קשר
+                                </span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -125,19 +129,50 @@ export default function AdminPhonebook() {
 
                 {editingId !== null && (
                     <div className="bg-theme-card border border-theme-subtle rounded-2xl p-6 shadow-lg space-y-4">
-                        <h3 className="text-base font-bold text-violet-500">{editingId === 'new' ? 'הוספת איש קשר' : 'עריכת פרטי איש קשר'}</h3>
+                        <div className="flex items-center gap-2">
+                            <h3 className="text-base font-bold text-violet-500">{editingId === 'new' ? 'הוספת איש קשר' : 'עריכת פרטי איש קשר'}</h3>
+                            <HelpTooltipButton
+                                title="איש קשר"
+                                description="הכרטיס הזה מיועד לאדם אחד שמופיע בספר הטלפונים."
+                                items={[
+                                    'כדאי למלא לפחות שם ומספר.',
+                                    'המחלקה עוזרת להבין למי צריך לפנות.',
+                                ]}
+                            />
+                        </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <label className={labelCls}><User size={10} className="inline ml-1" />שם</label>
+                                <HelpLabel
+                                    as="span"
+                                    className={labelCls}
+                                    helpTitle="שם"
+                                    helpDescription="השם שיוצג למשתמשים ברשימת אנשי הקשר."
+                                >
+                                    <><User size={10} className="inline ml-1" />שם</>
+                                </HelpLabel>
                                 <input className={inputCls} placeholder="ישראל ישראלי" value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} />
                             </div>
                             <div>
-                                <label className={labelCls}><Phone size={10} className="inline ml-1" />מספר טלפון</label>
+                                <HelpLabel
+                                    as="span"
+                                    className={labelCls}
+                                    helpTitle="מספר טלפון"
+                                    helpDescription="המספר שהמשתמשים יוכלו להעתיק או ללחוץ עליו לחיוג."
+                                >
+                                    <><Phone size={10} className="inline ml-1" />מספר טלפון</>
+                                </HelpLabel>
                                 <input className={inputCls} placeholder="050-0000000" value={form.number} dir="ltr" onChange={(e) => setForm((prev) => ({ ...prev, number: e.target.value }))} />
                             </div>
                         </div>
                         <div>
-                            <label className={labelCls}><Hash size={10} className="inline ml-1" />מחלקה / יחידת משנה</label>
+                            <HelpLabel
+                                as="span"
+                                className={labelCls}
+                                helpTitle="מחלקה או יחידת משנה"
+                                helpDescription="ממלאים כאן מאיפה איש הקשר מגיע, כדי שיהיה קל לזהות אותו."
+                            >
+                                <><Hash size={10} className="inline ml-1" />מחלקה / יחידת משנה</>
+                            </HelpLabel>
                             <input className={inputCls} placeholder="מחלקה א׳ / מטה / לוגיסטיקה..." value={form.department} onChange={(e) => setForm((prev) => ({ ...prev, department: e.target.value }))} />
                         </div>
                         <div className="flex gap-3 pt-2">

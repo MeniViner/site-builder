@@ -6,6 +6,7 @@ import {
 import Tooltip from './Tooltip';
 import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
 import { useConfig } from '../context/ConfigProvider';
+import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 
 const inputCls = 'w-full bg-theme-elevated border border-theme-subtle rounded-lg px-4 py-2.5 text-sm text-theme placeholder-theme-muted focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition';
 const labelCls = 'block text-xs font-semibold text-theme-muted mb-1.5 uppercase tracking-wide';
@@ -128,12 +129,15 @@ export default function AdminOutstanding() {
                             </h1>
                             <p className="text-theme-muted">ניהול כרטיסי מצטיינים המוצגים בווידגט ההוקרה.</p>
                         </div>
-                        <button onClick={openNew} className="h-10 inline-flex items-center bg-emerald-600 hover:bg-emerald-700 text-white px-4 rounded-lg text-sm font-bold transition shrink-0">
-                            <span className="inline-flex items-center gap-2">
-                                <Plus size={16} />
-                                הוסף מצטיין
-                            </span>
-                        </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                            <AdminPageHelpButton pageId="outstanding" />
+                            <button onClick={openNew} className="h-10 inline-flex items-center bg-emerald-600 hover:bg-emerald-700 text-white px-4 rounded-lg text-sm font-bold transition">
+                                <span className="inline-flex items-center gap-2">
+                                    <Plus size={16} />
+                                    הוסף מצטיין
+                                </span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -153,19 +157,50 @@ export default function AdminOutstanding() {
 
                 {editingId !== null && (
                     <div className="bg-theme-card border border-theme-subtle rounded-2xl p-6 shadow-lg space-y-4">
-                        <h3 className="text-base font-bold text-emerald-500">{editingId === 'new' ? 'הוספת מצטיין חדש' : 'עריכת פרטים'}</h3>
+                        <div className="flex items-center gap-2">
+                            <h3 className="text-base font-bold text-emerald-500">{editingId === 'new' ? 'הוספת מצטיין חדש' : 'עריכת פרטים'}</h3>
+                            <HelpTooltipButton
+                                title="כרטיס מצטיין"
+                                description="כל כרטיס מייצג אדם אחד שמקבל הוקרה באתר."
+                                items={[
+                                    'מומלץ לשמור על שם ברור, תפקיד קצר ותיאור תמציתי.',
+                                    'אם אין תמונה כרגע, אפשר לשמור גם בלי תמונה ולהשלים אחר כך.',
+                                ]}
+                            />
+                        </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <label className={labelCls}><User size={10} className="inline ml-1" />שם מלא</label>
+                                <HelpLabel
+                                    as="span"
+                                    className={labelCls}
+                                    helpTitle="שם מלא"
+                                    helpDescription="השם שיופיע על כרטיס ההוקרה."
+                                >
+                                    <><User size={10} className="inline ml-1" />שם מלא</>
+                                </HelpLabel>
                                 <input className={inputCls} placeholder="ישראל ישראלי" value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} />
                             </div>
                             <div>
-                                <label className={labelCls}><AlignLeft size={10} className="inline ml-1" />תפקיד</label>
+                                <HelpLabel
+                                    as="span"
+                                    className={labelCls}
+                                    helpTitle="תפקיד"
+                                    helpDescription="הסבר קצר מי האדם ומה תפקידו ביחידה."
+                                >
+                                    <><AlignLeft size={10} className="inline ml-1" />תפקיד</>
+                                </HelpLabel>
                                 <input className={inputCls} placeholder="לוחם / מ״פ / קצין..." value={form.role} onChange={(e) => setForm((prev) => ({ ...prev, role: e.target.value }))} />
                             </div>
                         </div>
                         <div>
-                            <label className={labelCls}><Upload size={10} className="inline ml-1" />העלאת תמונה</label>
+                            <HelpLabel
+                                as="span"
+                                className={labelCls}
+                                helpTitle="העלאת תמונה"
+                                helpDescription="כאן מעלים תמונה שתופיע לצד השם. עדיף תמונה ברורה ומרוכזת."
+                            >
+                                <><Upload size={10} className="inline ml-1" />העלאת תמונה</>
+                            </HelpLabel>
                             <label className={`${inputCls} h-10 inline-flex items-center justify-center gap-2 cursor-pointer`}>
                                 <Upload size={14} />
                                 בחר תמונה מהמחשב
@@ -178,7 +213,14 @@ export default function AdminOutstanding() {
                             </label>
                         </div>
                         <div>
-                            <label className={labelCls}>תיאור קצר</label>
+                            <HelpLabel
+                                as="span"
+                                className={labelCls}
+                                helpTitle="תיאור קצר"
+                                helpDescription="כמה מילים שמסבירות למה האדם נבחר למצטיין."
+                            >
+                                תיאור קצר
+                            </HelpLabel>
                             <textarea rows={3} className={`${inputCls} resize-none`} placeholder="למה הוא/היא מצטיין/ת?" value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} />
                         </div>
                         {form.image && (

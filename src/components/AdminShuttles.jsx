@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { AlertTriangle, BusFront, Check, Pencil, Plus, Trash2, X } from 'lucide-react';
 import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
 import { useWidget } from '../context/WidgetContext';
+import { AdminPageHelpButton, HelpTooltipButton } from './AdminHelp';
 
 const panelCls = 'bg-themeBg-card bg-white dark:bg-[#232733] text-themeText-primary text-gray-900 dark:text-white border border-gray-200 dark:border-white/10';
 const inputCls = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:border-white/10 dark:bg-[#1a1d24] dark:text-white';
@@ -78,10 +79,13 @@ export default function AdminShuttles() {
                         </h1>
                         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">הגדרת יעדים, שעות יציאה וסוג ההיסע עבור הווידג&apos;ט.</p>
                     </div>
-                    <button onClick={openNew} className="h-10 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-bold text-white transition hover:bg-blue-700 shrink-0">
-                        <Plus size={16} />
-                        הוסף היסע
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <AdminPageHelpButton pageId="shuttles" />
+                        <button onClick={openNew} className="h-10 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-bold text-white transition hover:bg-blue-700">
+                            <Plus size={16} />
+                            הוסף היסע
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -99,14 +103,38 @@ export default function AdminShuttles() {
 
             {editingId !== null && (
                 <div className={`${panelCls} mb-6 rounded-2xl p-6 shadow-lg`}>
-                    <h3 className="mb-4 text-base font-bold text-blue-400">{editingId === 'new' ? 'הוספת היסע' : 'עריכת היסע'}</h3>
+                    <div className="mb-4 flex items-center gap-2">
+                        <h3 className="text-base font-bold text-blue-400">{editingId === 'new' ? 'הוספת היסע' : 'עריכת היסע'}</h3>
+                        <HelpTooltipButton
+                            title="שורת היסע"
+                            description="כל שורה כאן מייצגת נסיעה אחת: יעד אחד, שעה אחת וסוג רכב אחד."
+                        />
+                    </div>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                        <input className={inputCls} placeholder="יעד" value={form.destination} onChange={(e) => setForm((prev) => ({ ...prev, destination: e.target.value }))} />
-                        <input className={inputCls} type="time" value={form.departureTime} onChange={(e) => setForm((prev) => ({ ...prev, departureTime: e.target.value }))} />
-                        <select className={inputCls} value={form.type} onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value }))}>
-                            <option value="bus">אוטובוס</option>
-                            <option value="minibus">מיניבוס</option>
-                        </select>
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">יעד</span>
+                                <HelpTooltipButton title="יעד" description="לאן ההיסע יוצא." />
+                            </div>
+                            <input className={inputCls} placeholder="יעד" value={form.destination} onChange={(e) => setForm((prev) => ({ ...prev, destination: e.target.value }))} />
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">שעת יציאה</span>
+                                <HelpTooltipButton title="שעת יציאה" description="השעה שבה ההיסע אמור לצאת." />
+                            </div>
+                            <input className={inputCls} type="time" value={form.departureTime} onChange={(e) => setForm((prev) => ({ ...prev, departureTime: e.target.value }))} />
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">סוג היסע</span>
+                                <HelpTooltipButton title="סוג היסע" description="בחירה אם מדובר באוטובוס או מיניבוס." />
+                            </div>
+                            <select className={inputCls} value={form.type} onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value }))}>
+                                <option value="bus">אוטובוס</option>
+                                <option value="minibus">מיניבוס</option>
+                            </select>
+                        </div>
                     </div>
                     <div className="mt-4 flex gap-3">
                         <button onClick={commitEdit} className="h-10 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 text-sm font-bold text-white transition hover:bg-blue-700">

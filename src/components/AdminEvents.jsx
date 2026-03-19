@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import { useEvents } from '../context/EventsContext';
 import { Undo2, Plus, Trash2, Edit2, AlertTriangle, Calendar, X, Settings2 } from 'lucide-react';
 import { confirmToast } from '../utils/confirmToast';
+import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 
 const STATUS_OPTIONS = [
     { value: 'gray', label: 'אפור (כלל משתמשי חרום)', colorClass: 'bg-gray-500', textClass: 'text-gray-200' },
@@ -125,15 +126,18 @@ export default function AdminEvents({ onClose, inHub = false }) {
                             </h1>
                             <p className="text-theme-muted">ניהול אירועים פעילים, כמות פריטים בתצוגה וסוג תצוגת הווידגט.</p>
                         </div>
-                        <button
-                            onClick={() => setEditingEvent({ date: new Date().toISOString().split('T')[0], title: '', subtitle: '', color: 'gray', isNew: true })}
-                            className="h-10 inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-lg text-sm font-bold transition shrink-0"
-                        >
-                            <span className="inline-flex items-center gap-2">
-                                <Plus size={16} />
-                                הוסף אירוע
-                            </span>
-                        </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                            <AdminPageHelpButton pageId="events" />
+                            <button
+                                onClick={() => setEditingEvent({ date: new Date().toISOString().split('T')[0], title: '', subtitle: '', color: 'gray', isNew: true })}
+                                className="h-10 inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-lg text-sm font-bold transition"
+                            >
+                                <span className="inline-flex items-center gap-2">
+                                    <Plus size={16} />
+                                    הוסף אירוע
+                                </span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -222,14 +226,28 @@ export default function AdminEvents({ onClose, inHub = false }) {
 
                 <div className="bg-theme-card border border-theme-subtle rounded-xl p-4 mt-6">
                     <div className="mb-3 flex items-center justify-between gap-3">
-                        <h3 className="text-base font-bold text-theme flex items-center gap-2">
-                            <Settings2 size={18} className="text-primary" />
-                            הגדרות תצוגה לווידגט
-                        </h3>
+                        <div className="flex items-center gap-2">
+                            <h3 className="text-base font-bold text-theme flex items-center gap-2">
+                                <Settings2 size={18} className="text-primary" />
+                                הגדרות תצוגה לווידגט
+                            </h3>
+                            <HelpTooltipButton
+                                title="הגדרות התצוגה"
+                                description="כאן קובעים איך רשימת האירועים תופיע באתר."
+                            />
+                        </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <label className="block">
-                            <span className="text-sm font-semibold text-theme">משך זמן לתצוגת עמוד (שניות)</span>
+                            <HelpLabel
+                                as="span"
+                                className="text-sm font-semibold text-theme"
+                                wrapperClassName="flex items-center gap-2"
+                                helpTitle="משך זמן לתצוגת עמוד"
+                                helpDescription="כמה שניות כל מסך של אירועים יוצג לפני המעבר הבא."
+                            >
+                                משך זמן לתצוגת עמוד (שניות)
+                            </HelpLabel>
                             <input
                                 type="number"
                                 min="2"
@@ -241,7 +259,15 @@ export default function AdminEvents({ onClose, inHub = false }) {
                         </label>
 
                         <label className="block">
-                            <span className="text-sm font-semibold text-theme">כמות פריטים להצגה יחד</span>
+                            <HelpLabel
+                                as="span"
+                                className="text-sm font-semibold text-theme"
+                                wrapperClassName="flex items-center gap-2"
+                                helpTitle="כמות פריטים להצגה יחד"
+                                helpDescription="כמה אירועים יוצגו באותו זמן בתוך הווידג׳ט."
+                            >
+                                כמות פריטים להצגה יחד
+                            </HelpLabel>
                             <select
                                 className="mt-1.5 w-full bg-theme-elevated border border-theme-subtle rounded-lg px-3 py-1.5 text-theme"
                                 value={displayCount}
@@ -254,7 +280,20 @@ export default function AdminEvents({ onClose, inHub = false }) {
                         </label>
 
                         <label className="block">
-                            <span className="text-sm font-semibold text-theme">סוג תצוגה</span>
+                            <HelpLabel
+                                as="span"
+                                className="text-sm font-semibold text-theme"
+                                wrapperClassName="flex items-center gap-2"
+                                helpTitle="סוג תצוגה"
+                                helpDescription="בחירה בצורה שבה האירועים יופיעו בתוך הווידג׳ט."
+                                helpItems={[
+                                    'תצוגה רגילה מתאימה לרוב המצבים.',
+                                    'תצוגה קומפקטית טובה כשיש הרבה אירועים קצרים.',
+                                    'תצוגת לוח שנה מתאימה כשחשוב לראות מבט כללי על התאריכים.',
+                                ]}
+                            >
+                                סוג תצוגה
+                            </HelpLabel>
                             <select
                                 className="mt-1.5 w-full bg-theme-elevated border border-theme-subtle rounded-lg px-3 py-1.5 text-theme"
                                 value={displayMode}
@@ -281,7 +320,15 @@ export default function AdminEvents({ onClose, inHub = false }) {
 
                         <form onSubmit={handleSaveEvent} className="p-6 flex flex-col gap-5">
                             <div>
-                                <label className="block text-sm font-bold text-theme-muted mb-2">תאריך אירוע</label>
+                                <HelpLabel
+                                    as="span"
+                                    className="block text-sm font-bold text-theme-muted"
+                                    wrapperClassName="mb-2 flex items-center gap-2"
+                                    helpTitle="תאריך אירוע"
+                                    helpDescription="התאריך שבו האירוע יקרה ויופיע למשתמשים."
+                                >
+                                    תאריך אירוע
+                                </HelpLabel>
                                 <input
                                     name="date"
                                     type="date"
@@ -292,7 +339,15 @@ export default function AdminEvents({ onClose, inHub = false }) {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-bold text-theme-muted mb-2">כותרת ראשית</label>
+                                <HelpLabel
+                                    as="span"
+                                    className="block text-sm font-bold text-theme-muted"
+                                    wrapperClassName="mb-2 flex items-center gap-2"
+                                    helpTitle="כותרת ראשית"
+                                    helpDescription="השם המרכזי של האירוע כפי שיופיע בכרטיס."
+                                >
+                                    כותרת ראשית
+                                </HelpLabel>
                                 <input
                                     name="title"
                                     type="text"
@@ -304,7 +359,15 @@ export default function AdminEvents({ onClose, inHub = false }) {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-bold text-theme-muted mb-2">תת-כותרת (תיאור קצר)</label>
+                                <HelpLabel
+                                    as="span"
+                                    className="block text-sm font-bold text-theme-muted"
+                                    wrapperClassName="mb-2 flex items-center gap-2"
+                                    helpTitle="תת-כותרת"
+                                    helpDescription="מידע משלים כמו שעה, מקום או קהל יעד."
+                                >
+                                    תת-כותרת (תיאור קצר)
+                                </HelpLabel>
                                 <input
                                     name="subtitle"
                                     type="text"
@@ -315,7 +378,15 @@ export default function AdminEvents({ onClose, inHub = false }) {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-bold text-theme-muted mb-2">סטטוס מופע / צבע</label>
+                                <HelpLabel
+                                    as="span"
+                                    className="block text-sm font-bold text-theme-muted"
+                                    wrapperClassName="mb-2 flex items-center gap-2"
+                                    helpTitle="סטטוס או צבע"
+                                    helpDescription="הצבע עוזר לסמן עד כמה האירוע חשוב או בולט."
+                                >
+                                    סטטוס מופע / צבע
+                                </HelpLabel>
                                 <select
                                     name="color"
                                     defaultValue={editingEvent.color || 'gray'}

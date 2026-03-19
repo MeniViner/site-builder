@@ -1,5 +1,11 @@
+const isDevMode = import.meta.env.MODE === 'development';
+const isForcedMock = import.meta.env.VITE_USE_MOCK === 'true';
+const isEnvMockAdminBypassEnabled = import.meta.env.VITE_ALLOW_MOCK_ADMIN_BYPASS === 'true';
+
 export const SHAREPOINT_CONFIG = {
-    useMock: import.meta.env.MODE === 'development' || import.meta.env.VITE_USE_MOCK === 'true',
+    useMock: isDevMode || isForcedMock,
+    // Development must always keep admin mode available.
+    allowMockAdminBypass: isDevMode || isEnvMockAdminBypassEnabled,
 
     // localStorage keys (mock mode)
     mockStorageKey: 'bihs_events_data',
