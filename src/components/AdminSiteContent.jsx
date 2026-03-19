@@ -44,8 +44,9 @@ const OVERLAY_POSITION_OPTIONS = [
 ];
 
 const OVERLAY_DISPLAY_AREA_OPTIONS = [
-    { value: 'site', label: 'כל הדף', description: 'על כל דף הבית כולל אזור הגלילה' },
-    { value: 'hero', label: 'אזור ההירו', description: 'רק בתוך מסך ההירו העליון' },
+    { value: 'fixed-site', label: 'קבוע על כל המסך (Fixed to screen)', description: 'Fixed to screen' },
+    { value: 'hero-full', label: 'אזור ההירו המלא (Absolute to full hero width)', description: 'Absolute to full hero width' },
+    { value: 'hero-content', label: 'גבולות התוכן בלבד (Anchors relative to the inner text/logo)', description: 'Anchors relative to the inner text/logo' },
 ];
 
 const OVERLAY_ANCHOR_OPTIONS = [
@@ -1005,9 +1006,26 @@ export default function AdminSiteContent() {
                                                 </button>
                                             ))}
                                         </div>
+
+                                        <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-[#1b1f2a] px-4 py-3">
+                                            <div>
+                                                <div className="text-sm font-bold text-gray-800 dark:text-gray-200">הטמעת רקע (שילוב טשטוש ברקע)</div>
+                                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Glow חיצוני עדין סביב האלמנט</div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => updateOverlayField('blendEffect', !overlayImage.blendEffect)}
+                                                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${overlayImage.blendEffect
+                                                    ? 'bg-green-500/20 text-green-700 dark:text-green-300 border border-green-500/40'
+                                                    : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-white/10'
+                                                    }`}
+                                            >
+                                                {overlayImage.blendEffect ? 'פעיל' : 'כבוי'}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-
+{/* 
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">נקודת עיגון באתר</label>
                                     <div className="grid grid-cols-3 gap-2">
@@ -1025,7 +1043,7 @@ export default function AdminSiteContent() {
                                             </button>
                                         ))}
                                     </div>
-                                </div>
+                                </div> */}
 
                                 <div className="space-y-4">
                                     <div>
@@ -1075,7 +1093,7 @@ export default function AdminSiteContent() {
                                     </div>
                                 </div>
 
-                                <div>
+                                {/* <div>
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">סגנון בורדר</label>
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                         {OVERLAY_BORDER_STYLE_OPTIONS.map((option) => (
@@ -1092,7 +1110,7 @@ export default function AdminSiteContent() {
                                             </button>
                                         ))}
                                     </div>
-                                </div>
+                                </div> */}
 
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">Object Fit</label>

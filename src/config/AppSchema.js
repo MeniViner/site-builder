@@ -11,7 +11,7 @@ const VALID_EVENT_DISPLAY_MODES = ['default', 'monthly', 'calendar'];
 const VALID_EVENT_COLORS = ['gray', 'red'];
 const VALID_OVERLAY_OBJECT_FIT = ['contain', 'cover'];
 const VALID_OVERLAY_POSITION_MODES = ['fixed', 'absolute'];
-const VALID_OVERLAY_DISPLAY_AREAS = ['site', 'hero'];
+const VALID_OVERLAY_DISPLAY_AREAS = ['fixed-site', 'hero-full', 'hero-content'];
 const VALID_OVERLAY_ANCHORS = [
     'top-left',
     'top-center',
@@ -96,6 +96,13 @@ function asEnum(value, allowed, fallback) {
     return allowed.includes(value) ? value : fallback;
 }
 
+function asOverlayDisplayArea(value, fallback) {
+    const mapped = value === 'site'
+        ? 'fixed-site'
+        : (value === 'hero' ? 'hero-full' : value);
+    return asEnum(mapped, VALID_OVERLAY_DISPLAY_AREAS, fallback);
+}
+
 function clampNumber(value, min, max, fallback) {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return fallback;
@@ -165,11 +172,12 @@ function normalizeOverlayImage(overlay) {
         objectFit: asEnum(source.objectFit, VALID_OVERLAY_OBJECT_FIT, defaults.objectFit),
         borderStyle: asEnum(source.borderStyle, VALID_OVERLAY_BORDER_STYLES, defaults.borderStyle),
         positionMode: asEnum(source.positionMode, VALID_OVERLAY_POSITION_MODES, defaults.positionMode),
-        displayArea: asEnum(source.displayArea, VALID_OVERLAY_DISPLAY_AREAS, defaults.displayArea),
+        displayArea: asOverlayDisplayArea(source.displayArea, defaults.displayArea),
         anchor: asEnum(source.anchor, VALID_OVERLAY_ANCHORS, defaults.anchor),
         offsetX: clampNumber(source.offsetX, -2400, 2400, defaults.offsetX),
         offsetY: clampNumber(source.offsetY, -2400, 2400, defaults.offsetY),
         zIndex: clampNumber(source.zIndex, 1, 9999, defaults.zIndex),
+        blendEffect: asBoolean(source.blendEffect, defaults.blendEffect),
     };
 }
 
@@ -211,6 +219,7 @@ function normalizeEventsBranch(eventsLike) {
     return {
         displayCount: clampNumber(source.displayCount, 1, 12, DEFAULT_CONFIG_V1.widgets.data.events.displayCount),
         displayMode: asEnum(source.displayMode, VALID_EVENT_DISPLAY_MODES, DEFAULT_CONFIG_V1.widgets.data.events.displayMode),
+        intervalMs: clampNumber(source.intervalMs, 2000, 120000, DEFAULT_CONFIG_V1.widgets.data.events.intervalMs),
         items,
     };
 }
@@ -429,6 +438,8 @@ export const DEFAULT_CONFIG_V1 = {
         hero: {
             widgetHeight: 'full',
             panelsBordered: true,
+            commanderPanelBordered: true,
+            widgetPanelBordered: true,
         },
         externalLinks: {
             mode: 'cards',
@@ -866,11 +877,12 @@ export const DEFAULT_CONFIG_V1 = {
             objectFit: 'contain',
             borderStyle: 'standard',
             positionMode: 'fixed',
-            displayArea: 'site',
+            displayArea: 'fixed-site',
             anchor: 'bottom-left',
             offsetX: 28,
             offsetY: -28,
             zIndex: 180,
+            blendEffect: true,
         },
     },
     widgets: {
@@ -893,6 +905,7 @@ export const DEFAULT_CONFIG_V1 = {
             events: {
                 displayCount: 3,
                 displayMode: 'default',
+                intervalMs: 6000,
                 items: [
                     {
                         id: 'ev-1',
@@ -1175,6 +1188,14 @@ export function migrateLegacyToV1(legacyData) {
     migrated.layout.navigation.mode = asString(legacyTheme.regularLinksLayout, migrated.layout.navigation.mode);
     migrated.layout.hero.widgetHeight = asString(legacyTheme.widgetHeight, migrated.layout.hero.widgetHeight);
     migrated.layout.hero.panelsBordered = asBoolean(legacyTheme.heroPanelsBordered, migrated.layout.hero.panelsBordered);
+    migrated.layout.hero.commanderPanelBordered = asBoolean(
+        legacyTheme.heroPanelsBordered,
+        migrated.layout.hero.commanderPanelBordered
+    );
+    migrated.layout.hero.widgetPanelBordered = asBoolean(
+        legacyTheme.heroPanelsBordered,
+        migrated.layout.hero.widgetPanelBordered
+    );
     migrated.layout.externalLinks.mode = asString(legacyTheme.externalLinksLayout, migrated.layout.externalLinks.mode);
     migrated.layout.externalLinks.fixed = asBoolean(legacyTheme.externalLinksFixed, migrated.layout.externalLinks.fixed);
     migrated.layout.externalLinks.bordered = asBoolean(legacyTheme.externalLinksBordered, migrated.layout.externalLinks.bordered);
@@ -1305,6 +1326,14 @@ export function validateAndNormalize(config) {
             hero: {
                 widgetHeight: asEnum(source.layout?.hero?.widgetHeight, VALID_WIDGET_HEIGHTS, DEFAULT_CONFIG_V1.layout.hero.widgetHeight),
                 panelsBordered: asBoolean(source.layout?.hero?.panelsBordered, DEFAULT_CONFIG_V1.layout.hero.panelsBordered),
+                commanderPanelBordered: asBoolean(
+                    source.layout?.hero?.commanderPanelBordered,
+                    asBoolean(source.layout?.hero?.panelsBordered, DEFAULT_CONFIG_V1.layout.hero.commanderPanelBordered)
+                ),
+                widgetPanelBordered: asBoolean(
+                    source.layout?.hero?.widgetPanelBordered,
+                    asBoolean(source.layout?.hero?.panelsBordered, DEFAULT_CONFIG_V1.layout.hero.widgetPanelBordered)
+                ),
             },
             externalLinks: {
                 mode: asEnum(

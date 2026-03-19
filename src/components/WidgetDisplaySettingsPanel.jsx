@@ -138,7 +138,7 @@ export default function WidgetDisplaySettingsPanel({ widgetId, widgetKey }) {
                 </label>
 
                 <label className="block">
-                    <span className="text-sm font-semibold text-theme">משך זמן לפריט (שניות)</span>
+                    <span className="text-sm font-semibold text-theme">משך זמן לתצוגת עמוד (שניות)</span>
                     <input
                         type="number"
                         min="2"

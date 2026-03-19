@@ -4,7 +4,13 @@ import { useEvents } from '../context/EventsContext';
 import WidgetEmptyState from './widgets/WidgetEmptyState';
 
 export default function EventsList() {
-  const { events, displayCount = 3, displayMode = 'default', loading } = useEvents();
+  const {
+    events,
+    displayCount = 3,
+    displayMode = 'default',
+    intervalMs = 6000,
+    loading,
+  } = useEvents();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [flippedDay, setFlippedDay] = useState(null);
   const flipTimeoutRef = useRef(null);
@@ -48,10 +54,10 @@ export default function EventsList() {
 
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + displayCount) % sortedEvents.length);
-    }, 6000);
+    }, Math.max(2000, Number(intervalMs) || 6000));
 
     return () => clearInterval(interval);
-  }, [sortedEvents, displayCount]);
+  }, [sortedEvents, displayCount, intervalMs]);
 
   useEffect(() => {
     setCurrentIndex(0);

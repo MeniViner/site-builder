@@ -10,10 +10,19 @@ const STATUS_OPTIONS = [
 ];
 
 export default function AdminEvents({ onClose, inHub = false }) {
-    const { events: initialEvents, displayCount: initialDisplayCount, displayMode: initialDisplayMode, loading, error, saveEvents } = useEvents();
+    const {
+        events: initialEvents,
+        displayCount: initialDisplayCount,
+        displayMode: initialDisplayMode,
+        intervalMs: initialIntervalMs,
+        loading,
+        error,
+        saveEvents,
+    } = useEvents();
     const [events, setEvents] = useState(initialEvents || []);
     const [displayCount, setDisplayCount] = useState(initialDisplayCount || 3);
     const [displayMode, setDisplayMode] = useState(initialDisplayMode || 'default');
+    const [intervalMs, setIntervalMs] = useState(Math.max(2000, Number(initialIntervalMs) || 6000));
     const [isSaving, setIsSaving] = useState(false);
     const lastSavedRef = useRef(null);
     const [editingEvent, setEditingEvent] = useState(null);
@@ -37,28 +46,30 @@ export default function AdminEvents({ onClose, inHub = false }) {
             setEvents(initialEvents);
             setDisplayCount(initialDisplayCount);
             setDisplayMode(initialDisplayMode || 'default');
+            setIntervalMs(Math.max(2000, Number(initialIntervalMs) || 6000));
             lastSavedRef.current = JSON.stringify({
                 events: initialEvents,
                 displayCount: initialDisplayCount,
                 displayMode: initialDisplayMode || 'default',
+                intervalMs: Math.max(2000, Number(initialIntervalMs) || 6000),
             });
         }
-    }, [initialEvents, initialDisplayCount, initialDisplayMode]);
+    }, [initialEvents, initialDisplayCount, initialDisplayMode, initialIntervalMs]);
 
     useEffect(() => {
-        const current = JSON.stringify({ events, displayCount, displayMode });
+        const current = JSON.stringify({ events, displayCount, displayMode, intervalMs });
         if (lastSavedRef.current === null || current === lastSavedRef.current) return;
 
         const t = setTimeout(async () => {
             setIsSaving(true);
-            const success = await saveEvents(events, displayCount, displayMode);
+            const success = await saveEvents(events, displayCount, displayMode, intervalMs);
             setIsSaving(false);
             if (success) lastSavedRef.current = current;
             else toast.error('שגיאה בעדכון התצוגה. אנא נסה שוב.');
         }, 1200);
 
         return () => clearTimeout(t);
-    }, [events, displayCount, displayMode, saveEvents]);
+    }, [events, displayCount, displayMode, intervalMs, saveEvents]);
 
     useEffect(() => {
         setDisplayCount((prev) => Math.min(maxDisplayCount, Math.max(1, prev)));
@@ -216,7 +227,19 @@ export default function AdminEvents({ onClose, inHub = false }) {
                             הגדרות תצוגה לווידגט
                         </h3>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <label className="block">
+                            <span className="text-sm font-semibold text-theme">משך זמן לתצוגת עמוד (שניות)</span>
+                            <input
+                                type="number"
+                                min="2"
+                                step="1"
+                                className="mt-1.5 w-full bg-theme-elevated border border-theme-subtle rounded-lg px-3 py-1.5 text-theme"
+                                value={Math.round(intervalMs / 1000)}
+                                onChange={(e) => setIntervalMs(Math.max(2000, (Number(e.target.value) || 2) * 1000))}
+                            />
+                        </label>
+
                         <label className="block">
                             <span className="text-sm font-semibold text-theme">כמות פריטים להצגה יחד</span>
                             <select

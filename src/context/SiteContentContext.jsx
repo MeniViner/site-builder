@@ -101,6 +101,10 @@ function toV1SiteContent(payload, previousContent = {}) {
         commander.messages,
         prevCommander.messages
     );
+    const safeOverlayDisplayArea = typeof overlayImage.displayArea === 'string'
+        ? overlayImage.displayArea
+        : (typeof prevOverlayImage.displayArea === 'string' ? prevOverlayImage.displayArea : 'fixed-site');
+    const safeOverlayBlendEffect = overlayImage.blendEffect ?? prevOverlayImage.blendEffect ?? true;
 
     return {
         hero: {
@@ -131,6 +135,8 @@ function toV1SiteContent(payload, previousContent = {}) {
         overlayImage: {
             ...prevOverlayImage,
             ...overlayImage,
+            displayArea: safeOverlayDisplayArea,
+            blendEffect: safeOverlayBlendEffect,
         },
     };
 }

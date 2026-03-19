@@ -11,13 +11,14 @@ function toLegacyEvents(eventsBranch) {
         events: Array.isArray(branch.items) ? branch.items : [],
         displayCount: Number.isFinite(Number(branch.displayCount)) ? Number(branch.displayCount) : 3,
         displayMode: typeof branch.displayMode === 'string' ? branch.displayMode : 'default',
+        intervalMs: Math.max(2000, Number(branch.intervalMs) || 6000),
     };
 }
 
 export const EventsProvider = ({ children }) => {
     const { config, status, error, updateConfig, saveNow, reload } = useConfig();
 
-    const { events, displayCount, displayMode } = useMemo(
+    const { events, displayCount, displayMode, intervalMs } = useMemo(
         () => toLegacyEvents(config?.widgets?.data?.events),
         [config?.widgets?.data?.events]
     );
@@ -34,7 +35,7 @@ export const EventsProvider = ({ children }) => {
     }, [reload]);
 
     const saveEvents = useCallback(
-        async (newEvents, newDisplayCount, newDisplayMode) => {
+        async (newEvents, newDisplayCount, newDisplayMode, newIntervalMs) => {
             try {
                 updateConfig((prev) => ({
                     ...prev,
@@ -51,6 +52,12 @@ export const EventsProvider = ({ children }) => {
                                 displayMode: typeof newDisplayMode === 'string'
                                     ? newDisplayMode
                                     : (prev?.widgets?.data?.events?.displayMode || 'default'),
+                                intervalMs: Math.max(
+                                    2000,
+                                    Number(newIntervalMs)
+                                    || Number(prev?.widgets?.data?.events?.intervalMs)
+                                    || 6000
+                                ),
                             },
                         },
                     },
@@ -71,6 +78,7 @@ export const EventsProvider = ({ children }) => {
                 events,
                 displayCount,
                 displayMode,
+                intervalMs,
                 loading,
                 error,
                 saveEvents,

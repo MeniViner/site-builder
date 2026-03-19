@@ -68,8 +68,8 @@ const BORDER_TARGET_OPTIONS = [
 const REGULAR_LINK_LAYOUTS = [
     { value: 'sidebar-right', label: 'תפריט צד טקטי', description: 'סרגל ניווט צדדי קבוע בצד ימין', icon: PanelRight },
     { value: 'grid', label: 'Grid', description: 'כרטיסי Flip בתצוגת גריד', icon: LayoutGrid },
-    { value: 'compact', label: 'Compact List', description: 'רשימה מינימליסטית עם שורות פשוטות', icon: List },
-    { value: 'hq', label: 'HQ Dashboard', description: 'עיצוב מרכז פיקוד טקטי מתקדם', icon: Columns },
+    // { value: 'compact', label: 'Compact List', description: 'רשימה מינימליסטית עם שורות פשוטות', icon: List },
+    { value: 'hq', label: 'HQ Dashboard', description: 'עיצוב מרכז פיקוד מינימליסטי', icon: List },
 ];
 
 const EXTERNAL_LINK_LAYOUTS = [
@@ -428,7 +428,7 @@ export default function AdminTheme() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-3 gap-4">
                                 {BORDER_STYLES.map((style) => {
                                     const isActive = normalizeBorderStyle(draft.borderStyle) === style.value;
 
@@ -464,21 +464,38 @@ export default function AdminTheme() {
                             <div className="mt-6 rounded-2xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#171a22]/80 p-5">
                                 <div className="flex items-center justify-between gap-4">
                                     <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${draft.heroPanelsBordered !== false ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400'}`}>
-                                            {draft.heroPanelsBordered !== false ? <Eye size={18} /> : <EyeOff size={18} />}
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${(draft.commanderPanelBordered !== false || draft.widgetPanelBordered !== false) ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400'}`}>
+                                            {(draft.commanderPanelBordered !== false || draft.widgetPanelBordered !== false) ? <Eye size={18} /> : <EyeOff size={18} />}
                                         </div>
                                         <div>
                                             <h3 className="text-sm font-black text-gray-900 dark:text-white">מסגרת בהירו העליון</h3>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400">משפיע רק על דבר המפקד ועל הווידג׳ט בהירו: מסגרת פעילה או ללא מסגרת.</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">פיצול שליטה נפרדת לדבר המפקד ולווידג׳ט בהירו: מסגרת פעילה או ללא מסגרת.</p>
                                         </div>
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => updateField('heroPanelsBordered', !(draft.heroPanelsBordered !== false))}
-                                        className={`relative w-14 h-8 rounded-full border transition-all ${draft.heroPanelsBordered !== false ? 'bg-primary border-primary/70' : 'bg-gray-200 dark:bg-[#252528] border-gray-300 dark:border-white/10'}`}
-                                    >
-                                        <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-md transition-all ${draft.heroPanelsBordered !== false ? 'right-0.5' : 'right-[29px]'}`} />
-                                    </button>
+                                    <div className="flex items-center gap-5">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-bold text-gray-600 dark:text-gray-300">דבר מפקד</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => updateField('commanderPanelBordered', !(draft.commanderPanelBordered !== false))}
+                                                className={`relative w-11 h-6 rounded-full border transition-all ${draft.commanderPanelBordered !== false ? 'bg-primary border-primary/70' : 'bg-gray-200 dark:bg-[#252528] border-gray-300 dark:border-white/10'}`}
+                                                aria-label="הפעלת מסגרת לדבר המפקד"
+                                            >
+                                                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-all ${draft.commanderPanelBordered !== false ? 'right-0.5' : 'right-[21px]'}`} />
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-bold text-gray-600 dark:text-gray-300">ווידג׳ט</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => updateField('widgetPanelBordered', !(draft.widgetPanelBordered !== false))}
+                                                className={`relative w-11 h-6 rounded-full border transition-all ${draft.widgetPanelBordered !== false ? 'bg-primary border-primary/70' : 'bg-gray-200 dark:bg-[#252528] border-gray-300 dark:border-white/10'}`}
+                                                aria-label="הפעלת מסגרת לווידג׳ט בהירו"
+                                            >
+                                                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-all ${draft.widgetPanelBordered !== false ? 'right-0.5' : 'right-[21px]'}`} />
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -495,7 +512,7 @@ export default function AdminTheme() {
                                     </div>
                                 </div>
 
-                                <div className="p-5 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="p-5 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
                                     {(() => {
                                         const layout = draft.regularLinksLayout;
                                         const externalLayout = draft.externalLinksLayout;
@@ -522,7 +539,7 @@ export default function AdminTheme() {
                                                     <button
                                                         type="button"
                                                         onClick={() => !isAvailable ? undefined : handleBorderTargetToggle(target.key)}
-                                                        className={`group relative overflow-hidden rounded-2xl border text-right p-4 transition-all ${isEnabled
+                                                        className={`group relative w-full overflow-hidden rounded-2xl border text-right p-4 transition-all min-h-[112px] h-full ${isEnabled
                                                             ? 'bg-primary/10 border-primary/30 shadow-[0_18px_40px_-28px_var(--color-primary-hex)]'
                                                             : 'bg-gray-100 dark:bg-[#1e212b] border-gray-200 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/15'
                                                             } ${!isAvailable ? 'cursor-not-allowed opacity-60 dark:opacity-80' : ''}`}
@@ -645,7 +662,7 @@ export default function AdminTheme() {
                             </Tooltip>
 
                             {/* Toggle: Hero Grayscale */}
-                            <div className="flex items-center justify-between p-5 bg-gray-100 dark:bg-[#1e212b] rounded-xl border border-gray-200 dark:border-white/5">
+                            <div className="flex items-center justify-between p-5  bg-gray-100 dark:bg-[#1e212b] rounded-xl border border-gray-200 dark:border-white/5">
                                 <div className="flex items-center gap-4">
                                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${draft.heroGrayscale ? 'bg-gray-500/15' : 'bg-primary-500/15'}`}>
                                         <ImageIcon size={20} className={draft.heroGrayscale ? 'text-gray-400' : 'text-primary-400'} />
@@ -682,7 +699,7 @@ export default function AdminTheme() {
                                     <div className="mt-0.5 rounded-lg bg-red-100 p-2 text-red-600 dark:bg-red-500/20 dark:text-red-300">
                                         <AlertTriangle size={18} />
                                     </div>
-                                    <div className="flex-1">
+                                    <div className="flex-1 ">
                                         <h3 className="text-sm font-black text-red-700 dark:text-red-200">איפוס נתוני אתר לברירת מחדל</h3>
                                         <p className="mt-1 text-xs leading-5 text-red-700/80 dark:text-red-100/80">
                                             פעולה זו תמחק את כלל ההגדרות, העיצוב, הניווט ותוכן הווידג'טים ותשחזר את האתר למצב יצרן.

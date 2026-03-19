@@ -106,6 +106,8 @@ function toLegacyTheme(config) {
         borderTargets: theme.borderTargets || {},
         heroGrayscale: theme.backgrounds?.hero?.grayscale ?? false,
         heroPanelsBordered: layout.hero?.panelsBordered ?? true,
+        commanderPanelBordered: layout.hero?.commanderPanelBordered ?? layout.hero?.panelsBordered ?? true,
+        widgetPanelBordered: layout.hero?.widgetPanelBordered ?? layout.hero?.panelsBordered ?? true,
         showNavCategories: layout.navigation?.showCategories ?? false,
         regularLinksLayout: layout.navigation?.mode || 'sidebar-right',
         externalLinksLayout: layout.externalLinks?.mode || 'cards',
@@ -152,6 +154,8 @@ function patchConfigFromLegacyTheme(prev, newTheme) {
                 ...prev.layout.hero,
                 widgetHeight: newTheme?.widgetHeight ?? prev.layout.hero.widgetHeight,
                 panelsBordered: newTheme?.heroPanelsBordered ?? prev.layout.hero.panelsBordered,
+                commanderPanelBordered: newTheme?.commanderPanelBordered ?? prev.layout.hero.commanderPanelBordered,
+                widgetPanelBordered: newTheme?.widgetPanelBordered ?? prev.layout.hero.widgetPanelBordered,
             },
             externalLinks: {
                 ...prev.layout.externalLinks,
