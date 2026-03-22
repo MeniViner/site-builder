@@ -1,5 +1,5 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
-import { getRequestDigest } from '../utils/sharepointUtils';
+import { buildFileValueEndpoint, getRequestDigest } from '../utils/sharepointUtils';
 
 class EventsService {
     constructor() {
@@ -106,7 +106,7 @@ class EventsService {
     async _getSharePointData() {
         try {
             const fileUrl = this.config.fileServerRelativeUrl;
-            const endpoint = `/_api/web/GetFileByServerRelativeUrl('${fileUrl}')/$value`;
+            const endpoint = buildFileValueEndpoint(fileUrl);
 
             const response = await fetch(endpoint, {
                 method: 'GET',
@@ -139,7 +139,7 @@ class EventsService {
 
             // Step 2: Save the file
             const fileUrl = this.config.fileServerRelativeUrl;
-            const endpoint = `/_api/web/GetFileByServerRelativeUrl('${fileUrl}')/$value`;
+            const endpoint = buildFileValueEndpoint(fileUrl);
 
             const saveResponse = await fetch(endpoint, {
                 method: 'POST',

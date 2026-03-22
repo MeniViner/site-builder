@@ -190,7 +190,7 @@ function PageHelpModal({ pageHelp, onClose }) {
                     <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5 dark:border-white/10">
                         <div className="space-y-2">
                             <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
-                                הסבר על המסך
+                                {pageHelp.pill || 'הסבר על המסך'}
                             </div>
                             <h2 className="text-2xl font-black text-slate-900 dark:text-white">{pageHelp.title}</h2>
                             {pageHelp.summary && (
@@ -239,14 +239,16 @@ function PageHelpModal({ pageHelp, onClose }) {
     );
 }
 
+/** tabId — מזהה טאב פעיל במסכי עיצוב / תוכן; משפיע על תוכן העזרה כש־pageId הוא theme או site-content */
 export function AdminPageHelpButton({
     pageId,
+    tabId,
     label = 'הסבר על המסך',
     className = '',
     iconOnly = false,
 }) {
     const [isOpen, setIsOpen] = useState(false);
-    const pageHelp = useMemo(() => getAdminPageHelp(pageId), [pageId]);
+    const pageHelp = useMemo(() => getAdminPageHelp(pageId, tabId), [pageId, tabId]);
 
     if (!pageHelp) return null;
 

@@ -4,7 +4,7 @@ import { useConfig } from '../context/ConfigProvider';
 import ThemeLivePreview from './ThemeLivePreview';
 import {
     AlertTriangle, Palette, Sun, Moon, Monitor,
-    Hexagon, Eye, EyeOff, Image as ImageIcon,
+    Hexagon, Eye, EyeOff,
     LayoutGrid, List, Columns, Globe, CircleDot, PanelBottom, PanelRight, Info, CheckCircle2
 } from 'lucide-react';
 import { toast } from 'react-toastify';
@@ -17,9 +17,9 @@ const SETTINGS_NAV = [
     { id: 'displayMode', label: 'מצב תצוגה' },
     { id: 'borderStyle', label: 'סגנון מסגרות' },
     { id: 'widgetHeight', label: 'גובה ווידגט' },
-    { id: 'toggles', label: 'הגדרות נוספות' },
     { id: 'regularLinksLayout', label: 'קטגוריות וקישורים' },
     { id: 'externalLinksLayout', label: 'קישורים חיצוניים' },
+    { id: 'factoryReset', label: 'איפוס נתוני אתר', destructive: true },
 ];
 
 const COLOR_SWATCHES = [
@@ -210,7 +210,7 @@ export default function AdminTheme() {
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">התאם צבעים, מצב תצוגה, סגנון מסגרות ואפקטים באתר</p>
                     </div>
                     <div className="flex items-center gap-3">
-                        <AdminPageHelpButton pageId="theme" />
+                        <AdminPageHelpButton pageId="theme" tabId={activeSettingId} />
                         {isSaving && (
                             <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-full shadow-sm">
                                 <div className="w-3.5 h-3.5 border-[2px] border-primary border-t-transparent rounded-full animate-spin" style={{ borderColor: draft.primaryColor, borderTopColor: 'transparent' }} />
@@ -221,13 +221,18 @@ export default function AdminTheme() {
                 </div>
 
                 <nav className="flex items-center gap-2 overflow-x-auto p-1 custom-scrollbar w-full">
-                    {SETTINGS_NAV.map(({ id, label }) => (
+                    {SETTINGS_NAV.map(({ id, label, destructive }) => (
                         <button
                             key={id}
+                            type="button"
                             onClick={() => handleNavSettingClick(id)}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${activeSettingId === id
-                                ? 'bg-primary-600 text-white shadow-md ring-2 ring-primary-500/30 ring-offset-2 ring-offset-gray-50 dark:ring-offset-[#12141a]'
-                                : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-transparent shadow-sm hover:shadow'
+                            className={`px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${destructive
+                                ? activeSettingId === id
+                                    ? 'bg-red-600 text-white shadow-md ring-2 ring-red-500/40 ring-offset-2 ring-offset-gray-50 dark:ring-offset-[#12141a]'
+                                    : 'bg-white dark:bg-white/5 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200 dark:border-red-500/35 shadow-sm hover:shadow'
+                                : activeSettingId === id
+                                    ? 'bg-primary-600 text-white shadow-md ring-2 ring-primary-500/30 ring-offset-2 ring-offset-gray-50 dark:ring-offset-[#12141a]'
+                                    : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-transparent shadow-sm hover:shadow'
                                 }`}
                         >
                             {label}
@@ -413,13 +418,6 @@ export default function AdminTheme() {
 
                                     return (
                                         <div key={mode.value} className="relative">
-                                            <div className="absolute left-3 top-3 z-10">
-                                                <HelpTooltipButton
-                                                    title={mode.label}
-                                                    description={mode.description}
-                                                    buttonClassName="h-7 w-7 bg-white/95 dark:bg-[#111827]"
-                                                />
-                                            </div>
                                             <button
                                                 onClick={() => updateField('displayMode', mode.value)}
                                                 className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-right transition-all ${isActive
@@ -666,113 +664,6 @@ export default function AdminTheme() {
                         </section>
                     )}
 
-                    {/* ==================== TOGGLES ==================== */}
-                    {showSection('toggles') && (
-                        <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0 space-y-0">
-                            <div className="flex items-center gap-3 mb-6 pb-4">
-                                <div className="bg-primary-500/10 p-2.5 rounded-lg border border-primary-500/20">
-                                    <Eye size={20} className="text-primary-400" />
-                                </div>
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">הגדרות נוספות</h2>
-                                        <HelpTooltipButton title="הגדרות נוספות" description="כאן נמצאים מתגים קטנים שמשפיעים על פרטים חשובים במראה ובמבנה של האתר." />
-                                    </div>
-                                    <p className="text-sm text-gray-400 dark:text-gray-500">שליטה בנראות אלמנטים ואפקטים ויזואליים</p>
-                                </div>
-                            </div>
-
-                            {/* Toggle: Show Nav Categories */}
-                            <Tooltip text={draft.regularLinksLayout === 'sidebar-right' ? 'לא ניתן להציג ניווט עליון כאשר תפריט צד נבחר' : undefined}>
-                                <div
-                                    className={`flex items-center justify-between p-5 bg-gray-100 dark:bg-[#1e212b] rounded-xl border border-gray-200 dark:border-white/5 mb-4 transition-opacity ${draft.regularLinksLayout === 'sidebar-right' ? 'opacity-50 pointer-events-none' : ''}`}
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${draft.showNavCategories ? 'bg-green-500/15' : 'bg-gray-100 dark:bg-white/5'}`}>
-                                            {draft.showNavCategories ? <Eye size={20} className="text-green-400" /> : <EyeOff size={20} className="text-gray-500" />}
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <h3 className="font-bold text-gray-900 dark:text-white text-sm">הצגת קטגוריות בניווט עליון</h3>
-                                                <HelpTooltipButton title="קטגוריות בניווט עליון" description="האפשרות הזאת קובעת אם שמות הקטגוריות יוצגו בסרגל העליון של האתר." />
-                                            </div>
-                                            <p className="text-xs text-gray-400 dark:text-gray-500">הצג/הסתר את הקטגוריות בסרגל הניווט העליון של האתר</p>
-                                        </div>
-                                    </div>
-                                    <label className="relative cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            className="sr-only peer"
-                                            checked={draft.showNavCategories}
-                                            disabled={draft.regularLinksLayout === 'sidebar-right'}
-                                            onChange={(e) => updateField('showNavCategories', e.target.checked)}
-                                        />
-                                        <div className="w-12 h-7 bg-gray-200 dark:bg-[#252528] rounded-full peer-checked:bg-green-600 transition-colors" />
-                                        <div className="absolute top-0.5 left-0.5 w-6 h-6 bg-gray-300 rounded-full peer-checked:translate-x-5 peer-checked:bg-white transition-transform shadow-sm" />
-                                    </label>
-                                </div>
-                            </Tooltip>
-
-                            {/* Toggle: Hero Grayscale */}
-                            <div className="flex items-center justify-between p-5  bg-gray-100 dark:bg-[#1e212b] rounded-xl border border-gray-200 dark:border-white/5">
-                                <div className="flex items-center gap-4">
-                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${draft.heroGrayscale ? 'bg-gray-500/15' : 'bg-primary-500/15'}`}>
-                                        <ImageIcon size={20} className={draft.heroGrayscale ? 'text-gray-400' : 'text-primary-400'} />
-                                    </div>
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <h3 className="font-bold text-gray-900 dark:text-white text-sm">אפקט תמונות רקע</h3>
-                                            <HelpTooltipButton title="אפקט תמונות רקע" description="כאן בוחרים אם תמונות הרקע יוצגו בצבע מלא או בשחור לבן." />
-                                        </div>
-                                        <p className="text-xs text-gray-400 dark:text-gray-500">בחר בין תצוגה צבעונית לשחור-לבן עבור תמונות ה-Hero</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center bg-gray-200 dark:bg-[#252528] rounded-xl p-1 gap-1">
-                                    <button
-                                        onClick={() => updateField('heroGrayscale', false)}
-                                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${!draft.heroGrayscale
-                                            ? 'bg-primary-600 text-white shadow'
-                                            : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-                                            }`}
-                                    >
-                                        צבעוני
-                                    </button>
-                                    <button
-                                        onClick={() => updateField('heroGrayscale', true)}
-                                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${draft.heroGrayscale
-                                            ? 'bg-gray-600 text-white shadow'
-                                            : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-                                            }`}
-                                    >
-                                        שחור לבן
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="mt-4 rounded-xl border border-red-300/70 bg-red-50/70 p-5 dark:border-red-500/40 dark:bg-red-900/20">
-                                <div className="flex items-start gap-3">
-                                    <div className="mt-0.5 rounded-lg bg-red-100 p-2 text-red-600 dark:bg-red-500/20 dark:text-red-300">
-                                        <AlertTriangle size={18} />
-                                    </div>
-                                    <div className="flex-1 ">
-                                        <h3 className="text-sm font-black text-red-700 dark:text-red-200">איפוס נתוני אתר לברירת מחדל</h3>
-                                        <p className="mt-1 text-xs leading-5 text-red-700/80 dark:text-red-100/80">
-                                            פעולה זו תמחק את כלל ההגדרות, העיצוב, הניווט ותוכן הווידג'טים ותשחזר את האתר למצב יצרן.
-                                        </p>
-                                        <button
-                                            type="button"
-                                            onClick={handleFactoryReset}
-                                            disabled={isResetting || isSaving}
-                                            className="mt-4 inline-flex items-center rounded-lg border border-red-500/60 bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-                                        >
-                                            {isResetting ? 'מבצע איפוס...' : 'איפוס נתוני אתר לברירת מחדל'}
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-                    )}
-
                     {/* ==================== REGULAR LINKS LAYOUT ==================== */}
                     {showSection('regularLinksLayout') && (
                         <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
@@ -815,6 +706,38 @@ export default function AdminTheme() {
                                         </div>
                                     );
                                 })}
+                            </div>
+
+                            <div className="mt-8 pt-8 border-t border-gray-200 dark:border-white/10">
+                                <Tooltip text={draft.regularLinksLayout === 'sidebar-right' ? 'לא ניתן להציג ניווט עליון כאשר תפריט צד נבחר' : undefined}>
+                                    <div
+                                        className={`flex items-center justify-between p-5 bg-gray-100 dark:bg-[#1e212b] rounded-xl border border-gray-200 dark:border-white/5 transition-opacity ${draft.regularLinksLayout === 'sidebar-right' ? 'opacity-50 pointer-events-none' : ''}`}
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${draft.showNavCategories ? 'bg-green-500/15' : 'bg-gray-100 dark:bg-white/5'}`}>
+                                                {draft.showNavCategories ? <Eye size={20} className="text-green-400" /> : <EyeOff size={20} className="text-gray-500" />}
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="font-bold text-gray-900 dark:text-white text-sm">הצגת קטגוריות בניווט עליון</h3>
+                                                    <HelpTooltipButton title="קטגוריות בניווט עליון" description="האפשרות הזאת קובעת אם שמות הקטגוריות יוצגו בסרגל העליון של האתר." />
+                                                </div>
+                                                <p className="text-xs text-gray-400 dark:text-gray-500">הצג/הסתר את הקטגוריות בסרגל הניווט העליון של האתר</p>
+                                            </div>
+                                        </div>
+                                        <label className="relative cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="sr-only peer"
+                                                checked={draft.showNavCategories}
+                                                disabled={draft.regularLinksLayout === 'sidebar-right'}
+                                                onChange={(e) => updateField('showNavCategories', e.target.checked)}
+                                            />
+                                            <div className="w-12 h-7 bg-gray-200 dark:bg-[#252528] rounded-full peer-checked:bg-green-600 transition-colors" />
+                                            <div className="absolute top-0.5 left-0.5 w-6 h-6 bg-gray-300 rounded-full peer-checked:translate-x-5 peer-checked:bg-white transition-transform shadow-sm" />
+                                        </label>
+                                    </div>
+                                </Tooltip>
                             </div>
                         </section>
                     )}
@@ -919,6 +842,44 @@ export default function AdminTheme() {
                                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">כאשר כבוי — הפס/הכרטיסים יוצגו בלי רקע לבן ומטושטש (שקוף).</p>
                                     </div>
                                 </label>
+                            </div>
+                        </section>
+                    )}
+
+                    {/* ==================== FACTORY RESET ==================== */}
+                    {showSection('factoryReset') && (
+                        <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
+                            <div className="flex items-center gap-3 mb-6 pb-4">
+                                <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/25">
+                                    <AlertTriangle size={20} className="text-red-500 dark:text-red-400" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">איפוס נתוני אתר לברירת מחדל</h2>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                                        מחיקה מלאה של הגדרות, עיצוב, ניווט ותוכן הווידג&apos;טים — שחזור למצב יצרן
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="rounded-xl border border-red-300/70 bg-red-50/70 p-5 dark:border-red-500/40 dark:bg-red-900/20">
+                                <div className="flex items-start gap-3">
+                                    <div className="mt-0.5 rounded-lg bg-red-100 p-2 text-red-600 dark:bg-red-500/20 dark:text-red-300">
+                                        <AlertTriangle size={18} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="text-sm font-black text-red-700 dark:text-red-200">אזהרה</h3>
+                                        <p className="mt-1 text-xs leading-5 text-red-700/80 dark:text-red-100/80">
+                                            פעולה זו תמחק את כלל ההגדרות, העיצוב, הניווט ותוכן הווידג&apos;טים ותשחזר את האתר למצב יצרן.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={handleFactoryReset}
+                                            disabled={isResetting || isSaving}
+                                            className="mt-4 inline-flex items-center rounded-lg border border-red-500/60 bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {isResetting ? 'מבצע איפוס...' : 'איפוס נתוני אתר לברירת מחדל'}
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </section>
                     )}

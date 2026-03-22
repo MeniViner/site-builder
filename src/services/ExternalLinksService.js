@@ -1,5 +1,5 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
-import { getRequestDigest } from '../utils/sharepointUtils';
+import { buildFileValueEndpoint, getRequestDigest } from '../utils/sharepointUtils';
 
 const DEFAULT_EXTERNAL_LINKS = [];
 
@@ -76,7 +76,7 @@ class ExternalLinksService {
     async _getSharePointData() {
         try {
             const fileUrl = this.config.externalLinksFileServerRelativeUrl;
-            const endpoint = `/_api/web/GetFileByServerRelativeUrl('${fileUrl}')/$value`;
+            const endpoint = buildFileValueEndpoint(fileUrl);
 
             const response = await fetch(endpoint, {
                 method: 'GET',
@@ -104,7 +104,7 @@ class ExternalLinksService {
         try {
             const formDigestValue = await getRequestDigest();
             const fileUrl = this.config.externalLinksFileServerRelativeUrl;
-            const endpoint = `/_api/web/GetFileByServerRelativeUrl('${fileUrl}')/$value`;
+            const endpoint = buildFileValueEndpoint(fileUrl);
 
             const saveResponse = await fetch(endpoint, {
                 method: 'POST',

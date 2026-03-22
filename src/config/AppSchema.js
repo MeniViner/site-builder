@@ -438,7 +438,7 @@ export const DEFAULT_CONFIG_V1 = {
         hero: {
             widgetHeight: 'full',
             panelsBordered: true,
-            commanderPanelBordered: true,
+            commanderPanelBordered: false,
             widgetPanelBordered: true,
         },
         externalLinks: {
@@ -845,8 +845,10 @@ export const DEFAULT_CONFIG_V1 = {
             logoUrl: '/images/alpha logo1.png',
             description: 'מרכז הפיתוח המוביל בצה"ל לפיתוח מערכות מבצעיות, טכנולוגיות ופיקודיות.',
             backgroundImageUrls: [
-                '/images/לח1.jpeg',
+                '/images/לח4.webp',
                 '/images/לח3.jpg',
+                '/images/לח6.webp',
+                '/images/idf-tank_enhanced.png',
                 '/images/IDFsoldiers.jpeg',
             ],
         },
@@ -1107,25 +1109,19 @@ export const DEFAULT_CONFIG_V1 = {
         items: [
             {
                 id: 'ext-1',
-                title: 'פורטל צה"ל',
-                url: 'https://www.idf.il',
+                title: 'ענן התומכ"ל',
+                url: 'https://portal.army.idf',
                 visual: { type: 'icon', icon: 'Globe' },
                 order: 0,
             },
             {
                 id: 'ext-2',
-                title: 'מערכת למידה',
-                url: 'https://moodle.example.mil',
+                title: 'חטיבת ההפעלה',
+                url: 'https://mzai.army.idf/sites/Mahir/index.html',
                 visual: { type: 'icon', icon: 'GraduationCap' },
                 order: 1,
             },
-            {
-                id: 'ext-3',
-                title: 'מרכז שירות',
-                url: 'https://help.example.mil',
-                visual: { type: 'icon', icon: 'LifeBuoy' },
-                order: 2,
-            },
+
         ],
     },
     access: {
@@ -1328,7 +1324,7 @@ export function validateAndNormalize(config) {
                 panelsBordered: asBoolean(source.layout?.hero?.panelsBordered, DEFAULT_CONFIG_V1.layout.hero.panelsBordered),
                 commanderPanelBordered: asBoolean(
                     source.layout?.hero?.commanderPanelBordered,
-                    asBoolean(source.layout?.hero?.panelsBordered, DEFAULT_CONFIG_V1.layout.hero.commanderPanelBordered)
+                    DEFAULT_CONFIG_V1.layout.hero.commanderPanelBordered
                 ),
                 widgetPanelBordered: asBoolean(
                     source.layout?.hero?.widgetPanelBordered,

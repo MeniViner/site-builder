@@ -106,7 +106,7 @@ function toLegacyTheme(config) {
         borderTargets: theme.borderTargets || {},
         heroGrayscale: theme.backgrounds?.hero?.grayscale ?? false,
         heroPanelsBordered: layout.hero?.panelsBordered ?? true,
-        commanderPanelBordered: layout.hero?.commanderPanelBordered ?? layout.hero?.panelsBordered ?? true,
+        commanderPanelBordered: layout.hero?.commanderPanelBordered ?? false,
         widgetPanelBordered: layout.hero?.widgetPanelBordered ?? layout.hero?.panelsBordered ?? true,
         showNavCategories: layout.navigation?.showCategories ?? false,
         regularLinksLayout: layout.navigation?.mode || 'sidebar-right',

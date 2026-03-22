@@ -5,6 +5,18 @@ let requestDigestCacheTime = null;
 const CACHE_EXPIRATION_MS = 25 * 60 * 1000; // 25 minutes (SharePoint digests typically expire in 30)
 
 const IMAGE_BASE_FOLDER = import.meta.env.VITE_SP_IMAGE_BASE_FOLDER || '/sites/bihs7134/SiteAssets/Images';
+const FILE_VALUE_SEGMENT = '$value';
+
+/**
+ * Builds the file-content endpoint for SharePoint.
+ * Keeps `$value` literal (not template interpolation) and escapes single quotes in paths.
+ * @param {string} serverRelativeUrl - e.g. /sites/<site>/SiteAssets/file.txt
+ * @returns {string}
+ */
+export const buildFileValueEndpoint = (serverRelativeUrl) => {
+    const escapedPath = String(serverRelativeUrl ?? '').replace(/'/g, "''");
+    return `/_api/web/GetFileByServerRelativeUrl('${escapedPath}')/${FILE_VALUE_SEGMENT}`;
+};
 
 /**
  * Gets a SharePoint Request Digest token, utilizing caching.
@@ -128,7 +140,7 @@ export const createBackup = async (filesToBackup = []) => {
         for (const filePath of filesToBackup) {
             try {
                 // Read original
-                const readRes = await fetch(`/_api/web/GetFileByServerRelativeUrl('${filePath}')/$value`, {
+                const readRes = await fetch(buildFileValueEndpoint(filePath), {
                     method: 'GET',
                     credentials: 'include',
                     headers: { 'Accept': 'application/json;odata=verbose' }
@@ -145,7 +157,7 @@ export const createBackup = async (filesToBackup = []) => {
                 const newFilePath = `${targetFolderPath}/${fileName}`;
 
                 // Write backup
-                const writeRes = await fetch(`/_api/web/GetFileByServerRelativeUrl('${newFilePath}')/$value`, {
+                const writeRes = await fetch(buildFileValueEndpoint(newFilePath), {
                     method: 'POST',
                     credentials: 'include',
                     headers: {

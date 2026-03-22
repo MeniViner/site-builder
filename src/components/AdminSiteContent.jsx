@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useSiteContent } from '../context/SiteContentContext';
+import { useTheme } from '../context/ThemeContext';
 import SiteContentLivePreview from './SiteContentLivePreview';
 import {
     AlertTriangle, Plus, Trash2, Edit2, X,
@@ -11,6 +12,7 @@ import Tooltip from './Tooltip';
 import { DEFAULT_OVERLAY_IMAGE, normalizeOverlayImageConfig } from '../utils/overlayImageConfig';
 import { confirmToast } from '../utils/confirmToast';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
+import { toast } from 'react-toastify';
 
 const MAX_COMMANDER_MESSAGES = 5;
 
@@ -81,6 +83,7 @@ const inputCls = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 
 
 export default function AdminSiteContent() {
     const { siteContent, loading, error, saveSiteContent } = useSiteContent();
+    const { theme: themeSettings, saveTheme } = useTheme();
     const [isSaving, setIsSaving] = useState(false);
     const [saveMessage, setSaveMessage] = useState(null);
     const [activeSettingId, setActiveSettingId] = useState(SETTINGS_NAV[0].id);
@@ -171,6 +174,14 @@ export default function AdminSiteContent() {
             ...prev,
             backgroundImages: prev.backgroundImages.filter((_, i) => i !== index),
         }));
+    };
+
+    const handleHeroGrayscaleChange = async (nextGrayscale) => {
+        if (!themeSettings) return;
+        const success = await saveTheme({ ...themeSettings, heroGrayscale: nextGrayscale });
+        if (!success) {
+            toast.error('שגיאה בשמירת אפקט תמונות הרקע. אנא נסה שוב.');
+        }
     };
 
     const handleHeroFileUpload = async (e) => {
@@ -335,7 +346,7 @@ export default function AdminSiteContent() {
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">עריכה חיה של תוכן ההירו ודבר המפקד, באותו מבנה עבודה כמו מסך עיצוב האתר</p>
                     </div>
                     <div className="flex items-center gap-3">
-                        <AdminPageHelpButton pageId="site-content" />
+                        <AdminPageHelpButton pageId="site-content" tabId={activeSettingId} />
                         {isSaving && (
                             <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-full shadow-sm">
                                 <div className="w-3.5 h-3.5 border-[2px] border-primary border-t-transparent rounded-full animate-spin" />
@@ -612,6 +623,45 @@ export default function AdminSiteContent() {
                                                     disabled={uploadingHeroIndex !== null}
                                                 />
                                             </label>
+                                        </div>
+
+                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 pb-4 border-b border-gray-200 dark:border-white/10">
+                                            <div className="flex items-center gap-4 min-w-0">
+                                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${(themeSettings?.heroGrayscale ?? false) ? 'bg-gray-500/15' : 'bg-primary-500/15'}`}>
+                                                    <ImageIcon size={20} className={(themeSettings?.heroGrayscale ?? false) ? 'text-gray-400' : 'text-primary-400'} />
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <h3 className="font-bold text-gray-900 dark:text-white text-sm">אפקט תמונות רקע</h3>
+                                                        <HelpTooltipButton title="אפקט תמונות רקע" description="כאן בוחרים אם תמונות הרקע יוצגו בצבע מלא או בשחור לבן." />
+                                                    </div>
+                                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">בחר בין תצוגה צבעונית לשחור-לבן עבור תמונות ה-Hero</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center bg-gray-200 dark:bg-[#252528] rounded-xl p-1 gap-1 shrink-0 self-end sm:self-center">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleHeroGrayscaleChange(false)}
+                                                    disabled={!themeSettings}
+                                                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${!(themeSettings?.heroGrayscale ?? false)
+                                                        ? 'bg-primary-600 text-white shadow'
+                                                        : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                                                        }`}
+                                                >
+                                                    צבעוני
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleHeroGrayscaleChange(true)}
+                                                    disabled={!themeSettings}
+                                                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${(themeSettings?.heroGrayscale ?? false)
+                                                        ? 'bg-gray-600 text-white shadow'
+                                                        : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                                                        }`}
+                                                >
+                                                    שחור לבן
+                                                </button>
+                                            </div>
                                         </div>
 
                                         <div className="space-y-2 max-h-[360px] overflow-y-auto custom-scrollbar pr-1">

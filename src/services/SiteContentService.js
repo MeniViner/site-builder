@@ -1,5 +1,5 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
-import { getRequestDigest } from '../utils/sharepointUtils';
+import { buildFileValueEndpoint, getRequestDigest } from '../utils/sharepointUtils';
 import { DEFAULT_OVERLAY_IMAGE, normalizeOverlayImageConfig } from '../utils/overlayImageConfig';
 
 const DEFAULT_SITE_CONTENT = {
@@ -123,7 +123,7 @@ class SiteContentService {
     async _getSharePointData() {
         try {
             const fileUrl = this.config.siteContentFileServerRelativeUrl;
-            const endpoint = `/_api/web/GetFileByServerRelativeUrl('${fileUrl}')/$value`;
+            const endpoint = buildFileValueEndpoint(fileUrl);
 
             const response = await fetch(endpoint, {
                 method: 'GET',
@@ -151,7 +151,7 @@ class SiteContentService {
         try {
             const formDigestValue = await getRequestDigest();
             const fileUrl = this.config.siteContentFileServerRelativeUrl;
-            const endpoint = `/_api/web/GetFileByServerRelativeUrl('${fileUrl}')/$value`;
+            const endpoint = buildFileValueEndpoint(fileUrl);
 
             const saveResponse = await fetch(endpoint, {
                 method: 'POST',

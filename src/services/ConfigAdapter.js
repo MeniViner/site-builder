@@ -1,3 +1,5 @@
+import { buildFileValueEndpoint } from '../utils/sharepointUtils';
+
 const DEFAULT_MASTER_CONFIG_KEY = 'bihs_master_config_v1';
 const DEFAULT_MASTER_CONFIG_FILE_URL = '/sites/bihs7134/SiteAssets/bihs_master_config_v1.txt';
 
@@ -45,8 +47,7 @@ class ConfigAdapter {
     }
 
     _buildFileEndpoint() {
-        const escapedPath = String(this.fileServerRelativeUrl).replace(/'/g, "''");
-        return `/_api/web/GetFileByServerRelativeUrl('${escapedPath}')/$value`;
+        return buildFileValueEndpoint(this.fileServerRelativeUrl);
     }
 
     async _loadSharePoint() {
