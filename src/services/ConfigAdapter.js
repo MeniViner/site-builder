@@ -1,4 +1,5 @@
 import { buildFileValueEndpoint } from '../utils/sharepointUtils';
+import { spLog, spLogFileReadStart, spLogFileReadResponse, spLogFileSaveStart, spLogFileSaveResponse } from '../utils/spAppLog';
 
 const DEFAULT_MASTER_CONFIG_KEY = 'bihs_master_config_v1';
 const DEFAULT_MASTER_CONFIG_FILE_URL = '/sites/bihs7134/SiteAssets/bihs_master_config_v1.txt';
@@ -53,6 +54,9 @@ class ConfigAdapter {
     async _loadSharePoint() {
         const endpoint = this._buildFileEndpoint();
 
+        spLog.scan('טוען קונפיגורציית מאסטר (AppSchema) מ-SharePoint...');
+        spLogFileReadStart('קונפיגורציית מאסטר', this.fileServerRelativeUrl);
+
         const response = await fetch(endpoint, {
             method: 'GET',
             credentials: 'include',
@@ -61,18 +65,24 @@ class ConfigAdapter {
             },
         });
 
+        spLogFileReadResponse(this.fileServerRelativeUrl, response);
+
         if (!response.ok) {
             if (response.status === 404) {
+                spLog.warn('קובץ קונפיגורציית מאסטר לא נמצא — מתחילים מריק');
                 return { text: null };
             }
             throw new Error(`SharePoint load failed: ${response.status} ${response.statusText}`);
         }
 
         const text = await response.text();
+        const len = text ? text.length : 0;
+        spLog.success(`קריאת קונפיגורציית מאסטר הצליחה | תווים: ${len}`);
         return { text: text || null };
     }
 
     async _getRequestDigest() {
+        spLog.system('ConfigAdapter: מבקש Request Digest (contextinfo) לשמירת מאסטר...');
         const response = await fetch('/_api/contextinfo', {
             method: 'POST',
             credentials: 'include',
@@ -80,6 +90,8 @@ class ConfigAdapter {
                 Accept: 'application/json;odata=verbose',
             },
         });
+
+        spLog.file(`תגובת contextinfo (מאסטר) | status: ${response.status} ${response.statusText}`);
 
         if (!response.ok) {
             throw new Error(`Failed to get SharePoint request digest: ${response.status} ${response.statusText}`);
@@ -91,12 +103,15 @@ class ConfigAdapter {
             throw new Error('SharePoint request digest missing in contextinfo response');
         }
 
+        spLog.success('Request Digest למאסטר התקבל');
         return digest;
     }
 
     async _saveSharePoint(text) {
         const digest = await this._getRequestDigest();
         const endpoint = this._buildFileEndpoint();
+
+        spLogFileSaveStart('קונפיגורציית מאסטר', this.fileServerRelativeUrl);
 
         const response = await fetch(endpoint, {
             method: 'POST',
@@ -110,10 +125,13 @@ class ConfigAdapter {
             body: text,
         });
 
+        spLogFileSaveResponse(this.fileServerRelativeUrl, response);
+
         if (!response.ok) {
             throw new Error(`SharePoint save failed: ${response.status} ${response.statusText}`);
         }
 
+        spLog.success('שמירת קונפיגורציית מאסטר ל-SharePoint הושלמה');
         return { ok: true };
     }
 }

@@ -1,4 +1,5 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
+import { spLog, spLogDigestCache } from './spAppLog';
 
 let requestDigestCache = null;
 let requestDigestCacheTime = null;
@@ -26,10 +27,12 @@ export const getRequestDigest = async () => {
     const now = Date.now();
     // Check if we have a valid cached digest
     if (requestDigestCache && requestDigestCacheTime && (now - requestDigestCacheTime < CACHE_EXPIRATION_MS)) {
+        spLogDigestCache(true);
         return requestDigestCache;
     }
 
     try {
+        spLogDigestCache(false);
         const response = await fetch('/_api/contextinfo', {
             method: 'POST',
             headers: {
@@ -39,6 +42,7 @@ export const getRequestDigest = async () => {
             credentials: 'include'
         });
 
+        spLog.file(`תגובת contextinfo | status: ${response.status} ${response.statusText}`);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -47,9 +51,10 @@ export const getRequestDigest = async () => {
         requestDigestCache = data.d.GetContextWebInformation.FormDigestValue;
         requestDigestCacheTime = now;
 
+        spLog.success('Request Digest התקבל בהצלחה');
         return requestDigestCache || '';
     } catch (error) {
-        console.error('שגיאה בקבלת Request Digest:', error);
+        spLog.error('שגיאה בקבלת Request Digest:', error);
         throw error;
     }
 };
@@ -61,7 +66,7 @@ export const getRequestDigest = async () => {
  */
 export const createBackup = async (filesToBackup = []) => {
     try {
-        console.log("מתחיל גיבוי מערכת...");
+        spLog.boot('מתחיל גיבוי מערכת ל-SharePoint...');
 
         // Use a default path based on config if not provided
         if (!filesToBackup || filesToBackup.length === 0) {
@@ -82,7 +87,7 @@ export const createBackup = async (filesToBackup = []) => {
         // Extract site URL (e.g., /sites/bihs7134)
         const siteUrlMatch = firstFile.match(/^\/sites\/[^/]+/);
         if (!siteUrlMatch) {
-            console.error("לא ניתן לזהות נתיב אתר מתוך", firstFile);
+            spLog.error('לא ניתן לזהות נתיב אתר מתוך', firstFile);
             return false;
         }
         const siteUrl = siteUrlMatch[0];
@@ -114,7 +119,9 @@ export const createBackup = async (filesToBackup = []) => {
                 })
             });
             // We ignore errors here because the folder might already exist
-        } catch (e) { }
+        } catch {
+            /* תיקייה כבר קיימת או בקשה נדחית — מתעלמים */
+        }
 
         // 2. Create the specific timestamped backup folder
         const createFolderRes = await fetch(`${siteUrl}/_api/web/folders`, {
@@ -134,12 +141,13 @@ export const createBackup = async (filesToBackup = []) => {
             throw new Error(`יצירת תיקיית גיבוי נכשלה: ${createFolderRes.status}`);
         }
 
-        console.log(`תיקיית גיבוי שנוצרה: ${targetFolderPath}`);
+        spLog.file(`תיקיית גיבוי נוצרה: ${targetFolderPath}`);
 
         // 3. Backup each file by reading and then writing it to the new folder
         for (const filePath of filesToBackup) {
             try {
                 // Read original
+                spLog.file(`גיבוי: קורא מקור | ${filePath}`);
                 const readRes = await fetch(buildFileValueEndpoint(filePath), {
                     method: 'GET',
                     credentials: 'include',
@@ -148,7 +156,10 @@ export const createBackup = async (filesToBackup = []) => {
 
                 if (!readRes.ok) {
                     // Skip files that don't exist
-                    if (readRes.status === 404) continue;
+                    if (readRes.status === 404) {
+                        spLog.warn(`קובץ לא נמצא לגיבוי (מדלג): ${filePath}`);
+                        continue;
+                    }
                     throw new Error(`שגיאה בקריאת קובץ לגיבוי: ${readRes.status}`);
                 }
 
@@ -170,17 +181,19 @@ export const createBackup = async (filesToBackup = []) => {
                 });
 
                 if (!writeRes.ok) {
-                    console.error(`שגיאה בכתיבת קובץ גיבוי ${fileName}:`, writeRes.status);
+                    spLog.error(`שגיאה בכתיבת קובץ גיבוי ${fileName}:`, writeRes.status);
+                } else {
+                    spLog.success(`הועתק לגיבוי: ${fileName}`);
                 }
             } catch (fileErr) {
-                console.error(`שגיאה בגיבוי קובץ ${filePath}:`, fileErr);
+                spLog.error(`שגיאה בגיבוי קובץ ${filePath}:`, fileErr);
             }
         }
 
-        console.log("✅ גיבוי הושלם בהצלחה!");
+        spLog.success('גיבוי הושלם בהצלחה');
         return true;
     } catch (error) {
-        console.error('❌ שגיאה בתהליך הגיבוי:', error);
+        spLog.error('שגיאה בתהליך הגיבוי:', error);
         return false;
     }
 };
@@ -240,6 +253,7 @@ export const uploadImage = async (file, categoryFolder) => {
     const siteUrlMatch = IMAGE_BASE_FOLDER.match(/^\/sites\/[^/]+/);
     const siteUrl = siteUrlMatch ? siteUrlMatch[0] : '';
     const targetFolder = `${IMAGE_BASE_FOLDER}/${categoryFolder}`;
+    spLog.file(`מעלה תמונה ל-SharePoint | תיקייה: ${targetFolder} | קובץ: ${file.name}`);
     const digest = await getRequestDigest();
 
     const ensureFolder = async (folderPath) => {
@@ -257,7 +271,7 @@ export const uploadImage = async (file, categoryFolder) => {
                     'ServerRelativeUrl': folderPath,
                 }),
             });
-        } catch (_) {
+        } catch {
             // Folder may already exist — safe to ignore
         }
     };
@@ -280,11 +294,14 @@ export const uploadImage = async (file, categoryFolder) => {
         body: arrayBuffer,
     });
 
+    spLog.file(`תגובת העלאת תמונה | status: ${uploadRes.status} ${uploadRes.statusText}`);
     if (!uploadRes.ok) {
         const errorText = await uploadRes.text().catch(() => '');
         throw new Error(`העלאת תמונה נכשלה (${uploadRes.status}): ${errorText}`);
     }
 
     const data = await uploadRes.json();
-    return data.d.ServerRelativeUrl;
+    const url = data.d.ServerRelativeUrl;
+    spLog.success(`העלאת תמונה הצליחה | נתיב: ${url}`);
+    return url;
 };

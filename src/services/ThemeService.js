@@ -1,6 +1,14 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { buildFileValueEndpoint, getRequestDigest } from '../utils/sharepointUtils';
 import { normalizeBorderStyle } from '../utils/borderStyles';
+import {
+    spLog,
+    spLogFileReadStart,
+    spLogFileReadResponse,
+    spLogFileReadOk,
+    spLogFileSaveStart,
+    spLogFileSaveResponse,
+} from '../utils/spAppLog';
 
 const DEFAULT_THEME = {
     primaryColor: '#0891b2',
@@ -25,7 +33,7 @@ class ThemeService {
     constructor() {
         this.config = SHAREPOINT_CONFIG;
         this.useMock = this.config.useMock;
-        console.log(`ThemeService initialized in ${this.useMock ? 'MOCK' : 'PRODUCTION'} mode`);
+        spLog.system(`ThemeService — מצב ${this.useMock ? 'MOCK' : 'PRODUCTION'}`);
     }
 
     async getTheme() {
@@ -118,24 +126,31 @@ class ThemeService {
             const fileUrl = this.config.themeFileServerRelativeUrl;
             const endpoint = buildFileValueEndpoint(fileUrl);
 
+            spLog.scan('טוען הגדרות עיצוב (Theme) מ-SharePoint...');
+            spLogFileReadStart('עיצוב', fileUrl);
+
             const response = await fetch(endpoint, {
                 method: 'GET',
                 credentials: 'include',
                 headers: { 'Accept': 'application/json;odata=verbose' }
             });
 
+            spLogFileReadResponse(fileUrl, response);
+
             if (!response.ok) {
                 if (response.status === 404) {
-                    console.log('SharePoint theme file not found, returning defaults');
+                    spLog.warn('קובץ עיצוב לא נמצא — ברירות מחדל');
                     return { ...DEFAULT_THEME };
                 }
                 throw new Error(`SharePoint request failed: ${response.status} ${response.statusText}`);
             }
 
             const text = await response.text();
-            return JSON.parse(text);
+            const data = JSON.parse(text);
+            spLogFileReadOk(fileUrl, 'נתוני עיצוב נטענו');
+            return data;
         } catch (error) {
-            console.error('Error reading SharePoint theme:', error);
+            spLog.error('שגיאה בקריאת עיצוב מ-SharePoint:', error);
             throw new Error('שגיאה בקריאת הגדרות עיצוב מ-SharePoint: ' + error.message);
         }
     }
@@ -145,6 +160,8 @@ class ThemeService {
             const formDigestValue = await getRequestDigest();
             const fileUrl = this.config.themeFileServerRelativeUrl;
             const endpoint = buildFileValueEndpoint(fileUrl);
+
+            spLogFileSaveStart('עיצוב', fileUrl);
 
             const saveResponse = await fetch(endpoint, {
                 method: 'POST',
@@ -158,24 +175,29 @@ class ThemeService {
                 body: JSON.stringify(payload)
             });
 
+            spLogFileSaveResponse(fileUrl, saveResponse);
+
             if (!saveResponse.ok) {
                 throw new Error(`SharePoint save failed: ${saveResponse.status} ${saveResponse.statusText}`);
             }
 
+            spLog.scan('מאמת שמירת עיצוב בקריאה חוזרת...');
             const verifyResponse = await fetch(endpoint, {
                 method: 'GET',
                 credentials: 'include',
                 headers: { 'Accept': 'application/json;odata=verbose' }
             });
 
+            spLog.file(`אימות עיצוב אחרי שמירה | status: ${verifyResponse.status}`);
+
             if (!verifyResponse.ok) {
                 throw new Error('השמירה בוצעה אך האימות נכשל. ייתכן שהנתונים לא נשמרו כראוי.');
             }
 
-            console.log('Theme saved and verified successfully');
+            spLog.success('עיצוב נשמר ואומת בהצלחה');
             return payload;
         } catch (error) {
-            console.error('Error saving SharePoint theme:', error);
+            spLog.error('שגיאה בשמירת עיצוב ל-SharePoint:', error);
             throw new Error('שגיאה בשמירת הגדרות עיצוב ל-SharePoint: ' + error.message);
         }
     }

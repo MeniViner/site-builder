@@ -1,11 +1,19 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { buildFileValueEndpoint, getRequestDigest } from '../utils/sharepointUtils';
+import {
+    spLog,
+    spLogFileReadStart,
+    spLogFileReadResponse,
+    spLogFileReadOk,
+    spLogFileSaveStart,
+    spLogFileSaveResponse,
+} from '../utils/spAppLog';
 
 class UsersService {
     constructor() {
         this.config = SHAREPOINT_CONFIG;
         this.useMock = this.config.useMock;
-        console.log(`UsersService initialized in ${this.useMock ? 'MOCK' : 'PRODUCTION'} mode`);
+        spLog.system(`UsersService — מצב ${this.useMock ? 'MOCK' : 'PRODUCTION'}`);
     }
 
     async getUsers() {
@@ -30,9 +38,12 @@ class UsersService {
 
     _getMockData() {
         try {
+            spLog.file('טוען רשימת מנהלים מ-localStorage (מצב mock)...');
             const stored = localStorage.getItem(this.config.usersMockStorageKey);
             if (stored) {
-                return Promise.resolve(JSON.parse(stored));
+                const parsed = JSON.parse(stored);
+                spLog.success(`נטענו ${Array.isArray(parsed) ? parsed.length : 0} משתמשי מנהלים (mock)`);
+                return Promise.resolve(parsed);
             }
 
             // Default mock users if empty
@@ -69,6 +80,9 @@ class UsersService {
             const fileUrl = this.config.usersFileServerRelativeUrl;
             const endpoint = buildFileValueEndpoint(fileUrl);
 
+            spLog.scan('טוען משתמשי מערכת (מנהלים) מ-SharePoint...');
+            spLogFileReadStart('משתמשי מערכת', fileUrl);
+
             const response = await fetch(endpoint, {
                 method: 'GET',
                 credentials: 'include',
@@ -77,26 +91,34 @@ class UsersService {
                 }
             });
 
+            spLogFileReadResponse(fileUrl, response);
+
             if (!response.ok) {
                 if (response.status === 404) {
-                    console.log('SharePoint users file not found, creating default admins');
+                    spLog.warn('קובץ משתמשים לא נמצא ב-SharePoint — יוצר ברירת מחדל למנהלים');
                     const defaultUsers = [
                         { id: 1, name: 'מני', role: 'admin' },
                         { id: 2, name: 'Admin', role: 'admin' },
                         { id: 3, name: 'מנהל', role: 'admin' }
                     ];
                     // We don't await the save here to not block the read, but we initiate it
-                    this._saveSharePointData(defaultUsers).catch(console.error);
+                    this._saveSharePointData(defaultUsers).catch((e) => spLog.error('שמירת מנהלים ברירת מחדל נכשלה', e));
                     return defaultUsers;
                 }
                 throw new Error(`SharePoint request failed: ${response.status} ${response.statusText}`);
             }
 
             const text = await response.text();
-            if (!text.trim()) return [];
-            return JSON.parse(text);
+            if (!text.trim()) {
+                spLogFileReadOk(fileUrl, 'קובץ ריק');
+                return [];
+            }
+            const parsed = JSON.parse(text);
+            const n = Array.isArray(parsed) ? parsed.length : 0;
+            spLogFileReadOk(fileUrl, `פריטים: ${n}`);
+            return parsed;
         } catch (error) {
-            console.error('Error reading SharePoint users:', error);
+            spLog.error('שגיאה בקריאת משתמשים מ-SharePoint:', error);
             // Fallback gracefully so app doesn't break
             return [
                 { id: 1, name: 'מני', role: 'admin' },
@@ -113,6 +135,8 @@ class UsersService {
             const fileUrl = this.config.usersFileServerRelativeUrl;
             const endpoint = buildFileValueEndpoint(fileUrl);
 
+            spLogFileSaveStart('משתמשי מערכת', fileUrl);
+
             const saveResponse = await fetch(endpoint, {
                 method: 'POST',
                 credentials: 'include',
@@ -125,14 +149,17 @@ class UsersService {
                 body: JSON.stringify(usersData)
             });
 
+            spLogFileSaveResponse(fileUrl, saveResponse);
+
             if (!saveResponse.ok) {
                 throw new Error(`SharePoint save failed: ${saveResponse.status} ${saveResponse.statusText}`);
             }
 
-            console.log('Users saved to SharePoint successfully');
+            const count = Array.isArray(usersData) ? usersData.length : 0;
+            spLog.success(`משתמשים נשמרו ב-SharePoint | פריטים: ${count}`);
             return usersData;
         } catch (error) {
-            console.error('Error saving SharePoint users:', error);
+            spLog.error('שגיאה בשמירת משתמשים ל-SharePoint:', error);
             throw new Error('שגיאה בשמירת משתמשים ל-SharePoint: ' + error.message);
         }
     }

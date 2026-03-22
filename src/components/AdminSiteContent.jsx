@@ -260,6 +260,12 @@ export default function AdminSiteContent() {
         }
     };
 
+    /** מסיר את התמונה ומאפס את כל שדות האלמנט לברירת המחדל */
+    const clearOverlayImage = () => {
+        setOverlayImage(normalizeOverlayImageConfig({}));
+        if (overlayImageFileInputRef.current) overlayImageFileInputRef.current.value = '';
+    };
+
     const addMessage = () => {
         if (commander.messages.length >= MAX_COMMANDER_MESSAGES) return;
 
@@ -1041,17 +1047,25 @@ export default function AdminSiteContent() {
                                         </label>
 
                                         {overlayImage.imageUrl && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setOverlayImage((prev) => normalizeOverlayImageConfig({ ...prev, imageUrl: '', enabled: false }))}
-                                                className="w-full mt-2 text-[11px] font-bold text-red-500 hover:text-red-400 transition"
+                                            <Tooltip
+                                                text="מסיר את התמונה ומאפס את כל ההגדרות לברירת המחדל (גודל, מיקום, בורדר, גלילה וכו׳)"
+                                                wrapperClassName="block w-full"
                                             >
-                                                הסר תמונה
-                                            </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={clearOverlayImage}
+                                                    className="w-full mt-2 text-[11px] font-bold text-red-500 hover:text-red-400 transition"
+                                                >
+                                                    הסר תמונה
+                                                </button>
+                                            </Tooltip>
                                         )}
                                     </div>
 
                                     <div className="space-y-5">
+                                        <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-white/10 pb-2">
+                                            גודל ושקיפות
+                                        </h3>
                                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                             <div>
                                                 <HelpLabel
@@ -1156,6 +1170,59 @@ export default function AdminSiteContent() {
                                             />
                                         </div>
 
+                                        <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-white/10 pb-2 pt-1">
+                                            בורדר ומילוי התמונה
+                                        </h3>
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">סגנון בורדר</label>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                                {OVERLAY_BORDER_STYLE_OPTIONS.map((option) => (
+                                                    <button
+                                                        key={option.value}
+                                                        type="button"
+                                                        onClick={() => updateOverlayField('borderStyle', option.value)}
+                                                        className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${overlayImage.borderStyle === option.value
+                                                            ? 'border-primary-500 bg-primary-500/10 text-primary-600 dark:text-primary-300'
+                                                            : 'border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-[#1b1f2a] text-gray-600 dark:text-gray-300 hover:border-primary/40'
+                                                            }`}
+                                                    >
+                                                        {option.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <HelpLabel
+                                                as="span"
+                                                className="block text-sm font-bold text-gray-700 dark:text-gray-300"
+                                                wrapperClassName="mb-3 flex items-center gap-2"
+                                                helpTitle="התאמת התמונה למסגרת"
+                                                helpDescription="כאן בוחרים אם לשמור את כל התמונה גלויה או למלא את המסגרת גם במחיר של חיתוך קצוות."
+                                            >
+                                                Object Fit
+                                            </HelpLabel>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                {OVERLAY_OBJECT_FIT_OPTIONS.map((option) => (
+                                                    <button
+                                                        key={option.value}
+                                                        type="button"
+                                                        onClick={() => updateOverlayField('objectFit', option.value)}
+                                                        className={`text-right rounded-xl border px-4 py-3 transition ${overlayImage.objectFit === option.value
+                                                            ? 'border-primary-500 bg-primary-500/10'
+                                                            : 'border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-[#1b1f2a] hover:border-primary/40'
+                                                            }`}
+                                                    >
+                                                        <div className="text-sm font-bold text-gray-800 dark:text-gray-200">{option.label}</div>
+                                                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{option.description}</div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-white/10 pb-2 pt-1">
+                                            התנהגות בגלילה
+                                        </h3>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                             {OVERLAY_POSITION_OPTIONS.map((option) => (
                                                 <button
@@ -1173,7 +1240,10 @@ export default function AdminSiteContent() {
                                             ))}
                                         </div>
 
-                                        <p className="text-xs text-gray-400 dark:text-gray-600">אפשרויות מיקום אלמנט התמונה באתר</p>
+                                        <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-white/10 pb-2 pt-1">
+                                            אזור תצוגה באתר
+                                        </h3>
+                                        <p className="text-xs text-gray-400 dark:text-gray-600">באיזה אזור מותר לאלמנט התמונה להופיע</p>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                             {OVERLAY_DISPLAY_AREA_OPTIONS.map((option) => (
                                                 <button
@@ -1215,27 +1285,29 @@ export default function AdminSiteContent() {
                                         </div>
                                     </div>
                                 </div>
-{/* 
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">נקודת עיגון באתר</label>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {OVERLAY_ANCHOR_OPTIONS.map((option) => (
-                                            <button
-                                                key={option.value}
-                                                type="button"
-                                                onClick={() => updateOverlayField('anchor', option.value)}
-                                                className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${overlayImage.anchor === option.value
-                                                    ? 'border-primary-500 bg-primary-500/10 text-primary-600 dark:text-primary-300'
-                                                    : 'border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-[#1b1f2a] text-gray-600 dark:text-gray-300 hover:border-primary/40'
-                                                    }`}
-                                            >
-                                                {option.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div> */}
 
                                     <div className="space-y-4">
+                                        <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-white/10 pb-2">
+                                            מיקום ועיגון
+                                        </h3>
+                                        {/* <div>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">נקודת עיגון באתר</label>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {OVERLAY_ANCHOR_OPTIONS.map((option) => (
+                                                    <button
+                                                        key={option.value}
+                                                        type="button"
+                                                        onClick={() => updateOverlayField('anchor', option.value)}
+                                                        className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${overlayImage.anchor === option.value
+                                                            ? 'border-primary-500 bg-primary-500/10 text-primary-600 dark:text-primary-300'
+                                                            : 'border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-[#1b1f2a] text-gray-600 dark:text-gray-300 hover:border-primary/40'
+                                                            }`}
+                                                    >
+                                                        {option.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div> */}
                                         <div>
                                             <div className="flex items-center justify-between gap-3 mb-2">
                                                 <div className="flex items-center gap-2">
@@ -1292,53 +1364,6 @@ export default function AdminSiteContent() {
                                             onChange={(e) => updateOverlayNumberField('offsetY', e.target.value, 0, 100)}
                                             className="w-full accent-primary"
                                         />
-                                    </div>
-                                </div>
-
-                                {/* <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">סגנון בורדר</label>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                        {OVERLAY_BORDER_STYLE_OPTIONS.map((option) => (
-                                            <button
-                                                key={option.value}
-                                                type="button"
-                                                onClick={() => updateOverlayField('borderStyle', option.value)}
-                                                className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${overlayImage.borderStyle === option.value
-                                                    ? 'border-primary-500 bg-primary-500/10 text-primary-600 dark:text-primary-300'
-                                                    : 'border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-[#1b1f2a] text-gray-600 dark:text-gray-300 hover:border-primary/40'
-                                                    }`}
-                                            >
-                                                {option.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div> */}
-
-                                <div>
-                                    <HelpLabel
-                                        as="span"
-                                        className="block text-sm font-bold text-gray-700 dark:text-gray-300"
-                                        wrapperClassName="mb-3 flex items-center gap-2"
-                                        helpTitle="התאמת התמונה למסגרת"
-                                        helpDescription="כאן בוחרים אם לשמור את כל התמונה גלויה או למלא את המסגרת גם במחיר של חיתוך קצוות."
-                                    >
-                                        Object Fit
-                                    </HelpLabel>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        {OVERLAY_OBJECT_FIT_OPTIONS.map((option) => (
-                                            <button
-                                                key={option.value}
-                                                type="button"
-                                                onClick={() => updateOverlayField('objectFit', option.value)}
-                                                className={`text-right rounded-xl border px-4 py-3 transition ${overlayImage.objectFit === option.value
-                                                    ? 'border-primary-500 bg-primary-500/10'
-                                                    : 'border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-[#1b1f2a] hover:border-primary/40'
-                                                    }`}
-                                            >
-                                                <div className="text-sm font-bold text-gray-800 dark:text-gray-200">{option.label}</div>
-                                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{option.description}</div>
-                                            </button>
-                                        ))}
                                     </div>
                                 </div>
 

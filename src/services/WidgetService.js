@@ -1,6 +1,14 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { buildFileValueEndpoint, getRequestDigest } from '../utils/sharepointUtils';
 import { mergeWidgetSettings } from '../utils/widgetDisplay';
+import {
+    spLog,
+    spLogFileReadStart,
+    spLogFileReadResponse,
+    spLogFileReadOk,
+    spLogFileSaveStart,
+    spLogFileSaveResponse,
+} from '../utils/spAppLog';
 
 export const DEFAULT_WIDGETS_CONFIG = {
     activeWidgets: ['events'],
@@ -66,7 +74,7 @@ class WidgetService {
     constructor() {
         this.config = SHAREPOINT_CONFIG;
         this.useMock = this.config.useMock;
-        console.log(`WidgetService initialized in ${this.useMock ? 'MOCK' : 'PRODUCTION'} mode`);
+        spLog.system(`WidgetService — מצב ${this.useMock ? 'MOCK' : 'PRODUCTION'}`);
     }
 
     async getWidgetConfig() {
@@ -153,24 +161,31 @@ class WidgetService {
             const fileUrl = this.config.widgetsFileServerRelativeUrl;
             const endpoint = buildFileValueEndpoint(fileUrl);
 
+            spLog.scan('טוען הגדרות ווידגטים מ-SharePoint...');
+            spLogFileReadStart('ווידגטים', fileUrl);
+
             const response = await fetch(endpoint, {
                 method: 'GET',
                 credentials: 'include',
                 headers: { 'Accept': 'application/json;odata=verbose' }
             });
 
+            spLogFileReadResponse(fileUrl, response);
+
             if (!response.ok) {
                 if (response.status === 404) {
-                    console.log('SharePoint widgets config file not found, returning defaults');
+                    spLog.warn('קובץ ווידגטים לא נמצא — ברירות מחדל');
                     return createDefaultWidgetConfig();
                 }
                 throw new Error(`SharePoint request failed: ${response.status} ${response.statusText}`);
             }
 
             const text = await response.text();
-            return JSON.parse(text);
+            const data = JSON.parse(text);
+            spLogFileReadOk(fileUrl, 'הגדרות ווידגטים נטענו');
+            return data;
         } catch (error) {
-            console.error('Error reading SharePoint widget config:', error);
+            spLog.error('שגיאה בקריאת הגדרות ווידגטים מ-SharePoint:', error);
             throw new Error('שגיאה בקריאת הגדרות ווידגטים מ-SharePoint: ' + error.message);
         }
     }
@@ -180,6 +195,8 @@ class WidgetService {
             const formDigestValue = await getRequestDigest();
             const fileUrl = this.config.widgetsFileServerRelativeUrl;
             const endpoint = buildFileValueEndpoint(fileUrl);
+
+            spLogFileSaveStart('ווידגטים', fileUrl);
 
             const saveResponse = await fetch(endpoint, {
                 method: 'POST',
@@ -193,24 +210,29 @@ class WidgetService {
                 body: JSON.stringify(payload)
             });
 
+            spLogFileSaveResponse(fileUrl, saveResponse);
+
             if (!saveResponse.ok) {
                 throw new Error(`SharePoint save failed: ${saveResponse.status} ${saveResponse.statusText}`);
             }
 
+            spLog.scan('מאמת שמירת ווידגטים...');
             const verifyResponse = await fetch(endpoint, {
                 method: 'GET',
                 credentials: 'include',
                 headers: { 'Accept': 'application/json;odata=verbose' }
             });
 
+            spLog.file(`אימות ווידגטים | status: ${verifyResponse.status}`);
+
             if (!verifyResponse.ok) {
                 throw new Error('השמירה בוצעה אך האימות נכשל. ייתכן שהנתונים לא נשמרו כראוי.');
             }
 
-            console.log('Widget config saved and verified successfully');
+            spLog.success('הגדרות ווידגטים נשמרו ואומתו בהצלחה');
             return payload;
         } catch (error) {
-            console.error('Error saving SharePoint widget config:', error);
+            spLog.error('שגיאה בשמירת הגדרות ווידגטים ל-SharePoint:', error);
             throw new Error('שגיאה בשמירת הגדרות ווידגטים ל-SharePoint: ' + error.message);
         }
     }

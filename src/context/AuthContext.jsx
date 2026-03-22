@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import UsersService from '../services/UsersService';
+import { spLog } from '../utils/spAppLog';
 
 const AuthContext = createContext(null);
 const SESSION_USER_NAME_KEY = 'tracker_user_name';
@@ -90,9 +91,8 @@ const userMatchesAdminEntry = (user, adminEntry) => {
         ...extractDigitTokens(user?.displayName),
         ...extractDigitTokens(user?.email),
         ...extractDigitTokens(user?.loginName),
+        ...extractDigitTokens(user?.personalNumber),    
     ]);
-
-    if (normalizedPersonalNumber) userDigitTokens.add(normalizedPersonalNumber);
 
     const adminName = normalizeIdentityText(adminEntry?.name);
     const adminEmail = normalizeIdentityText(adminEntry?.email);
@@ -182,6 +182,7 @@ export const AuthProvider = ({ children }) => {
      */
     const trySharePointLogin = async (adminUsers) => {
         try {
+            spLog.user('שולף משתמש נוכחי מ-SharePoint (_api/web/currentuser)...');
             const response = await fetch('/_api/web/currentuser', {
                 method: 'GET',
                 credentials: 'include',
@@ -190,8 +191,16 @@ export const AuthProvider = ({ children }) => {
                 }
             });
 
+            spLog.user(`תגובת currentuser | status: ${response.status} ${response.statusText}`);
+
             if (response.ok) {
                 const data = await response.json();
+                spLog.user('נתונים מ-SP: משתמש נוכחי (גולמי)', {
+                    Id: data?.d?.Id,
+                    Title: data?.d?.Title,
+                    Email: data?.d?.Email,
+                    LoginName: data?.d?.LoginName,
+                });
                 const user = normalizeCurrentUser({
                     displayName: data?.d?.Title || '',
                     loginName: data?.d?.LoginName || '',
@@ -199,43 +208,57 @@ export const AuthProvider = ({ children }) => {
                 });
 
                 if (user.displayName) {
+                    spLog.success(`התחברות אוטומטית | displayName: ${user.displayName}`);
                     signIn(user, adminUsers);
                     return true;
                 }
             }
             return false;
         } catch {
-            console.log('SharePoint user detection not available (likely in dev mode)');
+            spLog.warn('זיהוי משתמש SharePoint לא זמין (לרוב במצב פיתוח מחוץ לאתר)');
             return false;
         }
     };
 
     useEffect(() => {
         const initAuth = async () => {
+            spLog.boot('AuthProvider: מתחיל טעינת הרשאות ומשתמש...');
+            spLog.scan('טוען רשימת מנהלים מערכת (UsersService) ומשתמש שמור בסשן...');
+
             // First, fetch the allowed users list
             let sysUsers = [];
             try {
                 sysUsers = await UsersService.getUsers();
                 setAdminUsersInfo(sysUsers);
+                const n = Array.isArray(sysUsers) ? sysUsers.length : 0;
+                spLog.success(`רשימת מנהלים נטענה | פריטים: ${n}`);
             } catch (e) {
-                console.error("Error fetching admin users, falling back to empty list", e);
+                spLog.error('שגיאה בטעינת רשימת מנהלים — ממשיכים עם רשימה ריקה', e);
             }
 
             const storedUser = readStoredUser();
 
             if (storedUser) {
+                spLog.user('נמצא משתמש שמור בסשן', {
+                    displayName: storedUser.displayName,
+                    email: storedUser.email || '',
+                    loginName: storedUser.loginName || '',
+                });
                 setCurrentUser(storedUser);
                 setIsAdmin(
                     (SHAREPOINT_CONFIG.useMock && SHAREPOINT_CONFIG.allowMockAdminBypass)
                     || isAdminByList(storedUser, sysUsers)
                 );
             } else if (SHAREPOINT_CONFIG.useMock && SHAREPOINT_CONFIG.allowMockAdminBypass) {
+                spLog.system('מצב mock עם allowMockAdminBypass — מנהל ללא זיהוי SP');
                 setIsAdmin(true);
             } else if (!SHAREPOINT_CONFIG.useMock) {
+                spLog.scan('אין משתמש בסשן — מנסה התחברות אוטומטית דרך SharePoint...');
                 // Attempt to auto-login via SharePoint if no user in session
                 await trySharePointLogin(sysUsers);
             }
 
+            spLog.success('AuthProvider: סיום אתחול (loading=false)');
             setLoading(false);
         };
 

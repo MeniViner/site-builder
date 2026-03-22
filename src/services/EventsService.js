@@ -1,11 +1,19 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { buildFileValueEndpoint, getRequestDigest } from '../utils/sharepointUtils';
+import {
+    spLog,
+    spLogFileReadStart,
+    spLogFileReadResponse,
+    spLogFileReadOk,
+    spLogFileSaveStart,
+    spLogFileSaveResponse,
+} from '../utils/spAppLog';
 
 class EventsService {
     constructor() {
         this.config = SHAREPOINT_CONFIG;
         this.useMock = this.config.useMock;
-        console.log(`EventsService initialized in ${this.useMock ? 'MOCK' : 'PRODUCTION'} mode`);
+        spLog.system(`EventsService — מצב ${this.useMock ? 'MOCK' : 'PRODUCTION'}`);
     }
 
     /**
@@ -108,6 +116,9 @@ class EventsService {
             const fileUrl = this.config.fileServerRelativeUrl;
             const endpoint = buildFileValueEndpoint(fileUrl);
 
+            spLog.scan('טוען מופעים / אירועים (Events) מ-SharePoint...');
+            spLogFileReadStart('מופעים', fileUrl);
+
             const response = await fetch(endpoint, {
                 method: 'GET',
                 credentials: 'include',
@@ -116,18 +127,23 @@ class EventsService {
                 }
             });
 
+            spLogFileReadResponse(fileUrl, response);
+
             if (!response.ok) {
                 if (response.status === 404) {
-                    console.log('SharePoint file not found, returning empty array');
+                    spLog.warn('קובץ מופעים לא נמצא — מערך ריק');
                     return [];
                 }
                 throw new Error(`SharePoint request failed: ${response.status} ${response.statusText}`);
             }
 
             const text = await response.text();
-            return JSON.parse(text);
+            const data = JSON.parse(text);
+            const evCount = Array.isArray(data?.events) ? data.events.length : (Array.isArray(data) ? data.length : 0);
+            spLogFileReadOk(fileUrl, `אירועים: ${evCount}`);
+            return data;
         } catch (error) {
-            console.error('Error reading SharePoint events:', error);
+            spLog.error('שגיאה בקריאת מופעים מ-SharePoint:', error);
             throw new Error('שגיאה בקריאת מופעים מ-SharePoint: ' + error.message);
         }
     }
@@ -141,6 +157,8 @@ class EventsService {
             const fileUrl = this.config.fileServerRelativeUrl;
             const endpoint = buildFileValueEndpoint(fileUrl);
 
+            spLogFileSaveStart('מופעים', fileUrl);
+
             const saveResponse = await fetch(endpoint, {
                 method: 'POST',
                 credentials: 'include',
@@ -153,11 +171,13 @@ class EventsService {
                 body: JSON.stringify(payload)
             });
 
+            spLogFileSaveResponse(fileUrl, saveResponse);
+
             if (!saveResponse.ok) {
                 throw new Error(`SharePoint save failed: ${saveResponse.status} ${saveResponse.statusText}`);
             }
 
-            console.log('Events save request successful. Verifying...');
+            spLog.scan('מאמת שמירת מופעים...');
 
             // Step 3: Verify the save by reading it back
             const verifyResponse = await fetch(endpoint, {
@@ -168,19 +188,17 @@ class EventsService {
                 }
             });
 
+            spLog.file(`אימות מופעים | status: ${verifyResponse.status}`);
+
             if (!verifyResponse.ok) {
-                console.error(`Verification failed: ${verifyResponse.status}`);
+                spLog.error(`אימות מופעים נכשל: ${verifyResponse.status}`);
                 throw new Error('השמירה בוצעה אך האימות נכשל. ייתכן שהנתונים לא נשמרו כראוי.');
             }
 
-            // Optional: You could read the text and compare lengths or parse it to be 100% sure
-            // const savedText = await verifyResponse.text();
-            // console.log(`Verified save: ${savedText.length} bytes`);
-
-            console.log('Events saved and verified successfully');
+            spLog.success('מופעים נשמרו ואומתו בהצלחה');
             return payload;
         } catch (error) {
-            console.error('Error saving SharePoint events:', error);
+            spLog.error('שגיאה בשמירת מופעים ל-SharePoint:', error);
             throw new Error('שגיאה בשמירת מופעים ל-SharePoint: ' + error.message);
         }
     }

@@ -1,5 +1,13 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { buildFileValueEndpoint, getRequestDigest } from '../utils/sharepointUtils';
+import {
+    spLog,
+    spLogFileReadStart,
+    spLogFileReadResponse,
+    spLogFileReadOk,
+    spLogFileSaveStart,
+    spLogFileSaveResponse,
+} from '../utils/spAppLog';
 
 const DEFAULT_EXTERNAL_LINKS = [];
 
@@ -7,7 +15,7 @@ class ExternalLinksService {
     constructor() {
         this.config = SHAREPOINT_CONFIG;
         this.useMock = this.config.useMock;
-        console.log(`ExternalLinksService initialized in ${this.useMock ? 'MOCK' : 'PRODUCTION'} mode`);
+        spLog.system(`ExternalLinksService — מצב ${this.useMock ? 'MOCK' : 'PRODUCTION'}`);
     }
 
     async getExternalLinks() {
@@ -78,24 +86,32 @@ class ExternalLinksService {
             const fileUrl = this.config.externalLinksFileServerRelativeUrl;
             const endpoint = buildFileValueEndpoint(fileUrl);
 
+            spLog.scan('טוען קישורים חיצוניים מ-SharePoint...');
+            spLogFileReadStart('קישורים חיצוניים', fileUrl);
+
             const response = await fetch(endpoint, {
                 method: 'GET',
                 credentials: 'include',
                 headers: { 'Accept': 'application/json;odata=verbose' }
             });
 
+            spLogFileReadResponse(fileUrl, response);
+
             if (!response.ok) {
                 if (response.status === 404) {
-                    console.log('SharePoint external links file not found, returning empty array');
+                    spLog.warn('קובץ קישורים חיצוניים לא נמצא — מערך ריק');
                     return [];
                 }
                 throw new Error(`SharePoint request failed: ${response.status} ${response.statusText}`);
             }
 
             const text = await response.text();
-            return JSON.parse(text);
+            const data = JSON.parse(text);
+            const n = Array.isArray(data) ? data.length : 0;
+            spLogFileReadOk(fileUrl, `פריטים: ${n}`);
+            return data;
         } catch (error) {
-            console.error('Error reading SharePoint external links:', error);
+            spLog.error('שגיאה בקריאת קישורים חיצוניים מ-SharePoint:', error);
             throw new Error('שגיאה בקריאת קישורים חיצוניים מ-SharePoint: ' + error.message);
         }
     }
@@ -105,6 +121,8 @@ class ExternalLinksService {
             const formDigestValue = await getRequestDigest();
             const fileUrl = this.config.externalLinksFileServerRelativeUrl;
             const endpoint = buildFileValueEndpoint(fileUrl);
+
+            spLogFileSaveStart('קישורים חיצוניים', fileUrl);
 
             const saveResponse = await fetch(endpoint, {
                 method: 'POST',
@@ -118,24 +136,29 @@ class ExternalLinksService {
                 body: JSON.stringify(payload)
             });
 
+            spLogFileSaveResponse(fileUrl, saveResponse);
+
             if (!saveResponse.ok) {
                 throw new Error(`SharePoint save failed: ${saveResponse.status} ${saveResponse.statusText}`);
             }
 
+            spLog.scan('מאמת שמירת קישורים חיצוניים...');
             const verifyResponse = await fetch(endpoint, {
                 method: 'GET',
                 credentials: 'include',
                 headers: { 'Accept': 'application/json;odata=verbose' }
             });
 
+            spLog.file(`אימות קישורים חיצוניים | status: ${verifyResponse.status}`);
+
             if (!verifyResponse.ok) {
                 throw new Error('השמירה בוצעה אך האימות נכשל. ייתכן שהנתונים לא נשמרו כראוי.');
             }
 
-            console.log('External links saved and verified successfully');
+            spLog.success('קישורים חיצוניים נשמרו ואומתו בהצלחה');
             return payload;
         } catch (error) {
-            console.error('Error saving SharePoint external links:', error);
+            spLog.error('שגיאה בשמירת קישורים חיצוניים ל-SharePoint:', error);
             throw new Error('שגיאה בשמירת קישורים חיצוניים ל-SharePoint: ' + error.message);
         }
     }

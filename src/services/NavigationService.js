@@ -1,11 +1,19 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { buildFileValueEndpoint, getRequestDigest } from '../utils/sharepointUtils';
+import {
+    spLog,
+    spLogFileReadStart,
+    spLogFileReadResponse,
+    spLogFileReadOk,
+    spLogFileSaveStart,
+    spLogFileSaveResponse,
+} from '../utils/spAppLog';
 
 class NavigationService {
     constructor() {
         this.config = SHAREPOINT_CONFIG;
         this.useMock = this.config.useMock;
-        console.log(`NavigationService initialized in ${this.useMock ? 'MOCK' : 'PRODUCTION'} mode`);
+        spLog.system(`NavigationService — מצב ${this.useMock ? 'MOCK' : 'PRODUCTION'}`);
     }
 
     async getNavigation() {
@@ -214,6 +222,9 @@ class NavigationService {
             const fileUrl = this.config.navFileServerRelativeUrl;
             const endpoint = buildFileValueEndpoint(fileUrl);
 
+            spLog.scan('טוען ניווט (Navigation) מ-SharePoint...');
+            spLogFileReadStart('ניווט', fileUrl);
+
             const response = await fetch(endpoint, {
                 method: 'GET',
                 credentials: 'include',
@@ -222,18 +233,23 @@ class NavigationService {
                 }
             });
 
+            spLogFileReadResponse(fileUrl, response);
+
             if (!response.ok) {
                 if (response.status === 404) {
-                    console.log('SharePoint navigation file not found, returning empty array');
+                    spLog.warn('קובץ ניווט לא נמצא — מערך ריק');
                     return [];
                 }
                 throw new Error(`SharePoint request failed: ${response.status} ${response.statusText}`);
             }
 
             const text = await response.text();
-            return JSON.parse(text);
+            const data = JSON.parse(text);
+            const n = Array.isArray(data) ? data.length : 0;
+            spLogFileReadOk(fileUrl, `פריטי שורש: ${n}`);
+            return data;
         } catch (error) {
-            console.error('Error reading SharePoint navigation:', error);
+            spLog.error('שגיאה בקריאת ניווט מ-SharePoint:', error);
             throw new Error('שגיאה בקריאת הניווט מ-SharePoint: ' + error.message);
         }
     }
@@ -247,6 +263,8 @@ class NavigationService {
             const fileUrl = this.config.navFileServerRelativeUrl;
             const endpoint = buildFileValueEndpoint(fileUrl);
 
+            spLogFileSaveStart('ניווט', fileUrl);
+
             const saveResponse = await fetch(endpoint, {
                 method: 'POST',
                 credentials: 'include',
@@ -259,11 +277,13 @@ class NavigationService {
                 body: JSON.stringify(navData)
             });
 
+            spLogFileSaveResponse(fileUrl, saveResponse);
+
             if (!saveResponse.ok) {
                 throw new Error(`SharePoint save failed: ${saveResponse.status} ${saveResponse.statusText}`);
             }
 
-            console.log('Navigation save request successful. Verifying...');
+            spLog.scan('מאמת שמירת ניווט...');
 
             // Step 3: Verify the save by reading it back
             const verifyResponse = await fetch(endpoint, {
@@ -274,15 +294,17 @@ class NavigationService {
                 }
             });
 
+            spLog.file(`אימות ניווט | status: ${verifyResponse.status}`);
+
             if (!verifyResponse.ok) {
-                console.error(`Verification failed: ${verifyResponse.status}`);
+                spLog.error(`אימות ניווט נכשל: ${verifyResponse.status}`);
                 throw new Error('השמירה בוצעה אך האימות נכשל. ייתכן שהנתונים לא נשמרו כראוי.');
             }
 
-            console.log('Navigation saved and verified successfully');
+            spLog.success('ניווט נשמר ואומת בהצלחה');
             return navData;
         } catch (error) {
-            console.error('Error saving SharePoint navigation:', error);
+            spLog.error('שגיאה בשמירת ניווט ל-SharePoint:', error);
             throw new Error('שגיאה בשמירת ניווט ל-SharePoint: ' + error.message);
         }
     }
