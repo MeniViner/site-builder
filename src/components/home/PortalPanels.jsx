@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import WidgetPanelContent, { getWidgetTitle } from '../WidgetPanelContent';
 import { useWidget } from '../../context/WidgetContext';
+import { DEFAULT_ACTIVE_WIDGETS } from '../../utils/widgetDisplay';
 import { isTacticalStyle, normalizeBorderStyle, tacticalClip } from '../../utils/borderStyles';
 
 function TacticalPanel({ borderStyle, cornerSize, className, children, glowLine, showBorder = true, showBackground = true, showShadow = true }) {
@@ -133,7 +134,7 @@ export function WidgetSection({ borderStyle, widgetHeight, onWidgetTitleChange, 
     if (widgetConfig?.activeWidget) {
       return [widgetConfig.activeWidget];
     }
-    return ['events'];
+    return [...DEFAULT_ACTIVE_WIDGETS];
   }, [widgetConfig?.activeWidgets, widgetConfig?.activeWidget]);
 
   const rotationInterval = useMemo(() => {

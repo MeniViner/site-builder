@@ -1,6 +1,6 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { buildFileValueEndpoint, getRequestDigest } from '../utils/sharepointUtils';
-import { mergeWidgetSettings } from '../utils/widgetDisplay';
+import { DEFAULT_ACTIVE_WIDGETS, mergeWidgetSettings } from '../utils/widgetDisplay';
 import {
     spLog,
     spLogFileReadStart,
@@ -11,7 +11,7 @@ import {
 } from '../utils/spAppLog';
 
 export const DEFAULT_WIDGETS_CONFIG = {
-    activeWidgets: ['events'],
+    activeWidgets: [...DEFAULT_ACTIVE_WIDGETS],
     rotationInterval: 8,
     widgetSettings: mergeWidgetSettings(),
     outstanding: [],

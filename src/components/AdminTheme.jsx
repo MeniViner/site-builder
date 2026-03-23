@@ -5,7 +5,7 @@ import ThemeLivePreview from './ThemeLivePreview';
 import {
     AlertTriangle, Palette, Sun, Moon, Monitor,
     Hexagon, Eye, EyeOff,
-    LayoutGrid, List, Columns, Globe, CircleDot, PanelBottom, PanelRight, Info, CheckCircle2
+    LayoutGrid, List, Columns, Globe, CircleDot, PanelBottom, PanelRight, CheckCircle2
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { normalizeBorderStyle, panelStyle } from '../utils/borderStyles';
@@ -77,6 +77,34 @@ const EXTERNAL_LINK_LAYOUTS = [
     { value: 'cards', label: 'Cards', description: 'כרטיסים עם אייקון וכותרת', icon: LayoutGrid },
     { value: 'minimal', label: 'Minimal Icons', description: 'עיגולי אייקון בשורה — כותרת ב-hover', icon: CircleDot },
     { value: 'floating', label: 'Floating Bar', description: 'פס עגול עם אייקונים וטקסט', icon: PanelBottom },
+];
+
+/** אפשרויות תצוגה תחת בחירת פריסת קישורים חיצוניים — ברירת true כשהשדה undefined */
+const EXTERNAL_LINK_DISPLAY_TOGGLES = [
+    {
+        field: 'externalLinksFixed',
+        defaultTrue: false,
+        title: 'הצג כפס נעוץ',
+        subtitle: 'הקישורים יישארו קבועים בתחתית המסך ויהיו תמיד גלויים גם בגלילה.',
+        helpTitle: 'פס נעוץ',
+        helpDescription: 'נעוץ: הקישורים יוצגו בפס קבוע בתחתית המסך (תמיד גלוי בגלילה).',
+    },
+    {
+        field: 'externalLinksBordered',
+        defaultTrue: true,
+        title: 'הצג את הלינקים בתחום עם מסגרת (בורדר)',
+        subtitle: 'כאשר כבוי — הקישורים יוצגו ללא מסגרת מסביב.',
+        helpTitle: 'מסגרת לקישורים חיצוניים',
+        helpDescription: 'כאשר האפשרות פעילה, לכל קישור חיצוני תהיה מסגרת ברורה סביבו.',
+    },
+    {
+        field: 'externalLinksShowBackground',
+        defaultTrue: true,
+        title: 'הצג רקע סביב קישורים חיצוניים',
+        subtitle: 'כאשר כבוי — הפס/הכרטיסים יוצגו בלי רקע לבן ומטושטש (שקוף).',
+        helpTitle: 'רקע לקישורים חיצוניים',
+        helpDescription: 'כאשר האפשרות פעילה, הקישורים יוצגו על גבי רקע בולט יותר ולא ישבו ישירות על הדף.',
+    },
 ];
 
 const WIDGET_HEIGHT_OPTIONS = [
@@ -785,63 +813,40 @@ export default function AdminTheme() {
                                     );
                                 })}
                             </div>
-                            <div className="space-y-4 pt-5 border-t border-gray-200 dark:border-white/5">
-                                <label className="flex items-center gap-3 cursor-pointer select-none p-3 rounded-xl bg-gray-50 dark:bg-[#1e212b] hover:bg-gray-100 dark:hover:bg-white/5 transition">
-                                    <input
-                                        type="checkbox"
-                                        checked={!!draft.externalLinksFixed}
-                                        onChange={(e) => updateField('externalLinksFixed', e.target.checked)}
-                                        className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-primary-500 focus:ring-primary-500"
-                                    />
-                                    <div>
-                                        <span className="font-medium text-gray-800 dark:text-gray-200">הצג כפס נעוץ</span>
-                                        <Tooltip text="נעוץ: הקישורים יוצגו בפס קבוע בתחתית המסך (תמיד גלוי בגלילה).">
-                                            <span
-                                                className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 dark:bg-white/10 text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-white/20 transition-colors cursor-help mr-1.5 align-middle"
-                                                aria-label="הסבר על פס נעוץ"
+                            <div className="flex flex-col gap-3 pt-5 border-t border-gray-200 dark:border-white/5" dir="rtl">
+                                {EXTERNAL_LINK_DISPLAY_TOGGLES.map((row) => {
+                                    const raw = draft[row.field];
+                                    const isOn = row.defaultTrue ? raw !== false : !!raw;
+                                    return (
+                                        <div
+                                            key={row.field}
+                                            className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-[#1b1f2a] px-4 py-3"
+                                        >
+                                            <div className="min-w-0 flex-1 text-start">
+                                                <div className="flex items-center gap-2 justify-start">
+                                                    <div className="text-sm font-bold text-gray-800 dark:text-gray-200">{row.title}</div>
+                                                    <HelpTooltipButton
+                                                        title={row.helpTitle}
+                                                        description={row.helpDescription}
+                                                        buttonClassName="shrink-0"
+                                                        iconSize={12}
+                                                    />
+                                                </div>
+                                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{row.subtitle}</div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => updateField(row.field, !isOn)}
+                                                className={`shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition ${isOn
+                                                    ? 'bg-green-500/20 text-green-700 dark:text-green-300 border border-green-500/40'
+                                                    : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-white/10'
+                                                    }`}
                                             >
-                                                <Info size={12} strokeWidth={2.5} />
-                                            </span>
-                                        </Tooltip>
-                                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">הקישורים יישארו קבועים בתחתית המסך ויהיו תמיד גלויים גם בגלילה.</p>
-                                    </div>
-                                </label>
-                                <label className="flex items-center gap-3 cursor-pointer select-none p-3 rounded-xl bg-gray-50 dark:bg-[#1e212b] hover:bg-gray-100 dark:hover:bg-white/5 transition">
-                                    <input
-                                        type="checkbox"
-                                        checked={draft.externalLinksBordered !== false}
-                                        onChange={(e) => updateField('externalLinksBordered', e.target.checked)}
-                                        className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-primary-500 focus:ring-primary-500"
-                                    />
-                                    <div>
-                                        <span className="font-medium text-gray-800 dark:text-gray-200">הצג את הלינקים בתחום עם מסגרת (בורדר)</span>
-                                        <HelpTooltipButton
-                                            title="מסגרת לקישורים חיצוניים"
-                                            description="כאשר האפשרות פעילה, לכל קישור חיצוני תהיה מסגרת ברורה סביבו."
-                                            buttonClassName="mr-1.5 h-5 w-5 align-middle"
-                                            iconSize={12}
-                                        />
-                                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">כאשר כבוי — הקישורים יוצגו ללא מסגרת מסביב.</p>
-                                    </div>
-                                </label>
-                                <label className="flex items-center gap-3 cursor-pointer select-none p-3 rounded-xl bg-gray-50 dark:bg-[#1e212b] hover:bg-gray-100 dark:hover:bg-white/5 transition">
-                                    <input
-                                        type="checkbox"
-                                        checked={draft.externalLinksShowBackground !== false}
-                                        onChange={(e) => updateField('externalLinksShowBackground', e.target.checked)}
-                                        className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-primary-500 focus:ring-primary-500"
-                                    />
-                                    <div>
-                                        <span className="font-medium text-gray-800 dark:text-gray-200">הצג רקע סביב קישורים חיצוניים</span>
-                                        <HelpTooltipButton
-                                            title="רקע לקישורים חיצוניים"
-                                            description="כאשר האפשרות פעילה, הקישורים יוצגו על גבי רקע בולט יותר ולא ישבו ישירות על הדף."
-                                            buttonClassName="mr-1.5 h-5 w-5 align-middle"
-                                            iconSize={12}
-                                        />
-                                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">כאשר כבוי — הפס/הכרטיסים יוצגו בלי רקע לבן ומטושטש (שקוף).</p>
-                                    </div>
-                                </label>
+                                                {isOn ? 'פעיל' : 'כבוי'}
+                                            </button>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </section>
                     )}

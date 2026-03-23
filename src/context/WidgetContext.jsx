@@ -1,6 +1,6 @@
 import React, { createContext, useMemo, useContext, useCallback } from 'react';
 import { useConfig } from './ConfigProvider';
-import { mergeWidgetSettings } from '../utils/widgetDisplay';
+import { DEFAULT_ACTIVE_WIDGETS, mergeWidgetSettings } from '../utils/widgetDisplay';
 
 export const WidgetContext = createContext();
 
@@ -20,7 +20,7 @@ const VALID_WIDGET_IDS = new Set([
     'tips',
 ]);
 
-function normalizeActiveWidgets(value, fallback = ['events']) {
+function normalizeActiveWidgets(value, fallback = DEFAULT_ACTIVE_WIDGETS) {
     const source = Array.isArray(value)
         ? value
         : (typeof value === 'string' ? [value] : []);
@@ -34,7 +34,7 @@ function normalizeActiveWidgets(value, fallback = ['events']) {
         next.push(id);
     });
 
-    if (next.length === 0) return fallback;
+    if (next.length === 0) return [...fallback];
     return next.slice(0, 3);
 }
 
@@ -103,7 +103,7 @@ function toLegacyWidgetConfig(widgets) {
     const data = source.data || {};
     const display = mergeWidgetSettings(source.display || {});
 
-    const activeWidgets = normalizeActiveWidgets(source.active, ['events']);
+    const activeWidgets = normalizeActiveWidgets(source.active, DEFAULT_ACTIVE_WIDGETS);
     const eventsBranch = data.events || {};
     const eventItems = Array.isArray(eventsBranch.items)
         ? eventsBranch.items
@@ -182,8 +182,8 @@ function toV1WidgetPatch(flatConfig, prevWidgets) {
     const input = flatConfig || {};
 
     const activeWidgets = normalizeActiveWidgets(
-        input.activeWidgets ?? input.activeWidget ?? prev.active ?? ['events'],
-        Array.isArray(prev.active) && prev.active.length > 0 ? prev.active : ['events']
+        input.activeWidgets ?? input.activeWidget ?? prev.active ?? DEFAULT_ACTIVE_WIDGETS,
+        Array.isArray(prev.active) && prev.active.length > 0 ? prev.active : DEFAULT_ACTIVE_WIDGETS
     );
 
     const rotationInterval = Number.isFinite(Number(input.rotationInterval))

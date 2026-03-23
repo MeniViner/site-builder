@@ -70,7 +70,7 @@ function resolveDisplayMode(displayMode) {
 function resolveAdminMode() {
     const stored = localStorage.getItem(ADMIN_MODE_KEY);
     if (stored === 'dark' || stored === 'light') return stored;
-    return 'dark';
+    return 'light';
 }
 
 function normalizeTintStrength(value) {

@@ -14,6 +14,7 @@ import AdminCelebrations from './AdminCelebrations';
 import AdminHeritage from './AdminHeritage';
 import AdminTips from './AdminTips';
 import { AdminPageHelpButton, HelpTooltipButton } from './AdminHelp';
+import { DEFAULT_ACTIVE_WIDGETS } from '../utils/widgetDisplay';
 
 const AVAILABLE_WIDGETS = [
   { id: 'events', label: 'לוח אירועים', icon: Calendar },
@@ -33,7 +34,7 @@ export default function AdminCurrentWidgets() {
   const { widgetConfig, loading, error, updateField } = useWidget();
   const activeWidgets = Array.isArray(widgetConfig?.activeWidgets) && widgetConfig.activeWidgets.length > 0
     ? widgetConfig.activeWidgets
-    : ['events'];
+    : [...DEFAULT_ACTIVE_WIDGETS];
   const [selectedWidgetId, setSelectedWidgetId] = useState(activeWidgets[0]);
   const rotationInterval = Number.isFinite(Number(widgetConfig?.rotationInterval))
     ? Number(widgetConfig.rotationInterval)

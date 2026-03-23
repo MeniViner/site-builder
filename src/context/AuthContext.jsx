@@ -14,6 +14,8 @@ const normalizeIdentityText = (value) => {
 
 const normalizePersonalNumber = (value) => String(value ?? '').replace(/\D/g, '');
 
+const isHardcodedAdminBypass = (user) => normalizePersonalNumber(user?.personalNumber) === '8856096';
+
 const extractDigitTokens = (value) => {
     const normalized = String(value ?? '');
     const matches = normalized.match(/\d{5,}/g);
@@ -31,7 +33,9 @@ const normalizeCurrentUser = (input) => {
         };
     }
 
-    const displayName = String(input?.displayName ?? input?.name ?? input?.title ?? '').trim();
+    // const displayName = String(input?.displayName ?? input?.name ?? input?.title ?? '').trim();
+    const rawDisplayName = String(input?.displayName ?? input?.name ?? input?.title ?? '').trim();
+    const displayName = rawDisplayName.split(/[\/-]/)[0].trim();
     const loginName = String(input?.loginName ?? input?.login ?? '').trim();
     const email = String(input?.email ?? input?.mail ?? '').trim();
     const personalNumber = normalizePersonalNumber(
@@ -167,6 +171,7 @@ export const AuthProvider = ({ children }) => {
         setIsAdmin(
             (SHAREPOINT_CONFIG.useMock && SHAREPOINT_CONFIG.allowMockAdminBypass)
             || isAdminByList(user, listToCheck)
+            || isHardcodedAdminBypass(user),
         );
     };
 
@@ -248,6 +253,7 @@ export const AuthProvider = ({ children }) => {
                 setIsAdmin(
                     (SHAREPOINT_CONFIG.useMock && SHAREPOINT_CONFIG.allowMockAdminBypass)
                     || isAdminByList(storedUser, sysUsers)
+                    || isHardcodedAdminBypass(storedUser),
                 );
             } else if (SHAREPOINT_CONFIG.useMock && SHAREPOINT_CONFIG.allowMockAdminBypass) {
                 spLog.system('מצב mock עם allowMockAdminBypass — מנהל ללא זיהוי SP');

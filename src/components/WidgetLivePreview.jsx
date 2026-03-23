@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Home } from '../App';
 import { WidgetContext, useWidget } from '../context/WidgetContext';
+import { DEFAULT_ACTIVE_WIDGETS } from '../utils/widgetDisplay';
 
 export default function WidgetLivePreview({
     activeWidget,
@@ -41,7 +42,7 @@ export default function WidgetLivePreview({
         widgetConfig: {
             ...globalWidgetContext.widgetConfig,
             activeWidget: activeWidget,
-            activeWidgets: activeWidget ? [activeWidget] : (globalWidgetContext.widgetConfig?.activeWidgets || ['events'])
+            activeWidgets: activeWidget ? [activeWidget] : (globalWidgetContext.widgetConfig?.activeWidgets || [...DEFAULT_ACTIVE_WIDGETS])
         }
     };
 

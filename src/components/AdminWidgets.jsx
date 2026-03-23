@@ -7,6 +7,7 @@ import {
 import { useWidget } from '../context/WidgetContext';
 import WidgetLivePreview from './WidgetLivePreview';
 import { AdminPageHelpButton, HelpTooltipButton } from './AdminHelp';
+import { DEFAULT_ACTIVE_WIDGETS } from '../utils/widgetDisplay';
 
 const AVAILABLE_WIDGETS = [
   { id: 'events', label: 'לוח אירועים', description: 'הצגת אירועים קרובים עם ניהול מלא דרך ממשק האירועים.', icon: Calendar },
@@ -26,7 +27,7 @@ export default function AdminWidgets() {
   const { widgetConfig, loading, error, updateField } = useWidget();
   const activeWidgets = Array.isArray(widgetConfig?.activeWidgets) && widgetConfig.activeWidgets.length > 0
     ? widgetConfig.activeWidgets
-    : ['events'];
+    : [...DEFAULT_ACTIVE_WIDGETS];
   const [previewWidgetId, setPreviewWidgetId] = useState(activeWidgets[0]);
 
   useEffect(() => {

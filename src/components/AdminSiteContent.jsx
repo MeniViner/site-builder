@@ -505,7 +505,7 @@ export default function AdminSiteContent() {
                                                         />
                                                     </label>
                                                     {hero.logo && (
-                                                        <button 
+                                                        <button
                                                             onClick={() => updateHeroField('logo', '')}
                                                             className="text-[10px] font-bold text-red-400 hover:text-red-300 transition text-right px-1"
                                                         >
@@ -829,11 +829,10 @@ export default function AdminSiteContent() {
                                                             type="button"
                                                             onClick={() => updateCommanderField('decorativeElement', option.id)}
                                                             aria-pressed={isActive}
-                                                            className={`flex flex-col items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 dark:focus-visible:ring-offset-[#232733] ${
-                                                                isActive
-                                                                    ? 'border-primary-500 bg-primary-500/10 text-primary-600 dark:text-primary-300 shadow-sm'
-                                                                    : 'border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-[#1b1f2a] text-gray-700 dark:text-gray-300 hover:border-primary/40 hover:bg-primary-500/5'
-                                                            }`}
+                                                            className={`flex flex-col items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 dark:focus-visible:ring-offset-[#232733] ${isActive
+                                                                ? 'border-primary-500 bg-primary-500/10 text-primary-600 dark:text-primary-300 shadow-sm'
+                                                                : 'border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-[#1b1f2a] text-gray-700 dark:text-gray-300 hover:border-primary/40 hover:bg-primary-500/5'
+                                                                }`}
                                                         >
                                                             <span className="text-[11px]">{option.label}</span>
                                                             <div className="w-full flex items-center justify-center">
@@ -1132,10 +1131,11 @@ export default function AdminSiteContent() {
                                                     as="span"
                                                     className="block text-sm font-bold text-gray-700 dark:text-gray-300"
                                                     wrapperClassName="mb-2 flex items-center gap-2"
-                                                    helpTitle="סדר שכבות"
+                                                    helpTitle="סדר שכבות - z-index"
                                                     helpDescription="קובע אם התמונה תופיע מעל אלמנטים אחרים או מתחתיהם."
                                                 >
-                                                    z-index
+
+                                                    סדר שכבות
                                                 </HelpLabel>
                                                 <input
                                                     type="number"
@@ -1149,6 +1149,94 @@ export default function AdminSiteContent() {
                                             </div>
                                         </div>
 
+                                        <div className="space-y-4">
+                                            <h3 className=" flex items-center gap-2 text-sm font-bold text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-white/10 pb-2">
+                                                מיקום ועיגון האלמנט במסך
+                                                <HelpTooltipButton
+                                                    title="מיקום אובייקט התמונה באתר"
+                                                    description="מיקומו המדויק בו הוא יופיע באתר - שימו לב!  מכיוון שמסכים שונים מוצגים בגדלים שונים, ייתכנו סטיות קלות לצדדים. לכן אין להסתמך על המוצג בתצוגה המקדימה. יש לבדוק בדף הבית כיצד ואיפה האלמנט מופיע בפועל ולתקן בהתאם"
+                                                />
+
+                                            </h3>
+
+                                            {/* <div>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">נקודת עיגון באתר</label>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {OVERLAY_ANCHOR_OPTIONS.map((option) => (
+                                                    <button
+                                                        key={option.value}
+                                                        type="button"
+                                                        onClick={() => updateOverlayField('anchor', option.value)}
+                                                        className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${overlayImage.anchor === option.value
+                                                            ? 'border-primary-500 bg-primary-500/10 text-primary-600 dark:text-primary-300'
+                                                            : 'border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-[#1b1f2a] text-gray-600 dark:text-gray-300 hover:border-primary/40'
+                                                            }`}
+                                                    >
+                                                        {option.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div> */}
+                                            <div>
+                                                <div className="flex items-center justify-between gap-3 mb-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <label className="text-sm font-bold text-gray-700 dark:text-gray-300">מיקום אופקי (% מרוחב המסך)</label>
+                                                        <HelpTooltipButton
+                                                            title="מיקום אופקי"
+                                                            description="כמה ימינה או שמאלה התמונה תופיע."
+                                                        />
+                                                    </div>
+                                                    <input
+                                                        type="number"
+                                                        min={0}
+                                                        max={100}
+                                                        value={overlayImage.offsetX}
+                                                        onChange={(e) => updateOverlayNumberField('offsetX', e.target.value, 0, 100)}
+                                                        className="w-32 rounded-lg border border-gray-300 dark:border-gray-700/60 bg-white dark:bg-[#1e212b] px-3 py-1.5 text-sm dir-ltr text-left"
+                                                        dir="ltr"
+                                                    />
+                                                </div>
+                                                <input
+                                                    type="range"
+                                                    min={0}
+                                                    max={100}
+                                                    value={overlayImage.offsetX}
+                                                    onChange={(e) => updateOverlayNumberField('offsetX', e.target.value, 0, 100)}
+                                                    className="w-full accent-primary"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <div className="flex items-center justify-between gap-3 mb-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <label className="text-sm font-bold text-gray-700 dark:text-gray-300">מיקום אנכי (% מגובה המסך)</label>
+                                                        <HelpTooltipButton
+                                                            title="מיקום אנכי"
+                                                            description="כמה למעלה או למטה התמונה תופיע."
+                                                        />
+                                                    </div>
+                                                    <input
+                                                        type="number"
+                                                        min={0}
+                                                        max={100}
+                                                        value={overlayImage.offsetY}
+                                                        onChange={(e) => updateOverlayNumberField('offsetY', e.target.value, 0, 100)}
+                                                        className="w-32 rounded-lg border border-gray-300 dark:border-gray-700/60 bg-white dark:bg-[#1e212b] px-3 py-1.5 text-sm dir-ltr text-left"
+                                                        dir="ltr"
+                                                    />
+                                                </div>
+                                                <input
+                                                    type="range"
+                                                    min={0}
+                                                    max={100}
+                                                    value={overlayImage.offsetY}
+                                                    onChange={(e) => updateOverlayNumberField('offsetY', e.target.value, 0, 100)}
+                                                    className="w-full accent-primary"
+                                                />
+                                            </div>
+                                        </div>
+
+{/* 
                                         <div>
                                             <div className="flex items-center justify-between gap-3 mb-2">
                                                 <div className="flex items-center gap-2">
@@ -1168,12 +1256,12 @@ export default function AdminSiteContent() {
                                                 onChange={(e) => updateOverlayNumberField('opacity', e.target.value, 0, 100)}
                                                 className="w-full accent-primary"
                                             />
-                                        </div>
+                                        </div> */}
 
                                         <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-white/10 pb-2 pt-1">
                                             בורדר ומילוי התמונה
                                         </h3>
-                                        <div>
+                                        {/* <div>
                                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">סגנון בורדר</label>
                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                                 {OVERLAY_BORDER_STYLE_OPTIONS.map((option) => (
@@ -1190,17 +1278,17 @@ export default function AdminSiteContent() {
                                                     </button>
                                                 ))}
                                             </div>
-                                        </div>
+                                        </div> */}
 
                                         <div>
                                             <HelpLabel
                                                 as="span"
                                                 className="block text-sm font-bold text-gray-700 dark:text-gray-300"
                                                 wrapperClassName="mb-3 flex items-center gap-2"
-                                                helpTitle="התאמת התמונה למסגרת"
+                                                helpTitle="Object Fit"
                                                 helpDescription="כאן בוחרים אם לשמור את כל התמונה גלויה או למלא את המסגרת גם במחיר של חיתוך קצוות."
                                             >
-                                                Object Fit
+                                                התאמת התמונה למסגרת
                                             </HelpLabel>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                                 {OVERLAY_OBJECT_FIT_OPTIONS.map((option) => (
@@ -1220,8 +1308,12 @@ export default function AdminSiteContent() {
                                             </div>
                                         </div>
 
-                                        <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-white/10 pb-2 pt-1">
+                                        <h3 className=" flex items-center gap-2 text-sm font-bold text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-white/10 pb-2 pt-1">
                                             התנהגות בגלילה
+                                            <HelpTooltipButton
+                                                title="התנהגות בגלילה"
+                                                description="ייתכן ולא יוצג שינוי בתצוגה המקדימה - יש לבדוק בדף הבית האם מושפע לפי ההגדרה הנבחרת "
+                                            />
                                         </h3>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                             {OVERLAY_POSITION_OPTIONS.map((option) => (
@@ -1283,87 +1375,6 @@ export default function AdminSiteContent() {
                                                 {overlayImage.blendEffect ? 'פעיל' : 'כבוי'}
                                             </button>
                                         </div>
-                                    </div>
-                                </div>
-
-                                    <div className="space-y-4">
-                                        <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-white/10 pb-2">
-                                            מיקום ועיגון
-                                        </h3>
-                                        {/* <div>
-                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">נקודת עיגון באתר</label>
-                                            <div className="grid grid-cols-3 gap-2">
-                                                {OVERLAY_ANCHOR_OPTIONS.map((option) => (
-                                                    <button
-                                                        key={option.value}
-                                                        type="button"
-                                                        onClick={() => updateOverlayField('anchor', option.value)}
-                                                        className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${overlayImage.anchor === option.value
-                                                            ? 'border-primary-500 bg-primary-500/10 text-primary-600 dark:text-primary-300'
-                                                            : 'border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-[#1b1f2a] text-gray-600 dark:text-gray-300 hover:border-primary/40'
-                                                            }`}
-                                                    >
-                                                        {option.label}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div> */}
-                                        <div>
-                                            <div className="flex items-center justify-between gap-3 mb-2">
-                                                <div className="flex items-center gap-2">
-                                                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300">מיקום אופקי (% מרוחב המסך)</label>
-                                                    <HelpTooltipButton
-                                                        title="מיקום אופקי"
-                                                        description="כמה ימינה או שמאלה התמונה תופיע."
-                                                    />
-                                                </div>
-                                                <input
-                                                    type="number"
-                                                    min={0}
-                                                max={100}
-                                                value={overlayImage.offsetX}
-                                                onChange={(e) => updateOverlayNumberField('offsetX', e.target.value, 0, 100)}
-                                                className="w-32 rounded-lg border border-gray-300 dark:border-gray-700/60 bg-white dark:bg-[#1e212b] px-3 py-1.5 text-sm dir-ltr text-left"
-                                                dir="ltr"
-                                            />
-                                        </div>
-                                        <input
-                                            type="range"
-                                            min={0}
-                                            max={100}
-                                            value={overlayImage.offsetX}
-                                            onChange={(e) => updateOverlayNumberField('offsetX', e.target.value, 0, 100)}
-                                            className="w-full accent-primary"
-                                        />
-                                    </div>
-
-                                        <div>
-                                            <div className="flex items-center justify-between gap-3 mb-2">
-                                                <div className="flex items-center gap-2">
-                                                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300">מיקום אנכי (% מגובה המסך)</label>
-                                                    <HelpTooltipButton
-                                                        title="מיקום אנכי"
-                                                        description="כמה למעלה או למטה התמונה תופיע."
-                                                    />
-                                                </div>
-                                                <input
-                                                    type="number"
-                                                    min={0}
-                                                max={100}
-                                                value={overlayImage.offsetY}
-                                                onChange={(e) => updateOverlayNumberField('offsetY', e.target.value, 0, 100)}
-                                                className="w-32 rounded-lg border border-gray-300 dark:border-gray-700/60 bg-white dark:bg-[#1e212b] px-3 py-1.5 text-sm dir-ltr text-left"
-                                                dir="ltr"
-                                            />
-                                        </div>
-                                        <input
-                                            type="range"
-                                            min={0}
-                                            max={100}
-                                            value={overlayImage.offsetY}
-                                            onChange={(e) => updateOverlayNumberField('offsetY', e.target.value, 0, 100)}
-                                            className="w-full accent-primary"
-                                        />
                                     </div>
                                 </div>
 

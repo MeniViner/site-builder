@@ -1,4 +1,5 @@
 import { DEFAULT_BORDER_TARGETS } from '../utils/borderStyles';
+import { DEFAULT_ACTIVE_WIDGETS } from '../utils/widgetDisplay';
 
 const SCHEMA_VERSION = '1.0.0';
 const VALID_THEME_DISPLAY_MODES = ['dark', 'light', 'user-toggle'];
@@ -888,7 +889,7 @@ export const DEFAULT_CONFIG_V1 = {
         },
     },
     widgets: {
-        active: ['events', 'alerts', 'news'],
+        active: [...DEFAULT_ACTIVE_WIDGETS],
         carousel: {
             rotationIntervalSeconds: 8,
         },
@@ -1232,7 +1233,7 @@ export function migrateLegacyToV1(legacyData) {
         ? legacyWidgets.activeWidgets
         : legacyWidgets.activeWidget;
     migrated.widgets.active = normalizeActiveWidgets(legacyActiveWidgets);
-    if (migrated.widgets.active.length === 0) migrated.widgets.active = ['events'];
+    if (migrated.widgets.active.length === 0) migrated.widgets.active = [...DEFAULT_ACTIVE_WIDGETS];
 
     migrated.widgets.carousel.rotationIntervalSeconds = clampNumber(
         legacyWidgets.rotationInterval,
@@ -1373,7 +1374,7 @@ export function validateAndNormalize(config) {
         widgets: {
             active: (() => {
                 const active = normalizeActiveWidgets(widgetsSource.active);
-                return active.length > 0 ? active : ['events'];
+                return active.length > 0 ? active : [...DEFAULT_ACTIVE_WIDGETS];
             })(),
             carousel: {
                 rotationIntervalSeconds: clampNumber(
