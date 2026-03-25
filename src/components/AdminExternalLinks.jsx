@@ -5,6 +5,7 @@ import {
     ExternalLink, GripVertical, Image as ImageIcon, Link as LinkIcon, Type, Upload, Loader2, Star
 } from 'lucide-react';
 import { uploadImage } from '../utils/sharepointUtils';
+import { resolveSiteImageUrl } from '../utils/assetUrl';
 import { toast } from 'react-toastify';
 import IconPickerModal from './IconPickerModal';
 import { DynamicIcon } from './DynamicIcon';
@@ -189,7 +190,7 @@ export default function AdminExternalLinks() {
                                     ) : link.iconUrl ? (
                                         <>
                                             <img
-                                                src={link.iconUrl}
+                                                src={resolveSiteImageUrl(link.iconUrl)}
                                                 alt={link.title}
                                                 className="w-full h-full object-cover"
                                                 onError={(e) => { e.target.style.display = 'none'; const fallback = e.target.nextElementSibling; if (fallback) fallback.style.display = 'flex'; }}
@@ -379,7 +380,7 @@ export default function AdminExternalLinks() {
                                             <div className="mt-3 flex items-center gap-3">
                                                 <div className="w-14 h-14 rounded-xl bg-white dark:bg-[#232733] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center">
                                                     <img
-                                                        src={editingLink.iconUrl}
+                                                        src={resolveSiteImageUrl(editingLink.iconUrl)}
                                                         alt="תצוגה מקדימה"
                                                         className="w-full h-full object-cover"
                                                         onError={(e) => { e.target.style.display = 'none'; }}

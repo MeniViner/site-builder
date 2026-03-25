@@ -24,6 +24,7 @@ import AdminHeritage from './AdminHeritage';
 import AdminTips from './AdminTips';
 import WidgetLivePreview from './WidgetLivePreview';
 import Tooltip from './Tooltip';
+import NotFoundPage from './NotFoundPage';
 import { createBackup } from '../utils/sharepointUtils';
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { useWidget } from '../context/WidgetContext';
@@ -267,6 +268,7 @@ export default function AdminHub() {
                                 <Route path="/celebrations" element={<div className="w-full h-full"><AdminCelebrations /></div>} />
                                 <Route path="/heritage" element={<div className="w-full h-full"><AdminHeritage /></div>} />
                                 <Route path="/tips" element={<div className="w-full h-full"><AdminTips /></div>} />
+                                <Route path="*" element={<NotFoundPage adminMode />} />
                             </Routes>
                         </div>
                         <aside className="shrink-0 h-full w-[560px] max-w-[44vw]">
@@ -295,6 +297,7 @@ export default function AdminHub() {
                             <Route path="/celebrations" element={<div className="w-full h-full"><AdminCelebrations /></div>} />
                             <Route path="/heritage" element={<div className="w-full h-full"><AdminHeritage /></div>} />
                             <Route path="/tips" element={<div className="w-full h-full"><AdminTips /></div>} />
+                            <Route path="*" element={<NotFoundPage adminMode />} />
                         </Routes>
                     </div>
                 )}

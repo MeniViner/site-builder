@@ -1,5 +1,5 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
-import { buildFileValueEndpoint, getRequestDigest } from '../utils/sharepointUtils';
+import { buildFileValueEndpoint, upsertSharePointTextFile } from '../utils/sharepointUtils';
 import {
     spLog,
     spLogFileReadStart,
@@ -150,25 +150,15 @@ class EventsService {
 
     async _saveSharePointData(payload) {
         try {
-            // Step 1: Get security token (Form Digest) with caching
-            const formDigestValue = await getRequestDigest();
-
-            // Step 2: Save the file
             const fileUrl = this.config.fileServerRelativeUrl;
             const endpoint = buildFileValueEndpoint(fileUrl);
 
             spLogFileSaveStart('מופעים', fileUrl);
 
-            const saveResponse = await fetch(endpoint, {
-                method: 'POST',
-                credentials: 'include',
-                headers: {
-                    'X-RequestDigest': formDigestValue,
-                    'X-HTTP-Method': 'PUT', // Override POST to PUT
-                    'IF-MATCH': '*', // Overwrite existing file
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload)
+            const { response: saveResponse } = await upsertSharePointTextFile({
+                serverRelativeUrl: fileUrl,
+                text: JSON.stringify(payload, null, 2),
+                contentType: 'text/plain; charset=utf-8',
             });
 
             spLogFileSaveResponse(fileUrl, saveResponse);
@@ -179,7 +169,6 @@ class EventsService {
 
             spLog.scan('מאמת שמירת מופעים...');
 
-            // Step 3: Verify the save by reading it back
             const verifyResponse = await fetch(endpoint, {
                 method: 'GET',
                 credentials: 'include',

@@ -1,3 +1,5 @@
+// readme.md
+
 # פרויקט ליצירת דפי תדמית דינמיים
 
 פורטל אינטראנט ארגוני בשפה עברית ובכיוון RTL, המאפשר בנייה וניהול של דפי תדמית דינמיים עם ממשק ניהול ו-Widgets.
@@ -15,6 +17,13 @@
 
 - `npm run build`  
   יוצר Build לפרודקשן בתיקיית `dist/`.
+  בסיום רץ `postbuild` אוטומטי (אם `VITE_AUTO_DEPLOY=true`).
+
+- `npm run site:init`  
+  יוצר/מאתחל מבנה SharePoint לאתר חדש לפי `.env.production`.
+
+- `npm run deploy`  
+  מבצע רק שלב deploy של `dist` ל-SharePoint (ללא build).
 
 - `npm run lint`  
   מריץ בדיקות קוד סטטיות באמצעות ESLint.
@@ -41,3 +50,16 @@
 למדריך מלא להגדרת קישורי SharePoint לפי אתר ולהגדרת מנהלים לפי מספר אישי:
 
 - `SHAREPOINT-ADMIN-SETUP.md`
+
+## הקמת אתר חדש (אוטומציה)
+
+למדריך המלא של הקמה אוטומטית לאתר חדש, כולל:
+
+- `siteDB` + `siteUsersDb`
+- סקריפט יצירת תיקיות/קבצים
+- `postbuild` אוטומטי (init + deploy)
+- מודל הרשאות מומלץ
+
+ראה:
+
+- `NEW-SITE-AUTOMATION.md`

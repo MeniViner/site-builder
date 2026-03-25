@@ -1,5 +1,6 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
-import { buildFileValueEndpoint, getRequestDigest } from '../utils/sharepointUtils';
+import { cloneDefaultSampleAdminUsers } from '../config/defaultUsers';
+import { buildFileValueEndpoint, upsertSharePointTextFile } from '../utils/sharepointUtils';
 import {
     spLog,
     spLogFileReadStart,
@@ -47,11 +48,7 @@ class UsersService {
             }
 
             // Default mock users if empty
-            const defaultUsers = [
-                { id: 1, name: 'מני', role: 'admin' },
-                { id: 2, name: 'Admin', role: 'admin' },
-                { id: 3, name: 'מנהל', role: 'admin' }
-            ];
+            const defaultUsers = cloneDefaultSampleAdminUsers();
 
             this._saveMockData(defaultUsers);
             return Promise.resolve(defaultUsers);
@@ -96,11 +93,7 @@ class UsersService {
             if (!response.ok) {
                 if (response.status === 404) {
                     spLog.warn('קובץ משתמשים לא נמצא ב-SharePoint — יוצר ברירת מחדל למנהלים');
-                    const defaultUsers = [
-                        { id: 1, name: 'מני', role: 'admin' },
-                        { id: 2, name: 'Admin', role: 'admin' },
-                        { id: 3, name: 'מנהל', role: 'admin' }
-                    ];
+                    const defaultUsers = cloneDefaultSampleAdminUsers();
                     // We don't await the save here to not block the read, but we initiate it
                     this._saveSharePointData(defaultUsers).catch((e) => spLog.error('שמירת מנהלים ברירת מחדל נכשלה', e));
                     return defaultUsers;
@@ -120,33 +113,19 @@ class UsersService {
         } catch (error) {
             spLog.error('שגיאה בקריאת משתמשים מ-SharePoint:', error);
             // Fallback gracefully so app doesn't break
-            return [
-                { id: 1, name: 'מני', role: 'admin' },
-                { id: 2, name: 'Admin', role: 'admin' },
-                { id: 3, name: 'מנהל', role: 'admin' }
-            ];
+            return cloneDefaultSampleAdminUsers();
         }
     }
 
     async _saveSharePointData(usersData) {
         try {
-            const formDigestValue = await getRequestDigest();
-
             const fileUrl = this.config.usersFileServerRelativeUrl;
-            const endpoint = buildFileValueEndpoint(fileUrl);
-
             spLogFileSaveStart('משתמשי מערכת', fileUrl);
 
-            const saveResponse = await fetch(endpoint, {
-                method: 'POST',
-                credentials: 'include',
-                headers: {
-                    'X-RequestDigest': formDigestValue,
-                    'X-HTTP-Method': 'PUT',
-                    'IF-MATCH': '*',
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(usersData)
+            const { response: saveResponse } = await upsertSharePointTextFile({
+                serverRelativeUrl: fileUrl,
+                text: JSON.stringify(usersData, null, 2),
+                contentType: 'text/plain; charset=utf-8',
             });
 
             spLogFileSaveResponse(fileUrl, saveResponse);

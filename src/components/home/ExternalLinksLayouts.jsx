@@ -3,18 +3,20 @@ import { ExternalLink, Globe } from 'lucide-react';
 import { DynamicIcon } from '../DynamicIcon';
 import Tooltip from '../Tooltip';
 import { panelStyle } from '../../utils/borderStyles';
+import { resolveSiteImageUrl } from '../../utils/assetUrl';
 
 function ExtLinkIcon({ icon, src, alt, size = 18, className = '' }) {
   const [failed, setFailed] = useState(false);
+  const resolvedSrc = resolveSiteImageUrl(src);
   if (icon) {
     return <DynamicIcon name={icon} size={size} className={`text-theme-muted group-hover:text-primary transition ${className}`} />;
   }
-  if (!src || failed) {
+  if (!resolvedSrc || failed) {
     return <Globe size={size} className={`text-theme-muted group-hover:text-primary transition ${className}`} />;
   }
   return (
     <img
-      src={src}
+      src={resolvedSrc}
       alt={alt ?? ''}
       className={`w-full h-full object-cover ${className}`}
       onError={() => setFailed(true)}

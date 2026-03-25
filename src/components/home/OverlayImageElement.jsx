@@ -1,5 +1,6 @@
 import { panelStyle } from '../../utils/borderStyles';
 import { getOverlayStyle, normalizeOverlayImageConfig } from '../../utils/overlayImageConfig';
+import { resolveSiteImageUrl } from '../../utils/assetUrl';
 
 export default function OverlayImageElement({ overlayImage, isPreview = false }) {
   const normalized = normalizeOverlayImageConfig(overlayImage);
@@ -20,7 +21,7 @@ export default function OverlayImageElement({ overlayImage, isPreview = false })
         style={frameStyle}
       >
         <img
-          src={normalized.imageUrl}
+          src={resolveSiteImageUrl(normalized.imageUrl)}
           alt=""
           className="w-full h-full"
           style={{ objectFit: normalized.objectFit }}

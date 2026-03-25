@@ -7,6 +7,7 @@ import Tooltip from './Tooltip';
 import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
 import { useConfig } from '../context/ConfigProvider';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
+import { resolveSiteImageUrl } from '../utils/assetUrl';
 
 const inputCls = 'w-full bg-theme-elevated border border-theme-subtle rounded-lg px-4 py-2.5 text-sm text-theme placeholder-theme-muted focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition';
 const labelCls = 'block text-xs font-semibold text-theme-muted mb-1.5 uppercase tracking-wide';
@@ -225,7 +226,7 @@ export default function AdminOutstanding() {
                         </div>
                         {form.image && (
                             <div className="flex items-center gap-3">
-                                <img src={form.image} alt="" className="w-12 h-12 rounded-full object-cover border-2 border-emerald-500/40" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                <img src={resolveSiteImageUrl(form.image)} alt="" className="w-12 h-12 rounded-full object-cover border-2 border-emerald-500/40" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                                 <span className="text-xs text-theme-muted">תצוגה מקדימה</span>
                             </div>
                         )}
@@ -252,7 +253,7 @@ export default function AdminOutstanding() {
                         {list.map((person) => (
                             <div key={person.id} className={`relative bg-theme-card border rounded-xl p-4 flex gap-4 items-start transition ${editingId === person.id ? 'border-emerald-500/50 ring-2 ring-emerald-500/20' : 'border-theme-subtle'}`}>
                                 {person.image ? (
-                                    <img src={person.image} alt={person.name} className="w-14 h-14 rounded-full object-cover shrink-0 border-2 border-emerald-500/30" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                    <img src={resolveSiteImageUrl(person.image)} alt={person.name} className="w-14 h-14 rounded-full object-cover shrink-0 border-2 border-emerald-500/30" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                                 ) : (
                                     <div className="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0"><User size={24} className="text-emerald-500" /></div>
                                 )}

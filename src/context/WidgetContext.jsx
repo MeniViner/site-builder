@@ -1,3 +1,4 @@
+// src/context/WidgetContext.jsx
 import React, { createContext, useMemo, useContext, useCallback } from 'react';
 import { useConfig } from './ConfigProvider';
 import { DEFAULT_ACTIVE_WIDGETS, mergeWidgetSettings } from '../utils/widgetDisplay';
@@ -89,6 +90,18 @@ function toV1Polls(polls) {
                     id: String(option?.id ?? `${id}-opt-${optionIndex + 1}`),
                     text: option?.text ?? '',
                     votes: Number.isFinite(Number(option?.votes)) ? Number(option.votes) : 0,
+                    voters: Array.isArray(option?.voters)
+                        ? option.voters.map((voter, voterIndex) => ({
+                            id: String(voter?.id ?? `${id}-opt-${optionIndex + 1}-voter-${voterIndex + 1}`),
+                            name: typeof voter === 'string'
+                                ? voter
+                                : (voter?.name ?? voter?.displayName ?? ''),
+                            email: typeof voter === 'string' ? '' : (voter?.email ?? ''),
+                            loginName: typeof voter === 'string' ? '' : (voter?.loginName ?? ''),
+                            personalNumber: typeof voter === 'string' ? '' : (voter?.personalNumber ?? ''),
+                            votedAt: typeof voter === 'string' ? '' : (voter?.votedAt ?? ''),
+                        }))
+                        : [],
                 }))
                 : [],
         };

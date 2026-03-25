@@ -8,6 +8,7 @@ import {
     ChevronDown, ChevronUp, Upload, Loader2
 } from 'lucide-react';
 import { uploadImage } from '../utils/sharepointUtils';
+import { resolveSiteImageUrl } from '../utils/assetUrl';
 import Tooltip from './Tooltip';
 import { DEFAULT_OVERLAY_IMAGE, normalizeOverlayImageConfig } from '../utils/overlayImageConfig';
 import { confirmToast } from '../utils/confirmToast';
@@ -475,7 +476,7 @@ export default function AdminSiteContent() {
                                             <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-[#1b1f2a] border border-gray-200 dark:border-white/5 rounded-2xl">
                                                 <div className="w-20 h-20 rounded-xl bg-white dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center shrink-0">
                                                     {hero.logo ? (
-                                                        <img src={hero.logo} alt="Logo" className="w-full h-full object-contain" />
+                                                        <img src={resolveSiteImageUrl(hero.logo)} alt="Logo" className="w-full h-full object-contain" />
                                                     ) : (
                                                         <div className="text-gray-400 text-[10px] text-center px-1">אין לוגו</div>
                                                     )}
@@ -675,7 +676,7 @@ export default function AdminSiteContent() {
                                                 <div key={`${img}-${idx}`} className="flex items-center gap-3 group rounded-xl border border-gray-200 dark:border-white/5 bg-white dark:bg-[#151821] px-3 py-2">
                                                     <span className="text-xs text-gray-400 dark:text-gray-600 w-6 text-center shrink-0">{idx + 1}</span>
                                                     <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center shrink-0">
-                                                        <img src={img} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
+                                                        <img src={resolveSiteImageUrl(img)} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
                                                     </div>
                                                     <span className="flex-1 text-sm text-blue-600 dark:text-blue-300 truncate dir-ltr text-left" dir="ltr">
                                                         {img.startsWith('data:') ? `תמונה מקומית (${Math.round(img.length / 1024)}KB)` : img}
@@ -784,7 +785,7 @@ export default function AdminSiteContent() {
                                         <div className="mb-6 flex items-center gap-4 rounded-2xl border border-gray-200 dark:border-white/5 bg-gray-50 dark:bg-[#1b1f2a] p-4">
                                             <div className="w-24 h-24 rounded-xl bg-white dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center">
                                                 <img
-                                                    src={commander.image}
+                                                    src={resolveSiteImageUrl(commander.image)}
                                                     alt="תצוגה מקדימה"
                                                     className="w-full h-full object-contain"
                                                     onError={(e) => { e.target.style.display = 'none'; }}
@@ -1011,7 +1012,7 @@ export default function AdminSiteContent() {
                                         <div className="w-full h-40 rounded-xl bg-white dark:bg-[#141824] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center mb-3">
                                             {overlayImage.imageUrl ? (
                                                 <img
-                                                    src={overlayImage.imageUrl}
+                                                    src={resolveSiteImageUrl(overlayImage.imageUrl)}
                                                     alt="Overlay preview"
                                                     className="w-full h-full"
                                                     style={{ objectFit: overlayImage.objectFit, opacity: overlayImage.opacity / 100 }}

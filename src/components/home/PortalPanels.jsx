@@ -4,6 +4,7 @@ import WidgetPanelContent, { getWidgetTitle } from '../WidgetPanelContent';
 import { useWidget } from '../../context/WidgetContext';
 import { DEFAULT_ACTIVE_WIDGETS } from '../../utils/widgetDisplay';
 import { isTacticalStyle, normalizeBorderStyle, tacticalClip } from '../../utils/borderStyles';
+import { resolveSiteImageUrl } from '../../utils/assetUrl';
 
 function TacticalPanel({ borderStyle, cornerSize, className, children, glowLine, showBorder = true, showBackground = true, showShadow = true }) {
   const normalizedStyle = normalizeBorderStyle(borderStyle);
@@ -46,7 +47,7 @@ function CommanderSection({ commander, messages }) {
       <div className="w-full sm:w-[45%] relative shrink-0 sm:-ml-4 flex items-center justify-center overflow-visible mb-6 sm:mb-0 isolate">
         <div className="absolute left-1/2 top-1/2 -translate-x-[40%] -translate-y-[60%] w-28 lg:w-32 xl:w-36 h-28 lg:h-32 xl:h-36 bg-primary z-[1] hidden sm:block shadow-[0_0_25px_var(--color-primary-600),0_0_50px_var(--color-primary-900)]" aria-hidden="true" />
         {commander.image && (
-          <img src={commander.image} className="w-full sm:w-44 lg:w-52 xl:w-60 h-40 sm:h-full object-contain object-center relative z-[2] border-b sm:border-b-0 border-theme-subtle" alt="Commander" />
+          <img src={resolveSiteImageUrl(commander.image)} className="w-full sm:w-44 lg:w-52 xl:w-60 h-40 sm:h-full object-contain object-center relative z-[2] border-b sm:border-b-0 border-theme-subtle" alt="Commander" />
         )}
       </div>
       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/3 h-[2px] shadow-[0_0_15px_var(--color-primary-hex)] z-20" style={{ backgroundColor: 'var(--color-primary-hex)' }} />

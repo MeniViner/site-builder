@@ -1,3 +1,4 @@
+// src/config/AppSchema.js
 import { DEFAULT_BORDER_TARGETS } from '../utils/borderStyles';
 import { DEFAULT_ACTIVE_WIDGETS } from '../utils/widgetDisplay';
 
@@ -279,6 +280,33 @@ function normalizeSimpleItems(items, mapFn) {
     return source.filter(isObject).map(mapFn);
 }
 
+function normalizePollVoters(votersLike, optionId) {
+    const source = Array.isArray(votersLike) ? votersLike : [];
+
+    return source
+        .filter((voter) => typeof voter === 'string' || isObject(voter))
+        .map((voter, index) => ({
+            id: asId(
+                typeof voter === 'string' ? '' : voter?.id,
+                `${optionId}-voter-${index + 1}`
+            ),
+            name: asString(
+                typeof voter === 'string' ? voter : (voter?.name ?? voter?.displayName),
+                ''
+            ),
+            email: asString(typeof voter === 'string' ? '' : voter?.email, ''),
+            loginName: asString(typeof voter === 'string' ? '' : voter?.loginName, ''),
+            personalNumber: asString(typeof voter === 'string' ? '' : voter?.personalNumber, ''),
+            votedAt: asString(typeof voter === 'string' ? '' : voter?.votedAt, ''),
+        }))
+        .filter((voter) => (
+            voter.name
+            || voter.email
+            || voter.loginName
+            || voter.personalNumber
+        ));
+}
+
 function normalizePollsBranch(pollsLike) {
     let source = pollsLike;
     if (Array.isArray(source)) {
@@ -302,6 +330,7 @@ function normalizePollsBranch(pollsLike) {
                     id: asId(option.id, `${id}-opt-${optionIndex + 1}`),
                     text: asString(option.text, ''),
                     votes: clampNumber(option.votes, 0, 1000000, 0),
+                    voters: normalizePollVoters(option.voters, `${id}-opt-${optionIndex + 1}`),
                 })),
             };
         });

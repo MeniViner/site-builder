@@ -10,6 +10,7 @@ import HeroSection from './components/home/HeroSection';
 import OverlayImageElement from './components/home/OverlayImageElement';
 import { ExtLinksCards, ExtLinksFloating, ExtLinksMinimal } from './components/home/ExternalLinksLayouts';
 import { getWidgetTitle } from './components/WidgetPanelContent';
+import NotFoundPage from './components/NotFoundPage';
 import { useNavigation } from './context/NavigationContext';
 import { useAuth } from './context/AuthContext';
 import { useSiteContent } from './context/SiteContentContext';
@@ -17,6 +18,7 @@ import { useTheme } from './context/ThemeContext';
 import { useExternalLinks } from './context/ExternalLinksContext';
 import { normalizeBorderStyle, panelStyle } from './utils/borderStyles';
 import { normalizeOverlayImageConfig } from './utils/overlayImageConfig';
+import { resolveSiteImageUrl } from './utils/assetUrl';
 import 'react-toastify/dist/ReactToastify.css';
 
 export function Home({ isPreview = false }) {
@@ -36,7 +38,7 @@ export function Home({ isPreview = false }) {
   const commander = siteContent?.commander || { image: '', sectionTitle: '', roleLabel: '', messages: [] };
   const overlayImage = normalizeOverlayImageConfig(siteContent?.overlayImage);
   const messages = commander.messages || [];
-  const backgrounds = (hero.backgroundImages || []).filter(Boolean);
+  const backgrounds = (hero.backgroundImages || []).filter(Boolean).map((path) => resolveSiteImageUrl(path));
   const showOverlayImage = overlayImage.enabled && Boolean(overlayImage.imageUrl);
   const heroGrayscale = theme?.heroGrayscale ?? false;
   const showNavCategories = theme?.showNavCategories ?? true;
@@ -269,6 +271,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/admin/*" element={<AdminRoute />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
       <ToastContainer
         position="top-center"

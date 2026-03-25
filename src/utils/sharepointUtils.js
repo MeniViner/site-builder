@@ -1,58 +1,423 @@
+// src/utils/sharepointUtils.js
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
+import { SHAREPOINT_PATHS } from '../config/sharepointPaths';
 import { spLog, spLogDigestCache } from './spAppLog';
 
-let requestDigestCache = null;
-let requestDigestCacheTime = null;
-const CACHE_EXPIRATION_MS = 25 * 60 * 1000; // 25 minutes (SharePoint digests typically expire in 30)
+const requestDigestCache = new Map();
+const CACHE_EXPIRATION_MS = 25 * 60 * 1000; // 25 minutes (SharePoint digest ~30m)
 
-const IMAGE_BASE_FOLDER = import.meta.env.VITE_SP_IMAGE_BASE_FOLDER || '/sites/bihs7134/SiteAssets/Images';
-const FILE_VALUE_SEGMENT = '$value';
+const IMAGE_BASE_FOLDER = import.meta.env.VITE_SP_IMAGE_BASE_FOLDER || SHAREPOINT_PATHS.imageBaseFolderServerRelativeUrl;
+const RAW_SITE_API_ROOT =
+    import.meta.env.VITE_SP_SITE_API_ROOT ||
+    import.meta.env.VITE_SP_SITE_ROOT ||
+    SHAREPOINT_PATHS.siteApiRoot;
+const ODATA_ACCEPT = 'application/json;odata=verbose';
+const ODATA_CONTENT_TYPE = 'application/json;odata=verbose';
+const ROOT_CACHE_KEY = '__root__';
+const KNOWN_LIBRARY_SEGMENTS = new Set([
+    'siteassets',
+    'shared documents',
+    'shared%20documents',
+    'documents',
+    'style library',
+    'sitepages',
+    'site pages',
+    'lists',
+]);
 
-/**
- * Builds the file-content endpoint for SharePoint.
- * Keeps `$value` literal (not template interpolation) and escapes single quotes in paths.
- * @param {string} serverRelativeUrl - e.g. /sites/<site>/SiteAssets/file.txt
- * @returns {string}
- */
-export const buildFileValueEndpoint = (serverRelativeUrl) => {
-    const escapedPath = String(serverRelativeUrl ?? '').replace(/'/g, "''");
-    return `/_api/web/GetFileByServerRelativeUrl('${escapedPath}')/${FILE_VALUE_SEGMENT}`;
+const normalizeServerRelativeUrl = (value) => {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    return raw.startsWith('/') ? raw : `/${raw}`;
+};
+
+const splitPathSegments = (path) => normalizeServerRelativeUrl(path).split('/').filter(Boolean);
+
+const decodeSafe = (value) => {
+    try {
+        return decodeURIComponent(String(value ?? ''));
+    } catch {
+        return String(value ?? '');
+    }
+};
+
+const isKnownLibrarySegment = (segment) => {
+    const raw = String(segment ?? '').trim().toLowerCase();
+    if (!raw) return false;
+    const decoded = decodeSafe(raw).toLowerCase();
+    return KNOWN_LIBRARY_SEGMENTS.has(raw) || KNOWN_LIBRARY_SEGMENTS.has(decoded);
+};
+
+const toPathname = (urlOrPath) => {
+    const raw = String(urlOrPath ?? '').trim();
+    if (!raw) return '';
+
+    if (/^https?:\/\//i.test(raw)) {
+        try {
+            return normalizeServerRelativeUrl(new URL(raw).pathname || '/');
+        } catch {
+            return '';
+        }
+    }
+
+    return normalizeServerRelativeUrl(raw);
+};
+
+const toRequestUrl = (urlOrPath) => {
+    const raw = String(urlOrPath ?? '').trim();
+    if (!raw) {
+        throw new Error('Missing SharePoint URL');
+    }
+
+    if (/^https?:\/\//i.test(raw)) {
+        return raw;
+    }
+
+    return normalizeServerRelativeUrl(raw);
+};
+
+const responseTextSafe = async (response) => {
+    try {
+        return await response.text();
+    } catch {
+        return '';
+    }
+};
+
+const summarizeErrorText = (text) => String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, 320);
+
+const splitServerRelativeFileUrl = (serverRelativeUrl) => {
+    const fileServerRelativeUrl = toPathname(serverRelativeUrl);
+    const requestUrl = toRequestUrl(serverRelativeUrl);
+
+    const lastSlashIndex = fileServerRelativeUrl.lastIndexOf('/');
+    if (lastSlashIndex <= 0 || lastSlashIndex === fileServerRelativeUrl.length - 1) {
+        throw new Error(`Invalid server-relative file URL: "${serverRelativeUrl}"`);
+    }
+
+    return {
+        requestUrl,
+        fileServerRelativeUrl,
+        folderServerRelativeUrl: fileServerRelativeUrl.slice(0, lastSlashIndex),
+        fileName: fileServerRelativeUrl.slice(lastSlashIndex + 1),
+    };
+};
+
+const extractSiteRootFromPath = (path) => {
+    const normalizedPath = toPathname(path);
+    const segments = splitPathSegments(normalizedPath);
+    if (segments.length === 0) {
+        return { siteRoot: '', siteSegmentsLength: 0 };
+    }
+
+    const first = segments[0].toLowerCase();
+
+    if (first === 'sites' || first === 'teams') {
+        let libraryIndex = -1;
+        for (let i = 2; i < segments.length; i += 1) {
+            if (isKnownLibrarySegment(segments[i])) {
+                libraryIndex = i;
+                break;
+            }
+        }
+
+        if (libraryIndex !== -1) {
+            return {
+                siteRoot: `/${segments.slice(0, libraryIndex).join('/')}`,
+                siteSegmentsLength: libraryIndex,
+            };
+        }
+
+        if (segments.length >= 3) {
+            return {
+                siteRoot: `/${segments.slice(0, 3).join('/')}`,
+                siteSegmentsLength: 3,
+            };
+        }
+
+        return {
+            siteRoot: `/${segments.slice(0, Math.min(2, segments.length)).join('/')}`,
+            siteSegmentsLength: Math.min(2, segments.length),
+        };
+    }
+
+    const libraryIndex = segments.findIndex((segment) => isKnownLibrarySegment(segment));
+    if (libraryIndex > 0) {
+        return {
+            siteRoot: `/${segments.slice(0, libraryIndex).join('/')}`,
+            siteSegmentsLength: libraryIndex,
+        };
+    }
+
+    return { siteRoot: '', siteSegmentsLength: 0 };
+};
+
+const inferTopLevelSiteRoot = (value = '') => {
+    const normalizedPath = toPathname(value);
+    if (!normalizedPath) return '';
+
+    const segments = splitPathSegments(normalizedPath);
+    if (segments.length < 2) return '';
+
+    const first = segments[0].toLowerCase();
+    if (first !== 'sites' && first !== 'teams') return '';
+
+    return `/${segments[0]}/${segments[1]}`;
+};
+
+const resolveApiSiteRoot = (value = '') => {
+    const configured = toPathname(RAW_SITE_API_ROOT);
+    if (configured) return configured;
+
+    const normalizedPath = toPathname(value);
+    if (!normalizedPath) return '';
+
+    const apiMarker = '/_api/';
+    const apiIndex = normalizedPath.indexOf(apiMarker);
+    if (apiIndex >= 0) {
+        const fromApiPath = normalizedPath.slice(0, apiIndex) || '';
+        const topFromApiPath = inferTopLevelSiteRoot(fromApiPath);
+        return topFromApiPath || fromApiPath;
+    }
+
+    const topLevel = inferTopLevelSiteRoot(normalizedPath);
+    if (topLevel) return topLevel;
+
+    const { siteRoot } = extractSiteRootFromPath(normalizedPath);
+    return siteRoot || '';
+};
+
+const buildSiteApiUrl = (siteRoot, apiPath) => {
+    const root = normalizeServerRelativeUrl(siteRoot || '');
+    if (!root) return apiPath;
+    return `${root}${apiPath}`;
+};
+
+const buildFolderCreationPlan = (folderServerRelativeUrl) => {
+    const normalizedFolder = normalizeServerRelativeUrl(folderServerRelativeUrl);
+    const segments = splitPathSegments(normalizedFolder);
+    const extracted = extractSiteRootFromPath(normalizedFolder);
+    const siteRoot = resolveApiSiteRoot(normalizedFolder) || extracted.siteRoot;
+    const siteSegmentsLength = splitPathSegments(siteRoot).length;
+    const folderSegments = segments.slice(siteSegmentsLength);
+
+    return {
+        siteRoot,
+        folderSegments,
+    };
+};
+
+const ensureSharePointFolder = async (folderServerRelativeUrl, digest, siteRoot) => {
+    const endpoint = buildSiteApiUrl(siteRoot, '/_api/web/folders');
+    const response = await fetch(endpoint, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+            Accept: ODATA_ACCEPT,
+            'Content-Type': ODATA_CONTENT_TYPE,
+            'X-RequestDigest': digest,
+        },
+        body: JSON.stringify({
+            __metadata: { type: 'SP.Folder' },
+            ServerRelativeUrl: folderServerRelativeUrl,
+        }),
+    });
+
+    if (response.ok || response.status === 409) {
+        return;
+    }
+
+    const errorText = summarizeErrorText(await responseTextSafe(response));
+    const alreadyExists = response.status === 500 && /already exists/i.test(errorText);
+    if (alreadyExists) {
+        return;
+    }
+
+    throw new Error(`Failed to create folder "${folderServerRelativeUrl}" (${response.status}): ${errorText}`);
+};
+
+const putTextFile = async (requestUrl, text, contentType) => {
+    return fetch(requestUrl, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+            'Content-Type': contentType,
+        },
+        body: text,
+    });
 };
 
 /**
- * Gets a SharePoint Request Digest token, utilizing caching.
- * @returns {Promise<string>} The Request Digest token
+ * For compatibility with existing services, this returns the fetchable file URL.
+ * We intentionally use direct file URL reads/writes (GET/PUT), not _api/$value.
  */
-export const getRequestDigest = async () => {
-    const now = Date.now();
-    // Check if we have a valid cached digest
-    if (requestDigestCache && requestDigestCacheTime && (now - requestDigestCacheTime < CACHE_EXPIRATION_MS)) {
-        spLogDigestCache(true);
-        return requestDigestCache;
+export const buildFileValueEndpoint = (serverRelativeUrl) => toRequestUrl(serverRelativeUrl);
+
+/**
+ * Ensures a full SharePoint folder path exists (creates missing folders in order).
+ */
+export const ensureSharePointFolderHierarchy = async (folderServerRelativeUrl, digest = null) => {
+    const normalizedFolder = normalizeServerRelativeUrl(folderServerRelativeUrl);
+    if (!normalizedFolder) {
+        throw new Error('ensureSharePointFolderHierarchy expects a valid folder URL');
     }
+
+    const { siteRoot, folderSegments } = buildFolderCreationPlan(normalizedFolder);
+    if (folderSegments.length === 0) return;
+
+    const digestValue = digest || await getRequestDigest(siteRoot);
+    let currentPath = siteRoot || '';
+
+    for (const segment of folderSegments) {
+        currentPath = `${currentPath}/${segment}`;
+        await ensureSharePointFolder(currentPath, digestValue, siteRoot);
+    }
+};
+
+/**
+ * Creates a SharePoint file only if it does not exist (no overwrite).
+ * Uses direct GET/PUT flow with credentials include.
+ */
+export const ensureSharePointTextFileExists = async ({
+    serverRelativeUrl,
+    text,
+    contentType = 'text/plain; charset=utf-8',
+    digest = null,
+}) => {
+    if (typeof text !== 'string') {
+        throw new Error('ensureSharePointTextFileExists expects "text" as a string');
+    }
+
+    const { requestUrl, fileServerRelativeUrl, folderServerRelativeUrl } = splitServerRelativeFileUrl(serverRelativeUrl);
+
+    const readResponse = await fetch(requestUrl, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'text/plain',
+        },
+    });
+
+    if (readResponse.ok) {
+        return { created: false, response: readResponse };
+    }
+
+    if (readResponse.status !== 404) {
+        const readError = summarizeErrorText(await responseTextSafe(readResponse));
+        throw new Error(`SharePoint read failed (${readResponse.status}): ${readError}`);
+    }
+
+    spLog.warn(`קובץ לא קיים, מנסה ליצור ישירות: ${fileServerRelativeUrl}`);
+
+    const createResponse = await putTextFile(requestUrl, text, contentType);
+    if (createResponse.ok) {
+        spLog.success(`נוצר קובץ התחלתי: ${fileServerRelativeUrl}`);
+        return { created: true, response: createResponse };
+    }
+
+    // If parent folders are missing, try creating hierarchy once, then retry PUT.
+    if (createResponse.status === 404) {
+        const siteRoot = resolveApiSiteRoot(fileServerRelativeUrl);
+        const digestValue = digest || await getRequestDigest(siteRoot);
+        await ensureSharePointFolderHierarchy(folderServerRelativeUrl, digestValue);
+
+        const retryResponse = await putTextFile(requestUrl, text, contentType);
+        if (retryResponse.ok) {
+            spLog.success(`נוצר קובץ התחלתי לאחר יצירת תיקיות: ${fileServerRelativeUrl}`);
+            return { created: true, response: retryResponse };
+        }
+
+        const retryError = summarizeErrorText(await responseTextSafe(retryResponse));
+        throw new Error(`SharePoint create file failed (${retryResponse.status}): ${retryError}`);
+    }
+
+    const createError = summarizeErrorText(await responseTextSafe(createResponse));
+    throw new Error(`SharePoint create file failed (${createResponse.status}): ${createError}`);
+};
+
+/**
+ * Saves text content into a SharePoint file.
+ * Direct PUT first; only if parent path is missing (404), tries creating folders then retries.
+ */
+export const upsertSharePointTextFile = async ({
+    serverRelativeUrl,
+    text,
+    contentType = 'text/plain; charset=utf-8',
+    digest = null,
+}) => {
+    if (typeof text !== 'string') {
+        throw new Error('upsertSharePointTextFile expects "text" as a string');
+    }
+
+    const { requestUrl, fileServerRelativeUrl, folderServerRelativeUrl } = splitServerRelativeFileUrl(serverRelativeUrl);
+
+    const saveResponse = await putTextFile(requestUrl, text, contentType);
+    if (saveResponse.ok) {
+        const created = saveResponse.status === 201;
+        return { created, response: saveResponse };
+    }
+
+    // Most common missing-file/folder case in bootstrapping.
+    if (saveResponse.status === 404) {
+        spLog.warn(`קובץ/תיקייה חסרים, מנסה להקים נתיב ואז לשמור: ${fileServerRelativeUrl}`);
+        const siteRoot = resolveApiSiteRoot(fileServerRelativeUrl);
+        const digestValue = digest || await getRequestDigest(siteRoot);
+        await ensureSharePointFolderHierarchy(folderServerRelativeUrl, digestValue);
+
+        const retryResponse = await putTextFile(requestUrl, text, contentType);
+        if (retryResponse.ok) {
+            return { created: true, response: retryResponse };
+        }
+
+        const retryError = summarizeErrorText(await responseTextSafe(retryResponse));
+        throw new Error(`SharePoint save failed after folder ensure (${retryResponse.status}): ${retryError}`);
+    }
+
+    const saveError = summarizeErrorText(await responseTextSafe(saveResponse));
+    throw new Error(`SharePoint save failed (${saveResponse.status}): ${saveError}`);
+};
+
+/**
+ * Gets a SharePoint Request Digest token, with per-site caching.
+ * @param {string} [scope=''] Optional site root or any URL/path under target site.
+ * @returns {Promise<string>}
+ */
+export const getRequestDigest = async (scope = '') => {
+    const siteRoot = resolveApiSiteRoot(scope);
+    const cacheKey = siteRoot || ROOT_CACHE_KEY;
+    const now = Date.now();
+    const cached = requestDigestCache.get(cacheKey);
+
+    if (cached && now - cached.time < CACHE_EXPIRATION_MS) {
+        spLogDigestCache(true);
+        return cached.value;
+    }
+
+    const endpoint = buildSiteApiUrl(siteRoot, '/_api/contextinfo');
 
     try {
         spLogDigestCache(false);
-        const response = await fetch('/_api/contextinfo', {
+
+        const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
-                'Accept': 'application/json;odata=verbose',
-                'Content-Type': 'application/json;odata=verbose'
+                Accept: ODATA_ACCEPT,
+                'Content-Type': ODATA_CONTENT_TYPE,
             },
-            credentials: 'include'
+            credentials: 'include',
         });
 
         spLog.file(`תגובת contextinfo | status: ${response.status} ${response.statusText}`);
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const body = summarizeErrorText(await responseTextSafe(response));
+            throw new Error(`HTTP error! status: ${response.status}. ${body}`);
         }
 
         const data = await response.json();
-        requestDigestCache = data.d.GetContextWebInformation.FormDigestValue;
-        requestDigestCacheTime = now;
-
+        const digest = data?.d?.GetContextWebInformation?.FormDigestValue || '';
+        requestDigestCache.set(cacheKey, { value: digest, time: now });
         spLog.success('Request Digest התקבל בהצלחה');
-        return requestDigestCache || '';
+        return digest;
     } catch (error) {
         spLog.error('שגיאה בקבלת Request Digest:', error);
         throw error;
@@ -60,124 +425,69 @@ export const getRequestDigest = async () => {
 };
 
 /**
- * Creates a backup folder in SharePoint and copies specified files to it.
- * @param {Array<string>} filesToBackup - List of file paths to backup (server relative URLs)
- * @returns {Promise<boolean>} True if successful, false otherwise
+ * Creates a backup folder and copies data files into it.
  */
 export const createBackup = async (filesToBackup = []) => {
     try {
         spLog.boot('מתחיל גיבוי מערכת ל-SharePoint...');
 
-        // Use a default path based on config if not provided
         if (!filesToBackup || filesToBackup.length === 0) {
             filesToBackup = [
-                import.meta.env.VITE_SP_EVENTS_FILE_URL || '/sites/bihs7134/SiteAssets/events_data.txt',
-                import.meta.env.VITE_SP_NAV_FILE_URL || '/sites/bihs7134/SiteAssets/nav_data.txt',
-                import.meta.env.VITE_SP_SITE_CONTENT_FILE_URL || '/sites/bihs7134/SiteAssets/site_content_data.txt',
-                import.meta.env.VITE_SP_THEME_FILE_URL || '/sites/bihs7134/SiteAssets/theme_data.txt',
-                import.meta.env.VITE_SP_WIDGETS_FILE_URL || '/sites/bihs7134/SiteAssets/widgets_data.txt',
-                import.meta.env.VITE_SP_EXTERNAL_LINKS_FILE_URL || '/sites/bihs7134/SiteAssets/external_links_data.txt',
+                SHAREPOINT_CONFIG.fileServerRelativeUrl,
+                SHAREPOINT_CONFIG.navFileServerRelativeUrl,
+                SHAREPOINT_CONFIG.siteContentFileServerRelativeUrl,
+                SHAREPOINT_CONFIG.themeFileServerRelativeUrl,
+                SHAREPOINT_CONFIG.widgetsFileServerRelativeUrl,
+                SHAREPOINT_CONFIG.externalLinksFileServerRelativeUrl,
+                SHAREPOINT_CONFIG.usersFileServerRelativeUrl,
             ];
         }
 
-        // Get site URL from the first file path (assuming they share the same site)
-        const firstFile = filesToBackup[0];
-        if (!firstFile) return false;
-
-        // Extract site URL (e.g., /sites/bihs7134)
-        const siteUrlMatch = firstFile.match(/^\/sites\/[^/]+/);
-        if (!siteUrlMatch) {
-            spLog.error('לא ניתן לזהות נתיב אתר מתוך', firstFile);
+        const firstFilePath = toPathname(filesToBackup[0]);
+        const { siteRoot } = extractSiteRootFromPath(firstFilePath);
+        if (!siteRoot) {
+            spLog.error('לא ניתן לזהות נתיב אתר מתוך', firstFilePath);
             return false;
         }
-        const siteUrl = siteUrlMatch[0];
 
-        // Ensure backups folder exists based on site path
-        // Instead of hardcoding, we use the SiteAssets folder
-        const backupBaseFolder = `${siteUrl}/SiteAssets/Backups`;
-
+        const backupBaseFolder = `${SHAREPOINT_PATHS.siteAssetsRoot}/Backups`;
         const now = new Date();
         const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
         const backupFolderName = `backup-${timestamp}`;
         const targetFolderPath = `${backupBaseFolder}/${backupFolderName}`;
 
-        // Get digest
-        const digest = await getRequestDigest();
+        await ensureSharePointFolderHierarchy(targetFolderPath);
+        spLog.file(`תיקיית גיבוי נוצרה/אומתה: ${targetFolderPath}`);
 
-        // 1. First, create the root Backups folder if it doesn't exist
-        try {
-            await fetch(`${siteUrl}/_api/web/folders`, {
-                method: "POST",
-                headers: {
-                    'accept': 'application/json; odata=verbose',
-                    'x-RequestDigest': digest,
-                    'Content-Type': 'application/json; odata=verbose'
-                },
-                body: JSON.stringify({
-                    '__metadata': { 'type': 'SP.Folder' },
-                    'ServerRelativeUrl': backupBaseFolder
-                })
-            });
-            // We ignore errors here because the folder might already exist
-        } catch {
-            /* תיקייה כבר קיימת או בקשה נדחית — מתעלמים */
-        }
-
-        // 2. Create the specific timestamped backup folder
-        const createFolderRes = await fetch(`${siteUrl}/_api/web/folders`, {
-            method: "POST",
-            headers: {
-                'accept': 'application/json; odata=verbose',
-                'x-RequestDigest': digest,
-                'Content-Type': 'application/json; odata=verbose'
-            },
-            body: JSON.stringify({
-                '__metadata': { 'type': 'SP.Folder' },
-                'ServerRelativeUrl': targetFolderPath
-            })
-        });
-
-        if (!createFolderRes.ok) {
-            throw new Error(`יצירת תיקיית גיבוי נכשלה: ${createFolderRes.status}`);
-        }
-
-        spLog.file(`תיקיית גיבוי נוצרה: ${targetFolderPath}`);
-
-        // 3. Backup each file by reading and then writing it to the new folder
         for (const filePath of filesToBackup) {
             try {
-                // Read original
-                spLog.file(`גיבוי: קורא מקור | ${filePath}`);
-                const readRes = await fetch(buildFileValueEndpoint(filePath), {
+                const sourceEndpoint = buildFileValueEndpoint(filePath);
+                spLog.file(`גיבוי: קורא מקור | ${sourceEndpoint}`);
+
+                const readRes = await fetch(sourceEndpoint, {
                     method: 'GET',
                     credentials: 'include',
-                    headers: { 'Accept': 'application/json;odata=verbose' }
+                    headers: { 'Content-Type': 'text/plain' },
                 });
 
                 if (!readRes.ok) {
-                    // Skip files that don't exist
                     if (readRes.status === 404) {
                         spLog.warn(`קובץ לא נמצא לגיבוי (מדלג): ${filePath}`);
                         continue;
                     }
-                    throw new Error(`שגיאה בקריאת קובץ לגיבוי: ${readRes.status}`);
+                    const readErr = summarizeErrorText(await responseTextSafe(readRes));
+                    throw new Error(`שגיאה בקריאת קובץ לגיבוי (${readRes.status}): ${readErr}`);
                 }
 
                 const fileContent = await readRes.text();
-                const fileName = filePath.split('/').pop();
-                const newFilePath = `${targetFolderPath}/${fileName}`;
+                const fileName = toPathname(filePath).split('/').pop();
+                if (!fileName) continue;
 
-                // Write backup
-                const writeRes = await fetch(buildFileValueEndpoint(newFilePath), {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: {
-                        'X-RequestDigest': digest,
-                        'X-HTTP-Method': 'PUT',
-                        'IF-MATCH': '*',
-                        'Content-Type': 'application/json',
-                    },
-                    body: fileContent
+                const targetFilePath = `${targetFolderPath}/${fileName}`;
+                const { response: writeRes } = await upsertSharePointTextFile({
+                    serverRelativeUrl: targetFilePath,
+                    text: fileContent,
+                    contentType: 'text/plain; charset=utf-8',
                 });
 
                 if (!writeRes.ok) {
@@ -201,9 +511,6 @@ export const createBackup = async (filesToBackup = []) => {
 /**
  * Uploads an image file. In mock mode, converts to Base64 data URL.
  * In production, uploads to SharePoint under IMAGE_BASE_FOLDER/<categoryFolder>.
- * @param {File} file - The file object from an <input type="file">
- * @param {string} categoryFolder - Subfolder name (e.g. 'Hero', 'Commander', 'ExternalLinks')
- * @returns {Promise<string>} The usable image URL (Base64 data URL or SharePoint server-relative URL)
  */
 export const uploadImage = async (file, categoryFolder) => {
     if (!file) throw new Error('לא סופק קובץ להעלאה');
@@ -217,8 +524,6 @@ export const uploadImage = async (file, categoryFolder) => {
                     const canvas = document.createElement('canvas');
                     let width = img.width;
                     let height = img.height;
-
-                    // Max dimensions for mock local storage
                     const MAX_SIZE = 400;
 
                     if (width > height) {
@@ -226,21 +531,16 @@ export const uploadImage = async (file, categoryFolder) => {
                             height *= MAX_SIZE / width;
                             width = MAX_SIZE;
                         }
-                    } else {
-                        if (height > MAX_SIZE) {
-                            width *= MAX_SIZE / height;
-                            height = MAX_SIZE;
-                        }
+                    } else if (height > MAX_SIZE) {
+                        width *= MAX_SIZE / height;
+                        height = MAX_SIZE;
                     }
 
                     canvas.width = width;
                     canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
-
-                    // Compress to WebP with 0.6 quality to save massive space in localStorage
-                    const dataUrl = canvas.toDataURL('image/webp', 0.6);
-                    resolve(dataUrl);
+                    resolve(canvas.toDataURL('image/webp', 0.6));
                 };
                 img.onerror = () => reject(new Error('שגיאה בטעינת התמונה לדחיסה'));
                 img.src = e.target.result;
@@ -250,45 +550,24 @@ export const uploadImage = async (file, categoryFolder) => {
         });
     }
 
-    const siteUrlMatch = IMAGE_BASE_FOLDER.match(/^\/sites\/[^/]+/);
-    const siteUrl = siteUrlMatch ? siteUrlMatch[0] : '';
-    const targetFolder = `${IMAGE_BASE_FOLDER}/${categoryFolder}`;
+    const targetFolder = `${normalizeServerRelativeUrl(IMAGE_BASE_FOLDER)}/${String(categoryFolder || '').trim()}`;
+    const siteUrl = resolveApiSiteRoot(targetFolder);
     spLog.file(`מעלה תמונה ל-SharePoint | תיקייה: ${targetFolder} | קובץ: ${file.name}`);
-    const digest = await getRequestDigest();
 
-    const ensureFolder = async (folderPath) => {
-        try {
-            await fetch(`${siteUrl}/_api/web/folders`, {
-                method: 'POST',
-                credentials: 'include',
-                headers: {
-                    'Accept': 'application/json;odata=verbose',
-                    'Content-Type': 'application/json;odata=verbose',
-                    'X-RequestDigest': digest,
-                },
-                body: JSON.stringify({
-                    '__metadata': { 'type': 'SP.Folder' },
-                    'ServerRelativeUrl': folderPath,
-                }),
-            });
-        } catch {
-            // Folder may already exist — safe to ignore
-        }
-    };
-
-    await ensureFolder(IMAGE_BASE_FOLDER);
-    await ensureFolder(targetFolder);
+    const digest = await getRequestDigest(siteUrl);
+    await ensureSharePointFolderHierarchy(targetFolder, digest);
 
     const arrayBuffer = await file.arrayBuffer();
-
+    const escapedFolder = targetFolder.replace(/'/g, "''");
+    const encodedFileName = encodeURIComponent(file.name).replace(/'/g, '%27');
     const uploadUrl =
-        `${siteUrl}/_api/web/GetFolderByServerRelativeUrl('${targetFolder}')/Files/add(url='${encodeURIComponent(file.name)}',overwrite=true)`;
+        `${buildSiteApiUrl(siteUrl, '')}/_api/web/GetFolderByServerRelativeUrl('${escapedFolder}')/Files/add(url='${encodedFileName}',overwrite=true)`;
 
     const uploadRes = await fetch(uploadUrl, {
         method: 'POST',
         credentials: 'include',
         headers: {
-            'Accept': 'application/json;odata=verbose',
+            Accept: ODATA_ACCEPT,
             'X-RequestDigest': digest,
         },
         body: arrayBuffer,
@@ -296,12 +575,12 @@ export const uploadImage = async (file, categoryFolder) => {
 
     spLog.file(`תגובת העלאת תמונה | status: ${uploadRes.status} ${uploadRes.statusText}`);
     if (!uploadRes.ok) {
-        const errorText = await uploadRes.text().catch(() => '');
+        const errorText = summarizeErrorText(await responseTextSafe(uploadRes));
         throw new Error(`העלאת תמונה נכשלה (${uploadRes.status}): ${errorText}`);
     }
 
     const data = await uploadRes.json();
-    const url = data.d.ServerRelativeUrl;
+    const url = data?.d?.ServerRelativeUrl;
     spLog.success(`העלאת תמונה הצליחה | נתיב: ${url}`);
     return url;
 };

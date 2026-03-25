@@ -7,6 +7,7 @@ import React, {
     useRef,
 } from 'react';
 import ConfigService from '../services/ConfigService';
+import { ensureSharePointBootstrapFiles } from '../services/SharePointBootstrapService';
 import { DEFAULT_CONFIG_V1, validateAndNormalize } from '../config/AppSchema';
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { confirmToast } from '../utils/confirmToast';
@@ -94,6 +95,7 @@ export const ConfigProvider = ({ children }) => {
     const isMountedRef = useRef(true);
     const requestIdRef = useRef(0);
     const configRef = useRef(normalizeConfigSafely(DEFAULT_CONFIG_V1));
+    const bootstrapAttemptedRef = useRef(false);
 
     useEffect(() => {
         configRef.current = config;
@@ -117,6 +119,16 @@ export const ConfigProvider = ({ children }) => {
 
         try {
             console.log('[ConfigProvider] Init started...');
+
+            if (!SHAREPOINT_CONFIG.useMock && !bootstrapAttemptedRef.current) {
+                bootstrapAttemptedRef.current = true;
+                try {
+                    await ensureSharePointBootstrapFiles();
+                } catch (bootstrapError) {
+                    console.warn('[ConfigProvider] SharePoint bootstrap failed. Continuing init.', bootstrapError);
+                }
+            }
+
             const masterRawBeforeLoad = safeReadLocalStorageRaw(MASTER_CONFIG_MOCK_KEY);
             const masterWasEmpty = !masterRawBeforeLoad || !masterRawBeforeLoad.trim();
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { Sparkles, User } from 'lucide-react';
 import WidgetEmptyState, { getInitials } from './WidgetEmptyState';
 import { useRotatingWidgetItems } from '../../utils/widgetDisplay';
+import { resolveSiteImageUrl } from '../../utils/assetUrl';
 
 export default function WidgetOutstanding({ data = [], settings = {} }) {
   const { visibleItems, page, totalPages } = useRotatingWidgetItems(data, settings, 5000);
@@ -35,7 +36,7 @@ export default function WidgetOutstanding({ data = [], settings = {} }) {
               <div className="relative flex items-start gap-4">
                 {person.image ? (
                   <img
-                    src={person.image}
+                    src={resolveSiteImageUrl(person.image)}
                     alt={person.name}
                     className="h-20 w-20 shrink-0 rounded-full border-4 border-primary/25 object-cover shadow-[0_0_24px_hsl(var(--color-primary)/0.2)]"
                     onError={(event) => { event.currentTarget.style.display = 'none'; }}

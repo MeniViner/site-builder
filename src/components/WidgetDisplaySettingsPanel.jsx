@@ -1,3 +1,4 @@
+// src/components/WidgetDisplaySettingsPanel.jsx
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Settings2 } from 'lucide-react';
 import { useConfig } from '../context/ConfigProvider';
@@ -18,6 +19,7 @@ export default function WidgetDisplaySettingsPanel({ widgetId, widgetKey }) {
     const resolvedWidgetId = widgetId || widgetKey;
     const defaults = DEFAULT_WIDGET_SETTINGS[resolvedWidgetId];
     const supportsSettings = Boolean(defaults);
+    const supportsItemsPerView = resolvedWidgetId !== 'polls';
 
     const { config, updateConfig, saveNow, error } = useConfig();
     const [settingsDraft, setSettingsDraft] = useState(
@@ -32,12 +34,13 @@ export default function WidgetDisplaySettingsPanel({ widgetId, widgetKey }) {
     }, [config?.widgets?.display, defaults, resolvedWidgetId, supportsSettings]);
 
     const maxItemsPerView = useMemo(() => {
+        if (!supportsItemsPerView) return 1;
         const branch = config?.widgets?.data?.[resolvedWidgetId];
         const itemsCount = Array.isArray(branch?.items)
             ? branch.items.length
             : (Array.isArray(branch) ? branch.length : 0);
         return Math.max(1, itemsCount || 1);
-    }, [config?.widgets?.data, resolvedWidgetId]);
+    }, [config?.widgets?.data, resolvedWidgetId, supportsItemsPerView]);
 
     useEffect(() => {
         if (!supportsSettings || !currentSettings) return;
@@ -45,11 +48,12 @@ export default function WidgetDisplaySettingsPanel({ widgetId, widgetKey }) {
     }, [currentSettings, supportsSettings]);
 
     useEffect(() => {
+        if (!supportsItemsPerView) return;
         setSettingsDraft((prev) => ({
             ...prev,
             itemsPerView: Math.min(maxItemsPerView, Math.max(1, Number(prev.itemsPerView) || 1)),
         }));
-    }, [maxItemsPerView]);
+    }, [maxItemsPerView, supportsItemsPerView]);
 
     const hasChanges = useMemo(() => {
         if (!supportsSettings || !currentSettings) return false;
@@ -68,7 +72,9 @@ export default function WidgetDisplaySettingsPanel({ widgetId, widgetKey }) {
             try {
                 const nextSettings = {
                     ...normalizeSettings(settingsDraft, defaults),
-                    itemsPerView: Math.min(maxItemsPerView, Math.max(1, Number(settingsDraft.itemsPerView) || 1)),
+                    itemsPerView: supportsItemsPerView
+                        ? Math.min(maxItemsPerView, Math.max(1, Number(settingsDraft.itemsPerView) || 1))
+                        : Math.max(1, Number(settingsDraft.itemsPerView) || defaults.itemsPerView),
                 };
                 updateConfig((prev) => ({
                     ...prev,
@@ -94,7 +100,7 @@ export default function WidgetDisplaySettingsPanel({ widgetId, widgetKey }) {
                 clearTimeout(saveTimeoutRef.current);
             }
         };
-    }, [defaults, hasChanges, maxItemsPerView, resolvedWidgetId, saveNow, settingsDraft, supportsSettings, updateConfig]);
+    }, [defaults, hasChanges, maxItemsPerView, resolvedWidgetId, saveNow, settingsDraft, supportsItemsPerView, supportsSettings, updateConfig]);
 
     if (!supportsSettings) return null;
 
@@ -125,7 +131,7 @@ export default function WidgetDisplaySettingsPanel({ widgetId, widgetKey }) {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className={`grid grid-cols-1 ${supportsItemsPerView ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4`}>
                 <label className="block">
                     <HelpLabel
                         as="span"
@@ -189,35 +195,37 @@ export default function WidgetDisplaySettingsPanel({ widgetId, widgetKey }) {
                     />
                 </label>
 
-                <label className="block">
-                    <HelpLabel
-                        as="span"
-                        className="text-sm font-semibold text-theme"
-                        wrapperClassName="flex items-center gap-2"
-                        helpTitle="כמות פריטים להצגה יחד"
-                        helpDescription="המספר הזה קובע כמה פריטים יוצגו באותו זמן בתוך הווידג׳ט."
-                        helpItems={[
-                            'כמות קטנה נותנת יותר מקום לכל פריט.',
-                            'כמות גדולה מתאימה רק אם כל פריט קצר ופשוט.',
-                        ]}
-                    >
-                        כמות פריטים להצגה יחד
-                    </HelpLabel>
-                    <input
-                        type="number"
-                        min="1"
-                        max={maxItemsPerView}
-                        value={settingsDraft.itemsPerView}
-                        onChange={(event) =>
-                            setSettingsDraft((prev) => ({
-                                ...prev,
-                                itemsPerView: Math.min(maxItemsPerView, Math.max(1, Number(event.target.value) || 1)),
-                            }))
-                        }
-                        className={inputCls}
-                    />
-                    <span className="mt-1 block text-xs text-theme-muted">מקסימום לפי נתונים קיימים: {maxItemsPerView}</span>
-                </label>
+                {supportsItemsPerView && (
+                    <label className="block">
+                        <HelpLabel
+                            as="span"
+                            className="text-sm font-semibold text-theme"
+                            wrapperClassName="flex items-center gap-2"
+                            helpTitle="כמות פריטים להצגה יחד"
+                            helpDescription="המספר הזה קובע כמה פריטים יוצגו באותו זמן בתוך הווידג׳ט."
+                            helpItems={[
+                                'כמות קטנה נותנת יותר מקום לכל פריט.',
+                                'כמות גדולה מתאימה רק אם כל פריט קצר ופשוט.',
+                            ]}
+                        >
+                            כמות פריטים להצגה יחד
+                        </HelpLabel>
+                        <input
+                            type="number"
+                            min="1"
+                            max={maxItemsPerView}
+                            value={settingsDraft.itemsPerView}
+                            onChange={(event) =>
+                                setSettingsDraft((prev) => ({
+                                    ...prev,
+                                    itemsPerView: Math.min(maxItemsPerView, Math.max(1, Number(event.target.value) || 1)),
+                                }))
+                            }
+                            className={inputCls}
+                        />
+                        <span className="mt-1 block text-xs text-theme-muted">מקסימום לפי נתונים קיימים: {maxItemsPerView}</span>
+                    </label>
+                )}
             </div>
         </div>
     );

@@ -1,5 +1,5 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
-import { buildFileValueEndpoint, getRequestDigest } from '../utils/sharepointUtils';
+import { buildFileValueEndpoint, upsertSharePointTextFile } from '../utils/sharepointUtils';
 import { DEFAULT_ACTIVE_WIDGETS, mergeWidgetSettings } from '../utils/widgetDisplay';
 import {
     spLog,
@@ -192,22 +192,15 @@ class WidgetService {
 
     async _saveSharePointData(payload) {
         try {
-            const formDigestValue = await getRequestDigest();
             const fileUrl = this.config.widgetsFileServerRelativeUrl;
             const endpoint = buildFileValueEndpoint(fileUrl);
 
             spLogFileSaveStart('ווידגטים', fileUrl);
 
-            const saveResponse = await fetch(endpoint, {
-                method: 'POST',
-                credentials: 'include',
-                headers: {
-                    'X-RequestDigest': formDigestValue,
-                    'X-HTTP-Method': 'PUT',
-                    'IF-MATCH': '*',
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload)
+            const { response: saveResponse } = await upsertSharePointTextFile({
+                serverRelativeUrl: fileUrl,
+                text: JSON.stringify(payload, null, 2),
+                contentType: 'text/plain; charset=utf-8',
             });
 
             spLogFileSaveResponse(fileUrl, saveResponse);

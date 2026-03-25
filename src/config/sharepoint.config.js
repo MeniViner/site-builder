@@ -1,3 +1,6 @@
+// src/config/sharepoint.config.js
+import { SHAREPOINT_PATHS } from './sharepointPaths';
+
 const isDevMode = import.meta.env.MODE === 'development';
 const isForcedMock = import.meta.env.VITE_USE_MOCK === 'true';
 const isEnvMockAdminBypassEnabled = import.meta.env.VITE_ALLOW_MOCK_ADMIN_BYPASS === 'true';
@@ -17,11 +20,11 @@ export const SHAREPOINT_CONFIG = {
     externalLinksMockStorageKey: 'bihs_external_links_data',
 
     // SharePoint file URLs (production mode)
-    fileServerRelativeUrl: import.meta.env.VITE_SP_EVENTS_FILE_URL || '/sites/bihs7134/SiteAssets/events_data.txt',
-    navFileServerRelativeUrl: import.meta.env.VITE_SP_NAV_FILE_URL || '/sites/bihs7134/SiteAssets/nav_data.txt',
-    usersFileServerRelativeUrl: import.meta.env.VITE_SP_USERS_FILE_URL || '/sites/bihs7134/SiteAssets/users_data.txt',
-    siteContentFileServerRelativeUrl: import.meta.env.VITE_SP_SITE_CONTENT_FILE_URL || '/sites/bihs7134/SiteAssets/site_content_data.txt',
-    themeFileServerRelativeUrl: import.meta.env.VITE_SP_THEME_FILE_URL || '/sites/bihs7134/SiteAssets/theme_data.txt',
-    widgetsFileServerRelativeUrl: import.meta.env.VITE_SP_WIDGETS_FILE_URL || '/sites/bihs7134/SiteAssets/widgets_data.txt',
-    externalLinksFileServerRelativeUrl: import.meta.env.VITE_SP_EXTERNAL_LINKS_FILE_URL || '/sites/bihs7134/SiteAssets/external_links_data.txt',
+    fileServerRelativeUrl: import.meta.env.VITE_SP_EVENTS_FILE_URL || SHAREPOINT_PATHS.eventsFileServerRelativeUrl,
+    navFileServerRelativeUrl: import.meta.env.VITE_SP_NAV_FILE_URL || SHAREPOINT_PATHS.navigationFileServerRelativeUrl,
+    usersFileServerRelativeUrl: import.meta.env.VITE_SP_USERS_FILE_URL || SHAREPOINT_PATHS.usersFileServerRelativeUrl,
+    siteContentFileServerRelativeUrl: import.meta.env.VITE_SP_SITE_CONTENT_FILE_URL || SHAREPOINT_PATHS.siteContentFileServerRelativeUrl,
+    themeFileServerRelativeUrl: import.meta.env.VITE_SP_THEME_FILE_URL || SHAREPOINT_PATHS.themeFileServerRelativeUrl,
+    widgetsFileServerRelativeUrl: import.meta.env.VITE_SP_WIDGETS_FILE_URL || SHAREPOINT_PATHS.widgetsFileServerRelativeUrl,
+    externalLinksFileServerRelativeUrl: import.meta.env.VITE_SP_EXTERNAL_LINKS_FILE_URL || SHAREPOINT_PATHS.externalLinksFileServerRelativeUrl,
 };

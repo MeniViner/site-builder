@@ -1,14 +1,47 @@
-import { buildFileValueEndpoint } from '../utils/sharepointUtils';
+// src/services/ConfigAdapter.js
+import { buildFileValueEndpoint, upsertSharePointTextFile } from '../utils/sharepointUtils';
+import { SHAREPOINT_PATHS } from '../config/sharepointPaths';
 import { spLog, spLogFileReadStart, spLogFileReadResponse, spLogFileSaveStart, spLogFileSaveResponse } from '../utils/spAppLog';
 
 const DEFAULT_MASTER_CONFIG_KEY = 'bihs_master_config_v1';
-const DEFAULT_MASTER_CONFIG_FILE_URL = '/sites/bihs7134/SiteAssets/bihs_master_config_v1.txt';
+const DEFAULT_MASTER_CONFIG_FILE_URL = SHAREPOINT_PATHS.masterConfigFileServerRelativeUrl;
+
+const resolveDefaultMasterConfigFileUrl = () => {
+    const explicit = import.meta.env.VITE_SP_MASTER_CONFIG_FILE_URL;
+    if (explicit && String(explicit).trim()) {
+        return explicit;
+    }
+
+    const candidates = [
+        import.meta.env.VITE_SP_EVENTS_FILE_URL,
+        import.meta.env.VITE_SP_NAV_FILE_URL,
+        import.meta.env.VITE_SP_USERS_FILE_URL,
+        import.meta.env.VITE_SP_SITE_CONTENT_FILE_URL,
+        import.meta.env.VITE_SP_THEME_FILE_URL,
+        import.meta.env.VITE_SP_WIDGETS_FILE_URL,
+        import.meta.env.VITE_SP_EXTERNAL_LINKS_FILE_URL,
+        SHAREPOINT_PATHS.eventsFileServerRelativeUrl,
+    ].filter((value) => typeof value === 'string' && value.trim().length > 0);
+
+    const seedUrl = candidates[0];
+    if (!seedUrl) {
+        return DEFAULT_MASTER_CONFIG_FILE_URL;
+    }
+
+    const trimmed = seedUrl.trim();
+    const slashIndex = trimmed.lastIndexOf('/');
+    if (slashIndex <= 0) {
+        return DEFAULT_MASTER_CONFIG_FILE_URL;
+    }
+
+    return `${trimmed.slice(0, slashIndex)}/bihs_master_config_v1.txt`;
+};
 
 class ConfigAdapter {
     constructor(options = {}) {
         this.useMock = import.meta.env.DEV || import.meta.env.MODE === 'development';
         this.mockStorageKey = options.mockStorageKey || import.meta.env.VITE_SP_MASTER_CONFIG_MOCK_KEY || DEFAULT_MASTER_CONFIG_KEY;
-        this.fileServerRelativeUrl = options.fileServerRelativeUrl || import.meta.env.VITE_SP_MASTER_CONFIG_FILE_URL || DEFAULT_MASTER_CONFIG_FILE_URL;
+        this.fileServerRelativeUrl = options.fileServerRelativeUrl || resolveDefaultMasterConfigFileUrl();
     }
 
     async load() {
@@ -81,55 +114,16 @@ class ConfigAdapter {
         return { text: text || null };
     }
 
-    async _getRequestDigest() {
-        spLog.system('ConfigAdapter: מבקש Request Digest (contextinfo) לשמירת מאסטר...');
-        const response = await fetch('/_api/contextinfo', {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-                Accept: 'application/json;odata=verbose',
-            },
-        });
-
-        spLog.file(`תגובת contextinfo (מאסטר) | status: ${response.status} ${response.statusText}`);
-
-        if (!response.ok) {
-            throw new Error(`Failed to get SharePoint request digest: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        const digest = data?.d?.GetContextWebInformation?.FormDigestValue;
-        if (!digest) {
-            throw new Error('SharePoint request digest missing in contextinfo response');
-        }
-
-        spLog.success('Request Digest למאסטר התקבל');
-        return digest;
-    }
-
     async _saveSharePoint(text) {
-        const digest = await this._getRequestDigest();
-        const endpoint = this._buildFileEndpoint();
-
         spLogFileSaveStart('קונפיגורציית מאסטר', this.fileServerRelativeUrl);
 
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-                'X-RequestDigest': digest,
-                'X-HTTP-Method': 'PUT',
-                'IF-MATCH': '*',
-                'Content-Type': 'text/plain; charset=utf-8',
-            },
-            body: text,
+        const { response } = await upsertSharePointTextFile({
+            serverRelativeUrl: this.fileServerRelativeUrl,
+            text,
+            contentType: 'text/plain; charset=utf-8',
         });
 
         spLogFileSaveResponse(this.fileServerRelativeUrl, response);
-
-        if (!response.ok) {
-            throw new Error(`SharePoint save failed: ${response.status} ${response.statusText}`);
-        }
 
         spLog.success('שמירת קונפיגורציית מאסטר ל-SharePoint הושלמה');
         return { ok: true };
@@ -138,5 +132,5 @@ class ConfigAdapter {
 
 const configAdapter = new ConfigAdapter();
 
-export { ConfigAdapter, configAdapter };
+export { ConfigAdapter, configAdapter, resolveDefaultMasterConfigFileUrl };
 export default configAdapter;

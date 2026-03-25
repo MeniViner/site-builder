@@ -1,3 +1,4 @@
+// src/components/AdminPolls.jsx
 import React, { useEffect, useState, useRef } from 'react';
 import { AlertTriangle, Check, ListChecks, Pencil, Plus, Trash2, Vote, X } from 'lucide-react';
 import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
@@ -9,6 +10,39 @@ const inputCls = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.
 
 const EMPTY_POLL = { id: '', question: '', optionsInput: '', active: true };
 const makeId = () => crypto.randomUUID?.() || Date.now().toString();
+const ensureSingleActivePoll = (polls, preferredActiveId = null) => {
+    const source = Array.isArray(polls) ? polls : [];
+    if (source.length === 0) return [];
+
+    const preferred = preferredActiveId !== null && preferredActiveId !== undefined
+        ? source.find((item) => String(item?.id) === String(preferredActiveId))
+        : null;
+    const existingActive = source.find((item) => item?.active === true);
+    const resolvedActiveId = String(preferred?.id ?? existingActive?.id ?? source[0]?.id);
+
+    return source.map((item) => ({
+        ...item,
+        active: String(item?.id) === resolvedActiveId,
+    }));
+};
+const resolveVoterLabel = (voter) => {
+    if (typeof voter === 'string') return voter.trim();
+    if (!voter || typeof voter !== 'object') return '';
+
+    const name = String(voter.name ?? voter.displayName ?? '').trim();
+    if (name) return name;
+
+    const email = String(voter.email ?? '').trim();
+    if (email) return email;
+
+    const loginName = String(voter.loginName ?? '').trim();
+    if (loginName) return loginName;
+
+    const personalNumber = String(voter.personalNumber ?? '').trim();
+    if (personalNumber) return personalNumber;
+
+    return '';
+};
 
 export default function AdminPolls() {
     const { widgetConfig, saveWidgetConfig } = useWidget();
@@ -21,7 +55,10 @@ export default function AdminPolls() {
 
     useEffect(() => {
         const server = widgetConfig?.polls ?? [];
-        setList(server);
+        const normalized = ensureSingleActivePoll(server);
+        setList(normalized);
+        // Keep snapshot of the raw server payload so normalization (if needed)
+        // will trigger a save and persist to shared config.
         lastSavedRef.current = JSON.stringify(server);
     }, [widgetConfig]);
 
@@ -75,15 +112,18 @@ export default function AdminPolls() {
         if (!form.question.trim() || options.length === 0) return;
         const nextItem = { id: form.id, question: form.question, options, active: form.active };
         setList((prev) => (
-            editingId === 'new'
+            ensureSingleActivePoll(
+                editingId === 'new'
                 ? [...prev, nextItem]
-                : prev.map((item) => (item.id === editingId ? nextItem : item))
+                    : prev.map((item) => (item.id === editingId ? nextItem : item)),
+                form.active ? nextItem.id : null
+            )
         ));
         cancelEdit();
     };
 
     const deleteItem = (id) => {
-        setList((prev) => prev.filter((item) => item.id !== id));
+        setList((prev) => ensureSingleActivePoll(prev.filter((item) => item.id !== id)));
         if (editingId === id) cancelEdit();
     };
 
@@ -190,14 +230,31 @@ export default function AdminPolls() {
                                         {item.active ? 'פעיל' : 'סגור'}
                                     </span>
                                 </div>
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                    {(item.options || []).map((option) => (
-                                        <span key={option.id} className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700 dark:bg-white/10 dark:text-gray-200">
-                                            <ListChecks size={12} className="text-pink-400" />
-                                            {option.text}
-                                            <span className="text-pink-500">({option.votes})</span>
-                                        </span>
-                                    ))}
+                                <div className="mt-3 grid gap-2">
+                                    {(item.options || []).map((option) => {
+                                        const voterNames = (Array.isArray(option?.voters) ? option.voters : [])
+                                            .map(resolveVoterLabel)
+                                            .filter(Boolean);
+
+                                        return (
+                                            <div key={option.id} className="rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 dark:border-white/10 dark:bg-[#1a1d24]/70">
+                                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                                    <span className="inline-flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
+                                                        <ListChecks size={12} className="text-pink-400" />
+                                                        {option.text}
+                                                    </span>
+                                                    <span className="rounded-full bg-pink-500/10 px-2.5 py-0.5 text-xs font-bold text-pink-500">
+                                                        {option.votes} קולות
+                                                    </span>
+                                                </div>
+                                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                    {voterNames.length > 0
+                                                        ? `מצביעים (${voterNames.length}): ${voterNames.join(', ')}`
+                                                        : 'מצביעים: אין נתונים'}
+                                                </p>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                             <div className="flex gap-1">

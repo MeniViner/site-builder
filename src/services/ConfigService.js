@@ -55,6 +55,15 @@ class ConfigService {
         this.adapter = adapter;
     }
 
+    async _persistDefaultConfigSafely(defaultConfig, reason) {
+        try {
+            await this.saveConfig(defaultConfig);
+            console.log(`ConfigService: persisted default master config (${reason}).`);
+        } catch (saveError) {
+            console.warn(`ConfigService: failed to persist default master config (${reason}).`, saveError);
+        }
+    }
+
     _withDefaults(config) {
         return deepMergeReplaceArrays(DEFAULT_CONFIG_V1, isObject(config) ? config : {});
     }
@@ -75,7 +84,9 @@ class ConfigService {
             const text = typeof loaded?.text === 'string' ? loaded.text : null;
 
             if (text === null || text.trim() === '') {
-                return validateAndNormalize(DEFAULT_CONFIG_V1);
+                const defaults = validateAndNormalize(DEFAULT_CONFIG_V1);
+                await this._persistDefaultConfigSafely(defaults, 'missing-or-empty');
+                return defaults;
             }
 
             let parsed;
@@ -83,7 +94,9 @@ class ConfigService {
                 parsed = JSON.parse(text);
             } catch (parseError) {
                 console.error('ConfigService: failed to parse master config JSON, falling back to defaults.', parseError);
-                return validateAndNormalize(DEFAULT_CONFIG_V1);
+                const defaults = validateAndNormalize(DEFAULT_CONFIG_V1);
+                await this._persistDefaultConfigSafely(defaults, 'invalid-json');
+                return defaults;
             }
 
             if (isObject(parsed) && parsed.schemaVersion === '1.0.0') {

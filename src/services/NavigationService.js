@@ -1,5 +1,5 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
-import { buildFileValueEndpoint, getRequestDigest } from '../utils/sharepointUtils';
+import { buildFileValueEndpoint, upsertSharePointTextFile } from '../utils/sharepointUtils';
 import {
     spLog,
     spLogFileReadStart,
@@ -256,25 +256,15 @@ class NavigationService {
 
     async _saveSharePointData(navData) {
         try {
-            // Step 1: Get security token (Form Digest) with caching
-            const formDigestValue = await getRequestDigest();
-
-            // Step 2: Save the file
             const fileUrl = this.config.navFileServerRelativeUrl;
             const endpoint = buildFileValueEndpoint(fileUrl);
 
             spLogFileSaveStart('ניווט', fileUrl);
 
-            const saveResponse = await fetch(endpoint, {
-                method: 'POST',
-                credentials: 'include',
-                headers: {
-                    'X-RequestDigest': formDigestValue,
-                    'X-HTTP-Method': 'PUT', // Override POST to PUT
-                    'IF-MATCH': '*', // Overwrite existing file
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(navData)
+            const { response: saveResponse } = await upsertSharePointTextFile({
+                serverRelativeUrl: fileUrl,
+                text: JSON.stringify(navData, null, 2),
+                contentType: 'text/plain; charset=utf-8',
             });
 
             spLogFileSaveResponse(fileUrl, saveResponse);
@@ -285,7 +275,6 @@ class NavigationService {
 
             spLog.scan('מאמת שמירת ניווט...');
 
-            // Step 3: Verify the save by reading it back
             const verifyResponse = await fetch(endpoint, {
                 method: 'GET',
                 credentials: 'include',

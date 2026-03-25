@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "postbuild": "node scripts/postbuild.js",
+    "site:init": "node scripts/init-sharepoint-site.js --write-env",
+    "deploy": "node deploy.js --force",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest"

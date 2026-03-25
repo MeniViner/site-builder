@@ -1,4 +1,5 @@
 import OverlayImageElement from './OverlayImageElement';
+import { resolveSiteImageUrl } from '../../utils/assetUrl';
 
 export default function HeroSection({
   hero,
@@ -22,7 +23,7 @@ export default function HeroSection({
       <div className="w-full lg:w-[75%] xl:w-[65%] text-right self-end md:self-auto">
         <div className="text-primary font-bold lg:text-lg [@media(max-height:850px)]:text-sm mb-1 mr-1">{hero.subtitle}</div>
         <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 lg:gap-6 [@media(max-height:850px)]:gap-4 mb-4 xl:mb-6 [@media(max-height:850px)]:mb-2 mt-1">
-          <img src={logoSrc} alt="Logo" className="h-[70px] md:h-[90px] lg:h-[110px] xl:h-[130px] 2xl:h-[160px] [@media(max-height:850px)]:h-[70px] xl:[@media(max-height:850px)]:h-[80px] w-auto drop-shadow-[0_0_15px_var(--color-primary-700)] transition-transform duration-500 hover:scale-105" />
+          <img src={resolveSiteImageUrl(logoSrc)} alt="Logo" className="h-[70px] md:h-[90px] lg:h-[110px] xl:h-[130px] 2xl:h-[160px] [@media(max-height:850px)]:h-[70px] xl:[@media(max-height:850px)]:h-[80px] w-auto drop-shadow-[0_0_15px_var(--color-primary-700)] transition-transform duration-500 hover:scale-105" />
           <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-[4.2rem] 2xl:text-7xl [@media(max-height:850px)]:text-4xl lg:[@media(max-height:850px)]:text-5xl font-black text-theme drop-shadow-lg tracking-tight leading-tight lg:leading-none break-words">
             {renderHeroTitle()}
           </h1>
