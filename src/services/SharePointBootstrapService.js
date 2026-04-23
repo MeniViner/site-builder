@@ -1,7 +1,7 @@
 import { DEFAULT_CONFIG_V1 } from '../config/AppSchema';
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { cloneDefaultSampleAdminUsers } from '../config/defaultUsers';
-import { ensureSharePointTextFileExists } from '../utils/sharepointUtils';
+import { ensureSharePointTextFileExists, upsertSharePointTextFile } from '../utils/sharepointUtils';
 import { spLog } from '../utils/spAppLog';
 import { DEFAULT_ACTIVE_WIDGETS, mergeWidgetSettings } from '../utils/widgetDisplay';
 import { resolveDefaultMasterConfigFileUrl } from './ConfigAdapter';
@@ -303,4 +303,52 @@ export const ensureSharePointBootstrapFiles = async () => {
     })();
 
     return bootstrapOncePromise;
+};
+
+export const overwriteSharePointBootstrapFiles = async () => {
+    if (SHAREPOINT_CONFIG.useMock) {
+        return [];
+    }
+
+    const files = buildBootstrapFileDefinitions();
+    const summary = [];
+
+    spLog.boot(`Factory reset: מעדכן קבצי מערכת לברירות מחדל (${files.length})...`);
+
+    for (const file of files) {
+        try {
+            const { response } = await upsertSharePointTextFile({
+                serverRelativeUrl: file.serverRelativeUrl,
+                text: file.text,
+                contentType: file.contentType || 'text/plain; charset=utf-8',
+            });
+
+            const ok = Boolean(response?.ok);
+            summary.push({
+                key: file.key,
+                ok,
+                status: response?.status ?? null,
+                serverRelativeUrl: file.serverRelativeUrl,
+            });
+
+            if (ok) {
+                spLog.success(`Factory reset: עודכן קובץ ${file.label}`);
+            } else {
+                spLog.warn(
+                    `Factory reset: שמירת ${file.label} חזרה עם סטטוס ${response?.status ?? 'unknown'}`
+                );
+            }
+        } catch (error) {
+            summary.push({
+                key: file.key,
+                ok: false,
+                status: null,
+                serverRelativeUrl: file.serverRelativeUrl,
+                error: error?.message || String(error),
+            });
+            spLog.warn(`Factory reset: נכשל בעדכון ${file.label} (${file.serverRelativeUrl})`, error);
+        }
+    }
+
+    return summary;
 };

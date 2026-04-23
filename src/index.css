@@ -410,3 +410,181 @@ select,
   line-height: 1.15;
   letter-spacing: 0.01em;
 }
+
+/* ============================================================
+   ORG CHART — Public tree layouts
+   ============================================================ */
+.org-tree-canvas {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 0.5rem 0 2rem;
+}
+
+.org-tree-canvas ul {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  margin: 0;
+  padding: 2.25rem 0 0;
+}
+
+.org-tree-canvas li {
+  position: relative;
+  list-style: none;
+  text-align: center;
+  padding: 2.25rem 0.75rem 0;
+}
+
+.org-tree-canvas li::before,
+.org-tree-canvas li::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 50%;
+  height: 1.5rem;
+  border-top: 1px solid hsl(var(--color-primary) / 0.24);
+}
+
+.org-tree-canvas li::before {
+  right: 50%;
+  border-right: 1px solid hsl(var(--color-primary) / 0.24);
+}
+
+.org-tree-canvas li::after {
+  left: 50%;
+  border-left: 1px solid hsl(var(--color-primary) / 0.24);
+}
+
+.org-tree-canvas li:only-child::before,
+.org-tree-canvas li:only-child::after {
+  display: none;
+}
+
+.org-tree-canvas li:first-child::before,
+.org-tree-canvas li:last-child::after {
+  border: 0;
+}
+
+.org-tree-canvas li:last-child::before {
+  border-radius: 0 14px 0 0;
+}
+
+.org-tree-canvas li:first-child::after {
+  border-radius: 14px 0 0 0;
+}
+
+.org-tree-canvas ul ul::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 50%;
+  transform: translateX(50%);
+  height: 1.5rem;
+  border-right: 1px solid hsl(var(--color-primary) / 0.24);
+}
+
+.org-tree-root {
+  padding-top: 0 !important;
+}
+
+.org-tree-root::before,
+.org-tree-root > li::before,
+.org-tree-root > li::after {
+  display: none;
+}
+
+.org-tree-card {
+  width: min(290px, 76vw);
+  position: relative;
+  isolation: isolate;
+}
+
+.org-tree-card::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 28px;
+  z-index: -1;
+  opacity: 0.85;
+}
+
+.org-tree-classic .org-tree-card::before {
+  background:
+    linear-gradient(135deg, hsl(var(--color-primary) / 0.5), transparent 42%),
+    linear-gradient(315deg, rgba(255,255,255,0.04), transparent 60%);
+}
+
+.org-tree-modern .org-tree-card {
+  transform: translateY(0);
+  transition: transform 220ms ease, box-shadow 220ms ease, filter 220ms ease;
+}
+
+.org-tree-modern .org-tree-card:hover {
+  transform: translateY(-4px);
+  filter: saturate(1.08);
+}
+
+.org-tree-modern .org-tree-card::before {
+  background:
+    linear-gradient(140deg, hsl(var(--color-primary) / 0.72), transparent 38%),
+    linear-gradient(320deg, hsl(var(--color-primary) / 0.18), transparent 62%);
+}
+
+.org-tree-modern li::before,
+.org-tree-modern li::after,
+.org-tree-modern ul ul::before {
+  border-color: hsl(var(--color-primary) / 0.38);
+}
+
+.org-chart-compact-node {
+  position: relative;
+  overflow: hidden;
+}
+
+.org-chart-compact-node::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(to bottom, hsl(var(--color-primary) / 0.85), transparent 88%);
+}
+
+.org-chart-compact-children {
+  position: relative;
+}
+
+.org-chart-compact-children::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 12px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(to bottom, hsl(var(--color-primary) / 0.28), transparent 95%);
+}
+
+@media (max-width: 960px) {
+  .org-tree-canvas ul {
+    gap: 0.75rem;
+    padding-top: 1.5rem;
+  }
+
+  .org-tree-canvas li {
+    padding-top: 1.5rem;
+    padding-inline: 0.35rem;
+  }
+
+  .org-tree-canvas li::before,
+  .org-tree-canvas li::after,
+  .org-tree-canvas ul ul::before {
+    height: 1rem;
+  }
+
+  .org-tree-card {
+    width: min(240px, 82vw);
+  }
+}

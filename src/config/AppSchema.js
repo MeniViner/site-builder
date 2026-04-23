@@ -10,6 +10,22 @@ const VALID_WIDGET_HEIGHTS = ['full', 'high', 'medium', 'low'];
 const VALID_NAV_LAYOUT_MODES = ['sidebar-right', 'grid', 'compact', 'hq'];
 const VALID_EXTERNAL_LINK_LAYOUT_MODES = ['cards', 'minimal', 'floating'];
 const VALID_EVENT_DISPLAY_MODES = ['default', 'monthly', 'calendar'];
+const VALID_ORG_CHART_LAYOUT_DIRECTIONS = ['tree-center', 'step-rtl', 'step-ltr', '3d-graph', 'flow-canvas'];
+const VALID_ORG_CHART_CARD_STYLES = ['classic', 'horizontal', 'large-avatar', 'compact'];
+const VALID_ORG_CHART_LINE_STYLES = ['solid', 'dashed', 'dotted'];
+const VALID_ORG_CHART_AVATAR_SHAPES = ['circle', 'rounded', 'square'];
+const VALID_ORG_CHART_3D_LABEL_TYPES = ['all', 'auto', 'none', 'nodes', 'edges'];
+const VALID_ORG_CHART_3D_LAYOUT_TYPES = ['forceDirected3d', 'concentric3d', 'treeTd3d', 'treeLr3d', 'radialOut3d'];
+const VALID_ORG_CHART_3D_CAMERA_MODES = ['pan', 'rotate', 'orbit', 'orthographic'];
+const VALID_ORG_CHART_3D_EDGE_INTERPOLATIONS = ['linear', 'curved'];
+const VALID_ORG_CHART_3D_EDGE_ARROW_POSITIONS = ['none', 'mid', 'end'];
+const VALID_ORG_CHART_3D_EDGE_LABEL_POSITIONS = ['below', 'above', 'inline', 'natural'];
+const VALID_FLOW_EDGE_TYPES = ['default', 'straight', 'step', 'smoothstep', 'simplebezier'];
+const VALID_FLOW_BACKGROUND_VARIANTS = ['dots', 'lines', 'cross'];
+const VALID_FLOW_CONTROL_ORIENTATION = ['vertical', 'horizontal'];
+const VALID_FLOW_VIEWPORT_MODES = ['map', 'design'];
+const VALID_FLOW_NODE_VISUAL_STYLES = ['command', 'clean', 'minimal'];
+const VALID_FLOW_AUTO_LAYOUT_DIRECTIONS = ['center', 'rtl', 'ltr'];
 const VALID_EVENT_COLORS = ['gray', 'red'];
 const VALID_OVERLAY_OBJECT_FIT = ['contain', 'cover'];
 const VALID_OVERLAY_POSITION_MODES = ['fixed', 'absolute'];
@@ -42,6 +58,38 @@ const VALID_WIDGET_IDS = [
 ];
 const VALID_WIDGET_ID_SET = new Set(VALID_WIDGET_IDS);
 const HEX_COLOR_RE = /^#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/;
+
+/**
+ * @typedef {Object} OrgNode
+ * @property {string} id
+ * @property {string} name
+ * @property {string} rank
+ * @property {string} role
+ * @property {string} imageUrl
+ * @property {OrgNode[]} children
+ */
+
+/**
+ * @typedef {Object} OrgChartConfig
+ * @property {boolean} enabled
+ * @property {string} pageTitle
+ * @property {'tree-center' | 'step-rtl' | 'step-ltr' | '3d-graph' | 'flow-canvas'} layoutDirection
+ * @property {'classic' | 'horizontal' | 'large-avatar' | 'compact'} cardStyle
+ * @property {'solid' | 'dashed' | 'dotted'} lineStyle
+ * @property {'circle' | 'rounded' | 'square'} avatarShape
+ * @property {{initialExpandLevels:number,linkDistance:number,nodeStrength:number,minDistance:number,maxDistance:number,labelType:'all'|'auto'|'none'|'nodes'|'edges',layoutType:'forceDirected3d'|'concentric3d'|'treeTd3d'|'treeLr3d'|'radialOut3d',cameraMode:'pan'|'rotate'|'orbit'|'orthographic',edgeInterpolation:'linear'|'curved',edgeArrowPosition:'none'|'mid'|'end',edgeLabelPosition:'below'|'above'|'inline'|'natural',draggable:boolean,animated:boolean,aggregateEdges:boolean,defaultNodeSize:number,minNodeSize:number,maxNodeSize:number,minZoom:number,maxZoom:number}} graph3d
+ * @property {{edgeType:'default'|'straight'|'step'|'smoothstep'|'simplebezier',edgeAnimated:boolean,edgeOpacityPercent:number,edgeStrokeWidth:number,backgroundVariant:'dots'|'lines'|'cross',backgroundGap:number,backgroundSize:number,showMiniMap:boolean,miniMapPannable:boolean,miniMapZoomable:boolean,showControls:boolean,showControlZoom:boolean,showControlFitView:boolean,showControlInteractive:boolean,controlsOrientation:'vertical'|'horizontal',viewportMode:'map'|'design',panOnScroll:boolean,zoomOnDoubleClick:boolean,snapToGrid:boolean,snapGridX:number,snapGridY:number,fitViewPaddingPercent:number,onlyRenderVisibleElements:boolean,nodeVisualStyle:'command'|'clean'|'minimal',hierarchySizing:boolean,rootScalePercent:number,levelScaleStepPercent:number,minScalePercent:number,showRank:boolean,showRole:boolean,showAvatar:boolean,autoLayoutDirection:'center'|'rtl'|'ltr'}} flowCanvas
+ * @property {Record<string, {x:number, y:number}>} nodePositions
+ * @property {OrgNode[]} nodes
+ */
+
+/**
+ * @typedef {Object} ContentConfig
+ * @property {object} hero
+ * @property {object} commander
+ * @property {object} overlayImage
+ * @property {OrgChartConfig} orgChart
+ */
 
 function isObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -159,6 +207,178 @@ function normalizeNavigationNodes(nodes, prefix = 'nav') {
     });
 
     return normalized;
+}
+
+function normalizeOrgNode(node, index, prefix = 'org-node') {
+    const source = isObject(node) ? node : {};
+    const id = asId(source.id, `${prefix}-${index + 1}`);
+
+    return {
+        id,
+        name: asString(source.name, ''),
+        rank: asString(source.rank, ''),
+        role: asString(source.role, ''),
+        imageUrl: asString(source.imageUrl, asString(source.image, '')),
+        children: normalizeOrgNodes(source.children, id),
+    };
+}
+
+function normalizeOrgNodes(nodes, prefix = 'org-node') {
+    const source = Array.isArray(nodes) ? nodes : [];
+
+    return source
+        .filter(isObject)
+        .map((node, index) => normalizeOrgNode(node, index, prefix));
+}
+
+function normalizeNodePositions(nodePositionsLike) {
+    const source = isObject(nodePositionsLike) ? nodePositionsLike : {};
+    const normalized = {};
+
+    Object.entries(source).forEach(([nodeId, coordinates]) => {
+        const id = typeof nodeId === 'string' ? nodeId.trim() : '';
+        if (!id || !isObject(coordinates)) return;
+
+        const x = Number(coordinates.x);
+        const y = Number(coordinates.y);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+
+        normalized[id] = {
+            x: Math.round(x),
+            y: Math.round(y),
+        };
+    });
+
+    return normalized;
+}
+
+function normalizeOrgChart3D(graph3dLike, fallback) {
+    const source = isObject(graph3dLike) ? graph3dLike : {};
+    const defaults = isObject(fallback) ? fallback : DEFAULT_CONFIG_V1.content.orgChart.graph3d;
+    const minDistance = clampNumber(source.minDistance, 80, 4000, defaults.minDistance);
+    const maxDistanceCandidate = clampNumber(source.maxDistance, 1200, 30000, defaults.maxDistance);
+    const minNodeSize = clampNumber(source.minNodeSize, 2, 24, defaults.minNodeSize);
+    const maxNodeSizeCandidate = clampNumber(source.maxNodeSize, 4, 48, defaults.maxNodeSize);
+    const minZoom = clampNumber(source.minZoom, 1, 40, defaults.minZoom);
+    const maxZoomCandidate = clampNumber(source.maxZoom, 4, 240, defaults.maxZoom);
+
+    return {
+        initialExpandLevels: clampNumber(source.initialExpandLevels, 1, 2, defaults.initialExpandLevels),
+        linkDistance: clampNumber(source.linkDistance, 80, 420, defaults.linkDistance),
+        nodeStrength: clampNumber(source.nodeStrength, -700, -40, defaults.nodeStrength),
+        minDistance,
+        maxDistance: Math.max(maxDistanceCandidate, minDistance + 200),
+        labelType: asEnum(source.labelType, VALID_ORG_CHART_3D_LABEL_TYPES, defaults.labelType),
+        layoutType: asEnum(source.layoutType, VALID_ORG_CHART_3D_LAYOUT_TYPES, defaults.layoutType),
+        cameraMode: asEnum(source.cameraMode, VALID_ORG_CHART_3D_CAMERA_MODES, defaults.cameraMode),
+        edgeInterpolation: asEnum(
+            source.edgeInterpolation,
+            VALID_ORG_CHART_3D_EDGE_INTERPOLATIONS,
+            defaults.edgeInterpolation
+        ),
+        edgeArrowPosition: asEnum(
+            source.edgeArrowPosition,
+            VALID_ORG_CHART_3D_EDGE_ARROW_POSITIONS,
+            defaults.edgeArrowPosition
+        ),
+        edgeLabelPosition: asEnum(
+            source.edgeLabelPosition,
+            VALID_ORG_CHART_3D_EDGE_LABEL_POSITIONS,
+            defaults.edgeLabelPosition
+        ),
+        draggable: asBoolean(source.draggable, defaults.draggable),
+        animated: asBoolean(source.animated, defaults.animated),
+        aggregateEdges: asBoolean(source.aggregateEdges, defaults.aggregateEdges),
+        defaultNodeSize: clampNumber(source.defaultNodeSize, 4, 28, defaults.defaultNodeSize),
+        minNodeSize,
+        maxNodeSize: Math.max(maxNodeSizeCandidate, minNodeSize + 1),
+        minZoom,
+        maxZoom: Math.max(maxZoomCandidate, minZoom + 1),
+    };
+}
+
+function normalizeFlowCanvas(flowCanvasLike, fallback) {
+    const source = isObject(flowCanvasLike) ? flowCanvasLike : {};
+    const defaults = {
+        ...DEFAULT_CONFIG_V1.content.orgChart.flowCanvas,
+        ...(isObject(fallback) ? fallback : {}),
+    };
+
+    return {
+        edgeType: asEnum(source.edgeType, VALID_FLOW_EDGE_TYPES, defaults.edgeType),
+        edgeAnimated: asBoolean(source.edgeAnimated, defaults.edgeAnimated),
+        edgeOpacityPercent: clampNumber(source.edgeOpacityPercent, 20, 100, defaults.edgeOpacityPercent),
+        edgeStrokeWidth: clampNumber(source.edgeStrokeWidth, 1, 6, defaults.edgeStrokeWidth),
+        backgroundVariant: asEnum(source.backgroundVariant, VALID_FLOW_BACKGROUND_VARIANTS, defaults.backgroundVariant),
+        backgroundGap: clampNumber(source.backgroundGap, 8, 120, defaults.backgroundGap),
+        backgroundSize: clampNumber(source.backgroundSize, 1, 18, defaults.backgroundSize),
+        showMiniMap: asBoolean(source.showMiniMap, defaults.showMiniMap),
+        miniMapPannable: asBoolean(source.miniMapPannable, defaults.miniMapPannable),
+        miniMapZoomable: asBoolean(source.miniMapZoomable, defaults.miniMapZoomable),
+        showControls: asBoolean(source.showControls, defaults.showControls),
+        showControlZoom: asBoolean(source.showControlZoom, defaults.showControlZoom),
+        showControlFitView: asBoolean(source.showControlFitView, defaults.showControlFitView),
+        showControlInteractive: asBoolean(source.showControlInteractive, defaults.showControlInteractive),
+        controlsOrientation: asEnum(source.controlsOrientation, VALID_FLOW_CONTROL_ORIENTATION, defaults.controlsOrientation),
+        viewportMode: asEnum(source.viewportMode, VALID_FLOW_VIEWPORT_MODES, defaults.viewportMode),
+        panOnScroll: asBoolean(source.panOnScroll, defaults.panOnScroll),
+        zoomOnDoubleClick: asBoolean(source.zoomOnDoubleClick, defaults.zoomOnDoubleClick),
+        snapToGrid: asBoolean(source.snapToGrid, defaults.snapToGrid),
+        snapGridX: clampNumber(source.snapGridX, 8, 160, defaults.snapGridX),
+        snapGridY: clampNumber(source.snapGridY, 8, 160, defaults.snapGridY),
+        fitViewPaddingPercent: clampNumber(source.fitViewPaddingPercent, 5, 80, defaults.fitViewPaddingPercent),
+        onlyRenderVisibleElements: asBoolean(source.onlyRenderVisibleElements, defaults.onlyRenderVisibleElements),
+        nodeVisualStyle: asEnum(source.nodeVisualStyle, VALID_FLOW_NODE_VISUAL_STYLES, defaults.nodeVisualStyle),
+        hierarchySizing: asBoolean(source.hierarchySizing, defaults.hierarchySizing),
+        rootScalePercent: clampNumber(source.rootScalePercent, 100, 150, defaults.rootScalePercent),
+        levelScaleStepPercent: clampNumber(source.levelScaleStepPercent, 0, 20, defaults.levelScaleStepPercent),
+        minScalePercent: clampNumber(source.minScalePercent, 70, 100, defaults.minScalePercent),
+        showRank: asBoolean(source.showRank, defaults.showRank),
+        showRole: asBoolean(source.showRole, defaults.showRole),
+        showAvatar: asBoolean(source.showAvatar, defaults.showAvatar),
+        autoLayoutDirection: asEnum(
+            source.autoLayoutDirection,
+            VALID_FLOW_AUTO_LAYOUT_DIRECTIONS,
+            defaults.autoLayoutDirection
+        ),
+    };
+}
+
+function normalizeOrgChart(orgChartLike) {
+    const source = isObject(orgChartLike) ? orgChartLike : {};
+    const defaults = DEFAULT_CONFIG_V1.content.orgChart;
+    const legacyLayoutDirectionMap = {
+        'classic-tree': 'tree-center',
+        'modern-cards': 'tree-center',
+        'compact-list': 'step-rtl',
+    };
+    const legacyCardStyleMap = {
+        'theme-solid': 'classic',
+        'theme-outline': 'horizontal',
+        'theme-glass': 'large-avatar',
+        'classic-tree': 'classic',
+        'modern-cards': 'horizontal',
+        'compact-list': 'compact',
+    };
+    const resolvedLayoutDirection = source.layoutDirection || legacyLayoutDirectionMap[source.displayMode];
+    const resolvedCardStyle = source.cardStyle || legacyCardStyleMap[source.displayMode];
+
+    return {
+        enabled: asBoolean(source.enabled, defaults.enabled),
+        pageTitle: asString(source.pageTitle, defaults.pageTitle),
+        layoutDirection: asEnum(
+            resolvedLayoutDirection,
+            VALID_ORG_CHART_LAYOUT_DIRECTIONS,
+            defaults.layoutDirection
+        ),
+        cardStyle: asEnum(resolvedCardStyle, VALID_ORG_CHART_CARD_STYLES, defaults.cardStyle),
+        lineStyle: asEnum(source.lineStyle, VALID_ORG_CHART_LINE_STYLES, defaults.lineStyle),
+        avatarShape: asEnum(source.avatarShape, VALID_ORG_CHART_AVATAR_SHAPES, defaults.avatarShape),
+        graph3d: normalizeOrgChart3D(source.graph3d, defaults.graph3d),
+        flowCanvas: normalizeFlowCanvas(source.flowCanvas, defaults.flowCanvas),
+        nodePositions: normalizeNodePositions(source.nodePositions),
+        nodes: normalizeOrgNodes(source.nodes),
+    };
 }
 
 function normalizeOverlayImage(overlay) {
@@ -445,7 +665,7 @@ export const DEFAULT_CONFIG_V1 = {
     },
     theme: {
         primaryColor: '#0891b2',
-        displayMode: 'dark',
+        displayMode: 'user-toggle',
         borderStyle: 'cyber',
         borderTargets: {
             ...DEFAULT_BORDER_TARGETS,
@@ -916,6 +1136,105 @@ export const DEFAULT_CONFIG_V1 = {
             zIndex: 180,
             blendEffect: true,
         },
+        orgChart: {
+            enabled: false,
+            pageTitle: 'עץ מבנה יחידתי',
+            layoutDirection: 'flow-canvas',
+            cardStyle: 'classic',
+            lineStyle: 'solid',
+            avatarShape: 'circle',
+            graph3d: {
+                initialExpandLevels: 1,
+                linkDistance: 180,
+                nodeStrength: -220,
+                minDistance: 160,
+                maxDistance: 12000,
+                labelType: 'all',
+                layoutType: 'forceDirected3d',
+                cameraMode: 'rotate',
+                edgeInterpolation: 'curved',
+                edgeArrowPosition: 'end',
+                edgeLabelPosition: 'natural',
+                draggable: false,
+                animated: true,
+                aggregateEdges: false,
+                defaultNodeSize: 9,
+                minNodeSize: 6,
+                maxNodeSize: 18,
+                minZoom: 1,
+                maxZoom: 100,
+            },
+            flowCanvas: {
+                edgeType: 'smoothstep',
+                edgeAnimated: true,
+                edgeOpacityPercent: 88,
+                edgeStrokeWidth: 2,
+                backgroundVariant: 'dots',
+                backgroundGap: 18,
+                backgroundSize: 1,
+                showMiniMap: true,
+                miniMapPannable: true,
+                miniMapZoomable: false,
+                showControls: true,
+                showControlZoom: true,
+                showControlFitView: true,
+                showControlInteractive: false,
+                controlsOrientation: 'vertical',
+                viewportMode: 'map',
+                panOnScroll: false,
+                zoomOnDoubleClick: true,
+                snapToGrid: false,
+                snapGridX: 20,
+                snapGridY: 20,
+                fitViewPaddingPercent: 24,
+                onlyRenderVisibleElements: false,
+                nodeVisualStyle: 'command',
+                hierarchySizing: true,
+                rootScalePercent: 112,
+                levelScaleStepPercent: 6,
+                minScalePercent: 84,
+                showRank: true,
+                showRole: true,
+                showAvatar: true,
+                autoLayoutDirection: 'center',
+            },
+            nodePositions: {},
+            nodes: [
+                {
+                    id: 'org-root-hq',
+                    name: 'מפקדת בית הספר',
+                    rank: 'אל"ם',
+                    role: 'מפקדת היחידה',
+                    imageUrl: '',
+                    children: [
+                        {
+                            id: 'org-root-hq-training',
+                            name: 'מדור הכשרות',
+                            rank: 'רס"ן',
+                            role: 'הובלת תוכניות הכשרה',
+                            imageUrl: '',
+                            children: [],
+                        },
+                        {
+                            id: 'org-root-hq-ops',
+                            name: 'מדור אג"ם',
+                            rank: 'רס"ן',
+                            role: 'תכנון ובקרה מבצעית',
+                            imageUrl: '',
+                            children: [],
+                        },
+                        {
+                            id: 'org-root-hq-logistics',
+                            name: 'מדור לוגיסטיקה',
+                            rank: 'רס"ן',
+                            role: 'ציוד, שינוע ותמיכה',
+                            imageUrl: '',
+                            children: [],
+                        },
+                    ],
+                },
+            ],
+        },
     },
     widgets: {
         active: [...DEFAULT_ACTIVE_WIDGETS],
@@ -1255,6 +1574,12 @@ export function migrateLegacyToV1(legacyData) {
     if (isObject(legacyContent.overlayImage)) {
         migrated.content.overlayImage = deepMergeReplaceArrays(migrated.content.overlayImage, legacyContent.overlayImage);
     }
+    if (isObject(legacyContent.orgChart) || isObject(legacy.orgChart)) {
+        migrated.content.orgChart = deepMergeReplaceArrays(
+            migrated.content.orgChart,
+            isObject(legacyContent.orgChart) ? legacyContent.orgChart : legacy.orgChart
+        );
+    }
 
     migrated.navigation.items = normalizeNavigationNodes(legacyNav);
 
@@ -1399,6 +1724,7 @@ export function validateAndNormalize(config) {
                 messages: normalizeMessages(source.content?.commander?.messages),
             },
             overlayImage: normalizeOverlayImage(source.content?.overlayImage),
+            orgChart: normalizeOrgChart(source.content?.orgChart),
         },
         widgets: {
             active: (() => {

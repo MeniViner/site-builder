@@ -51,21 +51,21 @@ export default function AdminWidgets() {
   };
 
   if (loading && !widgetConfig) {
-    return <div className="p-8 text-center text-grey-muted">טוען הגדרות ווידגטים...</div>;
+    return <div className="p-8 text-center text-gray-500 dark:text-gray-400">טוען הגדרות ווידגטים...</div>;
   }
 
   return (
-    <div dir="rtl" className="h-full min-h-0 bg-grey-bg-base text-grey font-heebo flex flex-col">
-      <div className="sticky top-0 z-20 bg-grey-chrome/95 backdrop-blur border-b border-grey-subtle px-8 pt-6 pb-4 flex items-center justify-between gap-4">
+    <div dir="rtl" className="h-full min-h-0 bg-gray-50 dark:bg-[#12141a] text-gray-900 dark:text-white font-heebo flex flex-col">
+      <div className="sticky top-0 z-20 bg-gray-50/95 dark:bg-[#12141a]/95 backdrop-blur border-b border-gray-200 dark:border-white/10 px-8 pt-6 pb-4 flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-grey">בחירת ווידג׳טים פעילים</h1>
-          <p className="mt-1 text-sm text-grey-muted">
+          <h1 className="text-3xl font-black text-gray-900 dark:text-white">בחירת ווידג׳טים פעילים</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             בחר עד 3 ווידג׳טים שיוצגו בקרוסלה בעמוד הבית.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <AdminPageHelpButton pageId="widgets" />
-          <span className="rounded-full border border-grey-subtle bg-grey-card px-3 py-1 text-xs font-bold text-grey-muted">
+          <span className="rounded-full border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-1 text-xs font-bold text-gray-600 dark:text-gray-300">
             נבחרו {activeWidgets.length}/3
           </span>
         </div>
@@ -75,7 +75,7 @@ export default function AdminWidgets() {
         <div className="px-8 pt-4">
           <div className="mb-4 flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/10 p-4">
             <AlertTriangle className="shrink-0 text-primary" />
-            <span className="text-grey">{error}</span>
+            <span className="text-gray-800 dark:text-gray-100">{error}</span>
           </div>
         </div>
       )}
@@ -83,10 +83,10 @@ export default function AdminWidgets() {
       <div className="flex-1 min-h-0 px-8 pb-8 pt-4 overflow-y-auto 2xl:overflow-hidden">
         <div className="h-full flex flex-col gap-6 2xl:flex-row 2xl:items-stretch">
           <div className="flex-1 min-h-0 space-y-6 2xl:overflow-y-auto 2xl:pr-2 custom-scrollbar">
-            <div className="rounded-2xl border border-grey-subtle bg-grey-card p-4">
+            <div className="rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#232733] p-4">
               <div className="mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-grey">רשימת הווידג׳טים</h2>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">רשימת הווידג׳טים</h2>
                   <HelpTooltipButton
                     title="רשימת הווידג׳טים"
                     description="לחיצה על כרטיס מוסיפה או מסירה את הווידג׳ט מהרשימה הפעילה."
@@ -96,7 +96,7 @@ export default function AdminWidgets() {
                     ]}
                   />
                 </div>
-                <span className="text-xs text-grey-muted">מינימום 1, מקסימום 3</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">מינימום 1, מקסימום 3</span>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {AVAILABLE_WIDGETS.map((widget) => {
@@ -111,7 +111,7 @@ export default function AdminWidgets() {
                       className={`relative rounded-2xl border p-5 text-right transition-all duration-200 group ${
                         isSelected
                           ? 'border-primary bg-primary/10 shadow-[0_0_0_1px_var(--color-primary-hex)]'
-                          : 'border-grey-subtle bg-grey-card hover:border-primary/40 hover:bg-grey-card-hover'
+                          : 'border-gray-200 dark:border-[#2f3442] bg-white dark:bg-[#1b1f2a] hover:border-primary/40 dark:hover:border-primary/35 hover:bg-gray-50 dark:hover:bg-[#242938]'
                       }`}
                     >
                       {isSelected && (
@@ -119,14 +119,14 @@ export default function AdminWidgets() {
                           נבחר {order + 1}/3
                         </div>
                       )}
-                      <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-xl border ${isSelected ? 'border-primary/30 bg-primary/15 text-primary' : 'border-grey-subtle bg-grey-elevated text-grey-muted'} transition-colors`}>
+                      <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-xl border ${isSelected ? 'border-primary/30 bg-primary/15 text-primary' : 'border-gray-200 dark:border-[#31384a] bg-gray-50 dark:bg-[#202536] text-gray-500 dark:text-gray-300'} transition-colors`}>
                         <Icon size={22} />
                       </div>
-                      <h3 className={`mb-2 text-lg font-bold ${isSelected ? 'text-grey' : 'text-grey-muted group-hover:text-grey'}`}>
+                      <h3 className={`mb-2 text-lg font-bold ${isSelected ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white'}`}>
                         {widget.label}
                       </h3>
-                      <p className="text-sm leading-relaxed text-grey-muted">{widget.description}</p>
-                      <div className={`mt-4 flex items-center gap-2 text-sm font-bold ${isSelected ? 'text-primary' : 'text-grey-muted'}`}>
+                      <p className="text-sm leading-relaxed text-gray-500 dark:text-gray-400">{widget.description}</p>
+                      <div className={`mt-4 flex items-center gap-2 text-sm font-bold ${isSelected ? 'text-primary' : 'text-gray-500 dark:text-gray-300'}`}>
                         {isSelected ? <><Check size={16} /><span>נבחר כווידגט פעיל</span></> : <span>לחץ להוספה</span>}
                       </div>
                     </button>
@@ -157,7 +157,7 @@ export default function AdminWidgets() {
                         className={`rounded-lg border px-3 py-0.5 text-xs font-bold transition ${
                           isPreviewActive
                             ? 'border-primary bg-primary/10 text-primary'
-                            : 'border-grey-subtle bg-grey-elevated text-grey-muted hover:border-primary/40 hover:text-grey'
+                            : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-[#1b1f2a] text-gray-500 dark:text-gray-300 hover:border-primary/40 hover:text-gray-900 dark:hover:text-white'
                         }`}
                       >
                         {`#${index + 1} ${widgetMeta?.label || widgetId}`}

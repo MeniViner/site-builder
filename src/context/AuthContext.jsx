@@ -1,11 +1,15 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import UsersService from '../services/UsersService';
 import { spLog } from '../utils/spAppLog';
+import { ensureRecentBackup } from '../utils/sharepointUtils';
 
 const AuthContext = createContext(null);
 const SESSION_USER_NAME_KEY = 'tracker_user_name';
 const SESSION_USER_IDENTITY_KEY = 'tracker_user_identity';
+const AUTO_BACKUP_CHECK_DELAY_MS = 20 * 1000;
+const AUTO_BACKUP_MAX_AGE_MS = 48 * 60 * 60 * 1000;
+const appBootTimestamp = Date.now();
 
 const normalizeIdentityText = (value) => {
     if (value === null || value === undefined) return '';
@@ -153,6 +157,7 @@ export const AuthProvider = ({ children }) => {
     const [isAdmin, setIsAdmin] = useState(false);
     const [loading, setLoading] = useState(true);
     const [adminUsersInfo, setAdminUsersInfo] = useState([]);
+    const backupCheckTimerRef = useRef(null);
 
     const signIn = (userInput, adminUsers) => {
         const user = normalizeCurrentUser(userInput);
@@ -270,6 +275,43 @@ export const AuthProvider = ({ children }) => {
 
         initAuth();
     }, []);
+
+    useEffect(() => {
+        if (backupCheckTimerRef.current) {
+            window.clearTimeout(backupCheckTimerRef.current);
+            backupCheckTimerRef.current = null;
+        }
+
+        if (loading || !currentUser || SHAREPOINT_CONFIG.useMock) {
+            return undefined;
+        }
+
+        const elapsedSinceBootMs = Date.now() - appBootTimestamp;
+        const waitMs = Math.max(0, AUTO_BACKUP_CHECK_DELAY_MS - elapsedSinceBootMs);
+        const userLabel = currentUser.displayName || currentUser.loginName || currentUser.email || 'unknown-user';
+
+        spLog.system(
+            `בדיקת גיבוי אוטומטית תורץ עבור המשתמש "${userLabel}" בעוד ${Math.ceil(waitMs / 1000)} שניות`
+        );
+
+        backupCheckTimerRef.current = window.setTimeout(async () => {
+            const result = await ensureRecentBackup({ maxAgeMs: AUTO_BACKUP_MAX_AGE_MS });
+            if (result?.performedBackup) {
+                spLog.success(`בוצע גיבוי אוטומטי עבור "${userLabel}"`);
+            } else if (result?.hasRecentBackup) {
+                spLog.system(`גיבוי תקין עבור "${userLabel}" — לא נדרש גיבוי חדש`);
+            } else {
+                spLog.warn(`בדיקת גיבוי עבור "${userLabel}" הסתיימה בלי יצירת גיבוי`);
+            }
+        }, waitMs);
+
+        return () => {
+            if (backupCheckTimerRef.current) {
+                window.clearTimeout(backupCheckTimerRef.current);
+                backupCheckTimerRef.current = null;
+            }
+        };
+    }, [loading, currentUser]);
 
     const value = {
         currentUser,

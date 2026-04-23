@@ -1,7 +1,8 @@
 // src/context/WidgetContext.jsx
-import React, { createContext, useMemo, useContext, useCallback } from 'react';
+import React, { createContext, useMemo, useContext, useCallback, useEffect, useState } from 'react';
 import { useConfig } from './ConfigProvider';
 import { DEFAULT_ACTIVE_WIDGETS, mergeWidgetSettings } from '../utils/widgetDisplay';
+import WidgetService from '../services/WidgetService';
 
 export const WidgetContext = createContext();
 
@@ -295,36 +296,110 @@ function toV1WidgetPatch(flatConfig, prevWidgets) {
 
 export const WidgetProvider = ({ children }) => {
     const { config, status, error, updateConfig, saveNow, reload } = useConfig();
+    const [sharedPolls, setSharedPolls] = useState(null);
+    const [sharedWidgetSnapshot, setSharedWidgetSnapshot] = useState(null);
 
-    const widgetConfig = useMemo(
+    const baseWidgetConfig = useMemo(
         () => toLegacyWidgetConfig(config?.widgets),
         [config?.widgets]
     );
 
+    const widgetConfig = useMemo(() => {
+        if (!Array.isArray(sharedPolls)) {
+            return baseWidgetConfig;
+        }
+
+        return {
+            ...baseWidgetConfig,
+            polls: sharedPolls,
+        };
+    }, [baseWidgetConfig, sharedPolls]);
+
     const loading = status === 'loading';
+
+    const loadSharedPolls = useCallback(async () => {
+        try {
+            const storedWidgetConfig = await WidgetService.getWidgetConfig();
+            const storedPolls = Array.isArray(storedWidgetConfig?.polls) ? storedWidgetConfig.polls : [];
+            setSharedWidgetSnapshot(storedWidgetConfig || {});
+            setSharedPolls(storedPolls);
+            return true;
+        } catch (err) {
+            console.warn('WidgetContext: failed to load shared polls from widgets_data.txt', err);
+            return false;
+        }
+    }, []);
+
+    useEffect(() => {
+        loadSharedPolls();
+    }, [loadSharedPolls]);
 
     const fetchWidgetConfig = useCallback(async () => {
         try {
             await reload();
+            await loadSharedPolls();
             return true;
-        } catch (err) {
+        } catch {
             return false;
         }
-    }, [reload]);
+    }, [reload, loadSharedPolls]);
+
+    const persistPollsToSharedStore = useCallback(async (polls) => {
+        try {
+            const normalizedPolls = Array.isArray(polls) ? polls : [];
+            const baseSharedConfig = sharedWidgetSnapshot && typeof sharedWidgetSnapshot === 'object'
+                ? sharedWidgetSnapshot
+                : await WidgetService.getWidgetConfig();
+
+            const nextSharedConfig = {
+                ...(baseSharedConfig || {}),
+                polls: normalizedPolls,
+            };
+
+            const saved = await WidgetService.saveWidgetConfig(nextSharedConfig);
+            const savedPolls = Array.isArray(saved?.polls) ? saved.polls : normalizedPolls;
+            setSharedWidgetSnapshot(saved || nextSharedConfig);
+            setSharedPolls(savedPolls);
+            return true;
+        } catch (err) {
+            console.error('WidgetContext: failed to persist polls to widgets_data.txt', err);
+            return false;
+        }
+    }, [sharedWidgetSnapshot]);
 
     const saveWidgetConfig = useCallback(async (newWidgetConfig) => {
+        const hasPollsPayload = Object.prototype.hasOwnProperty.call(newWidgetConfig || {}, 'polls');
+        let pollsSaved = true;
+
+        if (hasPollsPayload) {
+            pollsSaved = await persistPollsToSharedStore(newWidgetConfig?.polls);
+        }
+
         try {
             updateConfig((prev) => ({
                 ...prev,
                 widgets: toV1WidgetPatch(newWidgetConfig, prev.widgets),
             }));
             await saveNow();
-            return true;
+            return pollsSaved;
         } catch (err) {
             console.error(err);
             return false;
         }
-    }, [saveNow, updateConfig]);
+    }, [persistPollsToSharedStore, saveNow, updateConfig]);
+
+    const savePollVote = useCallback(async (nextPolls) => {
+        const previousPolls = Array.isArray(sharedPolls) ? sharedPolls : [];
+        const normalizedPolls = Array.isArray(nextPolls) ? nextPolls : [];
+        setSharedPolls(normalizedPolls);
+
+        const success = await persistPollsToSharedStore(normalizedPolls);
+        if (!success) {
+            setSharedPolls(previousPolls);
+        }
+
+        return success;
+    }, [persistPollsToSharedStore, sharedPolls]);
 
     const updateField = useCallback((field, value) => {
         const nextConfig = {
@@ -341,6 +416,7 @@ export const WidgetProvider = ({ children }) => {
                 loading,
                 error,
                 saveWidgetConfig,
+                savePollVote,
                 fetchWidgetConfig,
                 updateField,
             }}

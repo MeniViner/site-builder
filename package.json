@@ -8,17 +8,24 @@
     "build": "vite build",
     "postbuild": "node scripts/postbuild.js",
     "site:init": "node scripts/init-sharepoint-site.js --write-env",
+    "ai:backend:install": "npm --prefix newAlphaAIBackend/newAlphaAIBackend install",
+    "ai:backend:dev": "npm --prefix newAlphaAIBackend/newAlphaAIBackend run dev",
+    "ai:backend:start": "npm --prefix newAlphaAIBackend/newAlphaAIBackend run start",
     "deploy": "node deploy.js --force",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest"
   },
   "dependencies": {
+    "@react-three/fiber": "^9.5.0",
     "lucide-react": "^0.575.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.13.1",
-    "react-toastify": "^11.0.5"
+    "react-toastify": "^11.0.5",
+    "reactflow": "^11.11.4",
+    "reagraph": "^4.30.8",
+    "three": "^0.183.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

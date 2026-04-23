@@ -13,6 +13,67 @@ import Tooltip from './Tooltip';
 import { confirmToast } from '../utils/confirmToast';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 
+function createNodeId(prefix) {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function asText(value, fallback = '') {
+    if (typeof value !== 'string') return fallback;
+    const trimmed = value.trim();
+    return trimmed || fallback;
+}
+
+function normalizeAiLink(link, index, parentId) {
+    const label = asText(link?.label || link?.title, `לינק ${index + 1}`);
+    return {
+        id: asText(link?.id, createNodeId(`link_${parentId}_${index}`)),
+        label,
+        icon: asText(link?.icon, 'Link'),
+        url: asText(link?.url, ''),
+    };
+}
+
+function normalizeAiSubCategory(subcategory, index, categoryId) {
+    const title = asText(subcategory?.title || subcategory?.label, `כרטיסייה ${index + 1}`);
+    const subLinksSource = Array.isArray(subcategory?.subLinks)
+        ? subcategory.subLinks
+        : (Array.isArray(subcategory?.children) ? subcategory.children : []);
+
+    return {
+        id: asText(subcategory?.id, createNodeId(`sub_${categoryId}_${index}`)),
+        title,
+        label: title,
+        icon: asText(subcategory?.icon, 'FileText'),
+        url: asText(subcategory?.url, ''),
+        subLinks: subLinksSource.map((link, linkIndex) => normalizeAiLink(link, linkIndex, categoryId)),
+    };
+}
+
+function normalizeAiNavigationTree(payload) {
+    const source = Array.isArray(payload?.navItems) ? payload.navItems : [];
+    const normalized = source.map((category, index) => {
+        const categoryId = asText(category?.id, createNodeId(`cat_${index}`));
+        const children = Array.isArray(category?.children) ? category.children : [];
+
+        return {
+            id: categoryId,
+            label: asText(category?.label || category?.title, `קטגוריה ${index + 1}`),
+            icon: asText(category?.icon, 'Folder'),
+            url: asText(category?.url, ''),
+            children: children.map((subCategory, subIndex) => normalizeAiSubCategory(subCategory, subIndex, categoryId)),
+        };
+    });
+
+    if (!normalized.length) {
+        throw new Error('לא התקבל מבנה ניווט תקין מה-AI');
+    }
+
+    return normalized;
+}
+
 export default function AdminNavigation() {
     const { navItems: initialNavItems, loading, error, saveNavigation } = useNavigation();
     const { effectiveMode } = useTheme();
@@ -154,6 +215,49 @@ export default function AdminNavigation() {
                 return path.slice(0, -1);
             });
         });
+    };
+
+    const buildNavigationAiPrompt = (instruction) => {
+        const snapshot = navItems.slice(0, 12);
+        return [
+            'אתה ארכיטקט ניווט לפורטל ארגוני בעברית.',
+            'החזר JSON בלבד ללא טקסט נוסף.',
+            'סכימה נדרשת:',
+            '{',
+            '  "navItems": [',
+            '    {',
+            '      "label": "string",',
+            '      "icon": "Folder",',
+            '      "url": "optional-url",',
+            '      "children": [',
+            '        {',
+            '          "title": "string",',
+            '          "icon": "FileText",',
+            '          "url": "optional-url",',
+            '          "subLinks": [',
+            '            { "label": "string", "icon": "Link", "url": "https://..." }',
+            '          ]',
+            '        }',
+            '      ]',
+            '    }',
+            '  ]',
+            '}',
+            'חוקים:',
+            '- שמור על עברית ברורה וקצרה.',
+            '- אם יש url, שיהיה מלא ומתחיל ב-http/https.',
+            '- אל תחזיר שדות מיותרים.',
+            `נתונים קיימים: ${JSON.stringify(snapshot)}`,
+            `בקשת המשתמש: ${instruction}`,
+        ].join('\n');
+    };
+
+    const applyAiNavigation = (parsed) => {
+        const normalized = normalizeAiNavigationTree(parsed);
+        const expanded = new Set(['root', ...normalized.map((item) => item.id)]);
+        setNavItems(normalized);
+        setExpandedNodes(expanded);
+        setSelectedPath([]);
+        toast.success('הצעת AI הוחלה על מבנה הניווט');
     };
 
     // Derived State

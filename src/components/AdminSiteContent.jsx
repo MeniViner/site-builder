@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useSiteContent } from '../context/SiteContentContext';
+import { useConfig } from '../context/ConfigProvider';
 import { useTheme } from '../context/ThemeContext';
 import SiteContentLivePreview from './SiteContentLivePreview';
 import {
     AlertTriangle, Plus, Trash2, Edit2, X,
     Image as ImageIcon, Type, MessageSquare,
-    ChevronDown, ChevronUp, Upload, Loader2
+    ChevronDown, ChevronUp, Upload, Loader2, Sparkles
 } from 'lucide-react';
 import { uploadImage } from '../utils/sharepointUtils';
 import { resolveSiteImageUrl } from '../utils/assetUrl';
@@ -14,6 +15,10 @@ import { DEFAULT_OVERLAY_IMAGE, normalizeOverlayImageConfig } from '../utils/ove
 import { confirmToast } from '../utils/confirmToast';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import { toast } from 'react-toastify';
+import AdminAIActionCard from './AdminAIActionCard';
+import AdminAIHelp from './AdminAIHelp';
+import AIService from '../services/AIService';
+import { getSafeAiRuntimeConfig } from '../config/ai.config';
 
 const MAX_COMMANDER_MESSAGES = 5;
 
@@ -23,6 +28,7 @@ const SETTINGS_NAV = [
     { id: 'commander-profile', label: 'פרטי מפקד', description: 'תמונה, כותרת ותפקיד המפקד' },
     { id: 'commander-messages', label: 'הודעות מפקד', description: 'ניהול הודעות וניווט בין הודעות' },
     { id: 'overlay-image', label: 'אלמנט תמונה', description: 'תמונה צפה עם מיקום, גודל וסגנון מסגרת' },
+    { id: 'factoryReset', label: 'איפוס נתוני אתר', description: 'איפוס נתוני אתר לברירת מחדל', destructive: true },
 ];
 
 const HERO_DEFAULTS = {
@@ -81,13 +87,78 @@ const OVERLAY_OBJECT_FIT_OPTIONS = [
 ];
 
 const inputCls = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:border-gray-700/50 dark:bg-[#1e212b] dark:text-white';
+const AI_SITE_CONTENT_RUNTIME = getSafeAiRuntimeConfig();
+
+function asText(value, fallback = '') {
+    if (typeof value !== 'string') return fallback;
+    const trimmed = value.trim();
+    return trimmed || fallback;
+}
+
+function normalizeAiCommanderMessages(messages) {
+    if (!Array.isArray(messages)) return [];
+
+    return messages
+        .map((entry, index) => {
+            if (typeof entry === 'string') {
+                const text = entry.trim();
+                if (!text) return null;
+                return {
+                    id: `msg_${Date.now()}_${index}`,
+                    text,
+                    signature: '',
+                };
+            }
+
+            const text = asText(entry?.text);
+            if (!text) return null;
+
+            return {
+                id: asText(entry?.id, `msg_${Date.now()}_${index}`),
+                text,
+                signature: asText(entry?.signature),
+            };
+        })
+        .filter(Boolean)
+        .slice(0, MAX_COMMANDER_MESSAGES);
+}
+
+function normalizeAiSiteContentPayload(payload, fallbackHero, fallbackCommander) {
+    const heroPayload = payload?.hero || {};
+    const commanderPayload = payload?.commander || {};
+
+    const nextHero = {
+        ...fallbackHero,
+        siteName: asText(heroPayload.siteName, fallbackHero.siteName),
+        title: asText(heroPayload.title, fallbackHero.title).split('\n').slice(0, 2).join('\n'),
+        subtitle: asText(heroPayload.subtitle, fallbackHero.subtitle),
+        description: asText(heroPayload.description, fallbackHero.description).split('\n').slice(0, 3).join('\n'),
+    };
+
+    const nextCommander = {
+        ...fallbackCommander,
+        sectionTitle: asText(commanderPayload.sectionTitle, fallbackCommander.sectionTitle),
+        roleLabel: asText(commanderPayload.roleLabel, fallbackCommander.roleLabel),
+    };
+
+    if (Array.isArray(commanderPayload.messages)) {
+        nextCommander.messages = normalizeAiCommanderMessages(commanderPayload.messages);
+    }
+
+    return {
+        hero: nextHero,
+        commander: nextCommander,
+    };
+}
 
 export default function AdminSiteContent() {
     const { siteContent, loading, error, saveSiteContent } = useSiteContent();
     const { theme: themeSettings, saveTheme } = useTheme();
+    const { factoryReset } = useConfig();
     const [isSaving, setIsSaving] = useState(false);
     const [saveMessage, setSaveMessage] = useState(null);
     const [activeSettingId, setActiveSettingId] = useState(SETTINGS_NAV[0].id);
+    const [isResetting, setIsResetting] = useState(false);
     const [hero, setHero] = useState(HERO_DEFAULTS);
     const [commander, setCommander] = useState(COMMANDER_DEFAULTS);
     const [overlayImage, setOverlayImage] = useState(DEFAULT_OVERLAY_IMAGE);
@@ -96,11 +167,13 @@ export default function AdminSiteContent() {
     const [uploadingCommander, setUploadingCommander] = useState(false);
     const [uploadingLogo, setUploadingLogo] = useState(false);
     const [uploadingOverlayImage, setUploadingOverlayImage] = useState(false);
+    const [improvingTargetKey, setImprovingTargetKey] = useState('');
     const heroFileInputRef = useRef(null);
     const logoFileInputRef = useRef(null);
     const commanderFileInputRef = useRef(null);
     const overlayImageFileInputRef = useRef(null);
     const lastSavedRef = useRef(null);
+    const isAiEnabled = AIService.isEnabled();
 
     useEffect(() => {
         if (!siteContent) return;
@@ -175,6 +248,20 @@ export default function AdminSiteContent() {
             ...prev,
             backgroundImages: prev.backgroundImages.filter((_, i) => i !== index),
         }));
+    };
+
+    const moveBackgroundImage = (index, direction) => {
+        const targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= hero.backgroundImages.length) return;
+
+        setHero((prev) => {
+            const nextImages = [...prev.backgroundImages];
+            [nextImages[index], nextImages[targetIndex]] = [nextImages[targetIndex], nextImages[index]];
+            return {
+                ...prev,
+                backgroundImages: nextImages,
+            };
+        });
     };
 
     const handleHeroGrayscaleChange = async (nextGrayscale) => {
@@ -280,11 +367,10 @@ export default function AdminSiteContent() {
 
     const saveMessageEdit = (e) => {
         e.preventDefault();
-        const formData = new FormData(e.target);
         const updated = {
             id: editingMessage.id || Date.now().toString(),
-            text: formData.get('text'),
-            signature: formData.get('signature'),
+            text: String(editingMessage.text || '').trim(),
+            signature: String(editingMessage.signature || '').trim(),
         };
 
         if (editingMessage.isNew) {
@@ -302,6 +388,30 @@ export default function AdminSiteContent() {
         }
 
         setEditingMessage(null);
+    };
+
+    const handleImproveEditingMessageText = async () => {
+        const source = String(editingMessage?.text || '').trim();
+        if (!source) {
+            toast.error('אין טקסט הודעה לשיפור.');
+            return;
+        }
+        const targetKey = `editing-message-${editingMessage.id || 'new'}`;
+        setImprovingTargetKey(targetKey);
+        try {
+            const improved = await improveTextWithAi({
+                text: source,
+                fieldTitle: 'הודעת מפקד',
+                rules: 'עד 4 שורות. שפה בטוחה, סמכותית, אנושית ובהירה. בלי קלישאות.',
+                maxLines: 4,
+            });
+            setEditingMessage((prev) => (prev ? { ...prev, text: improved } : prev));
+            toast.success('הודעת המפקד שופרה');
+        } catch (error) {
+            toast.error(error?.message || 'שיפור הודעת המפקד נכשל');
+        } finally {
+            setImprovingTargetKey('');
+        }
     };
 
     const removeMessage = (id) => {
@@ -331,12 +441,140 @@ export default function AdminSiteContent() {
         });
     };
 
+    const handleFactoryReset = async () => {
+        if (isResetting || typeof factoryReset !== 'function') return;
+        setIsResetting(true);
+        try {
+            await factoryReset();
+        } finally {
+            setIsResetting(false);
+        }
+    };
+
+    const buildSiteContentAiPrompt = (instruction) => {
+        const snapshot = {
+            hero: {
+                siteName: hero.siteName,
+                title: hero.title,
+                subtitle: hero.subtitle,
+                description: hero.description,
+            },
+            commander: {
+                sectionTitle: commander.sectionTitle,
+                roleLabel: commander.roleLabel,
+                messages: commander.messages.map((item) => ({
+                    text: item.text,
+                    signature: item.signature,
+                })),
+            },
+        };
+
+        return [
+            'אתה קופירייטר לפורטל צבאי/ארגוני בעברית.',
+            'החזר JSON בלבד וללא טקסט נוסף.',
+            'סכימה מחייבת:',
+            '{',
+            '  "hero": {',
+            '    "siteName": "string",',
+            '    "subtitle": "string",',
+            '    "title": "string (עד 2 שורות)",',
+            '    "description": "string (עד 3 שורות)"',
+            '  },',
+            '  "commander": {',
+            '    "sectionTitle": "string",',
+            '    "roleLabel": "string",',
+            '    "messages": [',
+            '      { "text": "string", "signature": "string" }',
+            '    ]',
+            '  }',
+            '}',
+            'חוקים:',
+            `- עד ${MAX_COMMANDER_MESSAGES} הודעות מפקד.`,
+            '- ניסוח קצר, מקצועי, לא סיסמאות ריקות.',
+            '- שמור על שפה טבעית וברורה.',
+            `תוכן קיים: ${JSON.stringify(snapshot)}`,
+            `בקשת המשתמש: ${instruction}`,
+        ].join('\n');
+    };
+
+    const applyAiSiteContent = (parsed) => {
+        const normalized = normalizeAiSiteContentPayload(parsed, hero, commander);
+        setHero(normalized.hero);
+        setCommander(normalized.commander);
+        setActiveSettingId('hero-content');
+        setEditingMessage(null);
+        toast.success('הצעת AI הוחלה על תוכן האתר');
+    };
+
+    const cleanImprovedText = (rawText, maxLines = 3) => {
+        const cleaned = String(rawText || '')
+            .replace(/^```[\s\S]*?\n/, '')
+            .replace(/```$/g, '')
+            .replace(/^["'`]+|["'`]+$/g, '')
+            .trim();
+        const limitedLines = cleaned
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .slice(0, maxLines);
+        return limitedLines.join('\n');
+    };
+
+    const improveTextWithAi = async ({ text, fieldTitle, rules, maxLines }) => {
+        if (!isAiEnabled) {
+            throw new Error('שירות ה-AI כבוי כרגע.');
+        }
+        const prompt = [
+            'אתה עורך לשוני מומחה לתוכן ארגוני בעברית.',
+            'שפר את הטקסט הבא כך שיהיה ברור, מקצועי, ענייני וקצר.',
+            'החזר טקסט בלבד ללא הסברים, ללא כותרות, ללא markdown וללא מירכאות.',
+            `שדה: ${fieldTitle}`,
+            `חוקים: ${rules}`,
+            `טקסט לשיפור: ${text}`,
+        ].join('\n');
+        const result = await AIService.ask(prompt, {
+            model: AI_SITE_CONTENT_RUNTIME.defaultModel,
+            fallbackModels: AI_SITE_CONTENT_RUNTIME.fallbackModels,
+            requestMode: AI_SITE_CONTENT_RUNTIME.requestMode,
+            useSmartFallback: AI_SITE_CONTENT_RUNTIME.useSmartFallback,
+        });
+        const improved = cleanImprovedText(result?.content, maxLines);
+        if (!improved) {
+            throw new Error('לא התקבל טקסט משופר מה-AI.');
+        }
+        return improved;
+    };
+
+    const handleImproveHeroDescription = async () => {
+        const source = String(hero.description || '').trim();
+        if (!source) {
+            toast.error('אין תיאור לשיפור.');
+            return;
+        }
+        setImprovingTargetKey('hero-description');
+        try {
+            const improved = await improveTextWithAi({
+                text: source,
+                fieldTitle: 'תיאור Hero',
+                rules: 'עד 3 שורות. לשמור על ניסוח ייצוגי, קריא ומדויק.',
+                maxLines: 3,
+            });
+            updateHeroField('description', improved);
+            toast.success('התיאור שופר בהצלחה');
+        } catch (error) {
+            toast.error(error?.message || 'שיפור התיאור נכשל');
+        } finally {
+            setImprovingTargetKey('');
+        }
+    };
+
     const showSection = (id) => activeSettingId === id;
     const isHeroContentTab = showSection('hero-content');
     const isHeroBackgroundsTab = showSection('hero-backgrounds');
     const isCommanderProfileTab = showSection('commander-profile');
     const isCommanderMessagesTab = showSection('commander-messages');
     const isOverlayImageTab = showSection('overlay-image');
+    const isFactoryResetTab = showSection('factoryReset');
     const heroTabActive = isHeroContentTab || isHeroBackgroundsTab;
     const commanderTabActive = isCommanderProfileTab || isCommanderMessagesTab;
 
@@ -354,6 +592,23 @@ export default function AdminSiteContent() {
                     </div>
                     <div className="flex items-center gap-3">
                         <AdminPageHelpButton pageId="site-content" tabId={activeSettingId} />
+                        <AdminAIActionCard
+                            compact
+                            compactLabel="AI"
+                            title="עוזר AI לתוכן האתר"
+                            description="ייצור מהיר של טקסטי Hero ו'דבר המפקד' בהתאם לבריף שתכתוב."
+                            inputLabel="איזה תוכן תרצה לייצר?"
+                            inputPlaceholder='דוגמה: "נסח כותרת ותיאור אתר ליחידה טכנולוגית עם דגש על חדשנות, מקצועיות ושירות"'
+                            defaultInput="נסח תכנים רשמיים וקצרים למסך הבית"
+                            buildPrompt={buildSiteContentAiPrompt}
+                            onApply={applyAiSiteContent}
+                            applyButtonLabel="החל על התוכן"
+                            generateButtonLabel="ייצר תוכן"
+                            primaryPanelTabLabel="תוכן האתר"
+                            secondaryPanelTabLabel="שאלות ותפעול"
+                            secondaryPanelTitle="עוזר AI לניווט ותפעול"
+                            secondaryPanel={<AdminAIHelp embedded />}
+                        />
                         {isSaving && (
                             <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-full shadow-sm">
                                 <div className="w-3.5 h-3.5 border-[2px] border-primary border-t-transparent rounded-full animate-spin" />
@@ -364,13 +619,17 @@ export default function AdminSiteContent() {
                 </div>
 
                 <nav className="flex items-center gap-2 overflow-x-auto p-1 custom-scrollbar w-full">
-                    {SETTINGS_NAV.map(({ id, label }) => (
+                    {SETTINGS_NAV.map(({ id, label, destructive }) => (
                         <button
                             key={id}
                             onClick={() => setActiveSettingId(id)}
                             className={`px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${activeSettingId === id
-                                ? 'bg-primary-600 text-white shadow-md ring-2 ring-primary-500/30 ring-offset-2 ring-offset-gray-50 dark:ring-offset-[#12141a]'
-                                : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-transparent shadow-sm hover:shadow'
+                                ? destructive
+                                    ? 'bg-red-600 text-white shadow-md ring-2 ring-red-500/30 ring-offset-2 ring-offset-gray-50 dark:ring-offset-[#12141a]'
+                                    : 'bg-primary-600 text-white shadow-md ring-2 ring-primary-500/30 ring-offset-2 ring-offset-gray-50 dark:ring-offset-[#12141a]'
+                                : destructive
+                                    ? 'bg-white dark:bg-white/5 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-900 dark:hover:text-red-200 border border-red-200 dark:border-red-500/35 shadow-sm hover:shadow'
+                                    : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-transparent shadow-sm hover:shadow'
                                 }`}
                         >
                             {label}
@@ -393,18 +652,18 @@ export default function AdminSiteContent() {
                 </div>
             )}
 
-            <div className="flex-1 overflow-hidden p-6 sm:p-10 space-y-10 lg:space-y-0 lg:flex lg:flex-row-reverse lg:items-start lg:gap-10">
-                <div className="lg:w-[560px] lg:max-w-[44vw] lg:shrink-0 lg:self-start">
-                    <div className="sticky top-[140px]">
+            <div className="flex-1 overflow-hidden p-4 sm:p-6 lg:p-8 space-y-8 lg:space-y-0 lg:flex lg:flex-row-reverse lg:items-start lg:gap-6 2xl:gap-8">
+                <div className="lg:flex-[1.08] lg:basis-[54%] lg:max-w-[52vw] lg:min-w-[660px] lg:shrink-0 lg:self-start">
+                    <div className="sticky top-[128px]">
                         <div className="flex items-center justify-between mb-3 px-1">
                             <p className="text-sm font-bold text-gray-500 dark:text-gray-400">תצוגה מקדימה </p>
                             <span className="text-[10px] font-bold tracking-widest uppercase bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20">Live</span>
                         </div>
 
                         <div className="flex flex-col items-center gap-2">
-                            <div className="w-full max-w-[720px] bg-transparent flex justify-center">
-                                <div className="border-[8px] lg:border-[12px] border-[#1e212b] rounded-2xl md:rounded-3xl bg-[#1e212b] shadow-2xl relative z-10 overflow-hidden w-full">
-                                    <SiteContentLivePreview draft={{ hero, commander, overlayImage }} />
+                            <div className="w-full bg-transparent flex justify-center">
+                                <div className="border-[6px] lg:border-[8px] border-[#1e212b] rounded-2xl md:rounded-3xl bg-[#1e212b] shadow-2xl relative z-10 overflow-hidden w-full">
+                                    <SiteContentLivePreview draft={{ hero, commander, overlayImage }} zoom={1.38} />
                                 </div>
                             </div>
 
@@ -419,7 +678,7 @@ export default function AdminSiteContent() {
                     </div>
                 </div>
 
-                <div className="space-y-10 lg:flex-1 lg:max-h-[calc(100vh-190px)] lg:overflow-y-auto lg:pl-2 custom-scrollbar">
+                <div className="space-y-10 lg:flex-[0.92] lg:basis-[46%] lg:min-w-0 lg:max-h-[calc(100vh-190px)] lg:overflow-y-auto lg:pl-2 custom-scrollbar">
                     {heroTabActive && (
                         <section className="bg-white dark:bg-[#232733] border border-gray-200 dark:border-white/5 rounded-3xl p-6 sm:p-8 shadow-sm">
                             <div className="flex items-start justify-between gap-4 mb-8 pb-5 border-b border-gray-200 dark:border-white/10">
@@ -429,7 +688,7 @@ export default function AdminSiteContent() {
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{isHeroBackgroundsTab ? 'תמונות רקע' : 'טקסט Hero'}</h2>
+                                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{isHeroBackgroundsTab ? 'תמונות רקע' : 'טקסט אזור הפתיחה'}</h2>
                                             <HelpTooltipButton
                                                 title={isHeroBackgroundsTab ? 'תמונות רקע' : 'טקסט אזור הפתיחה'}
                                                 description={isHeroBackgroundsTab ? 'כאן מנהלים את כל התמונות שמתחלפות ברקע החלק העליון של האתר.' : 'כאן משנים את הטקסטים הראשיים שרואים מיד כשנכנסים לאתר.'}
@@ -563,28 +822,43 @@ export default function AdminSiteContent() {
                                         </div>
 
                                         <div>
-                                            <HelpLabel
-                                                as="span"
-                                                className="block text-sm font-bold text-gray-700 dark:text-gray-300"
-                                                wrapperClassName="mb-2 flex items-center gap-2"
-                                                helpTitle="תיאור"
-                                                helpDescription="טקסט הסבר קצר שמופיע מתחת לכותרת הראשית."
-                                                helpItems={[
-                                                    'מומלץ לשמור על עד שלוש שורות כדי שהמסך יישאר נקי.',
-                                                ]}
-                                            >
-                                                תיאור
-                                            </HelpLabel>
-                                            <textarea
-                                                value={hero.description}
-                                                onChange={(e) => {
-                                                    const lines = e.target.value.split(/\n/);
-                                                    updateHeroField('description', lines.slice(0, 3).join('\n'));
-                                                }}
-                                                rows={3}
-                                                className={`${inputCls} resize-none text-sm`}
-                                                placeholder="תיאור קצר שמופיע מתחת לכותרת..."
-                                            />
+                                            <div className="mb-2 flex items-center justify-between gap-2" >
+                                                <HelpLabel
+                                                    
+                                                    as="span"
+                                                    className="block text-sm font-bold text-gray-700 dark:text-gray-300"
+                                                    wrapperClassName="flex items-center gap-2"
+                                                    helpTitle="תיאור"
+                                                    helpDescription="טקסט הסבר קצר שמופיע מתחת לכותרת הראשית."
+                                                    helpItems={[
+                                                        'מומלץ לשמור על עד שלוש שורות כדי שהמסך יישאר נקי.',
+                                                    ]}
+                                                >
+                                                    תיאור
+                                                </HelpLabel>
+                                            </div>
+                                            <div className="relative" >
+                                                <textarea
+                                                    
+                                                    value={hero.description}
+                                                    onChange={(e) => {
+                                                        const lines = e.target.value.split(/\n/);
+                                                        updateHeroField('description', lines.slice(0, 3).join('\n'));
+                                                    }}
+                                                    rows={3}
+                                                    className={`${inputCls} resize-none text-sm  `}
+                                                    placeholder="תיאור קצר שמופיע מתחת לכותרת..."
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={handleImproveHeroDescription}
+                                                    disabled={!isAiEnabled || improvingTargetKey === 'hero-description' || !hero.description.trim()}
+                                                    className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-white/10 bg-white/95 dark:bg-[#202534] px-2 py-1 text-[11px] font-bold text-gray-600 dark:text-gray-300 hover:border-primary/40 hover:text-primary transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    {improvingTargetKey === 'hero-description' ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                                                    שפר טקסט
+                                                </button>
+                                            </div>
                                             <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">עד 3 שורות</p>
                                         </div>
                                     </div>
@@ -674,7 +948,27 @@ export default function AdminSiteContent() {
                                         <div className="space-y-2 max-h-[360px] overflow-y-auto custom-scrollbar pr-1">
                                             {hero.backgroundImages.map((img, idx) => (
                                                 <div key={`${img}-${idx}`} className="flex items-center gap-3 group rounded-xl border border-gray-200 dark:border-white/5 bg-white dark:bg-[#151821] px-3 py-2">
-                                                    <span className="text-xs text-gray-400 dark:text-gray-600 w-6 text-center shrink-0">{idx + 1}</span>
+                                                    <div className="flex flex-col items-center gap-0.5 w-7 shrink-0">
+                                                        <span className="text-xs text-gray-400 dark:text-gray-600 text-center font-bold">{idx + 1}</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => moveBackgroundImage(idx, -1)}
+                                                            disabled={idx === 0}
+                                                            className="inline-flex h-4 w-4 items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-25 disabled:cursor-not-allowed transition"
+                                                            aria-label="הזז תמונה למעלה"
+                                                        >
+                                                            <ChevronUp size={12} />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => moveBackgroundImage(idx, 1)}
+                                                            disabled={idx === hero.backgroundImages.length - 1}
+                                                            className="inline-flex h-4 w-4 items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-25 disabled:cursor-not-allowed transition"
+                                                            aria-label="הזז תמונה למטה"
+                                                        >
+                                                            <ChevronDown size={12} />
+                                                        </button>
+                                                    </div>
                                                     <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-[#1e212b] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center shrink-0">
                                                         <img src={resolveSiteImageUrl(img)} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
                                                     </div>
@@ -1007,9 +1301,9 @@ export default function AdminSiteContent() {
                             </div>
 
                             <div className="space-y-6">
-                                <div className="grid grid-cols-1 xl:grid-cols-[260px_1fr] gap-5">
-                                    <div className="rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-[#1b1f2a] p-4">
-                                        <div className="w-full h-40 rounded-xl bg-white dark:bg-[#141824] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center mb-3">
+                                <div className="flex flex-col gap-6">
+                                    <div className="rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-[#1b1f2a] p-4 w-full">
+                                        <div className="w-full h-44 sm:h-48 rounded-xl bg-white dark:bg-[#141824] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center mb-3">
                                             {overlayImage.imageUrl ? (
                                                 <img
                                                     src={resolveSiteImageUrl(overlayImage.imageUrl)}
@@ -1387,6 +1681,42 @@ export default function AdminSiteContent() {
                             </div>
                         </section>
                     )}
+                    {isFactoryResetTab && (
+                        <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
+                            <div className="flex items-center gap-3 mb-6 pb-4">
+                                <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/25">
+                                    <AlertTriangle size={20} className="text-red-500 dark:text-red-400" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">איפוס נתוני אתר לברירת מחדל</h2>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                                        מחיקה מלאה של הגדרות, עיצוב, ניווט ותוכן הווידג&apos;טים — שחזור למצב יצרן
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="rounded-xl border border-red-300/70 bg-red-50/70 p-5 dark:border-red-500/40 dark:bg-red-900/20">
+                                <div className="flex items-start gap-3">
+                                    <div className="mt-0.5 rounded-lg bg-red-100 p-2 text-red-600 dark:bg-red-500/20 dark:text-red-300">
+                                        <AlertTriangle size={18} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="text-sm font-black text-red-700 dark:text-red-200">אזהרה</h3>
+                                        <p className="mt-1 text-xs leading-5 text-red-700/80 dark:text-red-100/80">
+                                            פעולה זו תמחק את כלל ההגדרות, העיצוב, הניווט ותוכן הווידג&apos;טים ותשחזר את האתר למצב יצרן.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={handleFactoryReset}
+                                            disabled={isResetting || isSaving}
+                                            className="mt-4 inline-flex items-center rounded-lg border border-red-500/60 bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {isResetting ? 'מבצע איפוס...' : 'איפוס נתוני אתר לברירת מחדל'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    )}
                 </div>
             </div>
 
@@ -1404,18 +1734,30 @@ export default function AdminSiteContent() {
 
                         <form onSubmit={saveMessageEdit} className="p-6 flex flex-col gap-5">
                             <div>
-                                <HelpLabel
-                                    as="span"
-                                    className="block text-sm font-bold text-gray-700 dark:text-gray-300"
-                                    wrapperClassName="mb-2 flex items-center gap-2"
-                                    helpTitle="תוכן ההודעה"
-                                    helpDescription="הטקסט המלא שיופיע באזור דבר המפקד."
-                                >
-                                    תוכן ההודעה
-                                </HelpLabel>
+                                <div className="mb-2 flex items-center justify-between gap-2">
+                                    <HelpLabel
+                                        as="span"
+                                        className="block text-sm font-bold text-gray-700 dark:text-gray-300"
+                                        wrapperClassName="flex items-center gap-2"
+                                        helpTitle="תוכן ההודעה"
+                                        helpDescription="הטקסט המלא שיופיע באזור דבר המפקד."
+                                    >
+                                        תוכן ההודעה
+                                    </HelpLabel>
+                                    <button
+                                        type="button"
+                                        onClick={handleImproveEditingMessageText}
+                                        disabled={!isAiEnabled || improvingTargetKey === `editing-message-${editingMessage.id || 'new'}` || !editingMessage.text?.trim()}
+                                        className="inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 px-2 py-1 text-[11px] font-bold text-gray-600 dark:text-gray-300 hover:border-primary/40 hover:text-primary transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {improvingTargetKey === `editing-message-${editingMessage.id || 'new'}` ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                                        שפר טקסט
+                                    </button>
+                                </div>
                                 <textarea
                                     name="text"
-                                    defaultValue={editingMessage.text}
+                                    value={editingMessage.text}
+                                    onChange={(e) => setEditingMessage((prev) => ({ ...prev, text: e.target.value }))}
                                     required
                                     rows={5}
                                     className="w-full bg-gray-50 dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-primary-500 transition text-sm resize-none leading-relaxed"
@@ -1436,7 +1778,8 @@ export default function AdminSiteContent() {
                                 <input
                                     name="signature"
                                     type="text"
-                                    defaultValue={editingMessage.signature}
+                                    value={editingMessage.signature}
+                                    onChange={(e) => setEditingMessage((prev) => ({ ...prev, signature: e.target.value }))}
                                     className="w-full bg-gray-50 dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-primary-500 transition text-sm"
                                     placeholder='לדוגמה: סא"ל א׳, מפקד בית הספר'
                                 />

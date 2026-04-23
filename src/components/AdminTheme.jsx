@@ -1,16 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useConfig } from '../context/ConfigProvider';
 import ThemeLivePreview from './ThemeLivePreview';
 import {
     AlertTriangle, Palette, Sun, Moon, Monitor,
     Hexagon, Eye, EyeOff,
-    LayoutGrid, List, Columns, Globe, CircleDot, PanelBottom, PanelRight, CheckCircle2
+    LayoutGrid, List, Globe, CircleDot, PanelBottom, PanelRight, CheckCircle2, Sparkles, Wand2, Bot, RotateCcw, X
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { normalizeBorderStyle, panelStyle } from '../utils/borderStyles';
 import Tooltip from './Tooltip';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
+import AIService from '../services/AIService';
+import { parseJsonFromModel } from '../utils/aiJson';
+import { getSafeAiRuntimeConfig } from '../config/ai.config';
 
 const SETTINGS_NAV = [
     { id: 'primaryColor', label: 'צבע ראשי' },
@@ -19,7 +23,7 @@ const SETTINGS_NAV = [
     { id: 'widgetHeight', label: 'גובה ווידגט' },
     { id: 'regularLinksLayout', label: 'קטגוריות וקישורים' },
     { id: 'externalLinksLayout', label: 'קישורים חיצוניים' },
-    { id: 'factoryReset', label: 'איפוס נתוני אתר', destructive: true },
+    { id: 'aiDesignAssistant', label: 'עוזר AI לעיצוב'  },
 ];
 
 const COLOR_SWATCHES = [
@@ -28,16 +32,13 @@ const COLOR_SWATCHES = [
     { hex: '#d97706', label: 'ענבר' },
     { hex: '#ffd700', label: 'צהוב' },
     { hex: '#16a34a', label: 'ירוק' },
-    { hex: '#0891b2', label: 'ציאן' },
+    { hex: '#0891b2', label: 'תכלת' },
     { hex: '#2563eb', label: 'כחול' },
     { hex: '#7c3aed', label: 'סגול' },
     { hex: '#db2777', label: 'ורוד' },
     { hex: '#64748b', label: 'אפור-כחול' },
     { hex: '#78716c', label: 'אפור' },
     { hex: '#7B3F00', label: 'חום' },
-    
-
-
 ];
 
 const DISPLAY_MODES = [
@@ -60,17 +61,17 @@ const BORDER_TARGET_OPTIONS = [
     { key: 'widget', label: 'ווידגט דף הבית', description: 'הכרטיס הדינמי בצד השמאלי התחתון.' },
     { key: 'search', label: 'שורת חיפוש', description: 'מסגרת החיפוש העליונה באתר.' },
     { key: 'topNav', label: 'כפתורי ניווט עליונים', description: 'ניהול, החלפת מצב תצוגה וכרטיס הברכה.' },
-    { key: 'sideNav', label: 'תפריט צד טקטי', description: 'רק מלבני ה-L1 בסרגל הצד הימני.' },
-    { key: 'flipCards', label: 'כרטיסי Grid Flip', description: 'החזית והגב של כרטיסי הגריד המסתובבים.' },
+    { key: 'sideNav', label: 'כפתורי צד ', description: 'רק מלבני ה-L1 בסרגל הצד הימני.' },
+    { key: 'flipCards', label: 'כרטיסיות מתהפכות', description: 'החזית והגב של כרטיסי הגריד המסתובבים.' },
     { key: 'extLinks', label: 'כרטיסי קישורים חיצוניים', description: 'כרטיסי הפוטר והסרגל הצף במצב כרטיסים.' },
     { key: 'hqDash', label: 'מרכז פיקוד HQ', description: 'כרטיסי ה-HQ Dashboard בתצוגת מרכז פיקוד.' },
 ];
 
 const REGULAR_LINK_LAYOUTS = [
-    { value: 'sidebar-right', label: 'תפריט צד טקטי', description: 'סרגל ניווט צדדי קבוע בצד ימין', icon: PanelRight },
-    { value: 'grid', label: 'Grid', description: 'כרטיסי Flip בתצוגת גריד', icon: LayoutGrid },
+    { value: 'sidebar-right', label: 'כפתורי צד ', description: 'סרגל ניווט צדדי קבוע בצד ימין', icon: PanelRight },
+    { value: 'grid', label: 'כרטיסיות מתהפכות', description: 'כרטיסי Flip בתצוגת גריד', icon: LayoutGrid },
     // { value: 'compact', label: 'Compact List', description: 'רשימה מינימליסטית עם שורות פשוטות', icon: List },
-    { value: 'hq', label: 'HQ Dashboard', description: 'עיצוב מרכז פיקוד מינימליסטי', icon: List },
+    { value: 'hq', label: 'תצוגת מרכז פיקוד', description: 'עיצוב מרכז פיקוד מינימליסטי', icon: List },
 ];
 
 const EXTERNAL_LINK_LAYOUTS = [
@@ -115,24 +116,444 @@ const WIDGET_HEIGHT_OPTIONS = [
 ];
 
 const SAVE_DEBOUNCE_MS = 500;
+const VALID_DISPLAY_MODE = new Set(DISPLAY_MODES.map((item) => item.value));
+const VALID_BORDER_STYLE = new Set(BORDER_STYLES.map((item) => item.value));
+const VALID_WIDGET_HEIGHT = new Set(WIDGET_HEIGHT_OPTIONS.map((item) => item.value));
+const VALID_REGULAR_LAYOUT = new Set(REGULAR_LINK_LAYOUTS.map((item) => item.value));
+const VALID_EXTERNAL_LAYOUT = new Set(EXTERNAL_LINK_LAYOUTS.map((item) => item.value));
+const DISPLAY_MODE_LABELS = Object.fromEntries(DISPLAY_MODES.map((item) => [item.value, item.label]));
+const BORDER_STYLE_LABELS = Object.fromEntries(BORDER_STYLES.map((item) => [item.value, item.label]));
+const WIDGET_HEIGHT_LABELS = Object.fromEntries(WIDGET_HEIGHT_OPTIONS.map((item) => [item.value, item.label]));
+const REGULAR_LAYOUT_LABELS = Object.fromEntries(REGULAR_LINK_LAYOUTS.map((item) => [item.value, item.label]));
+const EXTERNAL_LAYOUT_LABELS = Object.fromEntries(EXTERNAL_LINK_LAYOUTS.map((item) => [item.value, item.label]));
+const AI_THEME_RUNTIME_CONFIG = getSafeAiRuntimeConfig();
+const AI_SENTENCE_PICKER_CONFIG = [
+    { field: 'displayMode', label: 'מצב תצוגה', options: DISPLAY_MODES.map((item) => ({ value: item.value, label: item.label, type: 'display' })) },
+    { field: 'borderStyle', label: 'סוג מסגרת', options: BORDER_STYLES.map((item) => ({ value: item.value, label: item.label, type: 'border' })) },
+    { field: 'regularLinksLayout', label: 'תצוגת קטגוריות וקישורים', options: REGULAR_LINK_LAYOUTS.map((item) => ({ value: item.value, label: item.label, type: 'layout' })) },
+    { field: 'externalLinksLayout', label: 'קישורים חיצוניים', options: EXTERNAL_LINK_LAYOUTS.map((item) => ({ value: item.value, label: item.label, type: 'layout' })) },
+    { field: 'widgetHeight', label: 'גובה ווידג׳ט', options: WIDGET_HEIGHT_OPTIONS.map((item) => ({ value: item.value, label: item.label, type: 'height' })) },
+    { field: 'useTintedBackground', label: 'אפקט צבע רקע', options: [{ value: true, label: 'עם אפקט', type: 'tint' }, { value: false, label: 'ללא אפקט', type: 'tint' }] },
+    { field: 'primaryColor', label: 'צבע ראשי', options: COLOR_SWATCHES.map((item) => ({ value: item.hex, label: item.label, type: 'color' })) },
+];
+
+const AI_QUICK_FIELD_HELP = {
+    displayMode: 'קובע אם האתר יוצג כהה, בהיר או לפי בחירת המשתמש.',
+    borderStyle: 'משנה את אופי הפינות והמסגרות בכל רכיבי הממשק.',
+    regularLinksLayout: 'משפיע על פריסת קטגוריות הניווט והקישורים הפנימיים בדף הבית.',
+    externalLinksLayout: 'משנה את צורת ההצגה של קישורים חיצוניים (כרטיסים/אייקונים/פס צף).',
+    widgetHeight: 'קובע כמה מקום אנכי יקבל הווידג׳ט המרכזי בדף.',
+    useTintedBackground: 'מוסיף או מסיר גוון צבע ראשי ברקע הכללי של האתר.',
+    primaryColor: 'הצבע הראשי שמשפיע על כפתורים, הדגשות ואלמנטים בולטים.',
+};
+
+const AI_SENTENCE_SEGMENTS = [
+    { field: 'displayMode', text: 'אני רוצה שהאתר שלי יראה במצב תצוגה' },
+    { field: 'borderStyle', text: 'עם סוג מסגרת' },
+    { field: 'regularLinksLayout', text: 'ותצוגת קטגוריות וקישורים' },
+    { field: 'externalLinksLayout', text: 'וקישורים חיצוניים' },
+    { field: 'widgetHeight', text: 'וגובה ווידג׳ט' },
+    { field: 'useTintedBackground', text: 'ועם אפקט צבע רקע' },
+    { field: 'primaryColor', text: 'וצבע ראשי' },
+];
+
+const AI_FIELD_LABELS = {
+    primaryColor: 'צבע ראשי',
+    displayMode: 'מצב תצוגה',
+    borderStyle: 'סגנון מסגרות',
+    widgetHeight: 'גובה ווידגט',
+    regularLinksLayout: 'תצוגת קטגוריות וקישורים',
+    externalLinksLayout: 'תצוגת קישורים חיצוניים',
+    useTintedBackground: 'השתקפות צבע ברקע',
+    tintedBackgroundStrength: 'עוצמת השתקפות צבע',
+    showNavCategories: 'הצגת קטגוריות בניווט עליון',
+    heroGrayscale: 'תמונת הירו בגווני אפור',
+    externalLinksFixed: 'קישורים חיצוניים כפס נעוץ',
+    externalLinksBordered: 'מסגרת לקישורים חיצוניים',
+    externalLinksShowBackground: 'רקע לקישורים חיצוניים',
+};
+
+const AI_THEME_TOKEN_GROUPS = [
+    {
+        id: 'display-mode',
+        label: 'מצב תצוגה',
+        options: DISPLAY_MODES.map((item) => ({
+            id: `display:${item.value}`,
+            label: item.label,
+            prompt: `displayMode צריך להיות "${item.value}"`,
+        })),
+    },
+    {
+        id: 'border-style',
+        label: 'מסגרות',
+        options: BORDER_STYLES.map((item) => ({
+            id: `border:${item.value}`,
+            label: item.label,
+            prompt: `borderStyle צריך להיות "${item.value}"`,
+        })),
+    },
+    {
+        id: 'layout',
+        label: 'פריסות ניווט וקישורים',
+        options: [
+            ...REGULAR_LINK_LAYOUTS.map((item) => ({
+                id: `regular-layout:${item.value}`,
+                label: `פנימי: ${item.label}`,
+                prompt: `regularLinksLayout צריך להיות "${item.value}"`,
+            })),
+            ...EXTERNAL_LINK_LAYOUTS.map((item) => ({
+                id: `external-layout:${item.value}`,
+                label: `חיצוני: ${item.label}`,
+                prompt: `externalLinksLayout צריך להיות "${item.value}"`,
+            })),
+        ],
+    },
+    {
+        id: 'behavior',
+        label: 'התנהגות והדגשות',
+        options: [
+            { id: 'tint:on', label: 'רקע עם השתקפות צבע', prompt: 'useTintedBackground=true עם חוזק בינוני-גבוה.' },
+            { id: 'tint:off', label: 'רקע ניטרלי', prompt: 'useTintedBackground=false ורקע נקי.' },
+            { id: 'nav:on', label: 'הצג קטגוריות בניווט עליון', prompt: 'showNavCategories=true כשהניווט הפנימי מאפשר.' },
+            { id: 'nav:off', label: 'הסתר קטגוריות בניווט עליון', prompt: 'showNavCategories=false.' },
+            { id: 'hero:grayscale', label: 'תמונת הירו אפור', prompt: 'heroGrayscale=true למראה רשמי ומאופק.' },
+            { id: 'hero:color', label: 'תמונת הירו צבעונית', prompt: 'heroGrayscale=false לשמירת צבעוניות.' },
+            { id: 'external:fixed', label: 'קישורים חיצוניים נעוצים', prompt: 'externalLinksFixed=true.' },
+            { id: 'external:bordered', label: 'קישורים עם מסגרת', prompt: 'externalLinksBordered=true ו-externalLinksShowBackground=true.' },
+        ],
+    },
+    {
+        id: 'widget-height',
+        label: 'גובה ווידג׳ט',
+        options: WIDGET_HEIGHT_OPTIONS.map((item) => ({
+            id: `widget-height:${item.value}`,
+            label: item.label,
+            prompt: `widgetHeight צריך להיות "${item.value}"`,
+        })),
+    },
+    {
+        id: 'palette',
+        label: 'צבעים מהמערכת',
+        options: COLOR_SWATCHES.slice(0, 8).map((item) => ({
+            id: `color:${item.hex}`,
+            label: item.label,
+            prompt: `primaryColor צריך להיות "${item.hex}"`,
+        })),
+    },
+];
+
+const AI_THEME_TOKEN_LOOKUP = Object.fromEntries(
+    AI_THEME_TOKEN_GROUPS
+        .flatMap((group) => group.options.map((option) => [option.id, { ...option, groupLabel: group.label }]))
+);
+function asArray(value) {
+    return Array.isArray(value) ? value : [];
+}
+
+function asObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function asText(value, fallback = '') {
+    return typeof value === 'string' ? value.trim() : fallback;
+}
+
+function flattenNavigationLabels(items, carry = []) {
+    asArray(items).forEach((item) => {
+        const label = asText(item?.label) || asText(item?.title);
+        if (label) {
+            carry.push(label);
+        }
+        const nested = asArray(item?.children).length > 0 ? item?.children : item?.subLinks;
+        flattenNavigationLabels(nested, carry);
+    });
+    return carry;
+}
+
+function sampleTextValues(items, fields, limit = 6) {
+    const samples = [];
+    asArray(items).forEach((item) => {
+        if (samples.length >= limit) return;
+        const source = asObject(item);
+        const text = fields
+            .map((field) => asText(source[field]))
+            .find((value) => value.length > 0);
+        if (text) {
+            samples.push(text);
+        }
+    });
+    return samples;
+}
+
+function buildThemeAiContextSnapshot(config, draft, borderTargets) {
+    const hero = asObject(config?.content?.hero);
+    const commander = asObject(config?.content?.commander);
+    const widgets = asObject(config?.widgets);
+    const widgetsData = asObject(widgets.data);
+    const navItems = asArray(config?.navigation?.items);
+    const navLabels = flattenNavigationLabels(navItems, []);
+
+    const eventsItems = asArray(asObject(widgetsData.events).items);
+    const alertsItems = asArray(asObject(widgetsData.alerts).items);
+    const outstandingItems = asArray(asObject(widgetsData.outstanding).items);
+    const pollsItems = asArray(asObject(widgetsData.polls).items);
+    const newsItems = asArray(asObject(widgetsData.news).items);
+    const phonebookItems = asArray(asObject(widgetsData.phonebook).items);
+    const shuttlesItems = asArray(asObject(widgetsData.shuttles).items);
+    const celebrationsItems = asArray(asObject(widgetsData.celebrations).items);
+    const heritageItems = asArray(asObject(widgetsData.heritage).items);
+    const tipsItems = asArray(asObject(widgetsData.tips).items);
+    const externalLinks = asArray(config?.externalLinks?.items);
+
+    return {
+        themeDraft: {
+            primaryColor: draft?.primaryColor,
+            displayMode: draft?.displayMode,
+            borderStyle: draft?.borderStyle,
+            widgetHeight: draft?.widgetHeight,
+            regularLinksLayout: draft?.regularLinksLayout,
+            externalLinksLayout: draft?.externalLinksLayout,
+            useTintedBackground: draft?.useTintedBackground,
+            tintedBackgroundStrength: draft?.tintedBackgroundStrength,
+            showNavCategories: draft?.showNavCategories,
+            heroGrayscale: draft?.heroGrayscale,
+            externalLinksFixed: draft?.externalLinksFixed,
+            externalLinksBordered: draft?.externalLinksBordered,
+            externalLinksShowBackground: draft?.externalLinksShowBackground,
+            borderTargets: borderTargets || {},
+        },
+        designControls: {
+            displayModes: DISPLAY_MODES.map(({ value, label }) => ({ value, label })),
+            borderStyles: BORDER_STYLES.map(({ value, label }) => ({ value, label })),
+            widgetHeights: WIDGET_HEIGHT_OPTIONS.map(({ value, label }) => ({ value, label })),
+            regularLayouts: REGULAR_LINK_LAYOUTS.map(({ value, label }) => ({ value, label })),
+            externalLayouts: EXTERNAL_LINK_LAYOUTS.map(({ value, label }) => ({ value, label })),
+            colorPalette: COLOR_SWATCHES.map(({ hex, label }) => ({ hex, label })),
+            borderTargets: BORDER_TARGET_OPTIONS.map(({ key, label }) => ({ key, label, enabled: !!borderTargets?.[key] })),
+        },
+        siteSignals: {
+            hero: {
+                siteName: asText(hero.siteName),
+                title: asText(hero.title),
+                subtitle: asText(hero.subtitle),
+                description: asText(hero.description),
+                backgroundImageCount: asArray(hero.backgroundImageUrls).length,
+            },
+            commander: {
+                sectionTitle: asText(commander.sectionTitle),
+                roleLabel: asText(commander.roleLabel),
+                messagesCount: asArray(commander.messages).length,
+                messageSamples: sampleTextValues(commander.messages, ['text', 'message', 'title'], 4),
+            },
+            navigation: {
+                itemsCount: navLabels.length,
+                sampleLabels: navLabels.slice(0, 16),
+            },
+            widgets: {
+                active: asArray(widgets.active).slice(0, 6),
+                counts: {
+                    events: eventsItems.length,
+                    alerts: alertsItems.length,
+                    outstanding: outstandingItems.length,
+                    polls: pollsItems.length,
+                    news: newsItems.length,
+                    phonebook: phonebookItems.length,
+                    shuttles: shuttlesItems.length,
+                    celebrations: celebrationsItems.length,
+                    heritage: heritageItems.length,
+                    tips: tipsItems.length,
+                    externalLinks: externalLinks.length,
+                },
+                samples: {
+                    events: sampleTextValues(eventsItems, ['title', 'name', 'text'], 4),
+                    alerts: sampleTextValues(alertsItems, ['title', 'text'], 4),
+                    news: sampleTextValues(newsItems, ['title', 'text'], 4),
+                    phonebook: sampleTextValues(phonebookItems, ['name', 'department'], 4),
+                },
+            },
+        },
+    };
+}
+
+function buildThemeAiPrompt({ instruction, guidedSentence, selectedTokens, contextSnapshot }) {
+    const tokensText = selectedTokens.length > 0
+        ? selectedTokens.map((item) => `[${item.groupLabel}] ${item.label} -> ${item.prompt}`).join(' | ')
+        : 'לא נבחרו בחירות מהירות.';
+
+    return [
+        'אתה מעצב UI/UX מומחה לפורטל ארגוני בעברית.',
+        'מטרה: לייצר עדכון עיצוב שמתאים למה שכבר קיים באתר, בלי לשנות תכנים.',
+        'החזר JSON בלבד (ללא markdown, ללא הסברים).',
+        'מותר להחזיר רק את השדות הבאים:',
+        '{',
+        '  "primaryColor": "#RRGGBB",',
+        '  "displayMode": "dark|light|user-toggle",',
+        '  "borderStyle": "standard|square|cyber|armor|shield|blade",',
+        '  "widgetHeight": "full|high|medium|low",',
+        '  "regularLinksLayout": "sidebar-right|grid|hq",',
+        '  "externalLinksLayout": "cards|minimal|floating",',
+        '  "useTintedBackground": true/false,',
+        '  "tintedBackgroundStrength": 0-100,',
+        '  "showNavCategories": true/false,',
+        '  "heroGrayscale": true/false,',
+        '  "externalLinksFixed": true/false,',
+        '  "externalLinksBordered": true/false,',
+        '  "externalLinksShowBackground": true/false',
+        '}',
+        'כללים:',
+        '- שמור נגישות גבוהה וניגודיות טובה.',
+        '- אל תשתמש בערכים שלא קיימים בסכימה.',
+        '- אם regularLinksLayout הוא sidebar-right אז showNavCategories צריך להיות false.',
+        '- אם אינך בטוח לגבי שדה מסוים, השאר אותו כפי שהוא כיום.',
+        `בחירה מונחית בשורה: ${guidedSentence}`,
+        `בחירות מהירות: ${tokensText}`,
+        `הנחיה טבעית: ${instruction}`,
+        `קונטקסט האתר: ${JSON.stringify(contextSnapshot)}`,
+    ].join('\n');
+}
+
+function resolveThemePayload(parsed) {
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const nested = parsed.themePatch;
+        if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+            return nested;
+        }
+        return parsed;
+    }
+    return {};
+}
+
+function formatThemeFieldValue(field, value) {
+    if (field === 'primaryColor') return String(value || '').toUpperCase();
+    if (field === 'displayMode') return DISPLAY_MODE_LABELS[value] || String(value);
+    if (field === 'borderStyle') return BORDER_STYLE_LABELS[value] || String(value);
+    if (field === 'widgetHeight') return WIDGET_HEIGHT_LABELS[value] || String(value);
+    if (field === 'regularLinksLayout') return REGULAR_LAYOUT_LABELS[value] || String(value);
+    if (field === 'externalLinksLayout') return EXTERNAL_LAYOUT_LABELS[value] || String(value);
+    if (field === 'tintedBackgroundStrength') return `${Number(value)}%`;
+    if (typeof value === 'boolean') return value ? 'כן' : 'לא';
+    if (value === null || value === undefined || value === '') return '-';
+    return String(value);
+}
+
+function normalizeAiThemePayload(payload, fallback) {
+    const next = { ...fallback };
+    const primaryColor = String(payload?.primaryColor || '').trim();
+    if (/^#[0-9A-Fa-f]{6}$/.test(primaryColor)) {
+        next.primaryColor = primaryColor;
+    }
+
+    const displayMode = String(payload?.displayMode || '').trim();
+    if (VALID_DISPLAY_MODE.has(displayMode)) {
+        next.displayMode = displayMode;
+    }
+
+    const borderStyle = String(payload?.borderStyle || '').trim();
+    if (VALID_BORDER_STYLE.has(borderStyle)) {
+        next.borderStyle = borderStyle;
+    }
+
+    const widgetHeight = String(payload?.widgetHeight || '').trim();
+    if (VALID_WIDGET_HEIGHT.has(widgetHeight)) {
+        next.widgetHeight = widgetHeight;
+    }
+
+    const regularLinksLayout = String(payload?.regularLinksLayout || '').trim();
+    if (VALID_REGULAR_LAYOUT.has(regularLinksLayout)) {
+        next.regularLinksLayout = regularLinksLayout;
+    }
+
+    const externalLinksLayout = String(payload?.externalLinksLayout || '').trim();
+    if (VALID_EXTERNAL_LAYOUT.has(externalLinksLayout)) {
+        next.externalLinksLayout = externalLinksLayout;
+    }
+
+    if (typeof payload?.useTintedBackground === 'boolean') {
+        next.useTintedBackground = payload.useTintedBackground;
+    }
+    if (typeof payload?.showNavCategories === 'boolean') {
+        next.showNavCategories = payload.showNavCategories;
+    }
+    if (typeof payload?.heroGrayscale === 'boolean') {
+        next.heroGrayscale = payload.heroGrayscale;
+    }
+    if (typeof payload?.externalLinksFixed === 'boolean') {
+        next.externalLinksFixed = payload.externalLinksFixed;
+    }
+    if (typeof payload?.externalLinksBordered === 'boolean') {
+        next.externalLinksBordered = payload.externalLinksBordered;
+    }
+    if (typeof payload?.externalLinksShowBackground === 'boolean') {
+        next.externalLinksShowBackground = payload.externalLinksShowBackground;
+    }
+    if (Number.isFinite(Number(payload?.tintedBackgroundStrength))) {
+        next.tintedBackgroundStrength = Math.max(0, Math.min(100, Math.round(Number(payload.tintedBackgroundStrength))));
+    }
+
+    return next;
+}
 
 export default function AdminTheme() {
+    const location = useLocation();
+    const { config } = useConfig();
     const { theme, loading, error, saveTheme, borderTargets, setBorderTargets } = useTheme();
-    const { factoryReset } = useConfig();
+    const aiEnabled = AIService.isEnabled();
     const [draft, setDraft] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
-    const [isResetting, setIsResetting] = useState(false);
     const [customColor, setCustomColor] = useState('');
-    const [activeSettingId, setActiveSettingId] = useState(SETTINGS_NAV[0].id);
+    const [aiPrompt, setAiPrompt] = useState('שדרג את העיצוב למראה מקצועי, מאוזן ונגיש עבור פורטל ארגוני עמוס תוכן.');
+    const [aiSentenceSelections, setAiSentenceSelections] = useState({
+        displayMode: 'dark',
+        borderStyle: 'shield',
+        regularLinksLayout: 'sidebar-right',
+        externalLinksLayout: 'cards',
+        widgetHeight: 'full',
+        useTintedBackground: true,
+        primaryColor: '#0891b2',
+    });
+    const [aiSelectedTokenByGroup, setAiSelectedTokenByGroup] = useState({});
+    const [aiOpenPickerField, setAiOpenPickerField] = useState('');
+    const [aiIsGenerating, setAiIsGenerating] = useState(false);
+    const [aiRawOutput, setAiRawOutput] = useState('');
+    const [aiModelUsed, setAiModelUsed] = useState('');
+    const [aiErrorMessage, setAiErrorMessage] = useState('');
+    const [aiSuggestedTheme, setAiSuggestedTheme] = useState(null);
+    const [aiPreviousThemeSnapshot, setAiPreviousThemeSnapshot] = useState(null);
+    const [aiTypingRunId, setAiTypingRunId] = useState(0);
+    const [aiTypedChars, setAiTypedChars] = useState(0);
+    const tabFromQuery = (() => {
+        const tab = new URLSearchParams(location.search).get('tab');
+        return SETTINGS_NAV.some((t) => t.id === tab) ? tab : null;
+    })();
+    const [activeSettingId, setActiveSettingId] = useState(tabFromQuery || SETTINGS_NAV[0].id);
     const colorInputRef = useRef(null);
     const saveTimeoutRef = useRef(null);
     const latestDraftRef = useRef(null);
     const latestThemeRef = useRef(null);
+    const aiSentenceInitializedRef = useRef(false);
+
+    useEffect(() => {
+        if (!tabFromQuery) return;
+        if (tabFromQuery === activeSettingId) return;
+        setActiveSettingId(tabFromQuery);
+    }, [tabFromQuery, activeSettingId]);
 
     useEffect(() => {
         if (theme) {
             setDraft({ ...theme, borderStyle: normalizeBorderStyle(theme.borderStyle) });
             setCustomColor(theme.primaryColor || '#0891b2');
+            if (!aiSentenceInitializedRef.current) {
+                setAiSentenceSelections({
+                    displayMode: theme.displayMode || 'dark',
+                    borderStyle: normalizeBorderStyle(theme.borderStyle || 'shield'),
+                    regularLinksLayout: 'sidebar-right',
+                    externalLinksLayout: 'cards',
+                    widgetHeight: 'full',
+                    useTintedBackground: typeof theme.useTintedBackground === 'boolean' ? theme.useTintedBackground : true,
+                    primaryColor: theme.primaryColor || '#0891b2',
+                });
+                aiSentenceInitializedRef.current = true;
+            }
         }
     }, [theme]);
 
@@ -143,6 +564,22 @@ export default function AdminTheme() {
     useEffect(() => {
         latestThemeRef.current = theme;
     }, [theme]);
+
+    useEffect(() => {
+        if (!aiOpenPickerField) return undefined;
+        const onKeyDown = (event) => {
+            if (event.key === 'Escape') {
+                setAiOpenPickerField('');
+            }
+        };
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
+    }, [aiOpenPickerField]);
+
+    useEffect(() => {
+        if (activeSettingId !== 'aiDesignAssistant') return;
+        setAiTypingRunId((prev) => prev + 1);
+    }, [activeSettingId]);
 
     const triggerAutoSave = useCallback((nextDraft) => {
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -167,12 +604,6 @@ export default function AdminTheme() {
             saveTheme(pendingDraft);
         }
     }, [saveTheme]);
-
-    if (loading && !theme) {
-        return <div className="p-8 text-center text-gray-500 dark:text-gray-400">טוען הגדרות עיצוב...</div>;
-    }
-
-    if (!draft) return null;
 
     const updateField = (field, value) => {
         setDraft(prev => {
@@ -211,17 +642,178 @@ export default function AdminTheme() {
         setBorderTargets(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
-    const handleFactoryReset = async () => {
-        if (isResetting || typeof factoryReset !== 'function') return;
-        setIsResetting(true);
+    const selectedTokens = Object.values(aiSelectedTokenByGroup)
+        .map((id) => AI_THEME_TOKEN_LOOKUP[id])
+        .filter(Boolean);
+    const activePickerConfig = AI_SENTENCE_PICKER_CONFIG.find((item) => item.field === aiOpenPickerField) || null;
+    const getPickerLabel = (field, value) => {
+        if (field === 'displayMode') return DISPLAY_MODE_LABELS[value] || value;
+        if (field === 'borderStyle') return BORDER_STYLE_LABELS[value] || value;
+        if (field === 'regularLinksLayout') return REGULAR_LAYOUT_LABELS[value] || value;
+        if (field === 'externalLinksLayout') return EXTERNAL_LAYOUT_LABELS[value] || value;
+        if (field === 'widgetHeight') return WIDGET_HEIGHT_LABELS[value] || value;
+        if (field === 'useTintedBackground') return value ? 'עם אפקט' : 'ללא אפקט';
+        if (field === 'primaryColor') {
+            const match = COLOR_SWATCHES.find((item) => item.hex === value);
+            return match?.label || String(value || '').toUpperCase();
+        }
+        return String(value ?? '');
+    };
+    const aiFullSentence = AI_SENTENCE_SEGMENTS.map((segment) => segment.text).join(' ');
+    useEffect(() => {
+        if (activeSettingId !== 'aiDesignAssistant') return undefined;
+        setAiTypedChars(0);
+        if (!aiFullSentence) return undefined;
+        let typed = 0;
+        const timer = window.setInterval(() => {
+            typed += 1;
+            setAiTypedChars(typed);
+            if (typed >= aiFullSentence.length) {
+                window.clearInterval(timer);
+            }
+        }, 22);
+        return () => window.clearInterval(timer);
+    }, [aiTypingRunId, aiFullSentence, activeSettingId]);
+    const guidedSentence = [
+        `displayMode="${aiSentenceSelections.displayMode}"`,
+        `borderStyle="${aiSentenceSelections.borderStyle}"`,
+        `regularLinksLayout="${aiSentenceSelections.regularLinksLayout}"`,
+        `externalLinksLayout="${aiSentenceSelections.externalLinksLayout}"`,
+        `widgetHeight="${aiSentenceSelections.widgetHeight}"`,
+        `useTintedBackground="${aiSentenceSelections.useTintedBackground ? 'on' : 'off'}"`,
+        `primaryColor="${aiSentenceSelections.primaryColor}"`,
+    ].join(', ');
+
+    const applyAiTheme = (parsedPatch) => {
+        const normalized = normalizeAiThemePayload(parsedPatch, draft);
+        setDraft((prev) => {
+            const next = { ...prev, ...normalized };
+            triggerAutoSave(next);
+            return next;
+        });
+        if (normalized.primaryColor) {
+            setCustomColor(normalized.primaryColor);
+        }
+        toast.success('הצעת AI הוחלה על עיצוב האתר');
+    };
+
+    const clearAiSelections = () => {
+        setAiSelectedTokenByGroup({});
+    };
+
+    const handleAiSentenceSelectionChange = (field, value) => {
+        setAiSentenceSelections((prev) => ({ ...prev, [field]: value }));
+    };
+
+    const handleAiTokenToggle = (groupId, tokenId) => {
+        setAiSelectedTokenByGroup((prev) => {
+            const current = prev[groupId] || '';
+            if (current === tokenId) {
+                const next = { ...prev };
+                delete next[groupId];
+                return next;
+            }
+            return { ...prev, [groupId]: tokenId };
+        });
+    };
+
+    const handleGenerateAiTheme = async () => {
+        if (!aiEnabled) {
+            toast.error('שירות ה-AI כבוי. יש להפעיל את ההגדרות בקובץ ENV.');
+            return;
+        }
+
+        const instruction = aiPrompt.trim();
+        if (!instruction) {
+            toast.error('כתוב בקשה קצרה כדי לייצר עיצוב עם AI.');
+            return;
+        }
+
+        setAiIsGenerating(true);
+        setAiErrorMessage('');
+
         try {
-            await factoryReset();
+            const contextSnapshot = buildThemeAiContextSnapshot(config, draft, borderTargets);
+            const prompt = buildThemeAiPrompt({
+                instruction,
+                guidedSentence,
+                selectedTokens,
+                contextSnapshot,
+            });
+            const result = await AIService.ask(prompt, {
+                model: AI_THEME_RUNTIME_CONFIG.defaultModel,
+                fallbackModels: AI_THEME_RUNTIME_CONFIG.fallbackModels,
+                requestMode: AI_THEME_RUNTIME_CONFIG.requestMode,
+                useSmartFallback: AI_THEME_RUNTIME_CONFIG.useSmartFallback,
+            });
+            const content = String(result?.choices?.[0]?.message?.content || result?.content || '').trim();
+            setAiRawOutput(content);
+            setAiModelUsed(result?.modelUsed || result?.model || '');
+
+            const parsed = parseJsonFromModel(content);
+            const resolvedPayload = resolveThemePayload(parsed);
+            const normalized = normalizeAiThemePayload(resolvedPayload, draft);
+            setAiSuggestedTheme(normalized);
+
+            if (JSON.stringify(normalized) === JSON.stringify(draft)) {
+                toast.info('התקבלה תשובה, אבל אין שינוי ביחס לעיצוב הקיים. נסה הנחיה מדויקת יותר.');
+            } else {
+                toast.success('נוצרה הצעת עיצוב חדשה לפי הבקשה שלך.');
+            }
+        } catch (error) {
+            const message = error?.message || 'יצירת עיצוב ב-AI נכשלה.';
+            setAiErrorMessage(message);
+            setAiSuggestedTheme(null);
+            toast.error(message);
         } finally {
-            setIsResetting(false);
+            setAiIsGenerating(false);
         }
     };
 
+    const handleApplyAiTheme = () => {
+        if (!aiSuggestedTheme) {
+            toast.error('אין הצעת AI מוכנה ליישום.');
+            return;
+        }
+        setAiPreviousThemeSnapshot({ ...draft });
+        applyAiTheme(aiSuggestedTheme);
+    };
+
+    const handleUndoAiTheme = () => {
+        if (!aiPreviousThemeSnapshot) {
+            toast.error('אין מצב קודם לשחזור.');
+            return;
+        }
+        setDraft((prev) => {
+            if (JSON.stringify(prev) === JSON.stringify(aiPreviousThemeSnapshot)) {
+                return prev;
+            }
+            const restored = { ...aiPreviousThemeSnapshot };
+            triggerAutoSave(restored);
+            return restored;
+        });
+        setCustomColor(aiPreviousThemeSnapshot.primaryColor || '#0891b2');
+        setAiPreviousThemeSnapshot(null);
+        toast.success('בוצע שחזור למצב הקודם.');
+    };
+
+    if (loading && !theme) {
+        return <div className="p-8 text-center text-gray-500 dark:text-gray-400">טוען הגדרות עיצוב...</div>;
+    }
+
+    if (!draft) return null;
+
     const showSection = (id) => activeSettingId === id;
+    const aiDiffRows = aiSuggestedTheme
+        ? Object.entries(aiSuggestedTheme)
+            .filter(([field, nextValue]) => JSON.stringify(nextValue) !== JSON.stringify(draft[field]))
+            .map(([field, nextValue]) => ({
+                field,
+                label: AI_FIELD_LABELS[field] || field,
+                currentValue: formatThemeFieldValue(field, draft[field]),
+                nextValue: formatThemeFieldValue(field, nextValue),
+            }))
+        : [];
     const isTintedBackgroundEnabled = draft.useTintedBackground !== false;
     const tintStrength = Number.isFinite(Number(draft.tintedBackgroundStrength))
         ? Math.min(100, Math.max(0, Math.round(Number(draft.tintedBackgroundStrength))))
@@ -239,6 +831,14 @@ export default function AdminTheme() {
                     </div>
                     <div className="flex items-center gap-3">
                         <AdminPageHelpButton pageId="theme" tabId={activeSettingId} />
+                        <button
+                            type="button"
+                            onClick={() => handleNavSettingClick('aiDesignAssistant')}
+                            className="inline-flex h-10 items-center gap-2 rounded-xl border border-black/20 bg-white px-3 text-sm font-bold text-black transition hover:bg-black hover:text-white dark:border-white/20 dark:bg-[#111] dark:text-white dark:hover:bg-white dark:hover:text-black"
+                        >
+                            <Sparkles size={15} />
+                            עוזר AI
+                        </button>
                         {isSaving && (
                             <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-full shadow-sm">
                                 <div className="w-3.5 h-3.5 border-[2px] border-primary border-t-transparent rounded-full animate-spin" style={{ borderColor: draft.primaryColor, borderTopColor: 'transparent' }} />
@@ -248,13 +848,13 @@ export default function AdminTheme() {
                     </div>
                 </div>
 
-                <nav className="flex items-center gap-2 overflow-x-auto p-1 custom-scrollbar w-full">
+                <nav className="  flex items-center gap-2 overflow-x-auto p-1 custom-scrollbar w-full">
                     {SETTINGS_NAV.map(({ id, label, destructive }) => (
                         <button
                             key={id}
                             type="button"
                             onClick={() => handleNavSettingClick(id)}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${destructive
+                            className={` flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${destructive
                                 ? activeSettingId === id
                                     ? 'bg-red-600 text-white shadow-md ring-2 ring-red-500/40 ring-offset-2 ring-offset-gray-50 dark:ring-offset-[#12141a]'
                                     : 'bg-white dark:bg-white/5 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200 dark:border-red-500/35 shadow-sm hover:shadow'
@@ -263,7 +863,9 @@ export default function AdminTheme() {
                                     : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-transparent shadow-sm hover:shadow'
                                 }`}
                         >
+                            { id === 'aiDesignAssistant' && <Sparkles size={16} className="text-primary-400" />}
                             {label}
+
                         </button>
                     ))}
                 </nav>
@@ -276,8 +878,371 @@ export default function AdminTheme() {
                 </div>
             )}
 
-            <div className="flex-1 overflow-hidden p-6 sm:p-10 space-y-10 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-10">
-                <div className="space-y-10 order-2 lg:order-1 lg:max-h-[calc(100vh-190px)] lg:overflow-y-auto lg:pl-2 custom-scrollbar">
+            <div className="flex-1 overflow-hidden p-4 sm:p-6 lg:p-8 space-y-8 lg:space-y-0 lg:grid lg:grid-cols-[0.92fr_1.08fr] lg:items-start lg:gap-6 2xl:gap-8">
+                <div className="space-y-10 order-2 lg:order-1 lg:min-w-0 lg:max-h-[calc(100vh-190px)] lg:overflow-y-auto lg:pl-2 custom-scrollbar">
+                    {/* ==================== AI DESIGN ASSISTANT ==================== */}
+                    {showSection('aiDesignAssistant') && (
+                        <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
+                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200 dark:border-white/10">
+                                <div className="bg-primary-500/10 p-2.5 rounded-lg border border-primary-500/20">
+                                    <Sparkles size={20} className="text-primary-400" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">עוזר AI לעיצוב</h2>
+                                        <HelpTooltipButton
+                                        
+                                            title="עוזר AI לעיצוב"
+                                            description="כתוב כאן בקשה בשפה טבעית. המערכת שולחת ל-AI את הקונטקסט של האתר והגדרות העיצוב כדי להציע עיצוב שמתאים למה שכבר קיים."
+                                        />
+                                    </div>
+                                    <p className="text-sm text-gray-400 dark:text-gray-500">יצירת כיוון עיצובי חכם לפי כל נתוני האתר, עם הצעות בחירה מהירות מתוך האפשרויות הקיימות.</p>
+                                </div>
+                            </div>
+
+                            {!aiEnabled && (
+                                <div className="mb-5 rounded-2xl border border-amber-300/40 bg-amber-100/70 px-4 py-3 text-amber-900 shadow-sm dark:bg-amber-900/20 dark:text-amber-100">
+                                    <div className="flex items-start gap-2">
+                                        <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                                        <div>
+                                            <div className="font-bold text-sm">שירות AI כבוי כרגע</div>
+                                            <div className="text-xs mt-1">להפעלה: `VITE_ALPHA_AI_ENABLED=true` ולוודא `VITE_ALPHA_AI_API_BASE` תקין.</div>
+                                            <div className="text-[11px] mt-1 opacity-80">apiBase: {AI_THEME_RUNTIME_CONFIG.apiBase}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-white to-primary/5 p-4 sm:p-5 dark:from-primary/15 dark:via-[#1a1f2b] dark:to-[#141924]">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <div>
+                                        <div className="text-sm font-black text-gray-900 dark:text-white">כתוב מה תרצה לשנות בעיצוב</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">כאן אפשר לתאר בקצרה מה תרצה לשנות בעיצוב, לדוג' צבעים, פריסה וסגנון כללי.</div>
+                                   
+                                    </div>
+                                    <div>
+                                        <button
+                                            type="button"
+                                            onClick={handleGenerateAiTheme}
+                                            disabled={!aiEnabled || aiIsGenerating}
+                                            className="inline-flex  gap-2 h-9 items-center justify-center rounded-xl bg-primary px-4 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            <Wand2 size={14} />
+                                            {aiIsGenerating ? 'שולח...' : 'שלח'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4">
+                                    <input
+                                        type="text"
+                                        value={aiPrompt}
+                                        onChange={(event) => setAiPrompt(event.target.value)}
+                                        placeholder='לדוגמה: "תעשה עיצוב כהה ויוקרתי עם צבע ראשי כחול, ניווט צדדי ומינימום עומס ויזואלי"'
+                                        className="w-full rounded-xl border border-gray-300 dark:border-white/10 bg-white/90 dark:bg-[#111723] px-4 py-3 text-sm text-gray-900 dark:text-white outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary/20"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="mt-5 rounded-2xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#171c27]/80 p-4 sm:p-5">
+                                <button
+                                    type="button"
+                                    onClick={() => setAiTypingRunId((prev) => prev + 1)}
+                                    className="text-xs font-bold uppercase tracking-[0.18em] text-gray-500 transition hover:text-primary dark:text-gray-400 dark:hover:text-primary"
+                                >
+                                    הרכבה מהירה במשפט אחד
+                                </button>
+                                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200 leading-8">
+                                    {AI_SENTENCE_SEGMENTS.map((segment, index) => {
+                                        const charsBefore = AI_SENTENCE_SEGMENTS
+                                            .slice(0, index)
+                                            .reduce((sum, item) => sum + item.text.length + 1, 0);
+                                        const charsForThisSegment = Math.max(0, aiTypedChars - charsBefore);
+                                        const typedText = segment.text.slice(0, charsForThisSegment);
+                                        const isSegmentComplete = typedText.length >= segment.text.length;
+                                        if (!typedText) return null;
+                                        return (
+                                        <React.Fragment key={segment.field}>
+                                            <span className="relative inline-block pe-1">
+                                                {typedText}
+                                                <Tooltip text={AI_QUICK_FIELD_HELP[segment.field]}>
+                                                    <button type="button" className="absolute -top-7 -left-2 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-gray-300/80 bg-white/95 text-[8px] font-black text-gray-600 transition hover:border-primary/50 hover:text-primary dark:border-white/20 dark:bg-[#171c27] dark:text-gray-300">?</button>
+                                                </Tooltip>
+                                            </span>
+                                            {isSegmentComplete && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAiOpenPickerField(segment.field)}
+                                                    className="inline-flex h-9 items-center gap-2 rounded-xl border border-gray-300/90 bg-white/90 px-3 text-sm font-bold text-gray-900 shadow-[0_8px_20px_rgba(15,23,42,0.08)] backdrop-blur-md transition hover:border-primary/50 hover:bg-white dark:border-white/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+                                                >
+                                                    {segment.field === 'primaryColor' && (
+                                                        <span className="h-3.5 w-3.5 rounded-full border border-black/10 dark:border-white/20" style={{ backgroundColor: aiSentenceSelections.primaryColor }} />
+                                                    )}
+                                                    {getPickerLabel(segment.field, aiSentenceSelections[segment.field])}
+                                                </button>
+                                            )}
+                                        </React.Fragment>
+                                        );
+                                    })}
+                                </div>
+                                <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                                    הבחירות מהמשפט מצורפות אוטומטית לפרומפט של ה-AI, יחד עם הקונטקסט המלא של האתר.
+                                </p>
+                            </div>
+
+                            {aiOpenPickerField && activePickerConfig && (
+                                <div
+                                    className="fixed inset-0 z-[12000] flex items-center justify-center bg-black/55 p-4 backdrop-blur-[1px]"
+                                    onClick={() => setAiOpenPickerField('')}
+                                >
+                                    <div
+                                        className="w-full max-w-2xl max-h-[86vh] overflow-auto rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#121825] p-4 shadow-2xl"
+                                        onClick={(event) => event.stopPropagation()}
+                                    >
+                                        <div className="mb-3 flex items-center justify-between border-b border-gray-200 dark:border-white/10 pb-3">
+                                            <h3 className="text-base font-black text-gray-900 dark:text-white">בחירת {activePickerConfig.label}</h3>
+                                            <button
+                                                type="button"
+                                                onClick={() => setAiOpenPickerField('')}
+                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:border-primary/40 hover:text-primary transition"
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {activePickerConfig.options.map((option) => {
+                                                const isActive = aiSentenceSelections[activePickerConfig.field] === option.value;
+                                                return (
+                                                    <button
+                                                        key={option.value}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            handleAiSentenceSelectionChange(activePickerConfig.field, option.value);
+                                                            setAiOpenPickerField('');
+                                                        }}
+                                                        className={`rounded-xl border p-3 text-right transition ${isActive
+                                                            ? 'border-primary/60 bg-primary/10'
+                                                            : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 hover:border-primary/35'
+                                                            }`}
+                                                    >
+                                                        <div className="mb-2 text-sm font-bold text-gray-900 dark:text-white">{option.label}</div>
+                                                        {activePickerConfig.field === 'borderStyle' && (
+                                                            <div className="h-10 w-full border border-gray-300 dark:border-white/20 bg-white/60 dark:bg-white/5" style={panelStyle(option.value, 10)} />
+                                                        )}
+                                                        {activePickerConfig.field === 'primaryColor' && (
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="h-6 w-6 rounded-full border border-black/10 dark:border-white/20" style={{ backgroundColor: option.value }} />
+                                                                <span className="text-xs text-gray-500 dark:text-gray-400">{String(option.value).toUpperCase()}</span>
+                                                            </div>
+                                                        )}
+                                                        {activePickerConfig.field === 'displayMode' && (
+                                                            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                                                {option.value === 'dark' && <div className="h-8 w-16 rounded-md border border-gray-700 bg-gray-900" />}
+                                                                {option.value === 'light' && <div className="h-8 w-16 rounded-md border border-gray-300 bg-gray-50" />}
+                                                                {option.value === 'user-toggle' && (
+                                                                    <div className="inline-flex rounded-md border border-gray-300 dark:border-white/15 overflow-hidden">
+                                                                        <span className="px-2 py-1 bg-gray-900 text-white">כהה</span>
+                                                                        <span className="px-2 py-1 bg-gray-50 text-gray-700">בהיר</span>
+                                                                    </div>
+                                                                )}
+                                                                <span>תצוגה לדוגמה</span>
+                                                            </div>
+                                                        )}
+                                                        {activePickerConfig.field === 'regularLinksLayout' && (
+                                                            <div className="h-10 rounded-md border border-gray-300 dark:border-white/20 bg-white/70 dark:bg-white/5 p-1.5">
+                                                                {option.value === 'sidebar-right' && (
+                                                                    <div className="h-full grid grid-cols-[1fr_28%] gap-1">
+                                                                        <span className="rounded bg-primary/30" />
+                                                                        <span className="rounded bg-primary/75" />
+                                                                    </div>
+                                                                )}
+                                                                {option.value === 'grid' && (
+                                                                    <div className="h-full grid grid-cols-3 gap-1">
+                                                                        <span className="rounded bg-primary/65" />
+                                                                        <span className="rounded bg-primary/45" />
+                                                                        <span className="rounded bg-primary/75" />
+                                                                    </div>
+                                                                )}
+                                                                {option.value === 'hq' && (
+                                                                    <div className="h-full flex flex-col gap-1">
+                                                                        <span className="h-2 rounded bg-primary/70" />
+                                                                        <div className="grid grid-cols-2 gap-1 flex-1">
+                                                                            <span className="rounded bg-primary/45" />
+                                                                            <span className="rounded bg-primary/60" />
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                        {activePickerConfig.field === 'externalLinksLayout' && (
+                                                            <div className="h-10 rounded-md border border-gray-300 dark:border-white/20 bg-white/70 dark:bg-white/5 p-1.5">
+                                                                {option.value === 'cards' && (
+                                                                    <div className="h-full grid grid-cols-2 gap-1">
+                                                                        <span className="rounded bg-primary/65" />
+                                                                        <span className="rounded bg-primary/45" />
+                                                                    </div>
+                                                                )}
+                                                                {option.value === 'minimal' && (
+                                                                    <div className="h-full flex items-center justify-center gap-1.5">
+                                                                        <span className="h-3 w-3 rounded-full bg-primary/70" />
+                                                                        <span className="h-3 w-3 rounded-full bg-primary/55" />
+                                                                        <span className="h-3 w-3 rounded-full bg-primary/40" />
+                                                                    </div>
+                                                                )}
+                                                                {option.value === 'floating' && (
+                                                                    <div className="h-full flex items-center justify-center">
+                                                                        <span className="h-4 w-20 rounded-full bg-primary/65" />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                        {activePickerConfig.field === 'widgetHeight' && (
+                                                            <div className="rounded-lg border border-gray-300 dark:border-white/20 bg-white/70 dark:bg-white/5 p-2">
+                                                                <div className="mb-1 text-[10px] text-gray-500 dark:text-gray-400">גובה אזור הווידג׳ט</div>
+                                                                <div className={`mx-auto w-14 rounded-md border border-primary/40 bg-primary/25 transition-all ${
+                                                                    option.value === 'full' ? 'h-16' : option.value === 'high' ? 'h-14' : option.value === 'medium' ? 'h-10' : 'h-7'
+                                                                }`} />
+                                                            </div>
+                                                        )}
+                                                        {activePickerConfig.field === 'useTintedBackground' && (
+                                                            <div className={`rounded-lg border border-gray-300 dark:border-white/20 p-2 text-[10px] ${
+                                                                option.value ? 'bg-primary/10 text-primary-700 dark:text-primary-300' : 'bg-gray-100/80 dark:bg-white/5 text-gray-600 dark:text-gray-300'
+                                                            }`}>
+                                                                <div className="mb-1 font-bold">{option.value ? 'רקע עם גוון צבע' : 'רקע ניטרלי'}</div>
+                                                                <div className={`h-6 rounded ${
+                                                                    option.value ? 'bg-gradient-to-r from-primary/35 via-primary/15 to-transparent' : 'bg-gradient-to-r from-gray-300/40 via-gray-200/30 to-transparent dark:from-white/15 dark:via-white/10'
+                                                                }`} />
+                                                            </div>
+                                                        )}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* <div className="mt-6 rounded-2xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#171c27]/80 p-4 sm:p-5">
+                                <div className="flex items-center justify-between gap-3 mb-4">
+                                    <div>
+                                        <div className="text-sm font-black text-gray-900 dark:text-white">בחירה מהירה מתוך מה שכבר קיים במערכת</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">אפשר לבחור אפשרות אחת מכל קטגוריה, וה-AI יחבר את כולן יחד עם הפרומפט שלך.</div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={clearAiSelections}
+                                        className="inline-flex items-center gap-1 rounded-lg border border-gray-300 dark:border-white/10 bg-white/80 dark:bg-white/5 px-3 py-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 hover:border-primary/40 hover:text-primary transition"
+                                    >
+                                        <RotateCcw size={13} />
+                                        נקה בחירות
+                                    </button>
+                                </div>
+
+                                <div className="space-y-4">
+                                    {AI_THEME_TOKEN_GROUPS.map((group) => (
+                                        <div key={group.id}>
+                                            <div className="text-xs font-bold text-gray-600 dark:text-gray-300 mb-2">{group.label}</div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {group.options.map((option) => {
+                                                    const isSelected = aiSelectedTokenByGroup[group.id] === option.id;
+                                                    return (
+                                                        <button
+                                                            key={option.id}
+                                                            type="button"
+                                                            onClick={() => handleAiTokenToggle(group.id, option.id)}
+                                                            className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${isSelected
+                                                                ? 'bg-primary text-white border border-primary'
+                                                                : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-white/10 hover:border-primary/35'
+                                                                }`}
+                                                        >
+                                                            {option.label}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div> */}
+
+                            {aiErrorMessage && (
+                                <div className="mt-5 rounded-xl border border-red-300/40 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+                                    <div className="font-bold mb-1">שגיאה בתגובת AI</div>
+                                    <div>{aiErrorMessage}</div>
+                                </div>
+                            )}
+
+                            {aiSuggestedTheme && (
+                                <div className="mt-5 rounded-2xl border border-primary/25 bg-primary/5 p-4 sm:p-5">
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                        <div>
+                                            <div className="text-sm font-black text-gray-900 dark:text-white">תקציר הצעת העיצוב</div>
+                                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">בדוק את השינויים שמחכים ליישום לפני שמירה.</div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleApplyAiTheme}
+                                            disabled={!aiEnabled || aiIsGenerating}
+                                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            החל על העיצוב
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleUndoAiTheme}
+                                            disabled={!aiPreviousThemeSnapshot || aiIsGenerating}
+                                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-2.5 text-sm font-bold text-gray-700 dark:text-gray-200 transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            שחזור מצב קודם
+                                        </button>
+                                    </div>
+
+                                    {aiDiffRows.length === 0 ? (
+                                        <div className="mt-3 rounded-xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#1a1f2a] px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
+                                            ה-AI החזיר ערכים זהים לעיצוב הנוכחי. נסה לדייק את הבקשה או לבחור תגיות שונות.
+                                        </div>
+                                    ) : (
+                                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {aiDiffRows.map((row) => (
+                                                <div key={row.field} className="rounded-xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#1a1f2a] p-3">
+                                                    <div className="text-xs font-bold text-gray-700 dark:text-gray-200 mb-1">{row.label}</div>
+                                                    <div className="text-[11px] text-gray-500 dark:text-gray-400">נוכחי: <span className="font-semibold">{row.currentValue}</span></div>
+                                                    <div className="text-[11px] text-primary mt-1">חדש: <span className="font-semibold">{row.nextValue}</span></div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {aiRawOutput && (
+                                <details className="mt-5 rounded-2xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#171c27]/80 p-4">
+                                    <summary className="cursor-pointer text-xs font-bold text-gray-600 dark:text-gray-300">פלט AI גולמי (לבדיקה)</summary>
+                                    <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words text-[11px] text-gray-700 dark:text-gray-300">{aiRawOutput}</pre>
+                                </details>
+                            )}
+                            <div className="mt-6 flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={handleGenerateAiTheme}
+                                    disabled={!aiEnabled || aiIsGenerating}
+                                    className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    <Wand2 size={14} />
+                                    {aiIsGenerating ? 'יוצר...' : 'צור'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleUndoAiTheme}
+                                    disabled={!aiPreviousThemeSnapshot || aiIsGenerating}
+                                    className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-gray-300/90 bg-white/90 px-4 text-sm font-bold text-gray-700 shadow-[0_8px_20px_rgba(15,23,42,0.08)] backdrop-blur-md transition hover:border-primary/50 hover:text-primary hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/15"
+                                >
+                                    החזר שינויים
+                                </button>
+                            </div>
+                        </section>
+                    )}
+
                     {/* ==================== PRIMARY COLOR ==================== */}
                     {showSection('primaryColor') && (
                         <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
@@ -851,47 +1816,11 @@ export default function AdminTheme() {
                         </section>
                     )}
 
-                    {/* ==================== FACTORY RESET ==================== */}
-                    {showSection('factoryReset') && (
-                        <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
-                            <div className="flex items-center gap-3 mb-6 pb-4">
-                                <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/25">
-                                    <AlertTriangle size={20} className="text-red-500 dark:text-red-400" />
-                                </div>
-                                <div>
-                                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">איפוס נתוני אתר לברירת מחדל</h2>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                                        מחיקה מלאה של הגדרות, עיצוב, ניווט ותוכן הווידג&apos;טים — שחזור למצב יצרן
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="rounded-xl border border-red-300/70 bg-red-50/70 p-5 dark:border-red-500/40 dark:bg-red-900/20">
-                                <div className="flex items-start gap-3">
-                                    <div className="mt-0.5 rounded-lg bg-red-100 p-2 text-red-600 dark:bg-red-500/20 dark:text-red-300">
-                                        <AlertTriangle size={18} />
-                                    </div>
-                                    <div className="flex-1">
-                                        <h3 className="text-sm font-black text-red-700 dark:text-red-200">אזהרה</h3>
-                                        <p className="mt-1 text-xs leading-5 text-red-700/80 dark:text-red-100/80">
-                                            פעולה זו תמחק את כלל ההגדרות, העיצוב, הניווט ותוכן הווידג&apos;טים ותשחזר את האתר למצב יצרן.
-                                        </p>
-                                        <button
-                                            type="button"
-                                            onClick={handleFactoryReset}
-                                            disabled={isResetting || isSaving}
-                                            className="mt-4 inline-flex items-center rounded-lg border border-red-500/60 bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-                                        >
-                                            {isResetting ? 'מבצע איפוס...' : 'איפוס נתוני אתר לברירת מחדל'}
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-                    )}
+                    
                 </div>
 
-                <div className="order-1 lg:order-2 lg:self-start">
-                    <div className="sticky top-[140px]">
+                <div className="order-1 lg:order-2 lg:min-w-[660px] lg:self-start">
+                    <div className="sticky top-[128px]">
                         <div className="flex items-center justify-between mb-3 px-1">
                             <p className="text-sm font-bold text-gray-500 dark:text-gray-400">תצוגה מקדימה </p>
                             <span className="text-[10px] font-bold tracking-widest uppercase bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20">Live</span>
@@ -900,8 +1829,8 @@ export default function AdminTheme() {
                         {/* Monitor bezel + stand wrapper for live preview */}
                         <div className="flex flex-col items-center gap-2">
                             {/* Monitor bezel / screen frame */}
-                            <div className="w-full max-w-[720px] bg-transparent flex justify-center">
-                                <div className="border-[8px] lg:border-[12px] border-[#1e212b] rounded-2xl md:rounded-3xl bg-[#1e212b] shadow-2xl relative z-10 overflow-hidden w-full">
+                            <div className="w-full bg-transparent flex justify-center">
+                                <div className="border-[6px] lg:border-[8px] border-[#1e212b] rounded-2xl md:rounded-3xl bg-[#1e212b] shadow-2xl relative z-10 overflow-hidden w-full">
                                     <ThemeLivePreview draft={draft} displayModeOverride={draft.displayMode} />
                                 </div>
                             </div>

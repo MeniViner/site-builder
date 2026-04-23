@@ -7,6 +7,32 @@ import { useAuth } from '../../context/AuthContext';
 
 const normalizeIdentityText = (value) => String(value ?? '').trim().toLowerCase();
 const normalizePersonalNumber = (value) => String(value ?? '').replace(/\D/g, '');
+const ANONYMOUS_IDENTITY_STORAGE_KEY = 'widget_polls_anonymous_identity';
+
+function getAnonymousIdentity() {
+  if (typeof window === 'undefined') return null;
+
+  const existing = window.sessionStorage.getItem(ANONYMOUS_IDENTITY_STORAGE_KEY);
+  if (existing) {
+    return {
+      key: `anon:${existing}`,
+      personalNumber: '',
+      email: '',
+      loginName: '',
+      displayName: '',
+    };
+  }
+
+  const generated = `anon-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  window.sessionStorage.setItem(ANONYMOUS_IDENTITY_STORAGE_KEY, generated);
+  return {
+    key: `anon:${generated}`,
+    personalNumber: '',
+    email: '',
+    loginName: '',
+    displayName: '',
+  };
+}
 
 function resolveUserIdentity(currentUser) {
   const personalNumber = normalizePersonalNumber(currentUser?.personalNumber);
@@ -53,7 +79,7 @@ function resolveUserIdentity(currentUser) {
     };
   }
 
-  return null;
+  return getAnonymousIdentity();
 }
 
 function isSameVoter(voter, identity) {
@@ -79,7 +105,7 @@ function isSameVoter(voter, identity) {
 }
 
 export default function WidgetPolls({ data = [] }) {
-  const { widgetConfig, saveWidgetConfig } = useWidget();
+  const { widgetConfig, savePollVote } = useWidget();
   const { currentUser } = useAuth();
   const [localVote, setLocalVote] = useState({ pollId: null, optionId: null });
   const [isSavingVote, setIsSavingVote] = useState(false);
@@ -102,17 +128,26 @@ export default function WidgetPolls({ data = [] }) {
   const visibleItems = options;
 
   const handleVote = async (optionId) => {
-    if (!activePoll || hasVoted || isSavingVote) return;
+    if (!activePoll || isSavingVote) return;
     setLocalVote({ pollId: activePoll.id, optionId });
 
     if (!identity || !widgetConfig) {
       return;
     }
 
+    const resolvedUserName = String(
+      currentUser?.displayName
+      || currentUser?.email
+      || currentUser?.loginName
+      || currentUser?.personalNumber
+      || 'משתמש'
+    ).trim();
+
     const sourcePolls = Array.isArray(widgetConfig?.polls) ? widgetConfig.polls : data;
     const voterPayload = {
       id: identity.key,
-      name: String(currentUser?.displayName ?? '').trim(),
+      name: resolvedUserName,
+      displayName: resolvedUserName,
       email: String(currentUser?.email ?? '').trim(),
       loginName: String(currentUser?.loginName ?? '').trim(),
       personalNumber: normalizePersonalNumber(currentUser?.personalNumber),
@@ -129,27 +164,33 @@ export default function WidgetPolls({ data = [] }) {
           const existingVoters = Array.isArray(option?.voters) ? option.voters : [];
           const cleanedVoters = existingVoters.filter((voter) => !isSameVoter(voter, identity));
           const isTargetOption = String(option?.id) === String(optionId);
+          const hadVoteOnOption = existingVoters.length !== cleanedVoters.length;
+          const currentVotes = Math.max(0, Number(option?.votes) || 0);
+          const votesAfterRemoval = hadVoteOnOption ? Math.max(0, currentVotes - 1) : currentVotes;
 
-          if (!isTargetOption) {
-            return option;
+          if (isTargetOption) {
+            return {
+              ...option,
+              votes: hadVoteOnOption ? currentVotes : currentVotes + 1,
+              voters: [...cleanedVoters, voterPayload],
+            };
           }
 
-          const alreadyVoted = existingVoters.length !== cleanedVoters.length;
-          if (alreadyVoted) {
+          if (!hadVoteOnOption) {
             return option;
           }
 
           return {
             ...option,
-            votes: Math.max(0, Number(option?.votes) || 0) + 1,
-            voters: [...cleanedVoters, voterPayload],
+            votes: votesAfterRemoval,
+            voters: cleanedVoters,
           };
         }),
       };
     });
 
     setIsSavingVote(true);
-    const success = await saveWidgetConfig({ ...widgetConfig, polls: nextPolls });
+    const success = await savePollVote(nextPolls);
     setIsSavingVote(false);
 
     if (!success) {
@@ -202,9 +243,12 @@ export default function WidgetPolls({ data = [] }) {
               const isSelected = resolvedSelectedOptionId === option.id;
 
               return (
-                <div
+                <button
                   key={option.id}
-                  className="bg-themeBg-card border-themeBorder rounded-[20px] border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#232733]"
+                  type="button"
+                  onClick={() => handleVote(option.id)}
+                  disabled={isSavingVote}
+                  className={`bg-themeBg-card border-themeBorder w-full rounded-[20px] border border-gray-200 bg-white p-4 text-right transition hover:border-primary/30 hover:bg-gray-50 dark:border-white/10 dark:bg-[#232733] dark:hover:bg-[#2a2e38] ${isSavingVote ? 'cursor-not-allowed opacity-80' : ''}`}
                 >
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
@@ -221,7 +265,10 @@ export default function WidgetPolls({ data = [] }) {
                       style={{ width: `${Math.max(percentage, 8)}%` }}
                     />
                   </div>
-                </div>
+                  <div className="mt-2 text-[11px] font-semibold text-gray-500 dark:text-gray-300">
+                    {isSelected ? 'ההצבעה שלך כרגע' : (isSavingVote ? 'שומר...' : 'לחץ כדי לשנות הצבעה')}
+                  </div>
+                </button>
               );
             })
           )}

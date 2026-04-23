@@ -508,6 +508,128 @@ export const createBackup = async (filesToBackup = []) => {
     }
 };
 
+const parseBackupTimestampFromName = (folderName) => {
+    const name = String(folderName ?? '').trim();
+    const match = /^backup-(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})$/i.exec(name);
+    if (!match) return null;
+
+    const [, datePart, hh, mm, ss] = match;
+    const parsed = Date.parse(`${datePart}T${hh}:${mm}:${ss}Z`);
+    return Number.isFinite(parsed) ? parsed : null;
+};
+
+const readLatestBackupTimestamp = async () => {
+    const backupBaseFolder = `${SHAREPOINT_PATHS.siteAssetsRoot}/Backups`;
+    const normalizedBackupBaseFolder = toPathname(backupBaseFolder);
+    const { siteRoot } = extractSiteRootFromPath(normalizedBackupBaseFolder);
+
+    if (!siteRoot) {
+        throw new Error(`Cannot detect SharePoint site root from backup path: ${normalizedBackupBaseFolder}`);
+    }
+
+    const escapedFolder = normalizedBackupBaseFolder.replace(/'/g, "''");
+    const endpoint =
+        `${buildSiteApiUrl(siteRoot, '')}` +
+        `/_api/web/GetFolderByServerRelativeUrl('${escapedFolder}')/Folders` +
+        `?$select=Name,TimeCreated,TimeLastModified&$orderby=TimeLastModified desc&$top=25`;
+
+    const response = await fetch(endpoint, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+            Accept: ODATA_ACCEPT,
+        },
+    });
+
+    if (response.status === 404) {
+        return null;
+    }
+
+    if (!response.ok) {
+        const errorText = summarizeErrorText(await responseTextSafe(response));
+        throw new Error(`Failed to read backups folder (${response.status}): ${errorText}`);
+    }
+
+    const data = await response.json();
+    const folders =
+        data?.d?.results
+        || data?.d?.Folders?.results
+        || data?.d?.Folders
+        || [];
+
+    if (!Array.isArray(folders) || folders.length === 0) {
+        return null;
+    }
+
+    let latestTimestamp = null;
+    for (const folder of folders) {
+        const modified = Date.parse(String(folder?.TimeLastModified ?? ''));
+        const created = Date.parse(String(folder?.TimeCreated ?? ''));
+        const fromName = parseBackupTimestampFromName(folder?.Name);
+        const candidate = [modified, created, fromName]
+            .find((value) => Number.isFinite(value));
+
+        if (!Number.isFinite(candidate)) continue;
+        if (latestTimestamp === null || candidate > latestTimestamp) {
+            latestTimestamp = candidate;
+        }
+    }
+
+    return latestTimestamp;
+};
+
+/**
+ * Ensures there is at least one backup in the last `maxAgeMs`.
+ * If not, triggers an immediate backup.
+ */
+export const ensureRecentBackup = async ({ maxAgeMs = 48 * 60 * 60 * 1000 } = {}) => {
+    try {
+        const latestBackupTimestamp = await readLatestBackupTimestamp();
+        const now = Date.now();
+
+        if (Number.isFinite(latestBackupTimestamp)) {
+            const ageMs = now - latestBackupTimestamp;
+            if (ageMs <= maxAgeMs) {
+                spLog.system(
+                    `נמצא גיבוי עדכני (${new Date(latestBackupTimestamp).toLocaleString('he-IL')}) — אין צורך בגיבוי נוסף כרגע.`
+                );
+                return {
+                    hasRecentBackup: true,
+                    performedBackup: false,
+                    latestBackupAt: new Date(latestBackupTimestamp).toISOString(),
+                };
+            }
+        }
+
+        spLog.warn('לא נמצא גיבוי ב-48 השעות האחרונות — מתחיל גיבוי אוטומטי.');
+        const created = await createBackup();
+
+        if (created) {
+            return {
+                hasRecentBackup: false,
+                performedBackup: true,
+                latestBackupAt: new Date().toISOString(),
+            };
+        }
+
+        return {
+            hasRecentBackup: false,
+            performedBackup: false,
+            latestBackupAt: Number.isFinite(latestBackupTimestamp)
+                ? new Date(latestBackupTimestamp).toISOString()
+                : null,
+        };
+    } catch (error) {
+        spLog.error('שגיאה בבדיקת גיבוי אוטומטית:', error);
+        return {
+            hasRecentBackup: false,
+            performedBackup: false,
+            latestBackupAt: null,
+            error: error?.message || String(error),
+        };
+    }
+};
+
 /**
  * Uploads an image file. In mock mode, converts to Base64 data URL.
  * In production, uploads to SharePoint under IMAGE_BASE_FOLDER/<categoryFolder>.

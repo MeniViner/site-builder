@@ -7,7 +7,7 @@ import React, {
     useRef,
 } from 'react';
 import ConfigService from '../services/ConfigService';
-import { ensureSharePointBootstrapFiles } from '../services/SharePointBootstrapService';
+import { ensureSharePointBootstrapFiles, overwriteSharePointBootstrapFiles } from '../services/SharePointBootstrapService';
 import { DEFAULT_CONFIG_V1, validateAndNormalize } from '../config/AppSchema';
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { confirmToast } from '../utils/confirmToast';
@@ -19,6 +19,17 @@ const STATUS = {
     ERROR: 'error',
 };
 const MASTER_CONFIG_MOCK_KEY = import.meta.env.VITE_SP_MASTER_CONFIG_MOCK_KEY || 'bihs_master_config_v1';
+const SKIP_LEGACY_MIGRATION_ONCE_KEY = 'bihs_skip_legacy_migration_once';
+const LEGACY_MOCK_STORAGE_KEYS = [
+    SHAREPOINT_CONFIG.mockStorageKey,
+    SHAREPOINT_CONFIG.navMockStorageKey,
+    SHAREPOINT_CONFIG.usersMockStorageKey,
+    SHAREPOINT_CONFIG.siteContentMockStorageKey,
+    SHAREPOINT_CONFIG.themeMockStorageKey,
+    SHAREPOINT_CONFIG.widgetsMockStorageKey,
+    SHAREPOINT_CONFIG.externalLinksMockStorageKey,
+    'bihs_border_targets',
+].filter((key) => typeof key === 'string' && key.trim().length > 0);
 
 const ConfigContext = createContext(null);
 
@@ -42,6 +53,36 @@ function safeReadLocalStorageRaw(key) {
         console.warn(`ConfigProvider: failed to read localStorage key "${key}"`, error);
         return null;
     }
+}
+
+function consumeSkipLegacyMigrationFlag() {
+    try {
+        const raw = localStorage.getItem(SKIP_LEGACY_MIGRATION_ONCE_KEY);
+        if (!raw) return false;
+        localStorage.removeItem(SKIP_LEGACY_MIGRATION_ONCE_KEY);
+        return true;
+    } catch (error) {
+        console.warn('ConfigProvider: failed handling skip migration flag', error);
+        return false;
+    }
+}
+
+function markSkipLegacyMigrationFlag() {
+    try {
+        localStorage.setItem(SKIP_LEGACY_MIGRATION_ONCE_KEY, '1');
+    } catch (error) {
+        console.warn('ConfigProvider: failed setting skip migration flag', error);
+    }
+}
+
+function clearLegacyMockStorageKeys() {
+    LEGACY_MOCK_STORAGE_KEYS.forEach((key) => {
+        try {
+            localStorage.removeItem(key);
+        } catch (error) {
+            console.warn(`ConfigProvider: failed removing legacy key "${key}"`, error);
+        }
+    });
 }
 
 function parseLegacyStorageValue(storageKey) {
@@ -131,12 +172,13 @@ export const ConfigProvider = ({ children }) => {
 
             const masterRawBeforeLoad = safeReadLocalStorageRaw(MASTER_CONFIG_MOCK_KEY);
             const masterWasEmpty = !masterRawBeforeLoad || !masterRawBeforeLoad.trim();
+            const skipLegacyMigration = SHAREPOINT_CONFIG.useMock && consumeSkipLegacyMigrationFlag();
 
             resolvedConfig = normalizeConfigSafely(await ConfigService.loadConfig());
             console.log('[ConfigProvider] Loaded config from adapter...');
             const loadedLooksDefault = JSON.stringify(resolvedConfig) === JSON.stringify(normalizeConfigSafely(DEFAULT_CONFIG_V1));
 
-            if (SHAREPOINT_CONFIG.useMock && (masterWasEmpty || loadedLooksDefault)) {
+            if (SHAREPOINT_CONFIG.useMock && !skipLegacyMigration && (masterWasEmpty || loadedLooksDefault)) {
                 const legacySplitData = extractLegacyLocalData();
                 if (legacySplitData) {
                     console.log('[ConfigProvider] Executing legacy migration...');
@@ -243,6 +285,18 @@ export const ConfigProvider = ({ children }) => {
             const resetConfig = validateAndNormalize(DEFAULT_CONFIG_V1);
             const savedReset = await ConfigService.saveConfig(resetConfig);
             const normalizedReset = normalizeConfigSafely(savedReset ?? resetConfig);
+
+            if (SHAREPOINT_CONFIG.useMock) {
+                markSkipLegacyMigrationFlag();
+                clearLegacyMockStorageKeys();
+            } else {
+                const summary = await overwriteSharePointBootstrapFiles();
+                const failures = summary.filter((entry) => entry?.ok === false);
+                if (failures.length > 0) {
+                    console.warn('[ConfigProvider] Factory reset failed on some SharePoint legacy files.', failures);
+                    throw new Error(`Factory reset failed to overwrite ${failures.length} SharePoint file(s).`);
+                }
+            }
 
             if (isMountedRef.current) {
                 configRef.current = normalizedReset;

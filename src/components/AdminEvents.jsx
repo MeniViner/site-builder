@@ -4,11 +4,65 @@ import { useEvents } from '../context/EventsContext';
 import { Undo2, Plus, Trash2, Edit2, AlertTriangle, Calendar, X, Settings2 } from 'lucide-react';
 import { confirmToast } from '../utils/confirmToast';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
+import AdminAIActionCard from './AdminAIActionCard';
 
 const STATUS_OPTIONS = [
     { value: 'gray', label: 'אפור (כלל משתמשי חרום)', colorClass: 'bg-gray-500', textClass: 'text-gray-200' },
     { value: 'red', label: 'אדום (דחוף / חשוב)', colorClass: 'bg-red-500', textClass: 'text-white' },
 ];
+const VALID_EVENT_DISPLAY_MODES = new Set(['default', 'monthly', 'calendar']);
+const VALID_EVENT_COLOR = new Set(['gray', 'red']);
+
+function normalizeAiEventsPayload(payload) {
+    const sourceEvents = Array.isArray(payload?.events) ? payload.events : [];
+    const normalizedEvents = sourceEvents
+        .map((item, index) => {
+            const rawDate = String(item?.date || '').trim();
+            const title = String(item?.title || '').trim();
+            const subtitle = String(item?.subtitle || '').trim();
+            const color = String(item?.color || 'gray').trim().toLowerCase();
+
+            if (!rawDate || !/^\d{4}-\d{2}-\d{2}$/.test(rawDate) || !title) {
+                return null;
+            }
+
+            return {
+                id: String(item?.id || `ev_${Date.now()}_${index}`),
+                date: rawDate,
+                title,
+                subtitle,
+                color: VALID_EVENT_COLOR.has(color) ? color : 'gray',
+            };
+        })
+        .filter(Boolean);
+
+    if (!normalizedEvents.length) {
+        throw new Error('לא התקבלו אירועים תקינים מה-AI');
+    }
+
+    const requestedDisplayMode = String(payload?.displayMode || 'default').trim().toLowerCase();
+    const displayMode = VALID_EVENT_DISPLAY_MODES.has(requestedDisplayMode)
+        ? requestedDisplayMode
+        : 'default';
+    const requestedDisplayCount = Number(payload?.displayCount);
+    const displayCount = Number.isFinite(requestedDisplayCount)
+        ? Math.max(1, Math.min(normalizedEvents.length, Math.round(requestedDisplayCount)))
+        : Math.min(3, normalizedEvents.length);
+
+    let intervalMs = 6000;
+    if (Number.isFinite(Number(payload?.intervalMs))) {
+        intervalMs = Math.max(2000, Math.round(Number(payload.intervalMs)));
+    } else if (Number.isFinite(Number(payload?.intervalSeconds))) {
+        intervalMs = Math.max(2000, Math.round(Number(payload.intervalSeconds) * 1000));
+    }
+
+    return {
+        events: normalizedEvents,
+        displayCount,
+        displayMode,
+        intervalMs,
+    };
+}
 
 export default function AdminEvents({ onClose, inHub = false }) {
     const {
@@ -110,6 +164,47 @@ export default function AdminEvents({ onClose, inHub = false }) {
         setEditingEvent(null);
     };
 
+    const buildEventsAiPrompt = (instruction) => {
+        const today = new Date().toISOString().slice(0, 10);
+        const currentSnapshot = {
+            displayCount,
+            displayMode,
+            intervalMs,
+            events: events.slice(0, 12),
+        };
+
+        return [
+            'אתה עורך תוכן אירועים לפורטל ארגוני.',
+            'החזר JSON בלבד ללא טקסט נוסף.',
+            'סכימה נדרשת:',
+            '{',
+            '  "events": [',
+            '    { "date": "YYYY-MM-DD", "title": "string", "subtitle": "string", "color": "gray|red" }',
+            '  ],',
+            '  "displayCount": 1-10,',
+            '  "displayMode": "default|monthly|calendar",',
+            '  "intervalSeconds": number',
+            '}',
+            'חוקים:',
+            '- לפחות 3 אירועים.',
+            '- כל title קצר וברור.',
+            '- תאריכים חייבים להיות תקינים.',
+            `תאריך היום: ${today}`,
+            `נתונים קיימים: ${JSON.stringify(currentSnapshot)}`,
+            `בקשת המשתמש: ${instruction}`,
+        ].join('\n');
+    };
+
+    const applyAiEvents = (parsed) => {
+        const normalized = normalizeAiEventsPayload(parsed);
+        setEvents(normalized.events);
+        setDisplayCount(normalized.displayCount);
+        setDisplayMode(normalized.displayMode);
+        setIntervalMs(normalized.intervalMs);
+        setEditingEvent(null);
+        toast.success('הצעת AI הוחלה על אירועי החודש');
+    };
+
     if (loading && !events.length) {
         return <div className="p-8 text-center text-theme">טוען נתונים...</div>;
     }
@@ -128,6 +223,19 @@ export default function AdminEvents({ onClose, inHub = false }) {
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                             <AdminPageHelpButton pageId="events" />
+                            <AdminAIActionCard
+                                compact
+                                compactLabel="AI"
+                                title="עוזר AI לאירועים"
+                                description="ייצור רשימת אירועים + הגדרות תצוגה לפי בקשה חופשית, ואז Apply ישירות למסך."
+                                inputLabel="מה לייצר?"
+                                inputPlaceholder='דוגמה: "צור 6 אירועים לחודש הקרוב עם דגש על הכשרות ורווחה, ושמור על ניסוח קצר"'
+                                defaultInput="צור סדרת אירועים חודשית מקצועית וברורה"
+                                buildPrompt={buildEventsAiPrompt}
+                                onApply={applyAiEvents}
+                                applyButtonLabel="החל על אירועים"
+                                generateButtonLabel="ייצר אירועים"
+                            />
                             <button
                                 onClick={() => setEditingEvent({ date: new Date().toISOString().split('T')[0], title: '', subtitle: '', color: 'gray', isNew: true })}
                                 className="h-10 inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-lg text-sm font-bold transition"

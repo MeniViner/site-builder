@@ -99,7 +99,7 @@ function toLegacyTheme(config) {
 
     return {
         primaryColor: theme.primaryColor || '#0891b2',
-        displayMode: theme.displayMode || 'dark',
+        displayMode: theme.displayMode || 'user-toggle',
         borderStyle: theme.borderStyle || 'cyber',
         useTintedBackground: theme.backgrounds?.tinted?.enabled ?? true,
         tintedBackgroundStrength: theme.backgrounds?.tinted?.strength ?? 72,
@@ -222,7 +222,7 @@ export const ThemeProvider = ({ children }) => {
         applyPrimaryColorVars(mappedTheme.primaryColor || '#dc2626');
         document.documentElement.style.setProperty('--color-bg-tint-strength', String(toCssTintStrength(mappedTheme.tintedBackgroundStrength)));
         document.documentElement.dataset.tintedBg = mappedTheme.useTintedBackground ? 'true' : 'false';
-        const mode = resolveDisplayMode(mappedTheme.displayMode || 'dark');
+        const mode = resolveDisplayMode(mappedTheme.displayMode || 'user-toggle');
         setSiteMode(mode);
     }, []);
 

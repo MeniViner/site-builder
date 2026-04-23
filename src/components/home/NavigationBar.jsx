@@ -1,4 +1,5 @@
 import { Moon, Search, Sun } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import Tooltip from '../Tooltip';
 import { isTacticalStyle, normalizeBorderStyle, panelStyle, tacticalClip } from '../../utils/borderStyles';
 
@@ -49,11 +50,18 @@ export default function NavigationBar({
   toggleUserMode,
   getGreeting,
   userName,
+  utilityLinks = [],
+  onBrandClick,
 }) {
+  const location = useLocation();
+  const handleBrandClick = typeof onBrandClick === 'function'
+    ? onBrandClick
+    : () => window.scrollTo({ top: 0, behavior: 'smooth' });
+
   return (
     <nav className="w-full px-8 py-6 flex items-center justify-between bg-theme-chrome backdrop-blur-md border-b border-theme-subtle sticky top-0 z-[100]">
       <div className="flex items-center gap-8 lg:gap-10">
-        <div className="flex items-center gap-3 cursor-pointer group" onClick={() => window.scrollTo(0, 0)}>
+        <div className="flex items-center gap-3 cursor-pointer group" onClick={handleBrandClick}>
           <div className="font-bold text-xl relative shrink-0" style={{ color: theme?.primaryColor ?? '#dc2626' }}>
             {hero.siteName || 'שם האתר'}
             <div className="absolute -bottom-7 left-0 right-0 h-1 rounded-t-sm" style={{ backgroundColor: theme?.primaryColor ?? '#dc2626' }} />
@@ -67,6 +75,19 @@ export default function NavigationBar({
       </div>
       <div className="flex flex-row-reverse items-center gap-3">
         <SearchBar borderStyle={searchBorderStyle} />
+        {utilityLinks.map((link) => {
+          const isActive = link?.isActivePath ? location.pathname === link.isActivePath : location.pathname === link.to;
+          return (
+            <Link
+              key={link.id || link.to}
+              to={link.to}
+              className={`border text-theme px-4 h-10 font-bold transition text-sm whitespace-nowrap inline-flex items-center ${isActive ? 'bg-primary/15 border-primary/35 text-primary-200' : 'bg-theme-elevated hover:brightness-110'}`}
+              style={!isActive ? { ...panelStyle(topNavBorderStyle, 10), borderColor: theme?.primaryColor ?? '#dc2626' } : panelStyle(topNavBorderStyle, 10)}
+            >
+              <span className="max-w-[220px] truncate">{link.label}</span>
+            </Link>
+          );
+        })}
         {canOpenAdmin && (
           <button
             onClick={onOpenAdmin}

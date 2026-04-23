@@ -11,6 +11,7 @@ import { ThemeProvider } from './context/ThemeContext'
 import { WidgetProvider } from './context/WidgetContext'
 import { ExternalLinksProvider } from './context/ExternalLinksContext'
 import { ConfigProvider } from './context/ConfigProvider'
+import { OrgChartProvider } from './context/OrgChartContext'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -20,6 +21,7 @@ createRoot(document.getElementById('root')).render(
           <NavigationProvider>
             <EventsProvider>
               <SiteContentProvider>
+                <OrgChartProvider>
                 <ThemeProvider>
                   <WidgetProvider>
                     <ExternalLinksProvider>
@@ -27,6 +29,7 @@ createRoot(document.getElementById('root')).render(
                     </ExternalLinksProvider>
                   </WidgetProvider>
                 </ThemeProvider>
+                </OrgChartProvider>
               </SiteContentProvider>
             </EventsProvider>
           </NavigationProvider>

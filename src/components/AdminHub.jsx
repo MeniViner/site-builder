@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import {
     Undo2, Menu, Save, FileText, Link as LinkIcon,
-    LayoutGrid, Palette, ExternalLink, Sun, Moon
+    LayoutGrid, Palette, ExternalLink, Sun, Moon, Users
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import AdminEvents from './AdminEvents';
@@ -22,6 +22,8 @@ import AdminPolls from './AdminPolls';
 import AdminCelebrations from './AdminCelebrations';
 import AdminHeritage from './AdminHeritage';
 import AdminTips from './AdminTips';
+import AdminOrgChart from './AdminOrgChart';
+import AdminAIHelp from './AdminAIHelp';
 import WidgetLivePreview from './WidgetLivePreview';
 import Tooltip from './Tooltip';
 import NotFoundPage from './NotFoundPage';
@@ -32,7 +34,9 @@ import { useTheme } from '../context/ThemeContext';
 import { confirmToast } from '../utils/confirmToast';
 
 
-function SidebarButton({ icon: Icon, label, isActive, onClick, isSidebarOpen, title }) {
+function SidebarButton({ icon, label, isActive, onClick, isSidebarOpen, title }) {
+    const IconComponent = icon;
+
     return (
         <Tooltip text={title || label} wrapperClassName="block w-full">
             <button
@@ -46,7 +50,7 @@ function SidebarButton({ icon: Icon, label, isActive, onClick, isSidebarOpen, ti
                         : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-700 dark:hover:text-gray-200 border-transparent',
                 ].join(' ')}
             >
-                <Icon size={22} className={isActive ? 'text-gray-700 dark:text-gray-200' : ''} />
+                <IconComponent size={22} className={isActive ? 'text-gray-700 dark:text-gray-200' : ''} />
                 {isSidebarOpen && <span className="font-medium whitespace-nowrap text-[15px]">{label}</span>}
             </button>
         </Tooltip>
@@ -57,6 +61,7 @@ export default function AdminHub() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const navigate = useNavigate();
     const location = useLocation();
+    const lastJumpKeyRef = useRef(null);
     const [isBackingUp, setIsBackingUp] = useState(false);
     const { widgetConfig } = useWidget();
     const { effectiveMode, toggleAdminMode } = useTheme();
@@ -75,6 +80,8 @@ export default function AdminHub() {
         if (path.includes('/admin/current-widgets')) return 'current-widgets';
         if (path.includes('/admin/theme')) return 'theme';
         if (path.includes('/admin/external-links')) return 'external-links';
+        if (path.includes('/admin/ai-help')) return 'ai-help';
+        if (path.includes('/admin/org-chart')) return 'org-chart';
         if (path.includes('/admin/outstanding')) return 'outstanding';
         if (path.includes('/admin/countdown')) return 'countdown';
         if (path.includes('/admin/news')) return 'news';
@@ -89,6 +96,21 @@ export default function AdminHub() {
     };
 
     const activeTab = getActiveTab();
+
+    const jumpToThemeTab = location.state?.jumpToThemeTab;
+    useEffect(() => {
+        if (location.pathname !== '/admin') return;
+        if (jumpToThemeTab !== 'displayMode') return;
+        if (location.key === lastJumpKeyRef.current) return;
+        lastJumpKeyRef.current = location.key;
+
+        // "בסוף" (אחרי ניהול המידע) -> עיצוב האתר > מצב תצוגה
+        const t = window.setTimeout(() => {
+            navigate('/admin/theme?tab=displayMode', { replace: true });
+        }, 650);
+
+        return () => window.clearTimeout(t);
+    }, [jumpToThemeTab, location.key, location.pathname, navigate]);
 
     // Determine the key for the current dynamic widget page
     const widgetPageKeys = ['events', 'alerts', 'outstanding', 'countdown', 'news', 'phonebook', 'shuttles', 'polls', 'celebrations', 'heritage', 'tips'];
@@ -177,6 +199,24 @@ export default function AdminHub() {
                         title="עריכת כפתורי קישורים במערכת"
                     />
 
+                    <SidebarButton
+                        icon={Users}
+                        label="עץ מבנה"
+                        isActive={activeTab === 'org-chart'}
+                        onClick={() => navigate('/admin/org-chart')}
+                        isSidebarOpen={isSidebarOpen}
+                        title="בניית עץ המבנה הארגוני"
+                    />
+
+                    <SidebarButton
+                        icon={ExternalLink}
+                        label="קישורים חיצוניים"
+                        isActive={activeTab === 'external-links'}
+                        onClick={() => navigate('/admin/external-links')}
+                        isSidebarOpen={isSidebarOpen}
+                        title="הגדרת לינקים לכתובות חיצוניות"
+                    />
+
                     {isSidebarOpen && (
                         <div className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest px-4 mt-6 mb-2">הגדרות מערכת</div>
                     )}
@@ -184,7 +224,7 @@ export default function AdminHub() {
 
                     <SidebarButton
                         icon={Palette}
-                        label="ניהול עיצוב האתר"
+                        label=" עיצוב האתר"
                         isActive={activeTab === 'theme'}
                         onClick={() => navigate('/admin/theme')}
                         isSidebarOpen={isSidebarOpen}
@@ -210,14 +250,7 @@ export default function AdminHub() {
                     />
 
 
-                    <SidebarButton
-                        icon={ExternalLink}
-                        label="קישורים חיצוניים"
-                        isActive={activeTab === 'external-links'}
-                        onClick={() => navigate('/admin/external-links')}
-                        isSidebarOpen={isSidebarOpen}
-                        title="הגדרת לינקים לכתובות חיצוניות"
-                    />
+
 
                     <div className="flex-1" />
 
@@ -257,6 +290,8 @@ export default function AdminHub() {
                                 <Route path="/widgets" element={<div className="w-full h-full"><AdminWidgets /></div>} />
                                 <Route path="/current-widgets" element={<div className="w-full h-full"><AdminCurrentWidgets /></div>} />
                                 <Route path="/theme" element={<div className="w-full h-full"><AdminTheme /></div>} />
+                                <Route path="/ai-help" element={<div className="w-full h-full"><AdminAIHelp /></div>} />
+                                <Route path="/org-chart" element={<div className="w-full h-full"><AdminOrgChart /></div>} />
                                 <Route path="/external-links" element={<div className="w-full h-full"><AdminExternalLinks /></div>} />
                                 <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />
                                 <Route path="/countdown" element={<div className="w-full h-full"><AdminCountdown /></div>} />
@@ -286,6 +321,8 @@ export default function AdminHub() {
                             <Route path="/widgets" element={<div className="w-full h-full"><AdminWidgets /></div>} />
                             <Route path="/current-widgets" element={<div className="w-full h-full"><AdminCurrentWidgets /></div>} />
                             <Route path="/theme" element={<div className="w-full h-full"><AdminTheme /></div>} />
+                            <Route path="/ai-help" element={<div className="w-full h-full"><AdminAIHelp /></div>} />
+                            <Route path="/org-chart" element={<div className="w-full h-full"><AdminOrgChart /></div>} />
                             <Route path="/external-links" element={<div className="w-full h-full"><AdminExternalLinks /></div>} />
                             <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />
                             <Route path="/countdown" element={<div className="w-full h-full"><AdminCountdown /></div>} />

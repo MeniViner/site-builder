@@ -14,7 +14,7 @@ const DEFAULT_THEME = {
     primaryColor: '#0891b2',
     useTintedBackground: true,
     tintedBackgroundStrength: 72,
-    displayMode: 'dark',
+    displayMode: 'user-toggle',
     borderStyle: 'cyber',
     linksLayout: 'cards',
     showNavCategories: false,

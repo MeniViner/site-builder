@@ -16,9 +16,11 @@ import { useAuth } from './context/AuthContext';
 import { useSiteContent } from './context/SiteContentContext';
 import { useTheme } from './context/ThemeContext';
 import { useExternalLinks } from './context/ExternalLinksContext';
+import { useOrgChart } from './context/OrgChartContext';
 import { normalizeBorderStyle, panelStyle } from './utils/borderStyles';
 import { normalizeOverlayImageConfig } from './utils/overlayImageConfig';
 import { resolveSiteImageUrl } from './utils/assetUrl';
+import OrgChartPage from './pages/OrgChartPage';
 import 'react-toastify/dist/ReactToastify.css';
 
 export function Home({ isPreview = false }) {
@@ -32,6 +34,7 @@ export function Home({ isPreview = false }) {
   const { siteContent } = useSiteContent();
   const { theme, effectiveMode, toggleUserMode, borderTargets } = useTheme();
   const { externalLinks } = useExternalLinks();
+  const { orgChart } = useOrgChart();
   const [widgetTitle, setWidgetTitle] = useState(() => getWidgetTitle('events'));
 
   const hero = siteContent?.hero || { title: '', subtitle: '', description: '', backgroundImages: [] };
@@ -57,6 +60,9 @@ export function Home({ isPreview = false }) {
   const flipCardBorderStyle = borderTargets?.flipCards ? borderStyle : 'standard';
   const hqDashBorderStyle = borderTargets?.hqDash ? borderStyle : 'standard';
   const extLinksBorderStyle = borderTargets?.extLinks ? borderStyle : 'standard';
+  const utilityLinks = orgChart?.enabled
+    ? [{ id: 'org-chart', label: orgChart.pageTitle || 'עץ מבנה', to: '/org-chart' }]
+    : [];
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour >= 6 && hour < 12) return 'בוקר טוב';
@@ -157,6 +163,7 @@ export function Home({ isPreview = false }) {
           toggleUserMode={toggleUserMode}
           getGreeting={getGreeting}
           userName={userName}
+          utilityLinks={utilityLinks}
         />
 
         <main data-widget-title={widgetTitle} className="w-full relative h-[calc(100vh-80px)] min-h-[calc(100vh-80px)] max-h-[calc(100vh-80px)] flex flex-col justify-between overflow-hidden pt-4 [@media(max-height:850px)]:pt-2 lg:pt-8 xl:pt-12">
@@ -266,10 +273,30 @@ function AdminRoute() {
 
 export default function App() {
   const { effectiveMode } = useTheme();
+  const { siteContent } = useSiteContent();
+
+  useEffect(() => {
+    const siteName = siteContent?.hero?.siteName?.trim() || 'אלפא';
+    document.title = `ניהול ידע | ${siteName}`;
+
+    const faviconHref = resolveSiteImageUrl(siteContent?.hero?.logo || '/images/alpha logo1.png');
+    let faviconEl = document.querySelector('link[data-app-favicon="true"]');
+
+    if (!faviconEl) {
+      faviconEl = document.createElement('link');
+      faviconEl.setAttribute('rel', 'icon');
+      faviconEl.setAttribute('data-app-favicon', 'true');
+      document.head.appendChild(faviconEl);
+    }
+
+    faviconEl.setAttribute('href', faviconHref);
+  }, [siteContent?.hero?.logo, siteContent?.hero?.siteName]);
+
   return (
     <>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/org-chart" element={<OrgChartPage />} />
         <Route path="/admin/*" element={<AdminRoute />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

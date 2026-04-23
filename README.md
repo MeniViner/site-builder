@@ -22,6 +22,12 @@
 - `npm run site:init`  
   יוצר/מאתחל מבנה SharePoint לאתר חדש לפי `.env.production`.
 
+- `npm run ai:backend:install`  
+  מתקין dependencies ל-`newAlphaAIBackend`.
+
+- `npm run ai:backend:dev`  
+  מריץ את שרת ה-AI Proxy המקומי (`newAlphaAIBackend`).
+
 - `npm run deploy`  
   מבצע רק שלב deploy של `dist` ל-SharePoint (ללא build).
 
@@ -63,3 +69,9 @@
 ראה:
 
 - `NEW-SITE-AUTOMATION.md`
+
+## אינטגרציית AI
+
+להגדרת חיבור הפרויקט ל-`newAlphaAIBackend`, כולל env לבחירת מודל, fallback ושימוש בקוד:
+
+- `AI-INTEGRATION.md`
