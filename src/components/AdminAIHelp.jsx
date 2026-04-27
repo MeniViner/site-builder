@@ -50,9 +50,17 @@ export default function AdminAIHelp({ embedded = false }) {
         }
 
         setIsLoading(true);
+        setAnswer('');
         try {
-            const response = await AIService.ask(buildPrompt(trimmed), { requestMode: 'smart' });
-            const content = response?.choices?.[0]?.message?.content || response?.content || '';
+            let streamed = '';
+            const response = await AIService.ask(buildPrompt(trimmed), {
+                model: runtimeConfig.defaultModel,
+                onToken: (token) => {
+                    streamed += token;
+                    setAnswer((prev) => prev + token);
+                },
+            });
+            const content = response?.content || streamed || '';
             setAnswer(String(content).trim());
             setModelUsed(response?.modelUsed || response?.model || '');
             setHistory((prev) => [trimmed, ...prev.filter((item) => item !== trimmed)].slice(0, 5));

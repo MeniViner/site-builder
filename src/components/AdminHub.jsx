@@ -32,6 +32,7 @@ import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { useWidget } from '../context/WidgetContext';
 import { useTheme } from '../context/ThemeContext';
 import { confirmToast } from '../utils/confirmToast';
+import { UI_FEATURES } from '../config/uiFeatures.config';
 
 
 function SidebarButton({ icon, label, isActive, onClick, isSidebarOpen, title }) {
@@ -58,6 +59,7 @@ function SidebarButton({ icon, label, isActive, onClick, isSidebarOpen, title })
 }
 
 export default function AdminHub() {
+    const showAiUi = UI_FEATURES.showAiUi;
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const navigate = useNavigate();
     const location = useLocation();
@@ -80,7 +82,7 @@ export default function AdminHub() {
         if (path.includes('/admin/current-widgets')) return 'current-widgets';
         if (path.includes('/admin/theme')) return 'theme';
         if (path.includes('/admin/external-links')) return 'external-links';
-        if (path.includes('/admin/ai-help')) return 'ai-help';
+        if (showAiUi && path.includes('/admin/ai-help')) return 'ai-help';
         if (path.includes('/admin/org-chart')) return 'org-chart';
         if (path.includes('/admin/outstanding')) return 'outstanding';
         if (path.includes('/admin/countdown')) return 'countdown';
@@ -290,7 +292,7 @@ export default function AdminHub() {
                                 <Route path="/widgets" element={<div className="w-full h-full"><AdminWidgets /></div>} />
                                 <Route path="/current-widgets" element={<div className="w-full h-full"><AdminCurrentWidgets /></div>} />
                                 <Route path="/theme" element={<div className="w-full h-full"><AdminTheme /></div>} />
-                                <Route path="/ai-help" element={<div className="w-full h-full"><AdminAIHelp /></div>} />
+                                {showAiUi && <Route path="/ai-help" element={<div className="w-full h-full"><AdminAIHelp /></div>} />}
                                 <Route path="/org-chart" element={<div className="w-full h-full"><AdminOrgChart /></div>} />
                                 <Route path="/external-links" element={<div className="w-full h-full"><AdminExternalLinks /></div>} />
                                 <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />
@@ -321,7 +323,7 @@ export default function AdminHub() {
                             <Route path="/widgets" element={<div className="w-full h-full"><AdminWidgets /></div>} />
                             <Route path="/current-widgets" element={<div className="w-full h-full"><AdminCurrentWidgets /></div>} />
                             <Route path="/theme" element={<div className="w-full h-full"><AdminTheme /></div>} />
-                            <Route path="/ai-help" element={<div className="w-full h-full"><AdminAIHelp /></div>} />
+                            {showAiUi && <Route path="/ai-help" element={<div className="w-full h-full"><AdminAIHelp /></div>} />}
                             <Route path="/org-chart" element={<div className="w-full h-full"><AdminOrgChart /></div>} />
                             <Route path="/external-links" element={<div className="w-full h-full"><AdminExternalLinks /></div>} />
                             <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />

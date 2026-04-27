@@ -9,6 +9,7 @@ import { useConfig } from '../context/ConfigProvider';
 import { useSiteContent } from '../context/SiteContentContext';
 import { useTheme } from '../context/ThemeContext';
 import { resolveSiteImageUrl } from '../utils/assetUrl';
+import { normalizeBorderStyle } from '../utils/borderStyles';
 
 const LINE_STYLE_CLASS_MAP = {
     solid: 'border-solid',
@@ -179,7 +180,7 @@ export default function OrgChartPage({ isPreview = false, previewData = null }) 
     const { currentUser, isAdmin, loading: authLoading } = useAuth();
     const { config } = useConfig();
     const { siteContent } = useSiteContent();
-    const { theme, effectiveMode, toggleUserMode } = useTheme();
+    const { theme, effectiveMode, toggleUserMode, borderTargets } = useTheme();
 
     const chartData = isPreview ? previewData : config?.content?.orgChart;
     if (!chartData) return null;
@@ -200,6 +201,9 @@ export default function OrgChartPage({ isPreview = false, previewData = null }) 
     const is3DGraphLayout = layoutDirection === '3d-graph';
     const isFlowCanvasLayout = layoutDirection === 'flow-canvas';
     const graphMode = effectiveMode;
+    const normalizedBorderStyle = normalizeBorderStyle(theme?.borderStyle || 'cyber');
+    const topNavBorderStyle = borderTargets?.topNav ? normalizedBorderStyle : 'standard';
+    const searchBorderStyle = borderTargets?.search ? normalizedBorderStyle : 'standard';
 
     function renderCenterNode(node) {
         const children = Array.isArray(node?.children) ? node.children : [];
@@ -336,8 +340,8 @@ export default function OrgChartPage({ isPreview = false, previewData = null }) 
                         if (!isPreview) navigate('/admin');
                     }}
                     canOpenAdmin={!isPreview && isAdmin && !authLoading}
-                    topNavBorderStyle={theme?.borderStyle}
-                    searchBorderStyle={theme?.borderStyle}
+                    topNavBorderStyle={topNavBorderStyle}
+                    searchBorderStyle={searchBorderStyle}
                     effectiveMode={effectiveMode}
                     toggleUserMode={toggleUserMode}
                     getGreeting={getGreeting}

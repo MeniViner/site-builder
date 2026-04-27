@@ -19,6 +19,7 @@ import AdminAIActionCard from './AdminAIActionCard';
 import AdminAIHelp from './AdminAIHelp';
 import AIService from '../services/AIService';
 import { getSafeAiRuntimeConfig } from '../config/ai.config';
+import { UI_FEATURES } from '../config/uiFeatures.config';
 
 const MAX_COMMANDER_MESSAGES = 5;
 
@@ -173,7 +174,8 @@ export default function AdminSiteContent() {
     const commanderFileInputRef = useRef(null);
     const overlayImageFileInputRef = useRef(null);
     const lastSavedRef = useRef(null);
-    const isAiEnabled = AIService.isEnabled();
+    const showAiUi = UI_FEATURES.showAiUi;
+    const isAiEnabled = showAiUi && AIService.isEnabled();
 
     useEffect(() => {
         if (!siteContent) return;
@@ -532,13 +534,14 @@ export default function AdminSiteContent() {
             `חוקים: ${rules}`,
             `טקסט לשיפור: ${text}`,
         ].join('\n');
+        let streamed = '';
         const result = await AIService.ask(prompt, {
             model: AI_SITE_CONTENT_RUNTIME.defaultModel,
-            fallbackModels: AI_SITE_CONTENT_RUNTIME.fallbackModels,
-            requestMode: AI_SITE_CONTENT_RUNTIME.requestMode,
-            useSmartFallback: AI_SITE_CONTENT_RUNTIME.useSmartFallback,
+            onToken: (token) => {
+                streamed += token;
+            },
         });
-        const improved = cleanImprovedText(result?.content, maxLines);
+        const improved = cleanImprovedText(result?.content || streamed, maxLines);
         if (!improved) {
             throw new Error('לא התקבל טקסט משופר מה-AI.');
         }
@@ -592,23 +595,25 @@ export default function AdminSiteContent() {
                     </div>
                     <div className="flex items-center gap-3">
                         <AdminPageHelpButton pageId="site-content" tabId={activeSettingId} />
-                        <AdminAIActionCard
-                            compact
-                            compactLabel="AI"
-                            title="עוזר AI לתוכן האתר"
-                            description="ייצור מהיר של טקסטי Hero ו'דבר המפקד' בהתאם לבריף שתכתוב."
-                            inputLabel="איזה תוכן תרצה לייצר?"
-                            inputPlaceholder='דוגמה: "נסח כותרת ותיאור אתר ליחידה טכנולוגית עם דגש על חדשנות, מקצועיות ושירות"'
-                            defaultInput="נסח תכנים רשמיים וקצרים למסך הבית"
-                            buildPrompt={buildSiteContentAiPrompt}
-                            onApply={applyAiSiteContent}
-                            applyButtonLabel="החל על התוכן"
-                            generateButtonLabel="ייצר תוכן"
-                            primaryPanelTabLabel="תוכן האתר"
-                            secondaryPanelTabLabel="שאלות ותפעול"
-                            secondaryPanelTitle="עוזר AI לניווט ותפעול"
-                            secondaryPanel={<AdminAIHelp embedded />}
-                        />
+                        {showAiUi && (
+                            <AdminAIActionCard
+                                compact
+                                compactLabel="AI"
+                                title="עוזר AI לתוכן האתר"
+                                description="ייצור מהיר של טקסטי Hero ו'דבר המפקד' בהתאם לבריף שתכתוב."
+                                inputLabel="איזה תוכן תרצה לייצר?"
+                                inputPlaceholder='דוגמה: "נסח כותרת ותיאור אתר ליחידה טכנולוגית עם דגש על חדשנות, מקצועיות ושירות"'
+                                defaultInput="נסח תכנים רשמיים וקצרים למסך הבית"
+                                buildPrompt={buildSiteContentAiPrompt}
+                                onApply={applyAiSiteContent}
+                                applyButtonLabel="החל על התוכן"
+                                generateButtonLabel="ייצר תוכן"
+                                primaryPanelTabLabel="תוכן האתר"
+                                secondaryPanelTabLabel="שאלות ותפעול"
+                                secondaryPanelTitle="עוזר AI לניווט ותפעול"
+                                secondaryPanel={<AdminAIHelp embedded />}
+                            />
+                        )}
                         {isSaving && (
                             <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-full shadow-sm">
                                 <div className="w-3.5 h-3.5 border-[2px] border-primary border-t-transparent rounded-full animate-spin" />
@@ -849,15 +854,17 @@ export default function AdminSiteContent() {
                                                     className={`${inputCls} resize-none text-sm  `}
                                                     placeholder="תיאור קצר שמופיע מתחת לכותרת..."
                                                 />
-                                                <button
-                                                    type="button"
-                                                    onClick={handleImproveHeroDescription}
-                                                    disabled={!isAiEnabled || improvingTargetKey === 'hero-description' || !hero.description.trim()}
-                                                    className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-white/10 bg-white/95 dark:bg-[#202534] px-2 py-1 text-[11px] font-bold text-gray-600 dark:text-gray-300 hover:border-primary/40 hover:text-primary transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                                >
-                                                    {improvingTargetKey === 'hero-description' ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                                                    שפר טקסט
-                                                </button>
+                                                {showAiUi && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleImproveHeroDescription}
+                                                        disabled={!isAiEnabled || improvingTargetKey === 'hero-description' || !hero.description.trim()}
+                                                        className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-white/10 bg-white/95 dark:bg-[#202534] px-2 py-1 text-[11px] font-bold text-gray-600 dark:text-gray-300 hover:border-primary/40 hover:text-primary transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
+                                                        {improvingTargetKey === 'hero-description' ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                                                        שפר טקסט
+                                                    </button>
+                                                )}
                                             </div>
                                             <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">עד 3 שורות</p>
                                         </div>
@@ -1744,15 +1751,17 @@ export default function AdminSiteContent() {
                                     >
                                         תוכן ההודעה
                                     </HelpLabel>
-                                    <button
-                                        type="button"
-                                        onClick={handleImproveEditingMessageText}
-                                        disabled={!isAiEnabled || improvingTargetKey === `editing-message-${editingMessage.id || 'new'}` || !editingMessage.text?.trim()}
-                                        className="inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 px-2 py-1 text-[11px] font-bold text-gray-600 dark:text-gray-300 hover:border-primary/40 hover:text-primary transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        {improvingTargetKey === `editing-message-${editingMessage.id || 'new'}` ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                                        שפר טקסט
-                                    </button>
+                                    {showAiUi && (
+                                        <button
+                                            type="button"
+                                            onClick={handleImproveEditingMessageText}
+                                            disabled={!isAiEnabled || improvingTargetKey === `editing-message-${editingMessage.id || 'new'}` || !editingMessage.text?.trim()}
+                                            className="inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 px-2 py-1 text-[11px] font-bold text-gray-600 dark:text-gray-300 hover:border-primary/40 hover:text-primary transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {improvingTargetKey === `editing-message-${editingMessage.id || 'new'}` ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                                            שפר טקסט
+                                        </button>
+                                    )}
                                 </div>
                                 <textarea
                                     name="text"

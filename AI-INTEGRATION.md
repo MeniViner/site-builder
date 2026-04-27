@@ -16,6 +16,8 @@
 
 ```env
 VITE_ALPHA_AI_ENABLED=true
+VITE_UI_SHOW_AI_UI=true
+VITE_UI_SHOW_QUICK_DESIGN_COMPOSER=true
 VITE_ALPHA_AI_API_BASE=http://127.0.0.1:3000/api
 VITE_ALPHA_AI_REQUEST_MODE=direct
 VITE_ALPHA_AI_MODEL=gpt-4o
@@ -26,6 +28,11 @@ VITE_ALPHA_AI_TIMEOUT_MS=30000
 VITE_ALPHA_AI_STREAM_TIMEOUT_MS=120000
 VITE_ALPHA_AI_API_TOKEN=
 ```
+
+דגלי UI:
+
+- `VITE_UI_SHOW_AI_UI` – מציג/מסתיר את כל אפשרויות ה-AI בממשק.
+- `VITE_UI_SHOW_QUICK_DESIGN_COMPOSER` – מציג/מסתיר את "הרכבה מהירה במשפט אחד" (עיצוב מהיר) במסך העיצוב.
 
 ## איך עובד הפאלבק
 

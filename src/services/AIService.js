@@ -4,14 +4,9 @@ function hasText(value) {
     return typeof value === 'string' && value.trim().length > 0;
 }
 
-function uniq(values) {
-    const result = [];
-    values.forEach((value) => {
-        if (hasText(value) && !result.includes(value.trim())) {
-            result.push(value.trim());
-        }
-    });
-    return result;
+function normalizeRole(role) {
+    const normalized = String(role || '').trim().toLowerCase();
+    return normalized || 'user';
 }
 
 class AIService {
@@ -39,115 +34,45 @@ class AIService {
         });
     }
 
-    async direct(prompt, model = this.config.defaultModel, options = {}) {
-        this._assertPrompt(prompt);
-        if (!hasText(model)) {
-            throw new Error('AIService.direct requires a valid model name');
-        }
-
-        return this._requestJson(`/ai/direct/${encodeURIComponent(model)}`, {
-            method: 'POST',
-            body: {
-                messages: [{ role: 'user', content: prompt }],
-                stream: false,
-            },
-            timeoutMs: options.timeoutMs,
-            signal: options.signal,
-        });
-    }
-
-    async smart(prompt, options = {}) {
-        this._assertPrompt(prompt);
-        return this._requestJson('/ai/smart', {
-            method: 'POST',
-            body: {
-                messages: [{ role: 'user', content: prompt }],
-                stream: false,
-            },
-            timeoutMs: options.timeoutMs,
-            signal: options.signal,
-        });
-    }
-
     async ask(prompt, options = {}) {
         this._assertPrompt(prompt);
+        return this.stream(prompt, options);
+    }
 
-        const requestMode = String(options.requestMode || this.config.requestMode || 'direct')
-            .trim()
-            .toLowerCase();
-
-        if (requestMode === 'smart') {
-            const smartResult = await this.smart(prompt, options);
-            return {
-                ...smartResult,
-                strategy: 'smart',
-                fallbackUsed: true,
-                attemptedModels: [],
-            };
-        }
-
-        const attemptedModels = [];
-        const modelsToTry = this._resolveModelSequence(options.model, options.fallbackModels);
-        const useSmartFallback = options.useSmartFallback ?? this.config.useSmartFallback;
-        let lastError = null;
-
-        for (const model of modelsToTry) {
-            attemptedModels.push(model);
-            try {
-                const result = await this.direct(prompt, model, options);
-                return {
-                    ...result,
-                    strategy: attemptedModels.length > 1 ? 'direct-with-fallback' : 'direct',
-                    fallbackUsed: attemptedModels.length > 1,
-                    attemptedModels,
-                };
-            } catch (error) {
-                lastError = error;
-
-                if (!this._shouldContinueFallback(error)) {
-                    throw error;
-                }
-            }
-        }
-
-        if (useSmartFallback) {
-            try {
-                const smartResult = await this.smart(prompt, options);
-                return {
-                    ...smartResult,
-                    strategy: 'smart-fallback',
-                    fallbackUsed: true,
-                    attemptedModels,
-                };
-            } catch (smartError) {
-                smartError.previousError = lastError;
-                smartError.attemptedModels = attemptedModels;
-                throw smartError;
-            }
-        }
-
-        const error = lastError || new Error('AI request failed and no fallback model succeeded');
-        error.attemptedModels = attemptedModels;
-        throw error;
+    async direct(prompt, model = this.config.defaultModel, options = {}) {
+        this._assertPrompt(prompt);
+        return this.stream(prompt, { ...options, model });
     }
 
     async stream(prompt, options = {}) {
         this._assertPrompt(prompt);
 
-        const model = hasText(options.model) ? options.model.trim() : this.config.streamModel;
+        const model = hasText(options.model)
+            ? options.model.trim()
+            : (this.config.streamModel || this.config.defaultModel || 'any');
         const timeoutMs = options.timeoutMs || this.config.streamTimeoutMs;
-        const url = `${this.config.apiBase}/ai/stream`;
+        const streamPath = this._resolveStreamPath(options.streamPath);
+        const url = `${this.config.apiBase}${streamPath}`;
         const merged = this._createSignal(timeoutMs, options.signal);
         const onEvent = typeof options.onEvent === 'function' ? options.onEvent : null;
         const onToken = typeof options.onToken === 'function' ? options.onToken : null;
         const onDone = typeof options.onDone === 'function' ? options.onDone : null;
+        const messages = this._normalizeMessages(prompt, options.messages);
+        const payload = {
+            messages,
+            stream: true,
+        };
+
+        if (hasText(model)) {
+            payload.model = model;
+        }
 
         let response;
         try {
             response = await fetch(url, {
                 method: 'POST',
                 headers: this._createHeaders(),
-                body: JSON.stringify({ prompt, model }),
+                body: JSON.stringify(payload),
                 signal: merged.signal,
             });
         } catch (error) {
@@ -173,6 +98,43 @@ class AIService {
         let content = '';
         let eventsCount = 0;
 
+        const handleEventChunk = (eventChunk) => {
+            const rawPayload = this._extractPayloadFromSseEvent(eventChunk);
+            if (!rawPayload) {
+                return false;
+            }
+
+            if (rawPayload === '[DONE]') {
+                if (onDone) {
+                    onDone({ modelUsed, content });
+                }
+                return true;
+            }
+
+            eventsCount += 1;
+            const parsed = this._safeParseJson(rawPayload);
+            const token = this._extractToken(parsed);
+
+            if (token) {
+                content += token;
+                if (onToken) {
+                    onToken(token, { modelUsed, raw: rawPayload, parsed });
+                }
+            }
+
+            if (onEvent) {
+                onEvent(rawPayload, { modelUsed, token, parsed });
+            }
+
+            if (parsed?.error) {
+                const upstreamError = new Error(parsed.error?.message || 'Streaming response returned an error event');
+                upstreamError.payload = parsed;
+                throw upstreamError;
+            }
+
+            return false;
+        };
+
         try {
             while (true) {
                 const { done, value } = await reader.read();
@@ -181,39 +143,21 @@ class AIService {
                 }
 
                 pending += decoder.decode(value, { stream: true });
-                const lines = pending.split(/\r?\n/);
-                pending = lines.pop() || '';
+                const chunks = pending.split(/\r?\n\r?\n/);
+                pending = chunks.pop() || '';
 
-                for (const line of lines) {
-                    const trimmedLine = line.trim();
-                    if (!trimmedLine.startsWith('data:')) {
-                        continue;
-                    }
-
-                    const payload = trimmedLine.slice(5).trim();
-                    if (!payload) {
-                        continue;
-                    }
-
-                    if (payload === '[DONE]') {
-                        if (onDone) {
-                            onDone({ modelUsed, content });
-                        }
+                for (const chunk of chunks) {
+                    const shouldStop = handleEventChunk(chunk);
+                    if (shouldStop) {
                         return { modelUsed, content, eventsCount };
                     }
+                }
+            }
 
-                    eventsCount += 1;
-                    const token = this._extractToken(payload);
-                    if (token) {
-                        content += token;
-                        if (onToken) {
-                            onToken(token, { modelUsed, raw: payload });
-                        }
-                    }
-
-                    if (onEvent) {
-                        onEvent(payload, { modelUsed, token });
-                    }
+            if (pending.trim()) {
+                const shouldStop = handleEventChunk(pending);
+                if (shouldStop) {
+                    return { modelUsed, content, eventsCount };
                 }
             }
 
@@ -229,25 +173,51 @@ class AIService {
         }
     }
 
-    _resolveModelSequence(primaryModel, fallbackModels = null) {
-        const requestedModel = hasText(primaryModel) ? primaryModel.trim() : this.config.defaultModel;
-        const explicitFallback = Array.isArray(fallbackModels)
-            ? fallbackModels
-            : this.config.fallbackModels;
-
-        return uniq([requestedModel, ...(explicitFallback || [])]);
+    _resolveStreamPath(streamPath) {
+        const resolved = hasText(streamPath)
+            ? streamPath.trim()
+            : (hasText(this.config.streamEndpoint) ? this.config.streamEndpoint.trim() : '/ai/stream');
+        if (!resolved.startsWith('/')) {
+            return `/${resolved}`;
+        }
+        return resolved;
     }
 
-    _shouldContinueFallback(error) {
-        if (!error) {
-            return false;
+    _normalizeMessages(prompt, providedMessages) {
+        if (Array.isArray(providedMessages) && providedMessages.length > 0) {
+            const messages = providedMessages
+                .map((message) => ({
+                    role: normalizeRole(message?.role),
+                    content: String(message?.content || '').trim(),
+                }))
+                .filter((message) => message.content.length > 0);
+            if (messages.length > 0) {
+                return messages;
+            }
         }
 
-        if (error.status && [401, 403, 404].includes(error.status)) {
-            return false;
+        return [{ role: 'user', content: prompt.trim() }];
+    }
+
+    _extractPayloadFromSseEvent(eventChunk) {
+        const lines = String(eventChunk || '').split(/\r?\n/);
+        const dataLines = [];
+
+        for (const rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line || line.startsWith(':')) {
+                continue;
+            }
+            if (line.startsWith('data:')) {
+                dataLines.push(line.slice(5).trimStart());
+            }
         }
 
-        return true;
+        if (dataLines.length === 0) {
+            return '';
+        }
+
+        return dataLines.join('\n').trim();
     }
 
     _assertPrompt(prompt) {
@@ -366,16 +336,28 @@ class AIService {
         return error;
     }
 
-    _extractToken(payload) {
-        let parsed;
+    _safeParseJson(rawPayload) {
         try {
-            parsed = JSON.parse(payload);
+            return JSON.parse(rawPayload);
         } catch {
+            return null;
+        }
+    }
+
+    _extractToken(parsed) {
+        if (!parsed || typeof parsed !== 'object') {
             return '';
         }
-
         if (typeof parsed?.choices?.[0]?.delta?.content === 'string') {
             return parsed.choices[0].delta.content;
+        }
+
+        if (typeof parsed?.choices?.[0]?.message?.content === 'string') {
+            return parsed.choices[0].message.content;
+        }
+
+        if (typeof parsed?.choices?.[0]?.text === 'string') {
+            return parsed.choices[0].text;
         }
 
         if (typeof parsed?.delta?.text === 'string') {

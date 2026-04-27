@@ -493,7 +493,7 @@ function SettingCard({ title, description, children, helpTitle, helpDescription 
                         <h2 className="text-lg font-black text-gray-900 dark:text-white">{title}</h2>
                         {helpTitle && <HelpTooltipButton title={helpTitle} description={helpDescription} />}
                     </div>
-                    {description && <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">{description}</p>}
+                    {description && <p className="mt-1 whitespace-pre-line text-sm leading-6 text-gray-500 dark:text-gray-400">{description}</p>}
                 </div>
             </div>
             {children}
@@ -1192,52 +1192,56 @@ export default function AdminOrgChart() {
         <div className="space-y-6">
             {activeTab === 'design-basic' && <SettingCard
                 title="הגדרות בסיס"
-                description="קובעים את שם העמוד והאם להציג אותו למשתמשים באתר."
+                description={'קובעים את שם העמוד\nוהאם להציג אותו למשתמשים באתר.'}
                 helpTitle="הגדרות בסיס"
                 helpDescription="העמוד יכול להיות מוכן ומעוצב גם לפני שמפעילים אותו בפועל למשתמשים."
             >
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
-                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-[#1b1f2a]">
-                        <div className="mb-2 flex items-center gap-2">
-                            <div className="rounded-xl bg-primary/10 p-2 text-primary">
-                                <Monitor size={18} />
+                <div className="grid grid-cols-1 gap-4">
+                    <div className="rounded-2xl border border-gray-200 bg-gradient-to-b from-gray-50 to-white p-4 shadow-sm dark:border-white/10 dark:from-[#1b1f2a] dark:to-[#171b24]">
+                        <div className="mb-3 flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                                <div className="rounded-xl bg-primary/10 p-2 text-primary">
+                                    <Monitor size={18} />
+                                </div>
+                                <div>
+                                    <div className="text-sm font-black text-gray-900 dark:text-white">הפעלת הדף</div>
+                                    <div className="whitespace-pre-line text-xs text-gray-500 dark:text-gray-400">{'מציג את הקישור\nבכותרת האתר'}</div>
+                                </div>
                             </div>
-                            <div>
-                                <div className="text-sm font-black text-gray-900 dark:text-white">הפעלת הדף</div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400">מציג את הקישור בכותרת האתר</div>
-                            </div>
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${draft.enabled ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-gray-200 text-gray-600 dark:bg-white/10 dark:text-gray-300'}`}>
+                                {draft.enabled ? 'פעיל' : 'כבוי'}
+                            </span>
                         </div>
                         <button
                             type="button"
+                            role="switch"
+                            aria-checked={draft.enabled}
                             onClick={() => updateDraftField('enabled', !draft.enabled)}
-                            className={`mt-4 flex w-full items-center justify-between rounded-2xl  px-4 py-3 transition ${
-                                draft.enabled
-                                    ? ''
-                                    : ''
-                            }`}
+                            className="group flex w-full items-center justify-between rounded-2xl border border-gray-200 bg-white px-4 py-3 text-right transition hover:border-primary/40 hover:bg-primary/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 dark:border-white/10 dark:bg-[#202532] dark:hover:border-primary/40 dark:hover:bg-primary/10"
                         >
-                            <span className="text-sm font-bold">{draft.enabled ? 'הדף פעיל' : 'הדף כבוי'}</span>
+                            <span className="text-sm font-bold text-gray-900 dark:text-white">{draft.enabled ? 'הדף פעיל' : 'הדף כבוי'}</span>
                             <span className={`relative inline-flex h-7 w-12 rounded-full transition ${draft.enabled ? 'bg-green-500/80' : 'bg-gray-300 dark:bg-white/10'}`}>
                                 <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition ${draft.enabled ? 'right-0.5' : 'right-[1.55rem]'}`} />
                             </span>
                         </button>
                     </div>
 
-                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-[#1b1f2a]">
+                    <div className="rounded-2xl border border-gray-200 bg-gradient-to-b from-gray-50 to-white p-4 shadow-sm dark:border-white/10 dark:from-[#1b1f2a] dark:to-[#171b24]">
                         <HelpLabel
                             as="span"
                             className="text-sm font-bold text-gray-800 dark:text-gray-200"
-                            wrapperClassName="mb-3 flex items-center gap-2"
+                            wrapperClassName="mb-2 flex items-center gap-2"
                             helpTitle="כותרת העמוד"
                             helpDescription="זה הטקסט שיופיע בראש דף עץ המבנה למשתמשי האתר וגם בקישור הניווט הציבורי."
                         >
                             כותרת עמוד
                         </HelpLabel>
+                        <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">שם קצר וברור יעזור למשתמשים לזהות את הדף בניווט.</p>
                         <input
                             type="text"
                             value={draft.pageTitle}
                             onChange={(event) => updateDraftField('pageTitle', event.target.value)}
-                            className={inputCls}
+                            className={`${inputCls} h-11`}
                             placeholder="לדוגמה: עץ מבנה יחידתי"
                         />
                     </div>

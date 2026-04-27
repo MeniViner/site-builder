@@ -2,11 +2,34 @@ const AIService = require('../services/AIService');
 const StreamingService = require('../services/StreamingService');
 const PromptCache = require('../utils/cache');
 
+function extractPromptFromBody(body = {}) {
+  if (typeof body.prompt === 'string' && body.prompt.trim()) {
+    return body.prompt.trim();
+  }
+
+  if (Array.isArray(body.messages)) {
+    const lastUserMessage = [...body.messages]
+      .reverse()
+      .find((message) => String(message?.role || '').toLowerCase() === 'user' && typeof message?.content === 'string' && message.content.trim());
+
+    if (lastUserMessage) {
+      return lastUserMessage.content.trim();
+    }
+
+    const fallbackMessage = body.messages.find((message) => typeof message?.content === 'string' && message.content.trim());
+    if (fallbackMessage) {
+      return fallbackMessage.content.trim();
+    }
+  }
+
+  return '';
+}
+
 // Direct request to a specific model
 exports.handleDirect = async (req, res, next) => {
   try {
     const { model } = req.params;
-    const { prompt } = req.body;
+    const prompt = extractPromptFromBody(req.body);
 
     // 1. Check Cache
     const cachedResponse = PromptCache.get(prompt, model);
@@ -26,26 +49,11 @@ exports.handleDirect = async (req, res, next) => {
   }
 };
 
-// Smart fallback request
-exports.handleSmart = async (req, res, next) => {
-  try {
-    const { prompt } = req.body;
-    
-    // No specific caching for Smart as the exact model used isn't predetermined,
-    // though caching could be modified to support it later.
-    
-    const { modelUsed, content } = await AIService.fetchSmart(prompt);
-    
-    res.json({ modelUsed, content, smartFeedback: true });
-  } catch (err) {
-    next(err);
-  }
-};
-
 // Handle Event-Stream (SSE) Request
 exports.handleStream = async (req, res, next) => {
   try {
-    const { prompt, model = 'any' } = req.body;
+    const prompt = extractPromptFromBody(req.body);
+    const model = typeof req.body?.model === 'string' && req.body.model.trim() ? req.body.model.trim() : 'any';
     // Controller delegates stream writing directly to Response object
     await StreamingService.stream(model, prompt, res, req);
   } catch (err) {

@@ -72,11 +72,20 @@ export default function AdminAIActionCard({
 
         setIsGenerating(true);
         setParseError('');
+        setRawOutput('');
+        setParsedOutput(null);
 
         try {
             const prompt = buildPrompt(userInstruction);
-            const result = await AIService.ask(prompt);
-            const content = String(result?.choices?.[0]?.message?.content || result?.content || '').trim();
+            let streamed = '';
+            const result = await AIService.ask(prompt, {
+                model: runtimeConfig.defaultModel,
+                onToken: (token) => {
+                    streamed += token;
+                    setRawOutput((prev) => prev + token);
+                },
+            });
+            const content = String(result?.content || streamed || '').trim();
 
             setRawOutput(content);
             setModelUsed(result?.modelUsed || result?.model || '');

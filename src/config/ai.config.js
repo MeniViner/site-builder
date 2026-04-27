@@ -45,27 +45,18 @@ function normalizeApiBase(rawValue) {
     }
 }
 
-function normalizeRequestMode(rawValue) {
-    const mode = String(rawValue || '').trim().toLowerCase();
-    if (mode === 'smart') {
-        return 'smart';
-    }
-    return 'direct';
-}
-
 const fallbackModels = parseCsv(import.meta.env.VITE_ALPHA_AI_FALLBACK_MODELS);
 
 export const AI_CONFIG = Object.freeze({
     enabled: parseBoolean(import.meta.env.VITE_ALPHA_AI_ENABLED, false),
     apiBase: normalizeApiBase(import.meta.env.VITE_ALPHA_AI_API_BASE),
     apiToken: String(import.meta.env.VITE_ALPHA_AI_API_TOKEN || '').trim(),
-    requestMode: normalizeRequestMode(import.meta.env.VITE_ALPHA_AI_REQUEST_MODE),
     defaultModel: String(import.meta.env.VITE_ALPHA_AI_MODEL || 'gpt-4o').trim(),
     fallbackModels,
     streamModel: String(import.meta.env.VITE_ALPHA_AI_STREAM_MODEL || 'any').trim(),
+    streamEndpoint: String(import.meta.env.VITE_ALPHA_AI_STREAM_ENDPOINT || '/ai/stream').trim(),
     requestTimeoutMs: parseNumber(import.meta.env.VITE_ALPHA_AI_TIMEOUT_MS, 30000),
     streamTimeoutMs: parseNumber(import.meta.env.VITE_ALPHA_AI_STREAM_TIMEOUT_MS, 120000),
-    useSmartFallback: parseBoolean(import.meta.env.VITE_ALPHA_AI_USE_SMART_FALLBACK, true),
     debug: parseBoolean(import.meta.env.VITE_ALPHA_AI_DEBUG, false),
 });
 

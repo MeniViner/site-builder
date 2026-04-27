@@ -5,6 +5,7 @@ import { Undo2, Plus, Trash2, Edit2, AlertTriangle, Calendar, X, Settings2 } fro
 import { confirmToast } from '../utils/confirmToast';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import AdminAIActionCard from './AdminAIActionCard';
+import { UI_FEATURES } from '../config/uiFeatures.config';
 
 const STATUS_OPTIONS = [
     { value: 'gray', label: 'אפור (כלל משתמשי חרום)', colorClass: 'bg-gray-500', textClass: 'text-gray-200' },
@@ -65,6 +66,7 @@ function normalizeAiEventsPayload(payload) {
 }
 
 export default function AdminEvents({ onClose, inHub = false }) {
+    const showAiUi = UI_FEATURES.showAiUi;
     const {
         events: initialEvents,
         displayCount: initialDisplayCount,
@@ -223,19 +225,21 @@ export default function AdminEvents({ onClose, inHub = false }) {
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                             <AdminPageHelpButton pageId="events" />
-                            <AdminAIActionCard
-                                compact
-                                compactLabel="AI"
-                                title="עוזר AI לאירועים"
-                                description="ייצור רשימת אירועים + הגדרות תצוגה לפי בקשה חופשית, ואז Apply ישירות למסך."
-                                inputLabel="מה לייצר?"
-                                inputPlaceholder='דוגמה: "צור 6 אירועים לחודש הקרוב עם דגש על הכשרות ורווחה, ושמור על ניסוח קצר"'
-                                defaultInput="צור סדרת אירועים חודשית מקצועית וברורה"
-                                buildPrompt={buildEventsAiPrompt}
-                                onApply={applyAiEvents}
-                                applyButtonLabel="החל על אירועים"
-                                generateButtonLabel="ייצר אירועים"
-                            />
+                            {showAiUi && (
+                                <AdminAIActionCard
+                                    compact
+                                    compactLabel="AI"
+                                    title="עוזר AI לאירועים"
+                                    description="ייצור רשימת אירועים + הגדרות תצוגה לפי בקשה חופשית, ואז Apply ישירות למסך."
+                                    inputLabel="מה לייצר?"
+                                    inputPlaceholder='דוגמה: "צור 6 אירועים לחודש הקרוב עם דגש על הכשרות ורווחה, ושמור על ניסוח קצר"'
+                                    defaultInput="צור סדרת אירועים חודשית מקצועית וברורה"
+                                    buildPrompt={buildEventsAiPrompt}
+                                    onApply={applyAiEvents}
+                                    applyButtonLabel="החל על אירועים"
+                                    generateButtonLabel="ייצר אירועים"
+                                />
+                            )}
                             <button
                                 onClick={() => setEditingEvent({ date: new Date().toISOString().split('T')[0], title: '', subtitle: '', color: 'gray', isNew: true })}
                                 className="h-10 inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-lg text-sm font-bold transition"

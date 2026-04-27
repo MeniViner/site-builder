@@ -1,12 +1,36 @@
+import { useMemo, useState } from 'react';
 import { Moon, Search, Sun } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import Tooltip from '../Tooltip';
 import { isTacticalStyle, normalizeBorderStyle, panelStyle, tacticalClip } from '../../utils/borderStyles';
+import { SHAREPOINT_PATHS } from '../../config/sharepointPaths';
+
+function buildSharePointSearchUrl(searchQuery) {
+  const query = String(searchQuery || '').trim();
+  if (!query) return '';
+  const host = SHAREPOINT_PATHS.host || 'portal.army.idf';
+  const siteCode = SHAREPOINT_PATHS.siteCode || 'bihs7134';
+  return `https://${host}/sites/${siteCode}/Shared%20Documents/Forms/AllItems.aspx?view=7&q=${encodeURIComponent(query)}`;
+}
 
 function SearchBar({ borderStyle }) {
+  const [searchQuery, setSearchQuery] = useState('');
   const normalizedStyle = normalizeBorderStyle(borderStyle);
   const isTactical = isTacticalStyle(normalizedStyle);
   const squareStyle = normalizedStyle === 'square' ? { borderRadius: '0px' } : undefined;
+  const searchUrl = useMemo(() => buildSharePointSearchUrl(searchQuery), [searchQuery]);
+
+  const handleSearch = () => {
+    if (!searchUrl) return;
+    window.open(searchUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      handleSearch();
+    }
+  };
 
   if (!isTactical) {
     return (
@@ -15,8 +39,22 @@ function SearchBar({ borderStyle }) {
         <div className="absolute inset-[1px] bg-theme-elevated rounded-[7px]" style={squareStyle} />
         <div className="absolute inset-[3px] rounded-[5px] transition-colors group-hover:brightness-110" style={{ backgroundColor: 'var(--color-primary-800)', ...(squareStyle || {}) }} />
         <div className="absolute inset-[4px] bg-theme-card flex items-center px-3 rounded-[4px]" style={squareStyle}>
-          <Search size={22} className="shrink-0" style={{ color: 'var(--color-primary-800)' }} strokeWidth={2} />
-          <input type="text" placeholder="חיפוש באתר..." className="flex-1 w-full bg-transparent border-none outline-none text-theme placeholder-theme-muted text-sm font-medium mr-2" />
+          <Search
+            size={22}
+            className="shrink-0 cursor-pointer"
+            style={{ color: 'var(--color-primary-800)' }}
+            strokeWidth={2}
+            onClick={handleSearch}
+            aria-label="חפש במסמכי SharePoint"
+          />
+          <input
+            type="text"
+            placeholder="חיפוש באתר..."
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            onKeyDown={handleKeyDown}
+            className="flex-1 w-full bg-transparent border-none outline-none text-theme placeholder-theme-muted text-sm font-medium mr-2"
+          />
         </div>
       </div>
     );
@@ -29,8 +67,22 @@ function SearchBar({ borderStyle }) {
       <div className="absolute inset-[1px] bg-theme-elevated" style={{ clipPath: clip(11) }} />
       <div className="absolute inset-[3px] transition-colors group-hover:brightness-110" style={{ clipPath: clip(9), backgroundColor: 'var(--color-primary-800)' }} />
       <div className="absolute inset-[4px] bg-theme-card flex items-center px-3" style={{ clipPath: clip(8) }}>
-        <Search size={22} className="shrink-0" style={{ color: 'var(--color-primary-800)' }} strokeWidth={2} />
-        <input type="text" placeholder="חיפוש באתר..." className="flex-1 w-full bg-transparent border-none outline-none text-theme placeholder-theme-muted text-sm font-medium mr-2" />
+        <Search
+          size={22}
+          className="shrink-0 cursor-pointer"
+          style={{ color: 'var(--color-primary-800)' }}
+          strokeWidth={2}
+          onClick={handleSearch}
+          aria-label="חפש במסמכי SharePoint"
+        />
+        <input
+          type="text"
+          placeholder="חיפוש באתר..."
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          onKeyDown={handleKeyDown}
+          className="flex-1 w-full bg-transparent border-none outline-none text-theme placeholder-theme-muted text-sm font-medium mr-2"
+        />
       </div>
     </div>
   );

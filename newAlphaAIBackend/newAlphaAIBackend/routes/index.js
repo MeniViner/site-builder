@@ -25,7 +25,6 @@ router.get('/init', (req, res) => {
         health: '/api/health',
         init: '/api/init',
         direct: '/api/ai/direct/:model',
-        smart: '/api/ai/smart',
         stream: '/api/ai/stream',
       },
     },
@@ -38,10 +37,6 @@ router.use('/ai', rateLimiter, authGuard);
 // POST /api/ai/direct/:model
 // Target specific model (includes caching & validation).
 router.post('/ai/direct/:model', validator, aiController.handleDirect);
-
-// POST /api/ai/smart
-// Uses dynamic fallback.
-router.post('/ai/smart', validator, aiController.handleSmart);
 
 // POST /api/ai/stream
 // SSE streaming (includes AbortController & validation).

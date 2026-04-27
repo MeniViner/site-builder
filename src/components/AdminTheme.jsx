@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useConfig } from '../context/ConfigProvider';
@@ -15,15 +15,16 @@ import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import AIService from '../services/AIService';
 import { parseJsonFromModel } from '../utils/aiJson';
 import { getSafeAiRuntimeConfig } from '../config/ai.config';
+import { UI_FEATURES } from '../config/uiFeatures.config';
 
-const SETTINGS_NAV = [
+const AI_DESIGN_SECTION_ID = 'aiDesignAssistant';
+const BASE_SETTINGS_NAV = [
     { id: 'primaryColor', label: 'צבע ראשי' },
     { id: 'displayMode', label: 'מצב תצוגה' },
     { id: 'borderStyle', label: 'סגנון מסגרות' },
     { id: 'widgetHeight', label: 'גובה ווידגט' },
     { id: 'regularLinksLayout', label: 'קטגוריות וקישורים' },
     { id: 'externalLinksLayout', label: 'קישורים חיצוניים' },
-    { id: 'aiDesignAssistant', label: 'עוזר AI לעיצוב'  },
 ];
 
 const COLOR_SWATCHES = [
@@ -375,11 +376,7 @@ function buildThemeAiContextSnapshot(config, draft, borderTargets) {
     };
 }
 
-function buildThemeAiPrompt({ instruction, guidedSentence, selectedTokens, contextSnapshot }) {
-    const tokensText = selectedTokens.length > 0
-        ? selectedTokens.map((item) => `[${item.groupLabel}] ${item.label} -> ${item.prompt}`).join(' | ')
-        : 'לא נבחרו בחירות מהירות.';
-
+function buildThemeAiPrompt({ instruction, contextSnapshot }) {
     return [
         'אתה מעצב UI/UX מומחה לפורטל ארגוני בעברית.',
         'מטרה: לייצר עדכון עיצוב שמתאים למה שכבר קיים באתר, בלי לשנות תכנים.',
@@ -405,8 +402,6 @@ function buildThemeAiPrompt({ instruction, guidedSentence, selectedTokens, conte
         '- אל תשתמש בערכים שלא קיימים בסכימה.',
         '- אם regularLinksLayout הוא sidebar-right אז showNavCategories צריך להיות false.',
         '- אם אינך בטוח לגבי שדה מסוים, השאר אותו כפי שהוא כיום.',
-        `בחירה מונחית בשורה: ${guidedSentence}`,
-        `בחירות מהירות: ${tokensText}`,
         `הנחיה טבעית: ${instruction}`,
         `קונטקסט האתר: ${JSON.stringify(contextSnapshot)}`,
     ].join('\n');
@@ -497,7 +492,15 @@ export default function AdminTheme() {
     const location = useLocation();
     const { config } = useConfig();
     const { theme, loading, error, saveTheme, borderTargets, setBorderTargets } = useTheme();
-    const aiEnabled = AIService.isEnabled();
+    const showAiUi = UI_FEATURES.showAiUi;
+    const showQuickDesignComposer = UI_FEATURES.showQuickDesignComposer;
+    const showDesignAssistantSection = showAiUi || showQuickDesignComposer;
+    const designAssistantLabel = showQuickDesignComposer ? 'עיצוב מהיר' : 'עוזר AI לעיצוב';
+    const settingsNav = useMemo(() => {
+        if (!showDesignAssistantSection) return BASE_SETTINGS_NAV;
+        return [...BASE_SETTINGS_NAV, { id: AI_DESIGN_SECTION_ID, label: designAssistantLabel }];
+    }, [showDesignAssistantSection, designAssistantLabel]);
+    const aiEnabled = showAiUi && AIService.isEnabled();
     const [draft, setDraft] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
     const [customColor, setCustomColor] = useState('');
@@ -521,11 +524,12 @@ export default function AdminTheme() {
     const [aiPreviousThemeSnapshot, setAiPreviousThemeSnapshot] = useState(null);
     const [aiTypingRunId, setAiTypingRunId] = useState(0);
     const [aiTypedChars, setAiTypedChars] = useState(0);
+    const fallbackSettingId = settingsNav[0]?.id || 'primaryColor';
     const tabFromQuery = (() => {
         const tab = new URLSearchParams(location.search).get('tab');
-        return SETTINGS_NAV.some((t) => t.id === tab) ? tab : null;
+        return settingsNav.some((t) => t.id === tab) ? tab : null;
     })();
-    const [activeSettingId, setActiveSettingId] = useState(tabFromQuery || SETTINGS_NAV[0].id);
+    const [activeSettingId, setActiveSettingId] = useState(tabFromQuery || fallbackSettingId);
     const colorInputRef = useRef(null);
     const saveTimeoutRef = useRef(null);
     const latestDraftRef = useRef(null);
@@ -537,6 +541,11 @@ export default function AdminTheme() {
         if (tabFromQuery === activeSettingId) return;
         setActiveSettingId(tabFromQuery);
     }, [tabFromQuery, activeSettingId]);
+
+    useEffect(() => {
+        if (settingsNav.some((item) => item.id === activeSettingId)) return;
+        setActiveSettingId(fallbackSettingId);
+    }, [settingsNav, activeSettingId, fallbackSettingId]);
 
     useEffect(() => {
         if (theme) {
@@ -577,9 +586,10 @@ export default function AdminTheme() {
     }, [aiOpenPickerField]);
 
     useEffect(() => {
-        if (activeSettingId !== 'aiDesignAssistant') return;
+        if (!showQuickDesignComposer) return;
+        if (activeSettingId !== AI_DESIGN_SECTION_ID) return;
         setAiTypingRunId((prev) => prev + 1);
-    }, [activeSettingId]);
+    }, [activeSettingId, showQuickDesignComposer]);
 
     const triggerAutoSave = useCallback((nextDraft) => {
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -642,9 +652,6 @@ export default function AdminTheme() {
         setBorderTargets(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
-    const selectedTokens = Object.values(aiSelectedTokenByGroup)
-        .map((id) => AI_THEME_TOKEN_LOOKUP[id])
-        .filter(Boolean);
     const activePickerConfig = AI_SENTENCE_PICKER_CONFIG.find((item) => item.field === aiOpenPickerField) || null;
     const getPickerLabel = (field, value) => {
         if (field === 'displayMode') return DISPLAY_MODE_LABELS[value] || value;
@@ -661,7 +668,8 @@ export default function AdminTheme() {
     };
     const aiFullSentence = AI_SENTENCE_SEGMENTS.map((segment) => segment.text).join(' ');
     useEffect(() => {
-        if (activeSettingId !== 'aiDesignAssistant') return undefined;
+        if (!showQuickDesignComposer) return undefined;
+        if (activeSettingId !== AI_DESIGN_SECTION_ID) return undefined;
         setAiTypedChars(0);
         if (!aiFullSentence) return undefined;
         let typed = 0;
@@ -673,17 +681,7 @@ export default function AdminTheme() {
             }
         }, 22);
         return () => window.clearInterval(timer);
-    }, [aiTypingRunId, aiFullSentence, activeSettingId]);
-    const guidedSentence = [
-        `displayMode="${aiSentenceSelections.displayMode}"`,
-        `borderStyle="${aiSentenceSelections.borderStyle}"`,
-        `regularLinksLayout="${aiSentenceSelections.regularLinksLayout}"`,
-        `externalLinksLayout="${aiSentenceSelections.externalLinksLayout}"`,
-        `widgetHeight="${aiSentenceSelections.widgetHeight}"`,
-        `useTintedBackground="${aiSentenceSelections.useTintedBackground ? 'on' : 'off'}"`,
-        `primaryColor="${aiSentenceSelections.primaryColor}"`,
-    ].join(', ');
-
+    }, [aiTypingRunId, aiFullSentence, activeSettingId, showQuickDesignComposer]);
     const applyAiTheme = (parsedPatch) => {
         const normalized = normalizeAiThemePayload(parsedPatch, draft);
         setDraft((prev) => {
@@ -703,6 +701,40 @@ export default function AdminTheme() {
 
     const handleAiSentenceSelectionChange = (field, value) => {
         setAiSentenceSelections((prev) => ({ ...prev, [field]: value }));
+    };
+
+    const handleApplyQuickThemeFromSentence = () => {
+        const nextSelectionPatch = normalizeAiThemePayload({
+            displayMode: aiSentenceSelections.displayMode,
+            borderStyle: aiSentenceSelections.borderStyle,
+            regularLinksLayout: aiSentenceSelections.regularLinksLayout,
+            externalLinksLayout: aiSentenceSelections.externalLinksLayout,
+            widgetHeight: aiSentenceSelections.widgetHeight,
+            useTintedBackground: Boolean(aiSentenceSelections.useTintedBackground),
+            primaryColor: aiSentenceSelections.primaryColor,
+        }, draft);
+
+        if (JSON.stringify(nextSelectionPatch) === JSON.stringify(draft)) {
+            toast.info('לא זוהה שינוי חדש להחלה בעיצוב המהיר.');
+            return;
+        }
+
+        setAiPreviousThemeSnapshot({ ...draft });
+        setDraft((prev) => {
+            const next = {
+                ...prev,
+                ...nextSelectionPatch,
+                ...(nextSelectionPatch.regularLinksLayout === 'sidebar-right' ? { showNavCategories: false } : {}),
+            };
+            triggerAutoSave(next);
+            return next;
+        });
+
+        if (nextSelectionPatch.primaryColor) {
+            setCustomColor(nextSelectionPatch.primaryColor);
+        }
+
+        toast.success('עיצוב מהיר הוחל בהצלחה.');
     };
 
     const handleAiTokenToggle = (groupId, tokenId) => {
@@ -731,22 +763,23 @@ export default function AdminTheme() {
 
         setAiIsGenerating(true);
         setAiErrorMessage('');
+        setAiRawOutput('');
 
         try {
             const contextSnapshot = buildThemeAiContextSnapshot(config, draft, borderTargets);
             const prompt = buildThemeAiPrompt({
                 instruction,
-                guidedSentence,
-                selectedTokens,
                 contextSnapshot,
             });
+            let streamed = '';
             const result = await AIService.ask(prompt, {
                 model: AI_THEME_RUNTIME_CONFIG.defaultModel,
-                fallbackModels: AI_THEME_RUNTIME_CONFIG.fallbackModels,
-                requestMode: AI_THEME_RUNTIME_CONFIG.requestMode,
-                useSmartFallback: AI_THEME_RUNTIME_CONFIG.useSmartFallback,
+                onToken: (token) => {
+                    streamed += token;
+                    setAiRawOutput((prev) => prev + token);
+                },
             });
-            const content = String(result?.choices?.[0]?.message?.content || result?.content || '').trim();
+            const content = String(result?.content || streamed || '').trim();
             setAiRawOutput(content);
             setAiModelUsed(result?.modelUsed || result?.model || '');
 
@@ -831,14 +864,6 @@ export default function AdminTheme() {
                     </div>
                     <div className="flex items-center gap-3">
                         <AdminPageHelpButton pageId="theme" tabId={activeSettingId} />
-                        <button
-                            type="button"
-                            onClick={() => handleNavSettingClick('aiDesignAssistant')}
-                            className="inline-flex h-10 items-center gap-2 rounded-xl border border-black/20 bg-white px-3 text-sm font-bold text-black transition hover:bg-black hover:text-white dark:border-white/20 dark:bg-[#111] dark:text-white dark:hover:bg-white dark:hover:text-black"
-                        >
-                            <Sparkles size={15} />
-                            עוזר AI
-                        </button>
                         {isSaving && (
                             <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-full shadow-sm">
                                 <div className="w-3.5 h-3.5 border-[2px] border-primary border-t-transparent rounded-full animate-spin" style={{ borderColor: draft.primaryColor, borderTopColor: 'transparent' }} />
@@ -849,7 +874,7 @@ export default function AdminTheme() {
                 </div>
 
                 <nav className="  flex items-center gap-2 overflow-x-auto p-1 custom-scrollbar w-full">
-                    {SETTINGS_NAV.map(({ id, label, destructive }) => (
+                    {settingsNav.map(({ id, label, destructive }) => (
                         <button
                             key={id}
                             type="button"
@@ -863,7 +888,7 @@ export default function AdminTheme() {
                                     : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-transparent shadow-sm hover:shadow'
                                 }`}
                         >
-                            { id === 'aiDesignAssistant' && <Sparkles size={16} className="text-primary-400" />}
+                            {id === AI_DESIGN_SECTION_ID && <Sparkles size={16} className="text-primary-400" />}
                             {label}
 
                         </button>
@@ -881,7 +906,7 @@ export default function AdminTheme() {
             <div className="flex-1 overflow-hidden p-4 sm:p-6 lg:p-8 space-y-8 lg:space-y-0 lg:grid lg:grid-cols-[0.92fr_1.08fr] lg:items-start lg:gap-6 2xl:gap-8">
                 <div className="space-y-10 order-2 lg:order-1 lg:min-w-0 lg:max-h-[calc(100vh-190px)] lg:overflow-y-auto lg:pl-2 custom-scrollbar">
                     {/* ==================== AI DESIGN ASSISTANT ==================== */}
-                    {showSection('aiDesignAssistant') && (
+                    {showSection(AI_DESIGN_SECTION_ID) && (
                         <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
                             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200 dark:border-white/10">
                                 <div className="bg-primary-500/10 p-2.5 rounded-lg border border-primary-500/20">
@@ -889,108 +914,137 @@ export default function AdminTheme() {
                                 </div>
                                 <div>
                                     <div className="flex items-center gap-2">
-                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">עוזר AI לעיצוב</h2>
+                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">{designAssistantLabel}</h2>
                                         <HelpTooltipButton
-                                        
-                                            title="עוזר AI לעיצוב"
-                                            description="כתוב כאן בקשה בשפה טבעית. המערכת שולחת ל-AI את הקונטקסט של האתר והגדרות העיצוב כדי להציע עיצוב שמתאים למה שכבר קיים."
+                                            title={designAssistantLabel}
+                                            description={showAiUi
+                                                ? 'כתוב כאן בקשה בשפה טבעית. המערכת שולחת ל-AI את הקונטקסט של האתר והגדרות העיצוב כדי להציע עיצוב שמתאים למה שכבר קיים.'
+                                                : 'בחירה מהירה של פרמטרים קיימים בעיצוב והחלה מיידית על האתר.'}
                                         />
                                     </div>
-                                    <p className="text-sm text-gray-400 dark:text-gray-500">יצירת כיוון עיצובי חכם לפי כל נתוני האתר, עם הצעות בחירה מהירות מתוך האפשרויות הקיימות.</p>
+                                    <p className="text-sm text-gray-400 dark:text-gray-500">
+                                        {showAiUi
+                                            ? 'יצירת כיוון עיצובי חכם לפי כל נתוני האתר, עם הצעות בחירה מהירות מתוך האפשרויות הקיימות.'
+                                            : 'הרכבה מהירה של עיצוב מתוך האפשרויות המובנות, עם החלה ישירה ושמירה אוטומטית.'}
+                                    </p>
                                 </div>
                             </div>
 
-                            {!aiEnabled && (
-                                <div className="mb-5 rounded-2xl border border-amber-300/40 bg-amber-100/70 px-4 py-3 text-amber-900 shadow-sm dark:bg-amber-900/20 dark:text-amber-100">
-                                    <div className="flex items-start gap-2">
-                                        <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-                                        <div>
-                                            <div className="font-bold text-sm">שירות AI כבוי כרגע</div>
-                                            <div className="text-xs mt-1">להפעלה: `VITE_ALPHA_AI_ENABLED=true` ולוודא `VITE_ALPHA_AI_API_BASE` תקין.</div>
-                                            <div className="text-[11px] mt-1 opacity-80">apiBase: {AI_THEME_RUNTIME_CONFIG.apiBase}</div>
+                            {showAiUi && (
+                                <>
+                                    {!aiEnabled && (
+                                        <div className="mb-5 rounded-2xl border border-amber-300/40 bg-amber-100/70 px-4 py-3 text-amber-900 shadow-sm dark:bg-amber-900/20 dark:text-amber-100">
+                                            <div className="flex items-start gap-2">
+                                                <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                                                <div>
+                                                    <div className="font-bold text-sm">שירות AI כבוי כרגע</div>
+                                                    <div className="text-xs mt-1">להפעלה: `VITE_ALPHA_AI_ENABLED=true` ולוודא `VITE_ALPHA_AI_API_BASE` תקין.</div>
+                                                    <div className="text-[11px] mt-1 opacity-80">apiBase: {AI_THEME_RUNTIME_CONFIG.apiBase}</div>
+                                                </div>
+                                            </div>
                                         </div>
+                                    )}
+
+                                    <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-white to-primary/5 p-4 sm:p-5 dark:from-primary/15 dark:via-[#1a1f2b] dark:to-[#141924]">
+                                        <div className="flex flex-wrap items-center justify-between gap-3">
+                                            <div>
+                                                <div className="text-sm font-black text-gray-900 dark:text-white">כתוב מה תרצה לשנות בעיצוב</div>
+                                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">כאן אפשר לתאר בקצרה מה תרצה לשנות בעיצוב, לדוג' צבעים, פריסה וסגנון כללי.</div>
+                                            </div>
+                                            <div>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleGenerateAiTheme}
+                                                    disabled={!aiEnabled || aiIsGenerating}
+                                                    className="inline-flex  gap-2 h-9 items-center justify-center rounded-xl bg-primary px-4 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    <Wand2 size={14} />
+                                                    {aiIsGenerating ? 'שולח...' : 'שלח'}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-4">
+                                            <input
+                                                type="text"
+                                                value={aiPrompt}
+                                                onChange={(event) => setAiPrompt(event.target.value)}
+                                                placeholder='לדוגמה: "תעשה עיצוב כהה ויוקרתי עם צבע ראשי כחול, ניווט צדדי ומינימום עומס ויזואלי"'
+                                                className="w-full rounded-xl border border-gray-300 dark:border-white/10 bg-white/90 dark:bg-[#111723] px-4 py-3 text-sm text-gray-900 dark:text-white outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary/20"
+                                            />
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+
+                            {showQuickDesignComposer && (
+                                <div className="mt-5 rounded-2xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#171c27]/80 p-4 sm:p-5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setAiTypingRunId((prev) => prev + 1)}
+                                        className="text-xs font-bold uppercase tracking-[0.18em] text-gray-500 transition hover:text-primary dark:text-gray-400 dark:hover:text-primary"
+                                    >
+                                        הרכבה מהירה במשפט אחד
+                                    </button>
+                                    <div className="mt-3 flex flex-wrap items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200 leading-8">
+                                        {AI_SENTENCE_SEGMENTS.map((segment, index) => {
+                                            const charsBefore = AI_SENTENCE_SEGMENTS
+                                                .slice(0, index)
+                                                .reduce((sum, item) => sum + item.text.length + 1, 0);
+                                            const charsForThisSegment = Math.max(0, aiTypedChars - charsBefore);
+                                            const typedText = segment.text.slice(0, charsForThisSegment);
+                                            const isSegmentComplete = typedText.length >= segment.text.length;
+                                            if (!typedText) return null;
+                                            return (
+                                                <React.Fragment key={segment.field}>
+                                                    <span className="relative inline-block pe-1">
+                                                        {typedText}
+                                                        <Tooltip text={AI_QUICK_FIELD_HELP[segment.field]}>
+                                                            <button type="button" className="absolute -top-7 -left-2 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-gray-300/80 bg-white/95 text-[8px] font-black text-gray-600 transition hover:border-primary/50 hover:text-primary dark:border-white/20 dark:bg-[#171c27] dark:text-gray-300">?</button>
+                                                        </Tooltip>
+                                                    </span>
+                                                    {isSegmentComplete && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setAiOpenPickerField(segment.field)}
+                                                            className="inline-flex h-9 items-center gap-2 rounded-xl border border-gray-300/90 bg-white/90 px-3 text-sm font-bold text-gray-900 shadow-[0_8px_20px_rgba(15,23,42,0.08)] backdrop-blur-md transition hover:border-primary/50 hover:bg-white dark:border-white/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+                                                        >
+                                                            {segment.field === 'primaryColor' && (
+                                                                <span className="h-3.5 w-3.5 rounded-full border border-black/10 dark:border-white/20" style={{ backgroundColor: aiSentenceSelections.primaryColor }} />
+                                                            )}
+                                                            {getPickerLabel(segment.field, aiSentenceSelections[segment.field])}
+                                                        </button>
+                                                    )}
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </div>
+                                    <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                                        הבחירות מהמשפט מוחלות ישירות על הגדרות העיצוב.
+                                    </p>
+                                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={handleApplyQuickThemeFromSentence}
+                                            className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white transition hover:opacity-90"
+                                        >
+                                            <CheckCircle2 size={14} />
+                                            החל עיצוב מהיר
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleUndoAiTheme}
+                                            disabled={!aiPreviousThemeSnapshot}
+                                            className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-gray-300/90 bg-white/90 px-4 text-sm font-bold text-gray-700 shadow-[0_8px_20px_rgba(15,23,42,0.08)] backdrop-blur-md transition hover:border-primary/50 hover:text-primary hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/15"
+                                        >
+                                            <RotateCcw size={14} />
+                                            שחזר שינוי
+                                        </button>
                                     </div>
                                 </div>
                             )}
 
-                            <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-white to-primary/5 p-4 sm:p-5 dark:from-primary/15 dark:via-[#1a1f2b] dark:to-[#141924]">
-                                <div className="flex flex-wrap items-center justify-between gap-3">
-                                    <div>
-                                        <div className="text-sm font-black text-gray-900 dark:text-white">כתוב מה תרצה לשנות בעיצוב</div>
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">כאן אפשר לתאר בקצרה מה תרצה לשנות בעיצוב, לדוג' צבעים, פריסה וסגנון כללי.</div>
-                                   
-                                    </div>
-                                    <div>
-                                        <button
-                                            type="button"
-                                            onClick={handleGenerateAiTheme}
-                                            disabled={!aiEnabled || aiIsGenerating}
-                                            className="inline-flex  gap-2 h-9 items-center justify-center rounded-xl bg-primary px-4 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                                        >
-                                            <Wand2 size={14} />
-                                            {aiIsGenerating ? 'שולח...' : 'שלח'}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="mt-4">
-                                    <input
-                                        type="text"
-                                        value={aiPrompt}
-                                        onChange={(event) => setAiPrompt(event.target.value)}
-                                        placeholder='לדוגמה: "תעשה עיצוב כהה ויוקרתי עם צבע ראשי כחול, ניווט צדדי ומינימום עומס ויזואלי"'
-                                        className="w-full rounded-xl border border-gray-300 dark:border-white/10 bg-white/90 dark:bg-[#111723] px-4 py-3 text-sm text-gray-900 dark:text-white outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary/20"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="mt-5 rounded-2xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#171c27]/80 p-4 sm:p-5">
-                                <button
-                                    type="button"
-                                    onClick={() => setAiTypingRunId((prev) => prev + 1)}
-                                    className="text-xs font-bold uppercase tracking-[0.18em] text-gray-500 transition hover:text-primary dark:text-gray-400 dark:hover:text-primary"
-                                >
-                                    הרכבה מהירה במשפט אחד
-                                </button>
-                                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200 leading-8">
-                                    {AI_SENTENCE_SEGMENTS.map((segment, index) => {
-                                        const charsBefore = AI_SENTENCE_SEGMENTS
-                                            .slice(0, index)
-                                            .reduce((sum, item) => sum + item.text.length + 1, 0);
-                                        const charsForThisSegment = Math.max(0, aiTypedChars - charsBefore);
-                                        const typedText = segment.text.slice(0, charsForThisSegment);
-                                        const isSegmentComplete = typedText.length >= segment.text.length;
-                                        if (!typedText) return null;
-                                        return (
-                                        <React.Fragment key={segment.field}>
-                                            <span className="relative inline-block pe-1">
-                                                {typedText}
-                                                <Tooltip text={AI_QUICK_FIELD_HELP[segment.field]}>
-                                                    <button type="button" className="absolute -top-7 -left-2 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-gray-300/80 bg-white/95 text-[8px] font-black text-gray-600 transition hover:border-primary/50 hover:text-primary dark:border-white/20 dark:bg-[#171c27] dark:text-gray-300">?</button>
-                                                </Tooltip>
-                                            </span>
-                                            {isSegmentComplete && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setAiOpenPickerField(segment.field)}
-                                                    className="inline-flex h-9 items-center gap-2 rounded-xl border border-gray-300/90 bg-white/90 px-3 text-sm font-bold text-gray-900 shadow-[0_8px_20px_rgba(15,23,42,0.08)] backdrop-blur-md transition hover:border-primary/50 hover:bg-white dark:border-white/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
-                                                >
-                                                    {segment.field === 'primaryColor' && (
-                                                        <span className="h-3.5 w-3.5 rounded-full border border-black/10 dark:border-white/20" style={{ backgroundColor: aiSentenceSelections.primaryColor }} />
-                                                    )}
-                                                    {getPickerLabel(segment.field, aiSentenceSelections[segment.field])}
-                                                </button>
-                                            )}
-                                        </React.Fragment>
-                                        );
-                                    })}
-                                </div>
-                                <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                                    הבחירות מהמשפט מצורפות אוטומטית לפרומפט של ה-AI, יחד עם הקונטקסט המלא של האתר.
-                                </p>
-                            </div>
-
-                            {aiOpenPickerField && activePickerConfig && (
+                            {showQuickDesignComposer && aiOpenPickerField && activePickerConfig && (
                                 <div
                                     className="fixed inset-0 z-[12000] flex items-center justify-center bg-black/55 p-4 backdrop-blur-[1px]"
                                     onClick={() => setAiOpenPickerField('')}
@@ -1165,81 +1219,85 @@ export default function AdminTheme() {
                                 </div>
                             </div> */}
 
-                            {aiErrorMessage && (
-                                <div className="mt-5 rounded-xl border border-red-300/40 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
-                                    <div className="font-bold mb-1">שגיאה בתגובת AI</div>
-                                    <div>{aiErrorMessage}</div>
-                                </div>
-                            )}
-
-                            {aiSuggestedTheme && (
-                                <div className="mt-5 rounded-2xl border border-primary/25 bg-primary/5 p-4 sm:p-5">
-                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                                        <div>
-                                            <div className="text-sm font-black text-gray-900 dark:text-white">תקציר הצעת העיצוב</div>
-                                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">בדוק את השינויים שמחכים ליישום לפני שמירה.</div>
+                            {showAiUi && (
+                                <>
+                                    {aiErrorMessage && (
+                                        <div className="mt-5 rounded-xl border border-red-300/40 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+                                            <div className="font-bold mb-1">שגיאה בתגובת AI</div>
+                                            <div>{aiErrorMessage}</div>
                                         </div>
+                                    )}
+
+                                    {aiSuggestedTheme && (
+                                        <div className="mt-5 rounded-2xl border border-primary/25 bg-primary/5 p-4 sm:p-5">
+                                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                                <div>
+                                                    <div className="text-sm font-black text-gray-900 dark:text-white">תקציר הצעת העיצוב</div>
+                                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">בדוק את השינויים שמחכים ליישום לפני שמירה.</div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleApplyAiTheme}
+                                                    disabled={!aiEnabled || aiIsGenerating}
+                                                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    החל על העיצוב
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleUndoAiTheme}
+                                                    disabled={!aiPreviousThemeSnapshot || aiIsGenerating}
+                                                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-2.5 text-sm font-bold text-gray-700 dark:text-gray-200 transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    שחזור מצב קודם
+                                                </button>
+                                            </div>
+
+                                            {aiDiffRows.length === 0 ? (
+                                                <div className="mt-3 rounded-xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#1a1f2a] px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
+                                                    ה-AI החזיר ערכים זהים לעיצוב הנוכחי. נסה לדייק את הבקשה או לבחור תגיות שונות.
+                                                </div>
+                                            ) : (
+                                                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                    {aiDiffRows.map((row) => (
+                                                        <div key={row.field} className="rounded-xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#1a1f2a] p-3">
+                                                            <div className="text-xs font-bold text-gray-700 dark:text-gray-200 mb-1">{row.label}</div>
+                                                            <div className="text-[11px] text-gray-500 dark:text-gray-400">נוכחי: <span className="font-semibold">{row.currentValue}</span></div>
+                                                            <div className="text-[11px] text-primary mt-1">חדש: <span className="font-semibold">{row.nextValue}</span></div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {aiRawOutput && (
+                                        <details className="mt-5 rounded-2xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#171c27]/80 p-4">
+                                            <summary className="cursor-pointer text-xs font-bold text-gray-600 dark:text-gray-300">פלט AI גולמי (לבדיקה)</summary>
+                                            <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words text-[11px] text-gray-700 dark:text-gray-300">{aiRawOutput}</pre>
+                                        </details>
+                                    )}
+                                    <div className="mt-6 flex flex-wrap items-center gap-2">
                                         <button
                                             type="button"
-                                            onClick={handleApplyAiTheme}
+                                            onClick={handleGenerateAiTheme}
                                             disabled={!aiEnabled || aiIsGenerating}
-                                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                                            className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                                         >
-                                            החל על העיצוב
+                                            <Wand2 size={14} />
+                                            {aiIsGenerating ? 'יוצר...' : 'צור'}
                                         </button>
                                         <button
                                             type="button"
                                             onClick={handleUndoAiTheme}
                                             disabled={!aiPreviousThemeSnapshot || aiIsGenerating}
-                                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-2.5 text-sm font-bold text-gray-700 dark:text-gray-200 transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                                            className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-gray-300/90 bg-white/90 px-4 text-sm font-bold text-gray-700 shadow-[0_8px_20px_rgba(15,23,42,0.08)] backdrop-blur-md transition hover:border-primary/50 hover:text-primary hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/15"
                                         >
-                                            שחזור מצב קודם
+                                            החזר שינויים
                                         </button>
                                     </div>
-
-                                    {aiDiffRows.length === 0 ? (
-                                        <div className="mt-3 rounded-xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#1a1f2a] px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
-                                            ה-AI החזיר ערכים זהים לעיצוב הנוכחי. נסה לדייק את הבקשה או לבחור תגיות שונות.
-                                        </div>
-                                    ) : (
-                                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            {aiDiffRows.map((row) => (
-                                                <div key={row.field} className="rounded-xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#1a1f2a] p-3">
-                                                    <div className="text-xs font-bold text-gray-700 dark:text-gray-200 mb-1">{row.label}</div>
-                                                    <div className="text-[11px] text-gray-500 dark:text-gray-400">נוכחי: <span className="font-semibold">{row.currentValue}</span></div>
-                                                    <div className="text-[11px] text-primary mt-1">חדש: <span className="font-semibold">{row.nextValue}</span></div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
+                                </>
                             )}
-
-                            {aiRawOutput && (
-                                <details className="mt-5 rounded-2xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#171c27]/80 p-4">
-                                    <summary className="cursor-pointer text-xs font-bold text-gray-600 dark:text-gray-300">פלט AI גולמי (לבדיקה)</summary>
-                                    <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words text-[11px] text-gray-700 dark:text-gray-300">{aiRawOutput}</pre>
-                                </details>
-                            )}
-                            <div className="mt-6 flex flex-wrap items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={handleGenerateAiTheme}
-                                    disabled={!aiEnabled || aiIsGenerating}
-                                    className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    <Wand2 size={14} />
-                                    {aiIsGenerating ? 'יוצר...' : 'צור'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={handleUndoAiTheme}
-                                    disabled={!aiPreviousThemeSnapshot || aiIsGenerating}
-                                    className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-gray-300/90 bg-white/90 px-4 text-sm font-bold text-gray-700 shadow-[0_8px_20px_rgba(15,23,42,0.08)] backdrop-blur-md transition hover:border-primary/50 hover:text-primary hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/15"
-                                >
-                                    החזר שינויים
-                                </button>
-                            </div>
                         </section>
                     )}
 
