@@ -76,6 +76,17 @@ const toRequestUrl = (urlOrPath) => {
     return normalizeServerRelativeUrl(raw);
 };
 
+const toSharePointAbsoluteUrl = (serverRelativeUrl) => {
+    const normalizedPath = toPathname(serverRelativeUrl);
+    if (!normalizedPath) return '';
+
+    const rawHost = String(SHAREPOINT_PATHS.host || '').trim();
+    const host = rawHost.replace(/^https?:\/\//i, '').replace(/\/+$/g, '');
+    if (!host) return normalizedPath;
+
+    return `https://${host}${normalizedPath}`;
+};
+
 const responseTextSafe = async (response) => {
     try {
         return await response.text();
@@ -85,6 +96,20 @@ const responseTextSafe = async (response) => {
 };
 
 const summarizeErrorText = (text) => String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, 320);
+const escapeODataString = (value) => String(value ?? '').replace(/'/g, "''");
+const asArray = (value) => (Array.isArray(value) ? value : []);
+
+const parseODataResults = (payload, nestedCollectionKey = '') => {
+    const root = payload?.d;
+    if (!root) return [];
+    if (Array.isArray(root.results)) return root.results;
+    if (!nestedCollectionKey) return [];
+
+    const nested = root?.[nestedCollectionKey];
+    if (Array.isArray(nested?.results)) return nested.results;
+    if (Array.isArray(nested)) return nested;
+    return [];
+};
 
 const splitServerRelativeFileUrl = (serverRelativeUrl) => {
     const fileServerRelativeUrl = toPathname(serverRelativeUrl);
@@ -424,15 +449,40 @@ export const getRequestDigest = async (scope = '') => {
     }
 };
 
+const normalizeCreateBackupOptions = (options) => {
+    if (Array.isArray(options)) {
+        return { filesToBackup: options };
+    }
+    if (options && typeof options === 'object') {
+        return options;
+    }
+    return {};
+};
+
+const emitBackupProgress = (onProgress, payload) => {
+    if (typeof onProgress !== 'function') return;
+    try {
+        onProgress(payload);
+    } catch (progressError) {
+        spLog.warn('שגיאה ב-callback של התקדמות גיבוי:', progressError);
+    }
+};
+
 /**
  * Creates a backup folder and copies data files into it.
  */
-export const createBackup = async (filesToBackup = []) => {
+export const createBackup = async (options = {}) => {
+    const {
+        filesToBackup: requestedFiles = [],
+        onProgress = null,
+        trigger = 'manual',
+    } = normalizeCreateBackupOptions(options);
+
     try {
         spLog.boot('מתחיל גיבוי מערכת ל-SharePoint...');
-
-        if (!filesToBackup || filesToBackup.length === 0) {
-            filesToBackup = [
+        const filesToBackup = Array.isArray(requestedFiles) && requestedFiles.length > 0
+            ? requestedFiles
+            : [
                 SHAREPOINT_CONFIG.fileServerRelativeUrl,
                 SHAREPOINT_CONFIG.navFileServerRelativeUrl,
                 SHAREPOINT_CONFIG.siteContentFileServerRelativeUrl,
@@ -441,13 +491,36 @@ export const createBackup = async (filesToBackup = []) => {
                 SHAREPOINT_CONFIG.externalLinksFileServerRelativeUrl,
                 SHAREPOINT_CONFIG.usersFileServerRelativeUrl,
             ];
-        }
+        const totalFiles = filesToBackup.length;
+
+        emitBackupProgress(onProgress, {
+            stage: 'start',
+            trigger,
+            percent: 5,
+            message: 'מתחיל גיבוי...',
+            totalFiles,
+            processedFiles: 0,
+            copiedFiles: 0,
+            skippedFiles: 0,
+            failedFiles: 0,
+        });
 
         const firstFilePath = toPathname(filesToBackup[0]);
         const { siteRoot } = extractSiteRootFromPath(firstFilePath);
         if (!siteRoot) {
             spLog.error('לא ניתן לזהות נתיב אתר מתוך', firstFilePath);
-            return false;
+            return {
+                success: false,
+                trigger,
+                error: `לא ניתן לזהות נתיב אתר מתוך: ${firstFilePath}`,
+                totalFiles,
+                copiedFiles: 0,
+                skippedFiles: 0,
+                failedFiles: totalFiles,
+                processedFiles: 0,
+                backupFolderPath: '',
+                backupFolderUrl: '',
+            };
         }
 
         const backupBaseFolder = `${SHAREPOINT_PATHS.siteAssetsRoot}/Backups`;
@@ -455,11 +528,48 @@ export const createBackup = async (filesToBackup = []) => {
         const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
         const backupFolderName = `backup-${timestamp}`;
         const targetFolderPath = `${backupBaseFolder}/${backupFolderName}`;
+        const backupFolderUrl = toSharePointAbsoluteUrl(targetFolderPath);
 
+        emitBackupProgress(onProgress, {
+            stage: 'prepare-folder',
+            trigger,
+            percent: 12,
+            message: 'מכין תיקיית גיבוי ב-SharePoint...',
+            totalFiles,
+            processedFiles: 0,
+            copiedFiles: 0,
+            skippedFiles: 0,
+            failedFiles: 0,
+            backupFolderPath: targetFolderPath,
+            backupFolderUrl,
+        });
         await ensureSharePointFolderHierarchy(targetFolderPath);
         spLog.file(`תיקיית גיבוי נוצרה/אומתה: ${targetFolderPath}`);
 
-        for (const filePath of filesToBackup) {
+        let copiedFiles = 0;
+        let skippedFiles = 0;
+        let failedFiles = 0;
+
+        for (let index = 0; index < filesToBackup.length; index += 1) {
+            const filePath = filesToBackup[index];
+            const fileName = toPathname(filePath).split('/').pop();
+
+            emitBackupProgress(onProgress, {
+                stage: 'file-progress',
+                trigger,
+                percent: Math.max(15, Math.min(95, Math.round(15 + ((index / totalFiles) * 80)))),
+                message: `מגבה קובץ ${index + 1} מתוך ${totalFiles}${fileName ? `: ${fileName}` : ''}`,
+                currentFilePath: filePath,
+                currentFileName: fileName || '',
+                totalFiles,
+                processedFiles: index,
+                copiedFiles,
+                skippedFiles,
+                failedFiles,
+                backupFolderPath: targetFolderPath,
+                backupFolderUrl,
+            });
+
             try {
                 const sourceEndpoint = buildFileValueEndpoint(filePath);
                 spLog.file(`גיבוי: קורא מקור | ${sourceEndpoint}`);
@@ -473,6 +583,7 @@ export const createBackup = async (filesToBackup = []) => {
                 if (!readRes.ok) {
                     if (readRes.status === 404) {
                         spLog.warn(`קובץ לא נמצא לגיבוי (מדלג): ${filePath}`);
+                        skippedFiles += 1;
                         continue;
                     }
                     const readErr = summarizeErrorText(await responseTextSafe(readRes));
@@ -480,7 +591,6 @@ export const createBackup = async (filesToBackup = []) => {
                 }
 
                 const fileContent = await readRes.text();
-                const fileName = toPathname(filePath).split('/').pop();
                 if (!fileName) continue;
 
                 const targetFilePath = `${targetFolderPath}/${fileName}`;
@@ -492,19 +602,87 @@ export const createBackup = async (filesToBackup = []) => {
 
                 if (!writeRes.ok) {
                     spLog.error(`שגיאה בכתיבת קובץ גיבוי ${fileName}:`, writeRes.status);
+                    failedFiles += 1;
                 } else {
                     spLog.success(`הועתק לגיבוי: ${fileName}`);
+                    copiedFiles += 1;
                 }
             } catch (fileErr) {
                 spLog.error(`שגיאה בגיבוי קובץ ${filePath}:`, fileErr);
+                failedFiles += 1;
+            } finally {
+                const processedFiles = Math.min(index + 1, totalFiles);
+                emitBackupProgress(onProgress, {
+                    stage: 'file-progress',
+                    trigger,
+                    percent: Math.max(20, Math.min(98, Math.round(15 + ((processedFiles / totalFiles) * 80)))),
+                    message: `סטטוס גיבוי: ${processedFiles}/${totalFiles} קבצים`,
+                    totalFiles,
+                    processedFiles,
+                    copiedFiles,
+                    skippedFiles,
+                    failedFiles,
+                    backupFolderPath: targetFolderPath,
+                    backupFolderUrl,
+                });
             }
         }
 
-        spLog.success('גיבוי הושלם בהצלחה');
-        return true;
+        const success = failedFiles === 0;
+        if (success) {
+            spLog.success('גיבוי הושלם בהצלחה');
+        } else {
+            spLog.warn(`גיבוי הסתיים עם שגיאות | failed: ${failedFiles} | copied: ${copiedFiles} | skipped: ${skippedFiles}`);
+        }
+
+        emitBackupProgress(onProgress, {
+            stage: 'complete',
+            trigger,
+            percent: 100,
+            message: success ? 'גיבוי הושלם בהצלחה' : 'גיבוי הושלם עם שגיאות',
+            totalFiles,
+            processedFiles: totalFiles,
+            copiedFiles,
+            skippedFiles,
+            failedFiles,
+            backupFolderPath: targetFolderPath,
+            backupFolderUrl,
+        });
+
+        return {
+            success,
+            trigger,
+            totalFiles,
+            processedFiles: totalFiles,
+            copiedFiles,
+            skippedFiles,
+            failedFiles,
+            backupFolderPath: targetFolderPath,
+            backupFolderUrl,
+            backupFolderName,
+            backupCreatedAt: now.toISOString(),
+        };
     } catch (error) {
         spLog.error('שגיאה בתהליך הגיבוי:', error);
-        return false;
+        emitBackupProgress(onProgress, {
+            stage: 'failed',
+            trigger,
+            percent: 100,
+            message: 'הגיבוי נכשל',
+            error: error?.message || String(error),
+        });
+        return {
+            success: false,
+            trigger,
+            error: error?.message || String(error),
+            totalFiles: 0,
+            processedFiles: 0,
+            copiedFiles: 0,
+            skippedFiles: 0,
+            failedFiles: 0,
+            backupFolderPath: '',
+            backupFolderUrl: '',
+        };
     }
 };
 
@@ -578,6 +756,180 @@ const readLatestBackupTimestamp = async () => {
     return latestTimestamp;
 };
 
+export const listSharePointBackupFiles = async (
+    backupFolderServerRelativeUrl,
+    { siteRoot: providedSiteRoot = '' } = {},
+) => {
+    const normalizedFolder = toPathname(backupFolderServerRelativeUrl);
+    if (!normalizedFolder) return [];
+
+    const detectedSiteRoot = providedSiteRoot || extractSiteRootFromPath(normalizedFolder).siteRoot;
+    if (!detectedSiteRoot) {
+        throw new Error(`Cannot detect SharePoint site root from backup folder: ${normalizedFolder}`);
+    }
+
+    const escapedFolder = escapeODataString(normalizedFolder);
+    const endpoint =
+        `${buildSiteApiUrl(detectedSiteRoot, '')}` +
+        `/_api/web/GetFolderByServerRelativeUrl('${escapedFolder}')/Files` +
+        `?$select=Name,ServerRelativeUrl,Length,TimeCreated,TimeLastModified&$orderby=Name asc`;
+
+    const response = await fetch(endpoint, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+            Accept: ODATA_ACCEPT,
+        },
+    });
+
+    if (response.status === 404) {
+        return [];
+    }
+
+    if (!response.ok) {
+        const errorText = summarizeErrorText(await responseTextSafe(response));
+        throw new Error(`Failed to read backup files (${response.status}): ${errorText}`);
+    }
+
+    const data = await response.json();
+    const files = parseODataResults(data, 'Files');
+
+    return asArray(files).map((file) => {
+        const serverRelativeUrl = toPathname(file?.ServerRelativeUrl || '');
+        const sizeBytes = Number(file?.Length ?? 0);
+        return {
+            name: String(file?.Name ?? '').trim(),
+            serverRelativeUrl,
+            url: toSharePointAbsoluteUrl(serverRelativeUrl),
+            sizeBytes: Number.isFinite(sizeBytes) ? sizeBytes : 0,
+            timeCreated: file?.TimeCreated || null,
+            timeLastModified: file?.TimeLastModified || null,
+        };
+    });
+};
+
+export const listSharePointBackups = async ({ includeFiles = true } = {}) => {
+    const backupBaseFolder = `${SHAREPOINT_PATHS.siteAssetsRoot}/Backups`;
+    const normalizedBackupBaseFolder = toPathname(backupBaseFolder);
+    const { siteRoot } = extractSiteRootFromPath(normalizedBackupBaseFolder);
+
+    if (!siteRoot) {
+        throw new Error(`Cannot detect SharePoint site root from backup path: ${normalizedBackupBaseFolder}`);
+    }
+
+    const escapedFolder = escapeODataString(normalizedBackupBaseFolder);
+    const endpoint =
+        `${buildSiteApiUrl(siteRoot, '')}` +
+        `/_api/web/GetFolderByServerRelativeUrl('${escapedFolder}')/Folders` +
+        `?$select=Name,ServerRelativeUrl,TimeCreated,TimeLastModified,ItemCount&$orderby=TimeLastModified desc&$top=200`;
+
+    const response = await fetch(endpoint, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+            Accept: ODATA_ACCEPT,
+        },
+    });
+
+    if (response.status === 404) {
+        return {
+            baseFolderPath: normalizedBackupBaseFolder,
+            baseFolderUrl: toSharePointAbsoluteUrl(normalizedBackupBaseFolder),
+            backups: [],
+        };
+    }
+
+    if (!response.ok) {
+        const errorText = summarizeErrorText(await responseTextSafe(response));
+        throw new Error(`Failed to read backups folder (${response.status}): ${errorText}`);
+    }
+
+    const data = await response.json();
+    const folders = parseODataResults(data, 'Folders');
+    const backupFolders = asArray(folders)
+        .map((folder) => {
+            const serverRelativeUrl = toPathname(folder?.ServerRelativeUrl || '');
+            return {
+                name: String(folder?.Name ?? '').trim(),
+                serverRelativeUrl,
+                url: toSharePointAbsoluteUrl(serverRelativeUrl),
+                timeCreated: folder?.TimeCreated || null,
+                timeLastModified: folder?.TimeLastModified || null,
+                itemCount: Number(folder?.ItemCount ?? 0),
+            };
+        })
+        .filter((folder) => folder.name.toLowerCase().startsWith('backup-'));
+
+    const backups = await Promise.all(
+        backupFolders.map(async (folder) => {
+            let files = [];
+            if (includeFiles) {
+                try {
+                    files = await listSharePointBackupFiles(folder.serverRelativeUrl, { siteRoot });
+                } catch (error) {
+                    spLog.warn(`לא ניתן לקרוא קבצים מתיקיית גיבוי "${folder.name}"`, error);
+                }
+            }
+            const totalSizeBytes = files.reduce((sum, file) => sum + (Number(file?.sizeBytes) || 0), 0);
+            return {
+                ...folder,
+                files,
+                fileCount: includeFiles ? files.length : Math.max(0, folder.itemCount),
+                totalSizeBytes,
+            };
+        }),
+    );
+
+    backups.sort((a, b) => {
+        const aTs = Date.parse(String(a?.timeLastModified ?? a?.timeCreated ?? ''));
+        const bTs = Date.parse(String(b?.timeLastModified ?? b?.timeCreated ?? ''));
+        const aScore = Number.isFinite(aTs) ? aTs : 0;
+        const bScore = Number.isFinite(bTs) ? bTs : 0;
+        return bScore - aScore;
+    });
+
+    return {
+        baseFolderPath: normalizedBackupBaseFolder,
+        baseFolderUrl: toSharePointAbsoluteUrl(normalizedBackupBaseFolder),
+        backups,
+    };
+};
+
+export const deleteSharePointBackup = async (backupFolderServerRelativeUrl) => {
+    const normalizedFolder = toPathname(backupFolderServerRelativeUrl);
+    if (!normalizedFolder) {
+        throw new Error('Missing backup folder path');
+    }
+
+    const { siteRoot } = extractSiteRootFromPath(normalizedFolder);
+    if (!siteRoot) {
+        throw new Error(`Cannot detect SharePoint site root from backup folder: ${normalizedFolder}`);
+    }
+
+    const digest = await getRequestDigest(siteRoot);
+    const escapedFolder = escapeODataString(normalizedFolder);
+    const endpoint = `${buildSiteApiUrl(siteRoot, '')}/_api/web/GetFolderByServerRelativeUrl('${escapedFolder}')`;
+
+    const response = await fetch(endpoint, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+            Accept: ODATA_ACCEPT,
+            'Content-Type': ODATA_CONTENT_TYPE,
+            'X-RequestDigest': digest,
+            'IF-MATCH': '*',
+            'X-HTTP-Method': 'DELETE',
+        },
+    });
+
+    if (response.ok || response.status === 404) {
+        return { success: true };
+    }
+
+    const errorText = summarizeErrorText(await responseTextSafe(response));
+    throw new Error(`Failed to delete backup (${response.status}): ${errorText}`);
+};
+
 /**
  * Ensures there is at least one backup in the last `maxAgeMs`.
  * If not, triggers an immediate backup.
@@ -602,13 +954,15 @@ export const ensureRecentBackup = async ({ maxAgeMs = 48 * 60 * 60 * 1000 } = {}
         }
 
         spLog.warn('לא נמצא גיבוי ב-48 השעות האחרונות — מתחיל גיבוי אוטומטי.');
-        const created = await createBackup();
+        const backupResult = await createBackup();
 
-        if (created) {
+        if (backupResult?.success) {
             return {
                 hasRecentBackup: false,
                 performedBackup: true,
                 latestBackupAt: new Date().toISOString(),
+                backupFolderPath: backupResult.backupFolderPath,
+                backupFolderUrl: backupResult.backupFolderUrl,
             };
         }
 

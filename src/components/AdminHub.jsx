@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { toast } from 'react-toastify';
 import {
     Undo2, Menu, Save, FileText, Link as LinkIcon,
-    LayoutGrid, Palette, ExternalLink, Sun, Moon, Users
+    LayoutGrid, Palette, ExternalLink, Sun, Moon, Users, ShieldCheck
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import AdminEvents from './AdminEvents';
@@ -24,14 +23,13 @@ import AdminHeritage from './AdminHeritage';
 import AdminTips from './AdminTips';
 import AdminOrgChart from './AdminOrgChart';
 import AdminAIHelp from './AdminAIHelp';
+import AdminSiteOwnersManagement from './AdminSiteOwnersManagement';
+import AdminBackupManagement from './AdminBackupManagement';
 import WidgetLivePreview from './WidgetLivePreview';
 import Tooltip from './Tooltip';
 import NotFoundPage from './NotFoundPage';
-import { createBackup } from '../utils/sharepointUtils';
-import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { useWidget } from '../context/WidgetContext';
 import { useTheme } from '../context/ThemeContext';
-import { confirmToast } from '../utils/confirmToast';
 import { UI_FEATURES } from '../config/uiFeatures.config';
 
 
@@ -64,7 +62,6 @@ export default function AdminHub() {
     const navigate = useNavigate();
     const location = useLocation();
     const lastJumpKeyRef = useRef(null);
-    const [isBackingUp, setIsBackingUp] = useState(false);
     const { widgetConfig } = useWidget();
     const { effectiveMode, toggleAdminMode } = useTheme();
 
@@ -83,6 +80,8 @@ export default function AdminHub() {
         if (path.includes('/admin/theme')) return 'theme';
         if (path.includes('/admin/external-links')) return 'external-links';
         if (showAiUi && path.includes('/admin/ai-help')) return 'ai-help';
+        if (path.includes('/admin/site-owners')) return 'site-owners';
+        if (path.includes('/admin/backups')) return 'backups';
         if (path.includes('/admin/org-chart')) return 'org-chart';
         if (path.includes('/admin/outstanding')) return 'outstanding';
         if (path.includes('/admin/countdown')) return 'countdown';
@@ -118,27 +117,6 @@ export default function AdminHub() {
     const widgetPageKeys = ['events', 'alerts', 'outstanding', 'countdown', 'news', 'phonebook', 'shuttles', 'polls', 'celebrations', 'heritage', 'tips'];
     const isOnWidgetPage = widgetPageKeys.includes(activeTab);
     const previewActiveWidget = isOnWidgetPage ? activeTab : primaryWidget;
-
-    const handleBackup = async () => {
-        if (SHAREPOINT_CONFIG.useMock) {
-            toast.info('גיבוי לא נתמך במצב פיתוח (Mock)');
-            return;
-        }
-        const confirmed = await confirmToast({
-            title: 'גיבוי מערכת',
-            message: 'האם ליצור גיבוי של כלל הנתונים עכשיו?',
-            confirmText: 'צור גיבוי',
-            cancelText: 'ביטול',
-        });
-        if (confirmed) {
-            setIsBackingUp(true);
-            const success = await createBackup();
-            setIsBackingUp(false);
-            if (!success) {
-                toast.error('שגיאה ביצירת הגיבוי. אנא נסה שוב או בדוק את הלוגים.');
-            }
-        }
-    };
 
     return (
         <div dir="rtl" className="flex h-screen bg-gray-100 dark:bg-[#1e212b] text-gray-900 dark:text-white font-heebo overflow-hidden">
@@ -251,6 +229,24 @@ export default function AdminHub() {
                         title="ניהול 3 הווידג׳טים הנבחרים מעמוד אחד"
                     />
 
+                    <SidebarButton
+                        icon={ShieldCheck}
+                        label="ניהול מנהלים"
+                        isActive={activeTab === 'site-owners'}
+                        onClick={() => navigate('/admin/site-owners')}
+                        isSidebarOpen={isSidebarOpen}
+                        title="הוספת משתמשים לקבוצת בעלי האתר הנוכחי ב-SharePoint"
+                    />
+
+                    <SidebarButton
+                        icon={Save}
+                        label="ניהול גיבויים"
+                        isActive={activeTab === 'backups'}
+                        onClick={() => navigate('/admin/backups')}
+                        isSidebarOpen={isSidebarOpen}
+                        title="דשבורד גיבויים מלא עם צפייה ומחיקה"
+                    />
+
 
 
 
@@ -265,17 +261,6 @@ export default function AdminHub() {
                             isSidebarOpen={isSidebarOpen}
                             title="יציאה מתפריט הניהול"
                         />
-
-                        <Tooltip text="גיבוי מערכת" wrapperClassName="block w-full">
-                            <button
-                                onClick={handleBackup}
-                                disabled={isBackingUp}
-                                className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all ${isBackingUp ? 'opacity-50 cursor-not-allowed' : 'text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 hover:text-blue-700 dark:hover:text-blue-300'} border border-transparent`}
-                            >
-                                <Save size={22} className={isBackingUp ? 'animate-pulse' : ''} />
-                                {isSidebarOpen && <span className="font-medium whitespace-nowrap text-[15px]">{isBackingUp ? 'מגבה נתונים...' : 'גיבוי מערכת ידני'}</span>}
-                            </button>
-                        </Tooltip>
                     </div>
                 </div>
             </div>
@@ -293,6 +278,8 @@ export default function AdminHub() {
                                 <Route path="/current-widgets" element={<div className="w-full h-full"><AdminCurrentWidgets /></div>} />
                                 <Route path="/theme" element={<div className="w-full h-full"><AdminTheme /></div>} />
                                 {showAiUi && <Route path="/ai-help" element={<div className="w-full h-full"><AdminAIHelp /></div>} />}
+                                <Route path="/site-owners" element={<div className="w-full h-full"><AdminSiteOwnersManagement /></div>} />
+                                <Route path="/backups" element={<div className="w-full h-full"><AdminBackupManagement /></div>} />
                                 <Route path="/org-chart" element={<div className="w-full h-full"><AdminOrgChart /></div>} />
                                 <Route path="/external-links" element={<div className="w-full h-full"><AdminExternalLinks /></div>} />
                                 <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />
@@ -324,6 +311,8 @@ export default function AdminHub() {
                             <Route path="/current-widgets" element={<div className="w-full h-full"><AdminCurrentWidgets /></div>} />
                             <Route path="/theme" element={<div className="w-full h-full"><AdminTheme /></div>} />
                             {showAiUi && <Route path="/ai-help" element={<div className="w-full h-full"><AdminAIHelp /></div>} />}
+                            <Route path="/site-owners" element={<div className="w-full h-full"><AdminSiteOwnersManagement /></div>} />
+                            <Route path="/backups" element={<div className="w-full h-full"><AdminBackupManagement /></div>} />
                             <Route path="/org-chart" element={<div className="w-full h-full"><AdminOrgChart /></div>} />
                             <Route path="/external-links" element={<div className="w-full h-full"><AdminExternalLinks /></div>} />
                             <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />

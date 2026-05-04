@@ -7,6 +7,14 @@ export const DEFAULT_SAMPLE_ADMIN_USERS = [
         email: '',
         loginName: '',
     },
+    {
+        id: 2,
+        name: 'מנהל ראשי',
+        role: 'admin',
+        personalNumber: '8624034',
+        email: '',
+        loginName: '',
+    },
 ];
 
 export const cloneDefaultSampleAdminUsers = () =>

@@ -28,6 +28,7 @@ const buildDir = cli['build-dir']
   : path.join(__dirname, 'dist');
 
 const targetDir = config.toWebDav(config.distRel);
+const deployedAppUrl = `https://${config.host}${config.distRel}/index.html`;
 
 console.log(`[deploy] Site: ${config.siteCode}`);
 console.log(`[deploy] Source: ${buildDir}`);
@@ -63,6 +64,7 @@ try {
       console.log(`[deploy] Would purge target folder first: "${targetDir}"`);
     }
     console.log(`[deploy] Would copy "${buildDir}" => "${targetDir}"`);
+    console.log(`[deploy] App HTML (after deploy): ${deployedAppUrl}`);
     process.exit(0);
   }
 
@@ -87,6 +89,7 @@ try {
   }
 
   console.log('[deploy] Deployment completed.');
+  console.log(`[deploy] App HTML: ${deployedAppUrl}`);
 } catch (error) {
   console.error(`[deploy] Error: ${error.message}`);
   process.exit(1);

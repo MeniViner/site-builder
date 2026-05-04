@@ -9,6 +9,7 @@ import NavigationBar from './components/home/NavigationBar';
 import HeroSection from './components/home/HeroSection';
 import OverlayImageElement from './components/home/OverlayImageElement';
 import { ExtLinksCards, ExtLinksFloating, ExtLinksMinimal } from './components/home/ExternalLinksLayouts';
+import SharePointPermissionsSetupStatus from './components/SharePointPermissionsSetupStatus';
 import { getWidgetTitle } from './components/WidgetPanelContent';
 import NotFoundPage from './components/NotFoundPage';
 import { useNavigation } from './context/NavigationContext';
@@ -307,6 +308,7 @@ export default function App() {
         autoClose={4000}
         closeButton
       />
+      <SharePointPermissionsSetupStatus />
     </>
   );
 }

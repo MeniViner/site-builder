@@ -9,17 +9,40 @@ const normalizeSiteCode = (value) => {
     return raw || 'bihs7134';
 };
 
+const toServerRelativePath = (value) => {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+
+    if (/^https?:\/\//i.test(raw)) {
+        try {
+            return new URL(raw).pathname;
+        } catch {
+            return '';
+        }
+    }
+
+    return raw.startsWith('/') ? raw.replace(/\/+$/g, '') : '';
+};
+
+const lastPathSegment = (value, fallback) => {
+    const serverRelative = toServerRelativePath(value);
+    const source = serverRelative || String(value ?? '');
+    const segment = source.split('/').filter(Boolean).pop();
+    return normalizePathSegment(segment, fallback);
+};
+
 const siteCode = normalizeSiteCode(import.meta.env.VITE_SP_SITE_CODE);
 const host = String(import.meta.env.VITE_SP_HOST || 'portal.army.idf').trim() || 'portal.army.idf';
 const siteDbFolder = normalizePathSegment(import.meta.env.VITE_SP_SITE_DB_FOLDER, 'siteDB');
-const usersDbFolder = normalizePathSegment(import.meta.env.VITE_SP_USERS_DB_FOLDER, 'siteUsersDb');
+const usersDbFolder = lastPathSegment(import.meta.env.VITE_SP_USERS_DB_FOLDER, 'siteUsersDb');
 const siteAssetsFolder = normalizePathSegment(import.meta.env.VITE_SP_SITE_ASSETS_FOLDER, 'siteAssets');
 const imagesFolder = normalizePathSegment(import.meta.env.VITE_SP_IMAGES_FOLDER, 'images');
 const widgetsDbTarget = String(import.meta.env.VITE_SP_WIDGETS_DB_TARGET || 'users').trim().toLowerCase();
 
 const siteRoot = `/sites/${siteCode}`;
 const siteDbRoot = `${siteRoot}/${siteDbFolder}`;
-const usersDbRoot = `${siteRoot}/${usersDbFolder}`;
+const configuredUsersDbRoot = toServerRelativePath(import.meta.env.VITE_SP_USERS_DB_FOLDER);
+const usersDbRoot = configuredUsersDbRoot || `${siteRoot}/${usersDbFolder}`;
 const siteAssetsRoot = `${siteDbRoot}/${siteAssetsFolder}`;
 const imagesRoot = `${siteDbRoot}/${imagesFolder}`;
 
