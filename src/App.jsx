@@ -22,6 +22,7 @@ import { normalizeBorderStyle, panelStyle } from './utils/borderStyles';
 import { normalizeOverlayImageConfig } from './utils/overlayImageConfig';
 import { resolveSiteImageUrl } from './utils/assetUrl';
 import OrgChartPage from './pages/OrgChartPage';
+import AdminSharePointSetupPage from './pages/AdminSharePointSetupPage';
 import 'react-toastify/dist/ReactToastify.css';
 
 export function Home({ isPreview = false }) {
@@ -223,7 +224,7 @@ export function Home({ isPreview = false }) {
 
         {externalLinks && externalLinks.length > 0 && !externalLinksFixed && (
           <div className="relative z-10 border-t border-theme-subtle py-4 text-center bg-theme-bg-base">
-            <p className="text-xs text-theme-muted">כל הזכויות שמורות &copy; {new Date().getFullYear()}</p>
+            <p className="text-xs text-theme-muted">siteBuilder - מתנ"ה</p>
           </div>
         )}
       </div>
@@ -298,6 +299,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/org-chart" element={<OrgChartPage />} />
+        <Route path="/admin/sharepoint-setup" element={<AdminSharePointSetupPage />} />
         <Route path="/admin/*" element={<AdminRoute />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
     Undo2, Menu, Save, FileText, Link as LinkIcon,
-    LayoutGrid, Palette, ExternalLink, Sun, Moon, Users, ShieldCheck
+    LayoutGrid, Palette, ExternalLink, Sun, Moon, Users, ShieldCheck, ChevronDown
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import AdminEvents from './AdminEvents';
@@ -41,7 +41,7 @@ function SidebarButton({ icon, label, isActive, onClick, isSidebarOpen, title })
             <button
                 onClick={onClick}
                 className={[
-                    'w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all',
+                    isSidebarOpen ? 'w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all' : 'w-full flex items-center justify-center px-2 py-3.5 rounded-xl transition-all',
                     'border',
                     'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#232733]',
                     isActive
@@ -49,8 +49,42 @@ function SidebarButton({ icon, label, isActive, onClick, isSidebarOpen, title })
                         : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-700 dark:hover:text-gray-200 border-transparent',
                 ].join(' ')}
             >
-                <IconComponent size={22} className={isActive ? 'text-gray-700 dark:text-gray-200' : ''} />
-                {isSidebarOpen && <span className="font-medium whitespace-nowrap text-[15px]">{label}</span>}
+                <IconComponent size={isSidebarOpen ? 22 : 26} className={isActive ? 'text-gray-700 dark:text-gray-200' : ''} />
+                {isSidebarOpen && <span className="font-semibold whitespace-nowrap text-[16px] leading-6">{label}</span>}
+            </button>
+        </Tooltip>
+    );
+}
+
+function AlphaTeamBanner({ isSidebarOpen }) {
+    if (!isSidebarOpen) return null;
+
+    return (
+        <div className="rounded-xl border border-primary-200/70 dark:border-primary-500/25 bg-gradient-to-l from-primary-50 to-white dark:from-primary-500/10 dark:to-[#2b2f3c] p-2.5 shadow-sm">
+            <div className="flex items-center gap-2.5">
+                <img
+                    src="/images/alphalogo.png"
+                    alt="Alpha logo"
+                    className="w-8 h-8 rounded-lg object-cover border border-primary-200/70 dark:border-primary-400/30 bg-white dark:bg-[#1e212b] p-1"
+                    loading="lazy"
+                />
+                <div className="min-w-0">
+                    <p className="text-[13px] font-bold text-gray-800 dark:text-gray-100 truncate">צוות אלפא</p>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">Alpha Team</p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function AdminModeToggleButton({ isLightMode, onToggle }) {
+    return (
+        <Tooltip text={isLightMode ? 'מעבר למצב כהה (ניהול בלבד)' : 'מעבר למצב בהיר (ניהול בלבד)'}>
+            <button
+                onClick={onToggle}
+                className="w-11 h-11 shrink-0 rounded-xl border border-gray-300 dark:border-white/10 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition flex items-center justify-center"
+            >
+                {isLightMode ? <Moon size={20} /> : <Sun size={20} />}
             </button>
         </Tooltip>
     );
@@ -70,6 +104,18 @@ export default function AdminHub() {
         : [widgetConfig?.activeWidget || 'events'];
     const primaryWidget = activeWidgets[0] || 'events';
     const isLightMode = effectiveMode === 'light';
+    const [sectionOpen, setSectionOpen] = useState({
+        content: true,
+        system: false,
+        maintenance: false,
+    });
+
+    const toggleSection = (sectionKey) => {
+        setSectionOpen((prev) => ({
+            ...prev,
+            [sectionKey]: !prev[sectionKey],
+        }));
+    };
 
     const getActiveTab = () => {
         const path = location.pathname;
@@ -121,7 +167,7 @@ export default function AdminHub() {
     return (
         <div dir="rtl" className="flex h-screen bg-gray-100 dark:bg-[#1e212b] text-gray-900 dark:text-white font-heebo overflow-hidden">
             {/* Sidebar */}
-            <div className={`${isSidebarOpen ? 'w-72' : 'w-20'} bg-white dark:bg-[#232733] border-l border-gray-200 dark:border-white/5 flex flex-col transition-all duration-300 z-50 shrink-0 shadow-[0_0_20px_rgba(0,0,0,0.5)]`}>
+            <div className={`${isSidebarOpen ? 'w-72' : 'w-20'} bg-white dark:bg-[#232733] border-l border-gray-200 dark:border-white/10 flex flex-col transition-all duration-300 z-50 shrink-0 shadow-[0_0_20px_rgba(0,0,0,0.25)] dark:shadow-[0_0_20px_rgba(0,0,0,0.5)]`}>
                 <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-white/5 h-20 shrink-0">
                     {isSidebarOpen ? (
                         <>
@@ -129,139 +175,191 @@ export default function AdminHub() {
                                 <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition shrink-0">
                                     <Menu size={24} />
                                 </button>
-                                <h1 className="text-xl font-bold text-gray-700 dark:text-gray-200 whitespace-nowrap">ממשק ניהול</h1>
+                                <img
+                                    src="/images/alphalogo.png"
+                                    alt="Alpha logo"
+                                    className="w-8 h-8 rounded-lg object-cover border border-gray-200 dark:border-white/20 bg-white dark:bg-[#1e212b] p-1 shrink-0"
+                                    loading="lazy"
+                                />
+                                <h1 className="text-xl font-bold text-gray-700 dark:text-gray-100 whitespace-nowrap">ממשק ניהול</h1>
                             </div>
-                            <Tooltip text={isLightMode ? 'מעבר למצב כהה (ניהול בלבד)' : 'מעבר למצב בהיר (ניהול בלבד)'}>
-                                <button
-                                    onClick={toggleAdminMode}
-                                    className="w-10 h-10 shrink-0 rounded-lg border border-gray-300 dark:border-white/10 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition flex items-center justify-center"
-                                >
-                                    {isLightMode ? <Moon size={18} /> : <Sun size={18} />}
-                                </button>
-                            </Tooltip>
                         </>
                     ) : (
-                        <div className="flex flex-col items-center gap-2 mx-auto">
+                        <div className="flex items-center justify-center mx-auto">
                             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition">
                                 <Menu size={24} />
                             </button>
-                            <Tooltip text={isLightMode ? 'מעבר למצב כהה' : 'מעבר למצב בהיר'}>
-                                <button
-                                    onClick={toggleAdminMode}
-                                    className="w-10 h-10 rounded-lg border border-gray-300 dark:border-white/10 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition flex items-center justify-center"
-                                >
-                                    {isLightMode ? <Moon size={18} /> : <Sun size={18} />}
-                                </button>
-                            </Tooltip>
                         </div>
                     )}
                 </div>
 
                 <div className="flex-1 overflow-y-auto py-6 px-4 space-y-1.5 custom-scrollbar">
                     {isSidebarOpen && (
-                        <div className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest px-4 mb-2">ניהול תוכן</div>
+                        <button
+                            type="button"
+                            onClick={() => toggleSection('content')}
+                            className="w-full flex items-center justify-between text-sm font-extrabold text-gray-700 dark:text-gray-200 px-4 py-2.5 mb-2 rounded-lg bg-gray-100 dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/[0.08] transition"
+                        >
+                            <span>ניהול תוכן</span>
+                            <ChevronDown size={14} className={`transition-transform ${sectionOpen.content ? '' : '-rotate-90'}`} />
+                        </button>
                     )}
 
-                    <SidebarButton
-                        icon={FileText}
-                        label="ניהול המידע"
-                        isActive={activeTab === 'info'}
-                        onClick={() => navigate('/admin')}
-                        isSidebarOpen={isSidebarOpen}
-                    />
+                    {(sectionOpen.content || !isSidebarOpen) && (
+                        <>
+                            <SidebarButton
+                                icon={FileText}
+                                label="ניהול המידע"
+                                isActive={activeTab === 'info'}
+                                onClick={() => navigate('/admin')}
+                                isSidebarOpen={isSidebarOpen}
+                            />
 
-                    <SidebarButton
-                        icon={LinkIcon}
-                        label="ניהול לינקים"
-                        isActive={activeTab === 'links'}
-                        onClick={() => navigate('/admin/links')}
-                        isSidebarOpen={isSidebarOpen}
-                        title="עריכת כפתורי קישורים במערכת"
-                    />
+                            <SidebarButton
+                                icon={LinkIcon}
+                                label="ניהול לינקים"
+                                isActive={activeTab === 'links'}
+                                onClick={() => navigate('/admin/links')}
+                                isSidebarOpen={isSidebarOpen}
+                                title="עריכת כפתורי קישורים במערכת"
+                            />
 
-                    <SidebarButton
-                        icon={Users}
-                        label="עץ מבנה"
-                        isActive={activeTab === 'org-chart'}
-                        onClick={() => navigate('/admin/org-chart')}
-                        isSidebarOpen={isSidebarOpen}
-                        title="בניית עץ המבנה הארגוני"
-                    />
+                            <SidebarButton
+                                icon={Users}
+                                label="עץ מבנה"
+                                isActive={activeTab === 'org-chart'}
+                                onClick={() => navigate('/admin/org-chart')}
+                                isSidebarOpen={isSidebarOpen}
+                                title="בניית עץ המבנה הארגוני"
+                            />
 
-                    <SidebarButton
-                        icon={ExternalLink}
-                        label="קישורים חיצוניים"
-                        isActive={activeTab === 'external-links'}
-                        onClick={() => navigate('/admin/external-links')}
-                        isSidebarOpen={isSidebarOpen}
-                        title="הגדרת לינקים לכתובות חיצוניות"
-                    />
+                            <SidebarButton
+                                icon={ExternalLink}
+                                label="קישורים חיצוניים"
+                                isActive={activeTab === 'external-links'}
+                                onClick={() => navigate('/admin/external-links')}
+                                isSidebarOpen={isSidebarOpen}
+                                title="הגדרת לינקים לכתובות חיצוניות"
+                            />
+                        </>
+                    )}
 
                     {isSidebarOpen && (
-                        <div className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest px-4 mt-6 mb-2">הגדרות מערכת</div>
+                        <button
+                            type="button"
+                            onClick={() => toggleSection('system')}
+                            className="w-full flex items-center justify-between text-sm font-extrabold text-gray-700 dark:text-gray-200 px-4 py-2.5 mt-6 mb-2 rounded-lg bg-gray-100 dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/[0.08] transition"
+                        >
+                            <span>הגדרות מערכת</span>
+                            <ChevronDown size={14} className={`transition-transform ${sectionOpen.system ? '' : '-rotate-90'}`} />
+                        </button>
                     )}
                     {!isSidebarOpen && <div className="my-4 border-t border-gray-300 dark:border-white/10" />}
 
+                    {(sectionOpen.system || !isSidebarOpen) && (
+                        <>
+                            <SidebarButton
+                                icon={Palette}
+                                label=" עיצוב האתר"
+                                isActive={activeTab === 'theme'}
+                                onClick={() => navigate('/admin/theme')}
+                                isSidebarOpen={isSidebarOpen}
+                                title="הגדרת עיצוב מתקדם לכל מקום באתר"
+                            />
+
+                            <SidebarButton
+                                icon={LayoutGrid}
+                                label="בחירת ווידג׳טים פעילים"
+                                isActive={activeTab === 'widgets'}
+                                onClick={() => navigate('/admin/widgets')}
+                                isSidebarOpen={isSidebarOpen}
+                                title="בחירת עד 3 ווידג׳טים שיוצגו בקרוסלה"
+                            />
+
+                            <SidebarButton
+                                icon={LayoutGrid}
+                                label="ניהול הווידגטים העכשוויים"
+                                isActive={activeTab === 'current-widgets'}
+                                onClick={() => navigate('/admin/current-widgets')}
+                                isSidebarOpen={isSidebarOpen}
+                                title="ניהול 3 הווידג׳טים הנבחרים מעמוד אחד"
+                            />
+                        </>
+                    )}
+
+                    {isSidebarOpen && (
+                        <button
+                            type="button"
+                            onClick={() => toggleSection('maintenance')}
+                            className="w-full flex items-center justify-between text-sm font-extrabold text-gray-700 dark:text-gray-200 px-4 py-2.5 mt-6 mb-2 rounded-lg bg-gray-100 dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/[0.08] transition"
+                        >
+                            <span>ניהול הרשאות ותחזוקה</span>
+                            <ChevronDown size={14} className={`transition-transform ${sectionOpen.maintenance ? '' : '-rotate-90'}`} />
+                        </button>
+                    )}
+                    {!isSidebarOpen && <div className="my-4 border-t border-gray-300 dark:border-white/10" />}
+
+                    {(sectionOpen.maintenance || !isSidebarOpen) && (
+                        <>
+                            <SidebarButton
+                                icon={ShieldCheck}
+                                label="ניהול מנהלים"
+                                isActive={activeTab === 'site-owners'}
+                                onClick={() => navigate('/admin/site-owners')}
+                                isSidebarOpen={isSidebarOpen}
+                                title="ניהול מנהלים בקובץ, מנהלי אוסף אתרים וקבוצת בעלי האתר"
+                            />
+
+                            <SidebarButton
+                                icon={Save}
+                                label="ניהול גיבויים"
+                                isActive={activeTab === 'backups'}
+                                onClick={() => navigate('/admin/backups')}
+                                isSidebarOpen={isSidebarOpen}
+                                title="דשבורד גיבויים מלא עם צפייה ומחיקה"
+                            />
+                        </>
+                    )}
+
+
+
+
+                </div>
+
+                <div className="shrink-0 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-[#1f232f] p-4 space-y-3">
                     <SidebarButton
-                        icon={Palette}
-                        label=" עיצוב האתר"
-                        isActive={activeTab === 'theme'}
-                        onClick={() => navigate('/admin/theme')}
+                        icon={Undo2}
+                        label="חזרה לאתר"
+                        isActive={false}
+                        onClick={() => navigate('/')}
                         isSidebarOpen={isSidebarOpen}
-                        title="הגדרת עיצוב מתקדם לכל מקום באתר"
+                        title="יציאה מתפריט הניהול"
                     />
 
-                    <SidebarButton
-                        icon={LayoutGrid}
-                        label="בחירת ווידג׳טים פעילים"
-                        isActive={activeTab === 'widgets'}
-                        onClick={() => navigate('/admin/widgets')}
-                        isSidebarOpen={isSidebarOpen}
-                        title="בחירת עד 3 ווידג׳טים שיוצגו בקרוסלה"
-                    />
+                    {isSidebarOpen ? (
+                        <div className="flex items-center gap-2">
+                            <div className="flex-1 min-w-0">
+                                <AlphaTeamBanner isSidebarOpen={isSidebarOpen} />
+                            </div>
+                            <AdminModeToggleButton isLightMode={isLightMode} onToggle={toggleAdminMode} />
+                        </div>
+                    ) : (
+                        <div className="flex justify-center">
+                            <AdminModeToggleButton isLightMode={isLightMode} onToggle={toggleAdminMode} />
+                        </div>
+                    )}
 
-                    <SidebarButton
-                        icon={LayoutGrid}
-                        label="ניהול הווידגטים העכשוויים"
-                        isActive={activeTab === 'current-widgets'}
-                        onClick={() => navigate('/admin/current-widgets')}
-                        isSidebarOpen={isSidebarOpen}
-                        title="ניהול 3 הווידג׳טים הנבחרים מעמוד אחד"
-                    />
-
-                    <SidebarButton
-                        icon={ShieldCheck}
-                        label="ניהול מנהלים"
-                        isActive={activeTab === 'site-owners'}
-                        onClick={() => navigate('/admin/site-owners')}
-                        isSidebarOpen={isSidebarOpen}
-                        title="הוספת משתמשים לקבוצת בעלי האתר הנוכחי ב-SharePoint"
-                    />
-
-                    <SidebarButton
-                        icon={Save}
-                        label="ניהול גיבויים"
-                        isActive={activeTab === 'backups'}
-                        onClick={() => navigate('/admin/backups')}
-                        isSidebarOpen={isSidebarOpen}
-                        title="דשבורד גיבויים מלא עם צפייה ומחיקה"
-                    />
-
-
-
-
-                    <div className="flex-1" />
-
-                    <div className="pt-6 mt-6 border-t border-gray-300 dark:border-white/10 space-y-1.5">
-                        <SidebarButton
-                            icon={Undo2}
-                            label="חזרה לאתר"
-                            isActive={false}
-                            onClick={() => navigate('/')}
-                            isSidebarOpen={isSidebarOpen}
-                            title="יציאה מתפריט הניהול"
-                        />
-                    </div>
+                    {isSidebarOpen ? (
+                        <div className="text-center text-[11px] font-medium tracking-wide text-gray-500 dark:text-gray-400">
+                            siteBuilder 0.1.9
+                        </div>
+                    ) : (
+                        <Tooltip text="siteBuilder 0.1.9">
+                            <div className="w-full text-center text-[10px] font-medium text-gray-500 dark:text-gray-400">
+                                0.1.9
+                            </div>
+                        </Tooltip>
+                    )}
                 </div>
             </div>
 

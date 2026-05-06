@@ -27,19 +27,23 @@ const buildDir = cli['build-dir']
   ? path.resolve(process.cwd(), String(cli['build-dir']))
   : path.join(__dirname, 'dist');
 
-const targetDir = config.toWebDav(config.distRel);
-const deployedAppUrl = `https://${config.host}${config.distRel}/index.html`;
+const deployMode = String(cli.mode || 'final').toLowerCase() === 'bootstrap' ? 'bootstrap' : 'final';
+const targetRel = deployMode === 'bootstrap' ? config.bootstrapDistRel : config.distRel;
+const targetDir = config.toWebDav(targetRel);
+const logPrefix = deployMode === 'bootstrap' ? '[bootstrap-deploy]' : '[deploy]';
 
-console.log(`[deploy] Site: ${config.siteCode}`);
-console.log(`[deploy] Source: ${buildDir}`);
-console.log(`[deploy] Target: ${targetDir}`);
-console.log(`[deploy] Clean-first mode: ${cleanFirst ? 'enabled' : 'disabled'}`);
+console.log(`${logPrefix} Site: ${config.siteCode}`);
+console.log(`${logPrefix} Mode: ${deployMode}`);
+console.log(`${logPrefix} Source: ${buildDir}`);
+console.log(`${logPrefix} Target: ${targetDir}`);
+console.log(`${logPrefix} TargetRel: ${targetRel}`);
+console.log(`${logPrefix} Clean-first mode: ${cleanFirst ? 'enabled' : 'disabled'}`);
 if (dryRun) {
-  console.log('[deploy] Dry-run mode: robocopy will not run.');
+  console.log(`${logPrefix} Dry-run mode: robocopy will not run.`);
 }
 
 function runRobocopy(command, label) {
-  console.log(`[deploy] Running (${label}): ${command}`);
+  console.log(`${logPrefix} Running (${label}): ${command}`);
   try {
     execSync(command, { stdio: 'inherit' });
     return;
@@ -47,7 +51,7 @@ function runRobocopy(command, label) {
     const exitCode = Number(error?.status ?? 1);
     // Robocopy success range is 0..7. 8+ are failures.
     if (exitCode >= 0 && exitCode < 8) {
-      console.log(`[deploy] Robocopy exit code ${exitCode} (${label}) considered success.`);
+      console.log(`${logPrefix} Robocopy exit code ${exitCode} (${label}) considered success.`);
       return;
     }
     throw new Error(`Robocopy failed (${label}) with exit code ${exitCode}`);
@@ -61,10 +65,9 @@ try {
 
   if (dryRun) {
     if (cleanFirst) {
-      console.log(`[deploy] Would purge target folder first: "${targetDir}"`);
+    console.log(`${logPrefix} Would purge target folder first: "${targetDir}"`);
     }
-    console.log(`[deploy] Would copy "${buildDir}" => "${targetDir}"`);
-    console.log(`[deploy] App HTML (after deploy): ${deployedAppUrl}`);
+    console.log(`${logPrefix} Would copy "${buildDir}" => "${targetDir}"`);
     process.exit(0);
   }
 
@@ -88,9 +91,8 @@ try {
     }
   }
 
-  console.log('[deploy] Deployment completed.');
-  console.log(`[deploy] App HTML: ${deployedAppUrl}`);
+  console.log(`${logPrefix} Deployment completed.`);
 } catch (error) {
-  console.error(`[deploy] Error: ${error.message}`);
+  console.error(`${logPrefix} Error: ${error.message}`);
   process.exit(1);
 }

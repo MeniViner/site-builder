@@ -34,7 +34,7 @@ function SearchBar({ borderStyle }) {
 
   if (!isTactical) {
     return (
-      <div className="relative flex items-center w-64 md:w-80 h-10 group" style={{ filter: 'drop-shadow(0 0 4px var(--color-primary-900))' }}>
+      <div className="relative flex items-center w-64 md:w-80 h-10 group">
         <div className="absolute inset-0 bg-primary-900 rounded-lg" style={squareStyle} />
         <div className="absolute inset-[1px] bg-theme-elevated rounded-[7px]" style={squareStyle} />
         <div className="absolute inset-[3px] rounded-[5px] transition-colors group-hover:brightness-110" style={{ backgroundColor: 'var(--color-primary-800)', ...(squareStyle || {}) }} />
@@ -62,7 +62,7 @@ function SearchBar({ borderStyle }) {
 
   const clip = (size) => tacticalClip(normalizedStyle, size);
   return (
-    <div className="relative flex items-center w-64 md:w-80 h-10 group" style={{ filter: 'drop-shadow(0 0 4px var(--color-primary-900))' }}>
+    <div className="relative flex items-center w-64 md:w-80 h-10 group">
       <div className="absolute inset-0 bg-primary-900" style={{ clipPath: clip(12) }} />
       <div className="absolute inset-[1px] bg-theme-elevated" style={{ clipPath: clip(11) }} />
       <div className="absolute inset-[3px] transition-colors group-hover:brightness-110" style={{ clipPath: clip(9), backgroundColor: 'var(--color-primary-800)' }} />

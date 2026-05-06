@@ -7,6 +7,9 @@ const DEFAULTS = {
   siteCode: 'bihs7134',
   siteDbFolder: 'siteDB',
   usersDbFolder: 'siteUsersDb',
+  bootstrapLibrary: 'SiteAssets',
+  bootstrapFolder: 'sitebuilder-bootstrap',
+  bootstrapSetupLogs: 'true',
   siteAssetsFolder: 'siteAssets',
   imagesFolder: 'images',
   widgetsDbTarget: 'users',
@@ -71,6 +74,20 @@ const pick = (primary, secondary, fallback) => {
   return fallback;
 };
 
+const normalizePathSegment = (value, fallback) => {
+  const raw = String(value ?? '').trim().replace(/^\/+|\/+$/g, '');
+  return raw || fallback;
+};
+
+const extractLibraryTitle = (value, fallback) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return fallback;
+  const withoutHost = raw.replace(/^https?:\/\/[^/]+/i, '');
+  const segments = withoutHost.split('/').filter(Boolean);
+  if (segments.length === 0) return fallback;
+  return segments[segments.length - 1] || fallback;
+};
+
 export function resolveConfig({ envFilePath = path.resolve(process.cwd(), '.env.production'), cli = {} } = {}) {
   const envFromFile = loadEnvFile(envFilePath);
 
@@ -80,16 +97,16 @@ export function resolveConfig({ envFilePath = path.resolve(process.cwd(), '.env.
     process.env.VITE_SP_SITE_CODE || envFromFile.VITE_SP_SITE_CODE,
     DEFAULTS.siteCode,
   );
-  const siteDbFolder = pick(
+  const siteDbFolder = extractLibraryTitle(pick(
     cli['site-db'],
     process.env.VITE_SP_SITE_DB_FOLDER || envFromFile.VITE_SP_SITE_DB_FOLDER,
     DEFAULTS.siteDbFolder,
-  );
-  const usersDbFolder = pick(
+  ), DEFAULTS.siteDbFolder);
+  const usersDbFolder = extractLibraryTitle(pick(
     cli['users-db'],
     process.env.VITE_SP_USERS_DB_FOLDER || envFromFile.VITE_SP_USERS_DB_FOLDER,
     DEFAULTS.usersDbFolder,
-  );
+  ), DEFAULTS.usersDbFolder);
   const siteAssetsFolder = pick(
     cli['site-assets'],
     process.env.VITE_SP_SITE_ASSETS_FOLDER || envFromFile.VITE_SP_SITE_ASSETS_FOLDER,
@@ -111,10 +128,27 @@ export function resolveConfig({ envFilePath = path.resolve(process.cwd(), '.env.
     process.env.VITE_AUTO_DEPLOY || envFromFile.VITE_AUTO_DEPLOY,
     DEFAULTS.autoDeploy,
   );
+  const bootstrapLibrary = normalizePathSegment(pick(
+    cli['bootstrap-library'],
+    process.env.VITE_SP_BOOTSTRAP_LIBRARY || envFromFile.VITE_SP_BOOTSTRAP_LIBRARY,
+    DEFAULTS.bootstrapLibrary,
+  ), DEFAULTS.bootstrapLibrary);
+  const bootstrapFolder = normalizePathSegment(pick(
+    cli['bootstrap-folder'],
+    process.env.VITE_SP_BOOTSTRAP_FOLDER || envFromFile.VITE_SP_BOOTSTRAP_FOLDER,
+    DEFAULTS.bootstrapFolder,
+  ), DEFAULTS.bootstrapFolder);
+  const bootstrapSetupLogs = pick(
+    cli['bootstrap-setup-logs'],
+    process.env.VITE_SP_BOOTSTRAP_SETUP_LOGS || envFromFile.VITE_SP_BOOTSTRAP_SETUP_LOGS,
+    DEFAULTS.bootstrapSetupLogs,
+  );
 
   const siteRootRel = `/sites/${siteCode}`;
   const siteDbRel = `${siteRootRel}/${siteDbFolder}`;
   const usersDbRel = `${siteRootRel}/${usersDbFolder}`;
+  const bootstrapBaseRel = `${siteRootRel}/${bootstrapLibrary}/${bootstrapFolder}`;
+  const bootstrapDistRel = `${bootstrapBaseRel}/dist`;
   const siteAssetsRel = `${siteDbRel}/${siteAssetsFolder}`;
   const imagesRel = `${siteDbRel}/${imagesFolder}`;
   const distRel = `${siteDbRel}/dist`;
@@ -158,9 +192,14 @@ export function resolveConfig({ envFilePath = path.resolve(process.cwd(), '.env.
     imagesFolder,
     widgetsDbTarget,
     autoDeploy,
+    bootstrapLibrary,
+    bootstrapFolder,
+    bootstrapSetupLogs,
     siteRootRel,
     siteDbRel,
     usersDbRel,
+    bootstrapBaseRel,
+    bootstrapDistRel,
     siteAssetsRel,
     imagesRel,
     distRel,
@@ -178,6 +217,9 @@ export function writeEnvProduction(config, outputPath = path.resolve(process.cwd
     `VITE_SP_SITE_CODE=${config.siteCode}`,
     `VITE_SP_SITE_DB_FOLDER=${config.siteDbFolder}`,
     `VITE_SP_USERS_DB_FOLDER=${config.usersDbFolder}`,
+    `VITE_SP_BOOTSTRAP_LIBRARY=${config.bootstrapLibrary}`,
+    `VITE_SP_BOOTSTRAP_FOLDER=${config.bootstrapFolder}`,
+    `VITE_SP_BOOTSTRAP_SETUP_LOGS=${config.bootstrapSetupLogs}`,
     `VITE_SP_SITE_ASSETS_FOLDER=${config.siteAssetsFolder}`,
     `VITE_SP_IMAGES_FOLDER=${config.imagesFolder}`,
     `VITE_SP_WIDGETS_DB_TARGET=${config.widgetsDbTarget}`,

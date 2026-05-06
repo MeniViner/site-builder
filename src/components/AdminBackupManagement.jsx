@@ -369,9 +369,9 @@ export default function AdminBackupManagement() {
                                                             className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-bold text-gray-700 transition hover:bg-gray-100 dark:border-white/10 dark:text-gray-200 dark:hover:bg-white/10"
                                                         >
                                                             <ExternalLink size={14} />
-                                                            פתח
+                                                            פתח בטאב חדש
                                                         </button>
-                                                        <button
+                                                        {/* <button
                                                             type="button"
                                                             onClick={() => openInExplorer(backup.url)}
                                                             className="inline-flex items-center gap-1 rounded-lg border border-indigo-300 px-3 py-1.5 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50 dark:border-indigo-400/30 dark:text-indigo-300 dark:hover:bg-indigo-500/10"
@@ -379,7 +379,7 @@ export default function AdminBackupManagement() {
                                                         >
                                                             <FolderOpen size={14} />
                                                             פתח ב-Explorer
-                                                        </button>
+                                                        </button> */}
                                                         <button
                                                             type="button"
                                                             onClick={() => handleDeleteBackup(backup)}

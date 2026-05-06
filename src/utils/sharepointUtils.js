@@ -699,7 +699,7 @@ const parseBackupTimestampFromName = (folderName) => {
 const readLatestBackupTimestamp = async () => {
     const backupBaseFolder = `${SHAREPOINT_PATHS.siteAssetsRoot}/Backups`;
     const normalizedBackupBaseFolder = toPathname(backupBaseFolder);
-    const { siteRoot } = extractSiteRootFromPath(normalizedBackupBaseFolder);
+    const siteRoot = resolveApiSiteRoot(normalizedBackupBaseFolder) || extractSiteRootFromPath(normalizedBackupBaseFolder).siteRoot;
 
     if (!siteRoot) {
         throw new Error(`Cannot detect SharePoint site root from backup path: ${normalizedBackupBaseFolder}`);
@@ -763,7 +763,10 @@ export const listSharePointBackupFiles = async (
     const normalizedFolder = toPathname(backupFolderServerRelativeUrl);
     if (!normalizedFolder) return [];
 
-    const detectedSiteRoot = providedSiteRoot || extractSiteRootFromPath(normalizedFolder).siteRoot;
+    const detectedSiteRoot =
+        providedSiteRoot
+        || resolveApiSiteRoot(normalizedFolder)
+        || extractSiteRootFromPath(normalizedFolder).siteRoot;
     if (!detectedSiteRoot) {
         throw new Error(`Cannot detect SharePoint site root from backup folder: ${normalizedFolder}`);
     }
@@ -811,7 +814,9 @@ export const listSharePointBackupFiles = async (
 export const listSharePointBackups = async ({ includeFiles = true } = {}) => {
     const backupBaseFolder = `${SHAREPOINT_PATHS.siteAssetsRoot}/Backups`;
     const normalizedBackupBaseFolder = toPathname(backupBaseFolder);
-    const { siteRoot } = extractSiteRootFromPath(normalizedBackupBaseFolder);
+    const siteRoot =
+        resolveApiSiteRoot(normalizedBackupBaseFolder)
+        || extractSiteRootFromPath(normalizedBackupBaseFolder).siteRoot;
 
     if (!siteRoot) {
         throw new Error(`Cannot detect SharePoint site root from backup path: ${normalizedBackupBaseFolder}`);
@@ -901,7 +906,7 @@ export const deleteSharePointBackup = async (backupFolderServerRelativeUrl) => {
         throw new Error('Missing backup folder path');
     }
 
-    const { siteRoot } = extractSiteRootFromPath(normalizedFolder);
+    const siteRoot = resolveApiSiteRoot(normalizedFolder) || extractSiteRootFromPath(normalizedFolder).siteRoot;
     if (!siteRoot) {
         throw new Error(`Cannot detect SharePoint site root from backup folder: ${normalizedFolder}`);
     }
@@ -934,7 +939,11 @@ export const deleteSharePointBackup = async (backupFolderServerRelativeUrl) => {
  * Ensures there is at least one backup in the last `maxAgeMs`.
  * If not, triggers an immediate backup.
  */
-export const ensureRecentBackup = async ({ maxAgeMs = 48 * 60 * 60 * 1000 } = {}) => {
+export const ensureRecentBackup = async ({
+    maxAgeMs = 24 * 60 * 60 * 1000,
+    trigger = 'auto-login',
+    onProgress = null,
+} = {}) => {
     try {
         const latestBackupTimestamp = await readLatestBackupTimestamp();
         const now = Date.now();
@@ -947,39 +956,51 @@ export const ensureRecentBackup = async ({ maxAgeMs = 48 * 60 * 60 * 1000 } = {}
                 );
                 return {
                     hasRecentBackup: true,
+                    attemptedBackup: false,
                     performedBackup: false,
                     latestBackupAt: new Date(latestBackupTimestamp).toISOString(),
+                    backupResult: null,
                 };
             }
         }
 
-        spLog.warn('לא נמצא גיבוי ב-48 השעות האחרונות — מתחיל גיבוי אוטומטי.');
-        const backupResult = await createBackup();
+        const maxAgeHours = Math.round(maxAgeMs / (60 * 60 * 1000));
+        spLog.warn(`לא נמצא גיבוי ב-${maxAgeHours} השעות האחרונות — מתחיל גיבוי אוטומטי.`);
+        const backupResult = await createBackup({
+            trigger,
+            onProgress,
+        });
 
         if (backupResult?.success) {
             return {
                 hasRecentBackup: false,
+                attemptedBackup: true,
                 performedBackup: true,
                 latestBackupAt: new Date().toISOString(),
                 backupFolderPath: backupResult.backupFolderPath,
                 backupFolderUrl: backupResult.backupFolderUrl,
+                backupResult,
             };
         }
 
         return {
             hasRecentBackup: false,
+            attemptedBackup: true,
             performedBackup: false,
             latestBackupAt: Number.isFinite(latestBackupTimestamp)
                 ? new Date(latestBackupTimestamp).toISOString()
                 : null,
+            backupResult,
         };
     } catch (error) {
         spLog.error('שגיאה בבדיקת גיבוי אוטומטית:', error);
         return {
             hasRecentBackup: false,
+            attemptedBackup: false,
             performedBackup: false,
             latestBackupAt: null,
             error: error?.message || String(error),
+            backupResult: null,
         };
     }
 };

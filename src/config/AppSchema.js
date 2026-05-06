@@ -1466,7 +1466,7 @@ export const DEFAULT_CONFIG_V1 = {
             {
                 id: 'ext-2',
                 title: 'חטיבת ההפעלה',
-                url: 'https://mzai.army.idf/sites/Mahir/index.html',
+                url: 'https://mzai.army.idf/sites/Mahir/main/index.html',
                 visual: { type: 'icon', icon: 'GraduationCap' },
                 order: 1,
             },

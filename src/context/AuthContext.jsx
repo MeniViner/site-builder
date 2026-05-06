@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import UsersService from '../services/UsersService';
 import { spLog } from '../utils/spAppLog';
-import { createBackup } from '../utils/sharepointUtils';
+import { ensureRecentBackup } from '../utils/sharepointUtils';
 import { fetchSharePointAdmins } from '../utils/sharepointAdmins';
 import {
     closeBackupProgressToast,
@@ -483,12 +483,13 @@ export const AuthProvider = ({ children }) => {
         const waitMs = Math.max(0, AUTO_BACKUP_CHECK_DELAY_MS - elapsedSinceBootMs);
         const userLabel = currentUser.displayName || currentUser.loginName || currentUser.email || 'unknown-user';
 
-        spLog.system(`גיבוי אוטומטי יתבצע עבור "${userLabel}" בעוד ${Math.ceil(waitMs / 1000)} שניות`);
+        spLog.system(`תתבצע בדיקת גיבוי אוטומטי (24 שעות) עבור "${userLabel}" בעוד ${Math.ceil(waitMs / 1000)} שניות`);
 
         backupCheckTimerRef.current = window.setTimeout(async () => {
             const shouldShowBackupToasts = isAdminPath();
             const toastId = `backup:auto:${Date.now()}`;
-            const result = await createBackup({
+            const guardResult = await ensureRecentBackup({
+                maxAgeMs: 24 * 60 * 60 * 1000,
                 trigger: 'auto-login',
                 onProgress: shouldShowBackupToasts
                     ? (progress) => {
@@ -501,26 +502,37 @@ export const AuthProvider = ({ children }) => {
                     }
                     : null,
             });
-            if (shouldShowBackupToasts) {
+            if (shouldShowBackupToasts && guardResult?.attemptedBackup) {
                 closeBackupProgressToast(toastId);
             }
 
-            if (result?.success) {
+            if (guardResult?.performedBackup) {
                 spLog.success(`בוצע גיבוי אוטומטי עבור "${userLabel}"`);
                 if (shouldShowBackupToasts) {
+                    const backupResult = guardResult.backupResult || {};
                     showBackupCompletedToast({
                         title: 'גיבוי אוטומטי הושלם',
-                        copiedFiles: result.copiedFiles,
-                        skippedFiles: result.skippedFiles,
-                        failedFiles: result.failedFiles,
-                        backupFolderUrl: result.backupFolderUrl,
+                        copiedFiles: backupResult.copiedFiles,
+                        skippedFiles: backupResult.skippedFiles,
+                        failedFiles: backupResult.failedFiles,
+                        backupFolderUrl: backupResult.backupFolderUrl,
                         autoCloseMs: 5000,
                     });
                 }
-            } else {
-                spLog.warn(`הגיבוי האוטומטי עבור "${userLabel}" נכשל`);
+            } else if (guardResult?.hasRecentBackup) {
+                spLog.system(`דילוג על גיבוי אוטומטי עבור "${userLabel}" — קיים גיבוי עדכני ב-24 השעות האחרונות`);
+            } else if (guardResult?.attemptedBackup) {
+                spLog.warn(`ניסיון גיבוי אוטומטי עבור "${userLabel}" נכשל`);
                 if (shouldShowBackupToasts) {
-                    showBackupFailedToast(result?.error || 'הגיבוי האוטומטי נכשל. בדוק לוגים ונסה שוב.');
+                    showBackupFailedToast(
+                        guardResult?.backupResult?.error
+                        || 'הגיבוי האוטומטי נכשל. בדוק לוגים ונסה שוב.'
+                    );
+                }
+            } else {
+                spLog.warn(`בדיקת גיבוי אוטומטי עבור "${userLabel}" נכשלה ללא ניסיון יצירה`);
+                if (shouldShowBackupToasts) {
+                    showBackupFailedToast(guardResult?.error || 'בדיקת הגיבוי האוטומטי נכשלה. בדוק לוגים ונסה שוב.');
                 }
             }
         }, waitMs);

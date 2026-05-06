@@ -1,9 +1,10 @@
-import { SHAREPOINT_PATHS } from '../config/sharepointPaths';
+import resolveCurrentSharePointWebUrl from '../utils/resolveCurrentSharePointWebUrl';
 import {
     addOwnersLogEntry,
     sanitizeOwnersHeadersForLog,
     type SharePointOwnersLogEntry,
 } from './sharePointOwnersLogger';
+import { mapSharePointErrorToHebrewMessage } from './adminManagementLogger';
 
 const ODATA_ACCEPT = 'application/json;odata=verbose';
 const ODATA_CONTENT_TYPE = 'application/json;odata=verbose';
@@ -55,45 +56,6 @@ type OwnersFetchArgs = {
     headers?: HeadersInit;
     body?: BodyInit | null;
     logs: SharePointOwnersLogEntry[];
-};
-
-const normalizeServerRelativeUrl = (value: unknown) => {
-    const raw = String(value ?? '').trim();
-    if (!raw) return '';
-    if (/^https?:\/\//i.test(raw)) {
-        try {
-            return new URL(raw).pathname.replace(/\/+$/g, '') || '';
-        } catch {
-            return '';
-        }
-    }
-    return raw.startsWith('/') ? raw.replace(/\/+$/g, '') : raw;
-};
-
-const resolveCurrentWebUrl = () => {
-    const pageContext = (window as unknown as {
-        _spPageContextInfo?: {
-            webAbsoluteUrl?: string;
-            webServerRelativeUrl?: string;
-            siteServerRelativeUrl?: string;
-        };
-    })._spPageContextInfo;
-
-    const explicit = String(import.meta.env.VITE_SP_SITE_API_ROOT || import.meta.env.VITE_SP_SITE_ROOT || '').trim();
-    if (explicit) return explicit.replace(/\/+$/g, '');
-
-    if (pageContext?.webAbsoluteUrl) return pageContext.webAbsoluteUrl.replace(/\/+$/g, '');
-    if (pageContext?.webServerRelativeUrl) return normalizeServerRelativeUrl(pageContext.webServerRelativeUrl);
-    if (pageContext?.siteServerRelativeUrl) return normalizeServerRelativeUrl(pageContext.siteServerRelativeUrl);
-    if (SHAREPOINT_PATHS.siteApiRoot) return normalizeServerRelativeUrl(SHAREPOINT_PATHS.siteApiRoot);
-
-    const segments = window.location.pathname.split('/').filter(Boolean);
-    const first = String(segments[0] || '').toLowerCase();
-    if ((first === 'sites' || first === 'teams') && segments.length >= 2) {
-        return `/${segments[0]}/${segments[1]}`;
-    }
-
-    return '';
 };
 
 const buildEndpoint = (webUrl: string, path: string) => {
@@ -299,6 +261,38 @@ const getAssociatedOwnersGroup = async (webUrl: string, logs: SharePointOwnersLo
     return { id: group.Id, title: group.Title || 'Associated Owners Group' };
 };
 
+const loadOwnersGroupByConfiguredId = async (webUrl: string, groupId: number, logs: SharePointOwnersLogEntry[]) => {
+    const step = 'owners-group-by-configured-id';
+    const endpoint = buildEndpoint(webUrl, `/_api/web/sitegroups/getbyid(${groupId})?$select=Id,Title`);
+    const data = await fetchJson<{ d?: { Id?: number; Title?: string } }>({
+        step,
+        purpose: 'Load owners group by VITE_SP_ASSOCIATED_OWNERS_GROUP_ID fallback',
+        endpoint,
+        headers: { Accept: ODATA_ACCEPT },
+        logs,
+    });
+    if (!data?.d?.Id) {
+        throw makeError(step, 'Configured owners group id not found', { endpoint, responseBody: data });
+    }
+    return { Id: data.d.Id, Title: String(data.d.Title || '') };
+};
+
+const resolveAssociatedOwnersGroupWithEnvFallback = async (webUrl: string, logs: SharePointOwnersLogEntry[]) => {
+    try {
+        return await getAssociatedOwnersGroup(webUrl, logs);
+    } catch (firstError) {
+        const viteEnv = import.meta as unknown as { env?: Record<string, string | undefined> };
+        const configuredId = Number(viteEnv.env?.VITE_SP_ASSOCIATED_OWNERS_GROUP_ID || 0);
+        if (!configuredId) throw firstError;
+        const group = await loadOwnersGroupByConfiguredId(webUrl, configuredId, logs);
+        addOwnersLogEntry(logs, 'warn', 'associated-owners-env-fallback', 'GET associatedownergroup failed; using VITE_SP_ASSOCIATED_OWNERS_GROUP_ID', {
+            configuredId,
+            error: String((firstError as NormalizedOwnersError)?.message || firstError),
+        });
+        return { id: group.Id, title: group.Title || 'Associated Owners Group' };
+    }
+};
+
 /** GET current user to record the LoginName format used by this SharePoint farm (non-blocking). */
 const logCurrentSharePointUserForDebug = async (webUrl: string, logs: SharePointOwnersLogEntry[]) => {
     const step = 'debug-current-user';
@@ -417,7 +411,10 @@ const getOwnersGroupUsers = async (
     logs: SharePointOwnersLogEntry[]
 ) => {
     const step = 'check-already-owner';
-    const endpoint = buildEndpoint(webUrl, `/_api/web/sitegroups(${ownersGroupId})/users`);
+    const endpoint = buildEndpoint(
+        webUrl,
+        `/_api/web/sitegroups(${ownersGroupId})/users?$select=Id,Title,Email,LoginName,IsSiteAdmin,PrincipalType`,
+    );
     addOwnersLogEntry(logs, 'info', step, 'Checking existing Associated Owners Group users', {
         endpoint,
         ownersGroupId,
@@ -637,13 +634,16 @@ export const addUserToAssociatedOwnersGroup = async (userEmail: string): Promise
     addOwnersLogEntry(logs, 'info', 'validate-email', 'Email validation succeeded', { enteredEmail: trimmedEmail });
 
     try {
-        const webUrl = resolveCurrentWebUrl();
-        addOwnersLogEntry(logs, 'info', 'resolve-web-url', 'Resolved current SharePoint site/web URL', { webUrl });
+        const webUrl = resolveCurrentSharePointWebUrl({
+            onResolved: (resolution) => {
+                addOwnersLogEntry(logs, 'info', 'resolve-web-url', 'Resolved current SharePoint site/web URL', resolution);
+            },
+        });
 
         await logCurrentSharePointUserForDebug(webUrl, logs);
 
         const digest = await getRequestDigest(webUrl, logs);
-        const ownersGroup = await getAssociatedOwnersGroup(webUrl, logs);
+        const ownersGroup = await resolveAssociatedOwnersGroupWithEnvFallback(webUrl, logs);
         const ensuredUser = await ensureUser(webUrl, digest, trimmedEmail, logs);
         const ownersUsers = await getOwnersGroupUsers(webUrl, ownersGroup.id, logs);
         const alreadyOwner = ownersUsers.some((candidate) => sameSharePointUser(candidate, ensuredUser, trimmedEmail));
@@ -722,6 +722,189 @@ export const addUserToAssociatedOwnersGroup = async (userEmail: string): Promise
             error: !result.ok ? result.technicalError : undefined,
         });
         return result;
+    }
+};
+
+export const fetchAssociatedOwnersGroupUsersBundle = async (
+    webUrl: string,
+    logs: SharePointOwnersLogEntry[],
+): Promise<
+    | {
+          ok: true;
+          webUrl: string;
+          webTitle: string;
+          ownersGroupId: number;
+          ownersGroupTitle: string;
+          users: Array<Record<string, unknown>>;
+      }
+    | { ok: false; userMessage: string; error: unknown }
+> => {
+    addOwnersLogEntry(logs, 'info', 'owners-refresh-start', 'Starting owners group refresh (associatedownergroup + users)', {
+        webUrl,
+    });
+
+    let webTitle = '';
+    try {
+        const titleEndpoint = buildEndpoint(webUrl, '/_api/web?$select=Title');
+        const titleData = await fetchJson<{ d?: { Title?: string } }>({
+            step: 'current-web-title',
+            purpose: 'GET current web Title for owners group validation',
+            endpoint: titleEndpoint,
+            headers: { Accept: ODATA_ACCEPT },
+            logs,
+        });
+        webTitle = String(titleData?.d?.Title || '');
+        addOwnersLogEntry(logs, 'info', 'current-web-title', 'Current web title resolved', { webUrl, webTitle });
+    } catch (error) {
+        addOwnersLogEntry(logs, 'warn', 'current-web-title', 'Failed to read web title', {
+            error: String((error as Error)?.message || error),
+        });
+    }
+
+    let ownersGroup: { id: number; title: string };
+    try {
+        ownersGroup = await resolveAssociatedOwnersGroupWithEnvFallback(webUrl, logs);
+    } catch (error) {
+        return {
+            ok: false,
+            userMessage: mapSharePointErrorToHebrewMessage(error),
+            error,
+        };
+    }
+
+    addOwnersLogEntry(logs, 'info', 'associatedownergroup-summary', 'Associated owners group resolved (GET /_api/web/associatedownergroup)', {
+        ownersGroupId: ownersGroup.id,
+        ownersGroupTitle: ownersGroup.title,
+    });
+
+    const usersPath = `/_api/web/sitegroups(${ownersGroup.id})/users?$select=Id,Title,Email,LoginName,IsSiteAdmin,PrincipalType`;
+    const usersEndpoint = buildEndpoint(webUrl, usersPath);
+    addOwnersLogEntry(logs, 'info', 'owners-group-users-endpoint', 'GET sitegroups(id)/users', {
+        usersEndpoint,
+        ownersGroupId: ownersGroup.id,
+    });
+
+    const data = await fetchJson<{ d?: { results?: Array<Record<string, unknown>> } }>({
+        step: 'list-owners-group-users',
+        purpose: 'List users in Associated Owners Group',
+        endpoint: usersEndpoint,
+        headers: { Accept: ODATA_ACCEPT },
+        logs,
+    });
+
+    const users = Array.isArray(data?.d?.results) ? data.d.results : [];
+
+    const groupTitle = ownersGroup.title;
+    const ownersHeuristic = /בעלי|owners/i.test(groupTitle);
+    let urlLastSegment = '';
+    try {
+        urlLastSegment = new URL(webUrl).pathname.split('/').filter(Boolean).pop() || '';
+    } catch {
+        urlLastSegment = '';
+    }
+    const titleLooksLikeSiteOwners =
+        ownersHeuristic ||
+        (Boolean(webTitle) && groupTitle.toLowerCase().includes(webTitle.toLowerCase())) ||
+        (Boolean(urlLastSegment) && groupTitle.toLowerCase().includes(urlLastSegment.toLowerCase()));
+
+    if (!titleLooksLikeSiteOwners) {
+        addOwnersLogEntry(logs, 'warn', 'owners-group-title-validation', 'Owners group title may not match expected site owners group (People and Groups)', {
+            webTitle,
+            ownersGroupTitle: groupTitle,
+            ownersGroupId: ownersGroup.id,
+            urlLastSegment,
+            hint: 'Expected pattern like "<site> בעלי" or localized Owners',
+        });
+    }
+
+    addOwnersLogEntry(logs, 'info', 'owners-group-users-summary', 'Associated owners group users loaded', {
+        webUrl,
+        webTitle,
+        ownersGroupId: ownersGroup.id,
+        ownersGroupTitle: ownersGroup.title,
+        returnedCount: users.length,
+        returnedUsersSample: users.slice(0, 8).map((u) => ({
+            Id: u.Id,
+            Title: u.Title,
+            Email: u.Email,
+            LoginName: u.LoginName,
+            IsSiteAdmin: u.IsSiteAdmin,
+        })),
+    });
+
+    return {
+        ok: true,
+        webUrl,
+        webTitle,
+        ownersGroupId: ownersGroup.id,
+        ownersGroupTitle: ownersGroup.title,
+        users,
+    };
+};
+
+export const addUserToAssociatedOwnersGroupByLoginNameForWeb = async (
+    webUrl: string,
+    loginName: string,
+    logs: SharePointOwnersLogEntry[],
+): Promise<
+    | { ok: true; ownersGroupId: number; ownersGroupTitle: string }
+    | { ok: false; userMessage: string; error: unknown }
+> => {
+    try {
+        const ownersGroup = await resolveAssociatedOwnersGroupWithEnvFallback(webUrl, logs);
+        const digest = await getRequestDigest(webUrl, logs);
+        const step = 'owners-group-add-user-by-login';
+        const endpoint = buildEndpoint(webUrl, `/_api/web/sitegroups(${ownersGroup.id})/users`);
+        await spOwnersFetchWithLogs({
+            step,
+            purpose: 'Add user to Associated Owners Group by LoginName',
+            endpoint,
+            method: 'POST',
+            headers: {
+                Accept: ODATA_ACCEPT,
+                'Content-Type': ODATA_CONTENT_TYPE,
+                'X-RequestDigest': digest,
+            },
+            body: JSON.stringify({
+                __metadata: { type: 'SP.User' },
+                LoginName: loginName,
+            }),
+            logs,
+        });
+        return { ok: true, ownersGroupId: ownersGroup.id, ownersGroupTitle: ownersGroup.title };
+    } catch (error) {
+        return { ok: false, userMessage: mapSharePointErrorToHebrewMessage(error), error };
+    }
+};
+
+export const removeUserFromAssociatedOwnersGroupForWeb = async (
+    webUrl: string,
+    userId: number,
+    logs: SharePointOwnersLogEntry[],
+): Promise<
+    | { ok: true; ownersGroupId: number; ownersGroupTitle: string }
+    | { ok: false; userMessage: string; error: unknown }
+> => {
+    try {
+        const ownersGroup = await resolveAssociatedOwnersGroupWithEnvFallback(webUrl, logs);
+        const digest = await getRequestDigest(webUrl, logs);
+        const step = 'owners-group-remove-user';
+        const endpoint = buildEndpoint(webUrl, `/_api/web/sitegroups(${ownersGroup.id})/users/removebyid(${userId})`);
+        await spOwnersFetchWithLogs({
+            step,
+            purpose: 'Remove user from Associated Owners Group',
+            endpoint,
+            method: 'POST',
+            headers: {
+                Accept: ODATA_ACCEPT,
+                'Content-Type': ODATA_CONTENT_TYPE,
+                'X-RequestDigest': digest,
+            },
+            logs,
+        });
+        return { ok: true, ownersGroupId: ownersGroup.id, ownersGroupTitle: ownersGroup.title };
+    } catch (error) {
+        return { ok: false, userMessage: mapSharePointErrorToHebrewMessage(error), error };
     }
 };
 

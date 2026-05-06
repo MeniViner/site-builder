@@ -11,6 +11,13 @@ const normalizeBaseUrl = (value) => {
     return trimmed.replace(/\/+$/, '');
 };
 
+/** True when the app runs on the machine (dev server or vite preview), not on SharePoint. */
+const isLocalRuntimeHost = () => {
+    if (typeof window === 'undefined') return false;
+    const h = window.location.hostname || '';
+    return h === 'localhost' || h === '127.0.0.1' || h === '[::1]';
+};
+
 const inferRuntimeBaseUrl = () => {
     if (typeof window === 'undefined') return '';
 
@@ -28,6 +35,10 @@ const inferRuntimeBaseUrl = () => {
 };
 
 export const getSiteBaseUrl = () => {
+    // `VITE_SITE_BASE_URL` targets SharePoint; on localhost we serve `public/` from the Vite dev/preview server.
+    if (isLocalRuntimeHost()) {
+        return normalizeBaseUrl(window.location?.origin || '');
+    }
     const envBase = normalizeBaseUrl(RAW_SITE_BASE_URL);
     if (envBase) return envBase;
     return normalizeBaseUrl(inferRuntimeBaseUrl());

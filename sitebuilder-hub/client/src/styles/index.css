@@ -1,0 +1,22 @@
+@import url("https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  font-family: "Heebo", sans-serif;
+  background: #f8fafc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

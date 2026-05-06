@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2, X } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
+import { useAuth } from '../context/AuthContext';
+import { ensureSharePointDocumentLibrariesReady } from '../services/sharePointDocumentLibrariesSetup';
 import { ensureUsersDbFolderPermissionsReady } from '../services/sharePointPermissionsSetup';
 
 const RUNNING_PANEL_DELAY_MS = 700;
@@ -27,12 +30,30 @@ function formatLogData(data) {
 }
 
 export default function SharePointPermissionsSetupStatus() {
+  const { isAdmin, loading: authLoading } = useAuth();
+  const location = useLocation();
   const [result, setResult] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
   const [showRunning, setShowRunning] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false);
+  const isOnAdminRoute = location.pathname.startsWith('/admin');
+
+  useEffect(() => {
+    if (!isOnAdminRoute) return;
+    setIsDismissed(false);
+  }, [isOnAdminRoute]);
 
   useEffect(() => {
     if (SHAREPOINT_CONFIG.useMock) {
+      return undefined;
+    }
+    if (!isOnAdminRoute) {
+      return undefined;
+    }
+    if (authLoading) {
+      return undefined;
+    }
+    if (!isAdmin) {
       return undefined;
     }
 
@@ -44,8 +65,20 @@ export default function SharePointPermissionsSetupStatus() {
       if (alive) setShowRunning(true);
     }, RUNNING_PANEL_DELAY_MS);
 
-    ensureUsersDbFolderPermissionsReady()
-      .then((setupResult) => {
+    ensureSharePointDocumentLibrariesReady()
+      .then(async (libraryResult) => {
+        if (!alive) return;
+        if (!libraryResult?.ok) {
+          setResult({
+            ok: false,
+            status: libraryResult?.status || 'setup-failed',
+            userMessage: libraryResult?.userMessage || 'הקמת ספריות SharePoint נכשלה.',
+            technicalError: libraryResult?.technicalError || null,
+            logs: Array.isArray(libraryResult?.logs) ? libraryResult.logs : [],
+          });
+          return;
+        }
+        const setupResult = await ensureUsersDbFolderPermissionsReady();
         if (!alive) return;
         setResult(setupResult);
       })
@@ -69,7 +102,7 @@ export default function SharePointPermissionsSetupStatus() {
       alive = false;
       if (delayTimer) window.clearTimeout(delayTimer);
     };
-  }, []);
+  }, [authLoading, isAdmin, isOnAdminRoute]);
 
   const latestLogs = useMemo(() => {
     const logs = Array.isArray(result?.logs) ? result.logs : [];
@@ -77,18 +110,30 @@ export default function SharePointPermissionsSetupStatus() {
   }, [result]);
 
   if (SHAREPOINT_CONFIG.useMock) return null;
+  if (!isOnAdminRoute) return null;
+  if (authLoading || !isAdmin) return null;
+  if (isDismissed) return null;
   if (isRunning && !showRunning) return null;
   if (isRunning) {
     return (
       <div dir="rtl" className="fixed left-4 top-4 z-[120] w-[min(420px,calc(100vw-2rem))] rounded-xl border border-primary/35 bg-theme-card/95 p-4 text-theme shadow-2xl backdrop-blur">
         <div className="flex items-start gap-3">
           <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-primary" />
-          <div>
-            <p className="text-sm font-bold">בודק הגדרת הרשאות SharePoint</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold">בודק הקמת ספריות והרשאות SharePoint</p>
             <p className="mt-1 text-xs leading-5 text-theme-muted">
-              מתבצעת בדיקה חד-פעמית לתיקיית מסד הנתונים. האתר ממשיך להיטען כרגיל.
+              מתבצעת בדיקה חד-פעמית לספריות Document Library ולהרשאות. האתר ממשיך להיטען כרגיל.
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => setIsDismissed(true)}
+            className="rounded-md p-1 text-theme-muted hover:text-theme hover:bg-theme-elevated/70 transition"
+            aria-label="סגור"
+            title="סגור"
+          >
+            <X size={16} />
+          </button>
         </div>
       </div>
     );
@@ -101,7 +146,7 @@ export default function SharePointPermissionsSetupStatus() {
       <div className="flex items-start gap-3">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold">נדרשת הגדרת הרשאות SharePoint</p>
+          <p className="text-sm font-bold">נדרשת הגדרת SharePoint ראשונית</p>
           <p className="mt-1 text-sm leading-6 text-theme-muted">{result.userMessage}</p>
           <div className="mt-3 grid gap-1 text-xs text-theme-muted">
             {result.folderUrl && <div><span className="font-bold text-theme">תיקייה:</span> {result.folderUrl}</div>}
@@ -134,6 +179,15 @@ export default function SharePointPermissionsSetupStatus() {
             </div>
           </details>
         </div>
+        <button
+          type="button"
+          onClick={() => setIsDismissed(true)}
+          className="rounded-md p-1 text-theme-muted hover:text-theme hover:bg-theme-elevated/70 transition"
+          aria-label="סגור"
+          title="סגור"
+        >
+          <X size={16} />
+        </button>
       </div>
     </div>
   );
