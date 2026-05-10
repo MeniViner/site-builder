@@ -6,7 +6,7 @@ const normalizePathSegment = (value, fallback) => {
 
 const normalizeSiteCode = (value) => {
     const raw = String(value ?? '').trim().replace(/^\/+|\/+$/g, '');
-    return raw || 'bihs7134';
+    return raw || 'siteBuilder';
 };
 
 const toServerRelativePath = (value) => {

@@ -658,7 +658,7 @@ function resolveWidgetDataBranch(widgets, key) {
 export const DEFAULT_CONFIG_V1 = {
     schemaVersion: SCHEMA_VERSION,
     meta: {
-        appId: 'bihs-7134',
+        appId: 'siteBuilder',
         migratedFromLegacy: false,
         lastUpdatedAt: null,
         lastUpdatedBy: null,
@@ -1642,7 +1642,7 @@ export function validateAndNormalize(config) {
     const normalized = {
         schemaVersion: SCHEMA_VERSION,
         meta: {
-            appId: 'bihs-7134',
+            appId: 'siteBuilder',
             migratedFromLegacy: asBoolean(source.meta?.migratedFromLegacy, false),
             lastUpdatedAt: typeof source.meta?.lastUpdatedAt === 'string' ? source.meta.lastUpdatedAt : null,
             lastUpdatedBy: typeof source.meta?.lastUpdatedBy === 'string' ? source.meta.lastUpdatedBy : null,

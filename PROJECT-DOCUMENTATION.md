@@ -1,8 +1,8 @@
-# Project Documentation — Operational Knowledge Portal (bihs 7134)
+# Project Documentation — Operational Knowledge Portal (פרוייקט מתנ"ה)
 
 **Document Version:** 1.0  
 **Last Updated:** March 2025  
-**Project:** BIHS 7134 — School Portal for Unit 7134 (Hebrew: צוות אלפא 7134)
+**Project:** פרוייקט מתנ"ה — School Portal for Unit 7134 (Hebrew: צוות אלפא 7134)
 
 ---
 
@@ -97,7 +97,7 @@ Data is **not** stored in a traditional database. In **development**, the app us
 ### 2.2 Folder Structure
 
 ```
-bihs 7134/
+פרוייקט מתנ"ה/
 ├── public/
 │   ├── logo.svg
 │   ├── logo_1734_rmbg.png          # Favicon & hero logo

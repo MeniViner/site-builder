@@ -4,7 +4,7 @@ const KeyManager = require('./KeyManager');
 const config = require('../config');
 
 const AI_SCOPE_SYSTEM_PROMPT = [
-  'You are an internal BIHS 7134 website operations assistant.',
+  'You are an internal פרוייקט מתנ"ה website operations assistant.',
   'You must only help with building, configuring, maintaining, and operating this specific website system.',
   'Allowed topics include admin screens, widgets, site content, navigation, events, theme, SharePoint data/config, and internal integrations.',
   'If a request is outside this scope, politely refuse and redirect to a relevant website-management phrasing.',
@@ -43,7 +43,7 @@ class AIService {
           content: response.data.choices[0].message.content,
           usage: response.data.usage
         };
-      } 
+      }
       else if (model.includes('claude')) {
         const response = await axios.post(
           'https://api.anthropic.com/v1/messages',
@@ -54,9 +54,9 @@ class AIService {
             messages: [{ role: 'user', content: prompt }]
           },
           {
-            headers: { 
+            headers: {
               'x-api-key': apiKey,
-              'anthropic-version': '2023-06-01' 
+              'anthropic-version': '2023-06-01'
             },
             signal: controller.signal
           }
@@ -91,7 +91,7 @@ class AIService {
     for (let attempts = 0; attempts <= maxRetries; attempts++) {
       try {
         const result = await this._fetchFromProvider(model, prompt, config.ai.defaultTimeoutMs);
-        
+
         // Log token usage for tracking
         logger.info(`Tokens used: [${model}]`, result.usage);
         return result.content;
@@ -110,23 +110,23 @@ class AIService {
    */
   async fetchSmart(prompt) {
     const modelsToTry = config.ai.fallbackModels;
-    
+
     for (let i = 0; i < modelsToTry.length; i++) {
-        const currentModel = modelsToTry[i];
-        logger.info(`Smart Fetch: Attempting ${currentModel}...`);
-        
-        try {
-            // Give each model a chance. Timeout triggers the catch block and falls back to the next
-            const content = await this.fetchDirect(currentModel, prompt, 0); // No key retry, fail fast to next model
-            return {
-                modelUsed: currentModel,
-                content: content
-            };
-        } catch (error) {
-            logger.warn(`Smart Fetch: ${currentModel} failed (${error.message}). Falling back...`);
-        }
+      const currentModel = modelsToTry[i];
+      logger.info(`Smart Fetch: Attempting ${currentModel}...`);
+
+      try {
+        // Give each model a chance. Timeout triggers the catch block and falls back to the next
+        const content = await this.fetchDirect(currentModel, prompt, 0); // No key retry, fail fast to next model
+        return {
+          modelUsed: currentModel,
+          content: content
+        };
+      } catch (error) {
+        logger.warn(`Smart Fetch: ${currentModel} failed (${error.message}). Falling back...`);
+      }
     }
-    
+
     throw new Error('All fallback models failed or timed out.');
   }
 }

@@ -74,7 +74,7 @@ export default function AdminSharePointSetupPage() {
   });
 
   const cfg = useMemo(() => {
-    const siteCode = String(import.meta.env.VITE_SP_SITE_CODE || 'bihs7134').trim();
+    const siteCode = String(import.meta.env.VITE_SP_SITE_CODE || 'siteBuilder').trim();
     const host = String(import.meta.env.VITE_SP_HOST || 'portal.army.idf').trim();
     const bootstrapLibrary = String(import.meta.env.VITE_SP_BOOTSTRAP_LIBRARY || 'SiteAssets').trim();
     const bootstrapFolder = String(import.meta.env.VITE_SP_BOOTSTRAP_FOLDER || 'sitebuilder-bootstrap').trim();

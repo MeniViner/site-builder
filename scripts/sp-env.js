@@ -4,7 +4,8 @@ import path from 'path';
 
 const DEFAULTS = {
   host: 'portal.army.idf',
-  siteCode: 'bihs7134',
+  siteCode: 'siteBuilder',
+  // siteCode: 'bihs7134',
   siteDbFolder: 'siteDB',
   usersDbFolder: 'siteUsersDb',
   bootstrapLibrary: 'SiteAssets',

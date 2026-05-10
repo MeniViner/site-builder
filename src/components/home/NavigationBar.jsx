@@ -9,7 +9,7 @@ function buildSharePointSearchUrl(searchQuery) {
   const query = String(searchQuery || '').trim();
   if (!query) return '';
   const host = SHAREPOINT_PATHS.host || 'portal.army.idf';
-  const siteCode = SHAREPOINT_PATHS.siteCode || 'bihs7134';
+  const siteCode = SHAREPOINT_PATHS.siteCode || 'siteBuilder';
   return `https://${host}/sites/${siteCode}/Shared%20Documents/Forms/AllItems.aspx?view=7&q=${encodeURIComponent(query)}`;
 }
 
