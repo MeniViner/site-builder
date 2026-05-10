@@ -4,11 +4,11 @@ import { TopBar } from "./TopBar";
 
 export function AppShell({ children, serverStatus }: { children: ReactNode; serverStatus?: { mongo?: string; status?: string } }) {
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800" dir="rtl">
+    <div className="min-h-screen text-slate-100" dir="rtl">
       <TopBar serverStatus={serverStatus} />
-      <div className="mx-auto flex w-full max-w-[1400px] flex-col lg:min-h-[calc(100vh-72px)] lg:flex-row">
+      <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-4 px-3 pb-6 pt-4 lg:min-h-[calc(100vh-84px)] lg:flex-row lg:px-4">
         <Sidebar />
-        <main className="flex-1 px-4 py-5 sm:px-6">{children}</main>
+        <main className="flex-1">{children}</main>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
     Undo2, Menu, Save, FileText, Link as LinkIcon,
-    LayoutGrid, Palette, ExternalLink, Sun, Moon, Users, ShieldCheck, ChevronDown
+    LayoutGrid, Palette, ExternalLink, Sun, Moon, Users, ShieldCheck, ChevronDown, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import AdminEvents from './AdminEvents';
@@ -41,52 +41,52 @@ function SidebarButton({ icon, label, isActive, onClick, isSidebarOpen, title })
             <button
                 onClick={onClick}
                 className={[
-                    isSidebarOpen ? 'w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all' : 'w-full flex items-center justify-center px-2 py-3.5 rounded-xl transition-all',
-                    'border',
-                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#232733]',
+                    // בסיס ופריסה
+                    'w-full flex items-center transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30',
+                    isSidebarOpen ? 'justify-start gap-3 px-4 py-2.5' : 'justify-center px-2 py-3',
+
+                    // לוגיקת עיצוב לפי מצב פעיל/לא פעיל
                     isActive
-                        ? 'bg-gray-200 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm border-gray-300 dark:border-white/10'
-                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-700 dark:hover:text-gray-200 border-transparent',
+                        ? 'bg-[#f4f7fb] text-[#1a365d] border-r-4 border-[#1a365d] rounded-l-lg rounded-r-md dark:bg-slate-800 dark:text-white dark:border-blue-400 font-bold'
+                        : 'border-r-4 border-transparent text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg font-medium',
                 ].join(' ')}
             >
-                <IconComponent size={isSidebarOpen ? 22 : 26} className={isActive ? 'text-gray-700 dark:text-gray-200' : ''} />
-                {isSidebarOpen && <span className="font-semibold whitespace-nowrap text-[16px] leading-6">{label}</span>}
+                <IconComponent
+                    size={isSidebarOpen ? 18 : 24}
+                    className={isActive ? 'text-[#1a365d] dark:text-white' : 'text-gray-500 dark:text-gray-400'} 
+                />
+                {isSidebarOpen && <span className="whitespace-nowrap text-sm">{label}</span>}
             </button>
         </Tooltip>
     );
 }
-
-function AlphaTeamBanner({ isSidebarOpen }) {
-    if (!isSidebarOpen) return null;
-
-    return (
-        <div className="rounded-xl border border-primary-200/70 dark:border-primary-500/25 bg-gradient-to-l from-primary-50 to-white dark:from-primary-500/10 dark:to-[#2b2f3c] p-2.5 shadow-sm">
-            <div className="flex items-center gap-2.5">
+function AlphaTeamAdminBanner({ isSidebarOpen }) {
+    if (!isSidebarOpen) {
+        return (
+            <div className="flex justify-center mt-2">
                 <img
-                    src="/images/alphalogo.png"
+                    src="/images/alphalogo1.png"
                     alt="Alpha logo"
-                    className="w-8 h-8 rounded-lg object-cover border border-primary-200/70 dark:border-primary-400/30 bg-white dark:bg-[#1e212b] p-1"
+                    className="w-10 h-10 object-contain shrink-0"
                     loading="lazy"
                 />
-                <div className="min-w-0">
-                    <p className="text-[13px] font-bold text-gray-800 dark:text-gray-100 truncate">צוות אלפא</p>
-                    <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">Alpha Team</p>
-                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="rounded-xl border border-blue-100 dark:border-blue-900/30 bg-[#f4f7fb] dark:bg-blue-900/10 flex items-center gap-3 mt-1">
+            <img
+                src="/images/alphalogo1.png"
+                alt="Alpha logo"
+                className="h-14 object-contain shrink-0"
+                loading="lazy"
+            />
+            <div className="min-w-0 flex-1 text-right">
+                <p className="text-[13px] font-bold text-gray-900 dark:text-gray-100 truncate">צוות אלפא</p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">Alpha Team</p>
             </div>
         </div>
-    );
-}
-
-function AdminModeToggleButton({ isLightMode, onToggle }) {
-    return (
-        <Tooltip text={isLightMode ? 'מעבר למצב כהה (ניהול בלבד)' : 'מעבר למצב בהיר (ניהול בלבד)'}>
-            <button
-                onClick={onToggle}
-                className="w-11 h-11 shrink-0 rounded-xl border border-gray-300 dark:border-white/10 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition flex items-center justify-center"
-            >
-                {isLightMode ? <Moon size={20} /> : <Sun size={20} />}
-            </button>
-        </Tooltip>
     );
 }
 
@@ -167,27 +167,32 @@ export default function AdminHub() {
     return (
         <div dir="rtl" className="flex h-screen bg-gray-100 dark:bg-[#1e212b] text-gray-900 dark:text-white font-heebo overflow-hidden">
             {/* Sidebar */}
-            <div className={`${isSidebarOpen ? 'w-72' : 'w-20'} bg-white dark:bg-[#232733] border-l border-gray-200 dark:border-white/10 flex flex-col transition-all duration-300 z-50 shrink-0 shadow-[0_0_20px_rgba(0,0,0,0.25)] dark:shadow-[0_0_20px_rgba(0,0,0,0.5)]`}>
-                <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-white/5 h-20 shrink-0">
+            <div className={`${isSidebarOpen ? 'w-72' : 'w-20'} bg-white dark:bg-[#232733] border-l border-gray-200 dark:border-white/10 flex flex-col transition-all duration-300 z-50 shrink-0 shadow-[0_0_20px_rgba(0,0,0,0.1)] dark:shadow-[0_0_20px_rgba(0,0,0,0.5)]`}>
+                <div className="flex items-center  p-6 border-b border-gray-200 dark:border-white/5 h-20 shrink-0">
                     {isSidebarOpen ? (
                         <>
-                            <div className="flex items-center gap-3 w-full min-w-0">
-                                <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition shrink-0">
-                                    <Menu size={24} />
-                                </button>
+                            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition shrink-0 ml-1 p-1 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg">
+                                <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 24 24" className="w-7 h-7 text-gray-500 dark:text-gray-300" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M4.40347 3.90332L2.98926 5.31753L6.17124 8.49951L2.98926 11.6815L4.40347 13.0957L8.99967 8.49951L4.40347 3.90332ZM20.9997 19.9995V17.9995H2.99967V19.9995H20.9997ZM20.9997 12.9995V10.9995H11.9997V12.9995H20.9997ZM20.9997 5.99951V3.99951H11.9997V5.99951H20.9997Z"></path>
+                                </svg>
+                            </button>
+                            <div className="flex items-center gap-2 mr-1">
                                 <img
-                                    src="/images/alphalogo.png"
-                                    alt="Alpha logo"
-                                    className="w-8 h-8 rounded-lg object-cover border border-gray-200 dark:border-white/20 bg-white dark:bg-[#1e212b] p-1 shrink-0"
+                                    src="/images/giftFull.svg"
+                                    alt="Logo"
+                                    className="h-10 object-contain shrink-0"
                                     loading="lazy"
                                 />
-                                <h1 className="text-xl font-bold text-gray-700 dark:text-gray-100 whitespace-nowrap">ממשק ניהול</h1>
+                                <span className="text-[20px] mr-1 font-extrabold text-[#334155] dark:text-gray-100 whitespace-nowrap"> | </span>
+                                <span className="text-[20px] mr-1 font-extrabold text-[#334155] dark:text-gray-100 whitespace-nowrap"> ניהול</span>
                             </div>
                         </>
                     ) : (
                         <div className="flex items-center justify-center mx-auto">
-                            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition">
-                                <Menu size={24} />
+                            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition p-1 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg">
+                                <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 24 24" className="w-7 h-7 text-gray-500 dark:text-gray-300" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M20.5956 3.90332L15.9994 8.49951L20.5956 13.0957L22.0098 11.6815L18.8278 8.49951L22.0098 5.31753L20.5956 3.90332ZM21 19.9995V17.9995H3V19.9995H21ZM12 12.9995V10.9995H3V12.9995H12ZM12 5.99951V3.99951H3V5.99951H12Z"></path>
+                                </svg>
                             </button>
                         </div>
                     )}
@@ -198,10 +203,13 @@ export default function AdminHub() {
                         <button
                             type="button"
                             onClick={() => toggleSection('content')}
-                            className="w-full flex items-center justify-between text-sm font-extrabold text-gray-700 dark:text-gray-200 px-4 py-2.5 mb-2 rounded-lg bg-gray-100 dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/[0.08] transition"
+                            className="w-full flex items-center justify-between text-sm font-extrabold text-[#0f172a] dark:text-gray-200 px-4 py-2.5 mb-1 hover:bg-gray-50 dark:hover:bg-white/[0.04] transition rounded-lg"
                         >
                             <span>ניהול תוכן</span>
-                            <ChevronDown size={14} className={`transition-transform ${sectionOpen.content ? '' : '-rotate-90'}`} />
+                            <ChevronLeft
+                                size={16}
+                                className={`transition-transform text-gray-900 dark:text-gray-200 ${sectionOpen.content ? '-rotate-90' : ''}`}
+                            />
                         </button>
                     )}
 
@@ -248,10 +256,10 @@ export default function AdminHub() {
                         <button
                             type="button"
                             onClick={() => toggleSection('system')}
-                            className="w-full flex items-center justify-between text-sm font-extrabold text-gray-700 dark:text-gray-200 px-4 py-2.5 mt-6 mb-2 rounded-lg bg-gray-100 dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/[0.08] transition"
+                            className="w-full flex items-center justify-between text-sm font-extrabold text-[#0f172a] dark:text-gray-200 px-4 py-2.5 mt-4 mb-1 hover:bg-gray-50 dark:hover:bg-white/[0.04] transition rounded-lg"
                         >
                             <span>הגדרות מערכת</span>
-                            <ChevronDown size={14} className={`transition-transform ${sectionOpen.system ? '' : '-rotate-90'}`} />
+                            <ChevronLeft size={16} className={`transition-transform text-gray-900 dark:text-gray-200 ${sectionOpen.system ? '-rotate-90' : ''}`} />
                         </button>
                     )}
                     {!isSidebarOpen && <div className="my-4 border-t border-gray-300 dark:border-white/10" />}
@@ -291,10 +299,10 @@ export default function AdminHub() {
                         <button
                             type="button"
                             onClick={() => toggleSection('maintenance')}
-                            className="w-full flex items-center justify-between text-sm font-extrabold text-gray-700 dark:text-gray-200 px-4 py-2.5 mt-6 mb-2 rounded-lg bg-gray-100 dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/[0.08] transition"
+                            className="w-full flex items-center justify-between text-sm font-extrabold text-[#0f172a] dark:text-gray-200 px-4 py-2.5 mt-4 mb-1 hover:bg-gray-50 dark:hover:bg-white/[0.04] transition rounded-lg"
                         >
                             <span>ניהול הרשאות ותחזוקה</span>
-                            <ChevronDown size={14} className={`transition-transform ${sectionOpen.maintenance ? '' : '-rotate-90'}`} />
+                            <ChevronLeft size={16} className={`transition-transform text-gray-900 dark:text-gray-200 ${sectionOpen.maintenance ? '-rotate-90' : ''}`} />
                         </button>
                     )}
                     {!isSidebarOpen && <div className="my-4 border-t border-gray-300 dark:border-white/10" />}
@@ -326,28 +334,41 @@ export default function AdminHub() {
 
                 </div>
 
-                <div className="shrink-0 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-[#1f232f] p-4 space-y-3">
-                    <SidebarButton
-                        icon={Undo2}
-                        label="חזרה לאתר"
-                        isActive={false}
-                        onClick={() => navigate('/')}
-                        isSidebarOpen={isSidebarOpen}
-                        title="יציאה מתפריט הניהול"
-                    />
+                <div className="shrink-0 border-t border-gray-200 dark:border-white/10 bg-[#f8fafc] dark:bg-[#1e212b] p-4 space-y-3">
+                    <div className={isSidebarOpen ? "flex items-center justify-between gap-3" : "flex flex-col gap-3"}>
+                        {isSidebarOpen ? (
+                            <button
+                                onClick={() => navigate('/')}
+                                className="flex items-center gap-3 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors pl-2"
+                            >
+                                <Undo2 size={18} className="text-gray-500" />
+                                <span className="font-bold text-sm">חזרה לאתר</span>
+                            </button>
+                        ) : (
+                            <SidebarButton
+                                icon={Undo2}
+                                label="חזרה לאתר"
+                                isActive={false}
+                                onClick={() => navigate('/')}
+                                isSidebarOpen={isSidebarOpen}
+                                title="יציאה מתפריט הניהול"
+                            />
+                        )}
 
-                    {isSidebarOpen ? (
-                        <div className="flex items-center gap-2">
-                            <div className="flex-1 min-w-0">
-                                <AlphaTeamBanner isSidebarOpen={isSidebarOpen} />
-                            </div>
-                            <AdminModeToggleButton isLightMode={isLightMode} onToggle={toggleAdminMode} />
-                        </div>
-                    ) : (
-                        <div className="flex justify-center">
-                            <AdminModeToggleButton isLightMode={isLightMode} onToggle={toggleAdminMode} />
-                        </div>
-                    )}
+                        <Tooltip text={isLightMode ? 'מעבר למצב כהה' : 'מעבר למצב בהיר'} wrapperClassName={isSidebarOpen ? "shrink-0" : "w-full"}>
+                            <button
+                                type="button"
+                                onClick={toggleAdminMode}
+                                className={`shrink-0 rounded-xl border border-gray-200 dark:border-white/10 bg-white hover:bg-gray-50 dark:bg-[#232733] dark:hover:bg-white/5 text-gray-800 dark:text-gray-300 transition flex items-center justify-center ${isSidebarOpen ? 'w-10 h-10' : 'w-full py-2.5'}`}
+                            >
+                                {isLightMode ? <Moon size={18} /> : <Sun size={18} />}
+                            </button>
+                        </Tooltip>
+                    </div>
+
+                    <AlphaTeamAdminBanner
+                        isSidebarOpen={isSidebarOpen}
+                    />
 
                     {isSidebarOpen ? (
                         <div className="text-center text-[11px] font-medium tracking-wide text-gray-500 dark:text-gray-400">

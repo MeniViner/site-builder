@@ -142,19 +142,16 @@ const AVATAR_SHAPE_OPTIONS = [
     {
         value: 'circle',
         label: 'עגול',
-        description: 'צללית עגולה ורכה, קלאסית וייצוגית.',
         kind: 'avatar-circle',
     },
     {
         value: 'rounded',
         label: 'מעוגל',
-        description: 'פינות מעוגלות עם נוכחות מודרנית יותר.',
         kind: 'avatar-rounded',
     },
     {
         value: 'square',
         label: 'מרובע',
-        description: 'קצוות חדים לתחושה טקטית ומדויקת.',
         kind: 'avatar-square',
     },
 ];
@@ -162,17 +159,14 @@ const FLOW_VISUAL_PRESET_OPTIONS = [
     {
         value: 'command',
         label: 'פיקודי מודגש',
-        description: 'כרטיסים מלאים, אווטארים פעילים והדגשת דרג בכיר.',
     },
     {
         value: 'clean',
         label: 'נקי להצגה',
-        description: 'עיצוב רגוע לקריאות גבוהה והצגה פורמלית.',
     },
     {
         value: 'minimal',
         label: 'מינימלי מהיר',
-        description: 'כרטיסים טקסטואליים וצפיפות טובה למבנים גדולים.',
     },
 ];
 const FLOW_AUTO_LAYOUT_OPTIONS = [

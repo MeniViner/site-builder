@@ -18,7 +18,9 @@ export default function RightSidebarNav() {
     const { theme, borderTargets } = useTheme();
     const [activeLevel1, setActiveLevel1] = useState(null);
     const [expandedLevel2, setExpandedLevel2] = useState(null);
+    const [openUpwardMap, setOpenUpwardMap] = useState({});
     const sidebarRef = useRef(null);
+    const triggerRefs = useRef({});
     const topLevelBorderStyle = borderTargets?.sideNav
         ? normalizeBorderStyle(theme?.borderStyle || 'cyber')
         : 'standard';
@@ -38,11 +40,33 @@ export default function RightSidebarNav() {
     const categories = navItems || [];
     if (categories.length === 0) return null;
 
+    const PANEL_ESTIMATED_HEIGHT = 440;
+    const OPEN_UPWARD_FROM_VIEWPORT_RATIO = 0.62;
+
+    const shouldOpenUpward = (itemId) => {
+        const triggerEl = triggerRefs.current[itemId];
+        if (!triggerEl) return false;
+
+        const rect = triggerEl.getBoundingClientRect();
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        const triggerMidY = rect.top + (rect.height / 2);
+        const belowThreshold = triggerMidY > (viewportHeight * OPEN_UPWARD_FROM_VIEWPORT_RATIO);
+
+        const availableBelow = viewportHeight - rect.top;
+        const availableAbove = rect.bottom;
+        const lacksSpaceBelow = availableBelow < PANEL_ESTIMATED_HEIGHT;
+        const hasMoreSpaceAbove = availableAbove > availableBelow;
+
+        return belowThreshold || (lacksSpaceBelow && hasMoreSpaceAbove);
+    };
+
     const handleLevel1Click = (item) => {
         if (item.url || item.isDirectLink) {
             if (item.url) window.open(item.url, '_blank', 'noopener,noreferrer');
             return;
         }
+        const openUpward = shouldOpenUpward(item.id);
+        setOpenUpwardMap((prev) => ({ ...prev, [item.id]: openUpward }));
         setActiveLevel1((prev) => (prev === item.id ? null : item.id));
         setExpandedLevel2(null);
     };
@@ -61,8 +85,28 @@ export default function RightSidebarNav() {
         }
     };
 
+    const getFlyoutStyle = (itemId) => {
+        const triggerEl = triggerRefs.current[itemId];
+        if (!triggerEl) return {};
+
+        const rect = triggerEl.getBoundingClientRect();
+        const panelWidth = 320;
+        const gap = 16;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        const left = Math.max(8, rect.left - panelWidth - gap);
+        const openUpward = !!openUpwardMap[itemId];
+
+        if (openUpward) {
+            const bottom = Math.max(8, viewportHeight - rect.bottom);
+            return { position: 'fixed', left: `${left}px`, top: 'auto', bottom: `${bottom}px` };
+        }
+
+        const top = Math.max(8, rect.top);
+        return { position: 'fixed', left: `${left}px`, top: `${top}px`, bottom: 'auto' };
+    };
+
     return (
-        <aside ref={sidebarRef} className="fixed right-0 top-32 z-[9999] flex flex-col items-center gap-3 p-2 w-[84px]">
+        <aside ref={sidebarRef} className="right-sidebar-nav fixed right-0 top-24 bottom-4 z-[9999] w-[84px] overflow-y-auto overflow-x-visible flex flex-col items-center gap-2 p-2">
             {categories.map((item) => {
                 const hasChildren = item.children && item.children.length > 0;
                 const isDirectLink = item.url || item.isDirectLink;
@@ -88,6 +132,9 @@ export default function RightSidebarNav() {
                             </Tooltip>
                         ) : (
                             <button
+                                ref={(el) => {
+                                    triggerRefs.current[item.id] = el;
+                                }}
                                 onClick={() => handleLevel1Click(item)}
                                 className={`gap-2 sidebar-nav-item sidebar-trigger flex flex-col items-center justify-center text-center cursor-pointer ${isOpen ? 'is-active' : ''}`}
                                 style={panelStyle(topLevelBorderStyle, 10)}
@@ -102,7 +149,8 @@ export default function RightSidebarNav() {
                         {/* Level 2 Flyout — click-controlled, absolutely free over the page */}
                         {hasChildren && !isDirectLink && (
                             <div
-                                className={`absolute right-full top-0 mr-4 w-auto min-w-[300px] bg-theme-card backdrop-blur-md shadow-2xl rounded-l-xl z-[10000] border border-theme-subtle p-4 transition-all duration-300 ${isOpen
+                                style={getFlyoutStyle(item.id)}
+                                className={`w-auto min-w-[300px] bg-theme-card backdrop-blur-md shadow-2xl rounded-l-xl z-[10000] border border-theme-subtle p-4 transition-all duration-300 ${isOpen
                                         ? 'opacity-100 visible pointer-events-auto'
                                         : 'opacity-0 invisible pointer-events-none'
                                     }`}

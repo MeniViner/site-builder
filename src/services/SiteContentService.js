@@ -13,10 +13,10 @@ import {
 const DEFAULT_SITE_CONTENT = {
     hero: {
         siteName: 'שם האתר',
-        title: 'צוות אלפא מקשאפ \n כאן בונים',
+        title: 'מתנ"ה \n בונה האתרים',
         subtitle: 'ברוכים הבאים',
-        logo: '/images/alpha logo1.png',
-        description: 'מרכז ההכשרות המוביל בצה"ל למקצועות החמ"ם.\nאנו אמונים על רצף ההכשרה, פיתוח מקצועי מתמיד ושמירה על כשירות עליונה בתחום המערכות המתקדמות.',
+        logo: '/images/gift.svg',
+        description: 'מערכת תבניות לניהול הידע',
         backgroundImages: [
             '/images/לח1.jpeg',
             '/images/לח2.jpeg',

@@ -27,7 +27,7 @@ const SETTINGS_NAV = [
     { id: 'hero-content', label: 'טקסט Hero', description: 'שם האתר, כותרות ותיאור' },
     { id: 'hero-backgrounds', label: 'תמונות רקע', description: 'ניהול תמונות הרקע המתחלפות' },
     { id: 'commander-profile', label: 'פרטי מפקד', description: 'תמונה, כותרת ותפקיד המפקד' },
-    { id: 'commander-messages', label: 'הודעות מפקד', description: 'ניהול הודעות וניווט בין הודעות' },
+    { id: 'commander-messages', label: 'דבר המפקד', description: 'ניהול הודעות וניווט בין הודעות' },
     { id: 'overlay-image', label: 'אלמנט תמונה', description: 'תמונה צפה עם מיקום, גודל וסגנון מסגרת' },
     { id: 'factoryReset', label: 'איפוס נתוני אתר', description: 'איפוס נתוני אתר לברירת מחדל', destructive: true },
 ];
@@ -491,7 +491,7 @@ export default function AdminSiteContent() {
             '  }',
             '}',
             'חוקים:',
-            `- עד ${MAX_COMMANDER_MESSAGES} הודעות מפקד.`,
+            `- עד ${MAX_COMMANDER_MESSAGES} דבר המפקד.`,
             '- ניסוח קצר, מקצועי, לא סיסמאות ריקות.',
             '- שמור על שפה טבעית וברורה.',
             `תוכן קיים: ${JSON.stringify(snapshot)}`,
@@ -1021,9 +1021,9 @@ export default function AdminSiteContent() {
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{isCommanderProfileTab ? 'פרטי מפקד' : 'הודעות מפקד'}</h2>
+                                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{isCommanderProfileTab ? 'פרטי מפקד' : 'דבר המפקד'}</h2>
                                             <HelpTooltipButton
-                                                title={isCommanderProfileTab ? 'פרטי מפקד' : 'הודעות מפקד'}
+                                                title={isCommanderProfileTab ? 'פרטי מפקד' : 'דבר המפקד'}
                                                 description={isCommanderProfileTab ? 'כאן מגדירים את האזור שמציג את פרטי המפקד והתמונה שלו.' : 'כאן מנהלים את ההודעות שמופיעות באזור דבר המפקד.'}
                                             />
                                         </div>
@@ -1180,13 +1180,13 @@ export default function AdminSiteContent() {
                                     <div className="flex items-center justify-between mb-4">
                                         <div className="flex items-center gap-2">
                                             <h3 className="text-lg font-bold text-gray-700 dark:text-gray-200">
-                                                הודעות מפקד
+                                                דבר המפקד
                                                 <span className="text-sm font-normal text-gray-400 dark:text-gray-500 mr-2">
                                                     ({commander.messages.length}/{MAX_COMMANDER_MESSAGES})
                                                 </span>
                                             </h3>
                                             <HelpTooltipButton
-                                                title="הודעות מפקד"
+                                                title="דבר המפקד"
                                                 description="כאן מוסיפים ומסדרים את ההודעות שמתחלפות באזור דבר המפקד."
                                                 items={[
                                                     'אפשר לשמור עד חמש הודעות.',
@@ -1207,7 +1207,7 @@ export default function AdminSiteContent() {
                                     {commander.messages.length === 0 ? (
                                         <div className="text-center py-12 border-2 border-dashed border-gray-300 dark:border-white/10 rounded-2xl text-gray-400 dark:text-gray-600">
                                             <MessageSquare size={40} className="mx-auto mb-3 opacity-30" />
-                                            <p className="text-base font-medium">אין הודעות מפקד. לחץ על "הוסף הודעה" ליצירת הודעה ראשונה.</p>
+                                            <p className="text-base font-medium">אין דבר המפקד. לחץ על "הוסף הודעה" ליצירת הודעה ראשונה.</p>
                                         </div>
                                     ) : (
                                         <div className="space-y-3">

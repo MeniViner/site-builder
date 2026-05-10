@@ -171,7 +171,7 @@ export function Home({ isPreview = false }) {
         <main data-widget-title={widgetTitle} className="w-full relative h-[calc(100vh-80px)] min-h-[calc(100vh-80px)] max-h-[calc(100vh-80px)] flex flex-col justify-between overflow-hidden pt-4 [@media(max-height:850px)]:pt-2 lg:pt-8 xl:pt-12">
           <HeroSection
             hero={hero}
-            logoSrc={siteContent?.hero?.logo || '/images/alpha logo1.png'}
+            logoSrc={siteContent?.hero?.logo || '/images/gift.svg'}
             renderHeroTitle={renderHeroTitle}
             renderDescription={renderDescription}
             showOverlayImage={showOverlayImage}
@@ -222,11 +222,27 @@ export function Home({ isPreview = false }) {
 
         {!externalLinksFixed && renderExternalLinks()}
 
-        {externalLinks && externalLinks.length > 0 && !externalLinksFixed && (
-          <div className="relative z-10 border-t border-theme-subtle py-4 text-center bg-theme-bg-base">
-            <p className="text-xs text-theme-muted">siteBuilder - מתנ"ה</p>
+        <div className="relative z-10 border-t border-theme-subtle py-4 text-center bg-theme-bg-base flex items-center justify-center min-h-[64px]">
+          <p className="text-xs text-theme-muted text-gray-900 dark:text-gray-100 truncate leading-tight"> מתנ"ה - siteBuilder 0.1.14©</p>
+
+          {/* Alpha Team Watermark */}
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 z-[100] opacity-90 hover:opacity-100 transition-opacity select-none rounded-xl border border-blue-100 dark:border-blue-900/30 bg-[#f4f7fb] dark:bg-blue-900/10 flex items-center gap-3 pr-2 pl-4 py-1.5 shadow-sm">
+            <img
+              src="/images/alphalogo1.png"
+              alt="Alpha logo"
+              className="h-10 object-contain shrink-0"
+              loading="lazy"
+            />
+            <div className="min-w-0 flex-1 text-right">
+              <div className="flex items-center gap-1.5 text-[13px] font-bold text-gray-900 dark:text-gray-100">
+                <a href="mailto:alpha@mod.gov.il" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">צוות אלפא</a>
+                <span className="text-gray-300 dark:text-gray-600">|</span>
+                <a href="#" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">אתר</a>
+              </div>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate leading-tight mt-0.5">פתיחת מייל / אתר הפרוייקט</p>
+            </div>
           </div>
-        )}
+        </div>
       </div>
 
       {regularLinksLayout === 'sidebar-right' && <RightSidebarNav />}
@@ -281,7 +297,7 @@ export default function App() {
     const siteName = siteContent?.hero?.siteName?.trim() || 'אלפא';
     document.title = `ניהול ידע | ${siteName}`;
 
-    const faviconHref = resolveSiteImageUrl(siteContent?.hero?.logo || '/images/alpha logo1.png');
+    const faviconHref = resolveSiteImageUrl(siteContent?.hero?.logo || '/images/gift.svg');
     let faviconEl = document.querySelector('link[data-app-favicon="true"]');
 
     if (!faviconEl) {

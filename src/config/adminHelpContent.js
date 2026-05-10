@@ -168,8 +168,8 @@ export const SITE_CONTENT_TAB_HELP = {
         ],
     },
     'commander-messages': {
-        pill: 'הודעות מפקד',
-        title: 'הודעות מפקד',
+        pill: 'דבר המפקד',
+        title: 'דבר המפקד',
         summary: 'ניהול ההודעות שמוצגות באזור דבר המפקד: הוספה, עריכה, סדר והסרה — עד למגבלת המערכת.',
         sections: [
             {

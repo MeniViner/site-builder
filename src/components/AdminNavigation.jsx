@@ -6,7 +6,7 @@ import { DynamicIcon } from './DynamicIcon';
 import {
     Plus, Trash2, AlertTriangle, ChevronLeft, ChevronDown,
     Folder, FolderOpen, FileText, Link as LinkIcon, Home, Search,
-    ExternalLink
+    ExternalLink, GripVertical
 } from 'lucide-react';
 import IconPickerModal from './IconPickerModal';
 import Tooltip from './Tooltip';
@@ -74,7 +74,16 @@ function normalizeAiNavigationTree(payload) {
     return normalized;
 }
 
+function moveArrayItem(source, fromIndex, toIndex) {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return source;
+    const copy = [...source];
+    const [item] = copy.splice(fromIndex, 1);
+    copy.splice(toIndex, 0, item);
+    return copy;
+}
+
 export default function AdminNavigation() {
+    const MAX_TOP_LEVEL_NAV_ITEMS = 12;
     const { navItems: initialNavItems, loading, error, saveNavigation } = useNavigation();
     const { effectiveMode } = useTheme();
     const [navItems, setNavItems] = useState(initialNavItems || []);
@@ -108,6 +117,7 @@ export default function AdminNavigation() {
     const [selectedPath, setSelectedPath] = useState([]); // [] = root, [catId], [catId, subId]
     const [expandedNodes, setExpandedNodes] = useState(new Set(['root'])); // Sidebar tree expansion
     const [searchTerm, setSearchTerm] = useState('');
+    const [dragState, setDragState] = useState(null);
     const isDarkMode = effectiveMode === 'dark';
     const sidebarScrollbarColor = isDarkMode ? '#333 #0a0a0c' : '#9ca3af #f3f4f6';
     const contentScrollbarColor = isDarkMode ? '#333 #050505' : '#9ca3af #f3f4f6';
@@ -118,6 +128,40 @@ export default function AdminNavigation() {
         if (newSet.has(id)) newSet.delete(id);
         else newSet.add(id);
         setExpandedNodes(newSet);
+    };
+
+    const reorderItems = (sourcePath, draggedId, targetId) => {
+        if (!draggedId || !targetId || draggedId === targetId) return;
+        setNavItems((prev) => {
+            const copy = JSON.parse(JSON.stringify(prev));
+
+            if (sourcePath.length === 0) {
+                const fromIndex = copy.findIndex((item) => item.id === draggedId);
+                const toIndex = copy.findIndex((item) => item.id === targetId);
+                return moveArrayItem(copy, fromIndex, toIndex);
+            }
+
+            if (sourcePath.length === 1) {
+                const category = copy.find((item) => item.id === sourcePath[0]);
+                if (!category || !Array.isArray(category.children)) return copy;
+                const fromIndex = category.children.findIndex((item) => item.id === draggedId);
+                const toIndex = category.children.findIndex((item) => item.id === targetId);
+                category.children = moveArrayItem(category.children, fromIndex, toIndex);
+                return copy;
+            }
+
+            if (sourcePath.length === 2) {
+                const category = copy.find((item) => item.id === sourcePath[0]);
+                const subCategory = category?.children?.find((item) => item.id === sourcePath[1]);
+                if (!subCategory || !Array.isArray(subCategory.subLinks)) return copy;
+                const fromIndex = subCategory.subLinks.findIndex((item) => (item.id || item.label) === draggedId);
+                const toIndex = subCategory.subLinks.findIndex((item) => (item.id || item.label) === targetId);
+                subCategory.subLinks = moveArrayItem(subCategory.subLinks, fromIndex, toIndex);
+                return copy;
+            }
+
+            return copy;
+        });
     };
 
     // Generic Update using deep clone
@@ -157,6 +201,10 @@ export default function AdminNavigation() {
     // Adders
     const addNode = () => {
         if (selectedPath.length === 0) {
+            if (navItems.length >= MAX_TOP_LEVEL_NAV_ITEMS) {
+                toast.warning(`לא ניתן להוסיף יותר מ-${MAX_TOP_LEVEL_NAV_ITEMS} קטגוריות ראשיות.`);
+                return;
+            }
             const id = `cat_${Date.now()}`;
             setNavItems([...navItems, { id, label: 'קטגוריה חדשה', icon: 'Folder', url: '', children: [] }]);
         } else if (selectedPath.length === 1) {
@@ -253,6 +301,10 @@ export default function AdminNavigation() {
 
     const applyAiNavigation = (parsed) => {
         const normalized = normalizeAiNavigationTree(parsed);
+        if (normalized.length > MAX_TOP_LEVEL_NAV_ITEMS) {
+            toast.error(`מבנה הניווט מכיל ${normalized.length} קטגוריות ראשיות. המקסימום המותר הוא ${MAX_TOP_LEVEL_NAV_ITEMS}.`);
+            return;
+        }
         const expanded = new Set(['root', ...normalized.map((item) => item.id)]);
         setNavItems(normalized);
         setExpandedNodes(expanded);
@@ -546,6 +598,15 @@ export default function AdminNavigation() {
                             <Plus size={16} />
                             <span>{currentLevel === 0 ? 'קטגוריה חדשה' : currentLevel === 1 ? 'כרטיסייה חדשה' : 'לינק חדש'}</span>
                         </button>
+                        {selectedPath.length > 0 && (
+                            <button
+                                onClick={() => removeNode(selectedPath)}
+                                className="flex items-center gap-1.5 bg-primary-500/10 hover:bg-primary-500/20 text-primary-600 dark:text-primary-400 px-4 py-2 rounded-md transition text-sm font-bold border border-primary-500/30"
+                            >
+                                <Trash2 size={16} />
+                                <span>מחק נוכחי</span>
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -562,6 +623,7 @@ export default function AdminNavigation() {
                             <thead className="sticky top-0 bg-gradient-to-b from-white to-white/95 dark:from-[#050505] dark:to-[#050505]/95 z-10 backdrop-blur-sm">
                                 <tr className="border-b border-gray-200 dark:border-[#1f1f22] text-gray-400 dark:text-gray-500">
                                     <th className="pb-3 pt-2 px-2 font-medium w-12 text-center"></th>
+                                    <th className="pb-3 pt-2 px-2 font-medium w-10 text-center"></th>
                                     <th className="pb-3 pt-2 px-2 font-medium w-1/3">שם התוכן</th>
                                     <th className="pb-3 pt-2 px-2 font-medium w-1/4">אייקון</th>
                                     <th className="pb-3 pt-2 px-2 font-medium">קישור ישיר</th>
@@ -572,7 +634,24 @@ export default function AdminNavigation() {
                                 {currentChildren.map(child => (
                                     <tr
                                         key={child.id}
-                                        className="hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors group cursor-default"
+                                        draggable
+                                        onDragStart={(e) => {
+                                            e.dataTransfer.effectAllowed = 'move';
+                                            setDragState({ sourcePath: [...selectedPath], draggedId: child.id });
+                                        }}
+                                        onDragOver={(e) => {
+                                            if (!dragState || dragState.sourcePath.join('|') !== selectedPath.join('|')) return;
+                                            e.preventDefault();
+                                            e.dataTransfer.dropEffect = 'move';
+                                        }}
+                                        onDrop={(e) => {
+                                            e.preventDefault();
+                                            if (!dragState || dragState.sourcePath.join('|') !== selectedPath.join('|')) return;
+                                            reorderItems(dragState.sourcePath, dragState.draggedId, child.id);
+                                            setDragState(null);
+                                        }}
+                                        onDragEnd={() => setDragState(null)}
+                                        className={`hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors group cursor-default ${dragState?.draggedId === child.id ? 'opacity-50' : ''}`}
                                         onDoubleClick={() => child.type === 'folder' && setSelectedPath(child.nodePath)}
                                     >
                                         <td className="py-2.5 px-2">
@@ -582,6 +661,11 @@ export default function AdminNavigation() {
                                                 ) : (
                                                     <LinkIcon className="text-gray-700 dark:text-gray-300 drop-shadow-[0_0_5px_rgba(209,213,219,0.3)]" size={18} />
                                                 )}
+                                            </div>
+                                        </td>
+                                        <td className="py-2.5 px-2">
+                                            <div className="w-8 h-10 mx-auto flex items-center justify-center text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300 cursor-grab active:cursor-grabbing">
+                                                <GripVertical size={16} />
                                             </div>
                                         </td>
                                         <td className="py-2.5 px-2">

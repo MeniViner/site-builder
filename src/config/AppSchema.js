@@ -1089,10 +1089,10 @@ export const DEFAULT_CONFIG_V1 = {
     },
     content: {
         hero: {
-            siteName: 'שם האתר',
-            title: ' שם היחידה \nכאן בונים ',
-            subtitle: 'יחידת ההכשרה וההדרכה',
-            logoUrl: '/images/alpha logo1.png',
+            siteName: 'מתנ"ה',
+            title: '  מתנ"ה  \n בונה האתרים  ',
+            subtitle: 'מערכת תבניות לניהול הידע',
+            logoUrl: '/images/gift.svg',
             description: 'מרכז הפיתוח המוביל בצה"ל לפיתוח מערכות מבצעיות, טכנולוגיות ופיקודיות.',
             backgroundImageUrls: [
                 '/images/לח4.webp',

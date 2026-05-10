@@ -4,10 +4,10 @@ import { DerivedHealthStatus } from "../types/site";
 
 export function HealthBadge({ status }: { status: DerivedHealthStatus }) {
   const map: Record<DerivedHealthStatus, { cls: string; label: string; icon: ReactNode }> = {
-    healthy: { cls: "bg-emerald-50 text-emerald-700 border-emerald-200", label: "תקין", icon: <ShieldCheck size={12} /> },
-    warning: { cls: "bg-amber-50 text-amber-700 border-amber-200", label: "אזהרה", icon: <ShieldAlert size={12} /> },
-    failed: { cls: "bg-rose-50 text-rose-700 border-rose-200", label: "תקלה", icon: <ShieldX size={12} /> },
-    unknown: { cls: "bg-slate-100 text-slate-600 border-slate-200", label: "לא נבדק", icon: <ShieldQuestion size={12} /> }
+    healthy: { cls: "border-emerald-400/30 bg-emerald-500/10 text-emerald-200", label: "תקין", icon: <ShieldCheck size={12} /> },
+    warning: { cls: "border-amber-400/30 bg-amber-500/10 text-amber-200", label: "אזהרה", icon: <ShieldAlert size={12} /> },
+    failed: { cls: "border-rose-400/30 bg-rose-500/10 text-rose-200", label: "תקלה", icon: <ShieldX size={12} /> },
+    unknown: { cls: "border-slate-500/40 bg-slate-500/10 text-slate-300", label: "לא נבדק", icon: <ShieldQuestion size={12} /> }
   };
 
   const item = map[status];
