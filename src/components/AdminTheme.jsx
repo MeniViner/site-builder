@@ -6,7 +6,7 @@ import ThemeLivePreview from './ThemeLivePreview';
 import {
     AlertTriangle, Palette, Sun, Moon, Monitor,
     Hexagon, Eye, EyeOff,
-    LayoutGrid, List, Globe, CircleDot, PanelBottom, PanelRight, CheckCircle2, Sparkles, Wand2, Bot, RotateCcw, X
+    LayoutGrid, List, Globe, CircleDot, PanelBottom, PanelRight, CheckCircle2, Sparkles, Wand2, Bot, Undo2, Redo2, X
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { normalizeBorderStyle, panelStyle } from '../utils/borderStyles';
@@ -400,6 +400,7 @@ function buildThemeAiPrompt({ instruction, contextSnapshot }) {
         'כללים:',
         '- שמור נגישות גבוהה וניגודיות טובה.',
         '- אל תשתמש בערכים שלא קיימים בסכימה.',
+        '- עבור primaryColor מותר לבחור כל צבע חוקי בפורמט #RRGGBB, כולל צבע מותאם אישית שלא מופיע בפלטת הצבעים.',
         '- אם regularLinksLayout הוא sidebar-right אז showNavCategories צריך להיות false.',
         '- אם אינך בטוח לגבי שדה מסוים, השאר אותו כפי שהוא כיום.',
         `הנחיה טבעית: ${instruction}`,
@@ -521,7 +522,7 @@ export default function AdminTheme() {
     const [aiModelUsed, setAiModelUsed] = useState('');
     const [aiErrorMessage, setAiErrorMessage] = useState('');
     const [aiSuggestedTheme, setAiSuggestedTheme] = useState(null);
-    const [aiPreviousThemeSnapshot, setAiPreviousThemeSnapshot] = useState(null);
+    const [aiThemeHistory, setAiThemeHistory] = useState({ items: [], index: -1 });
     const [aiTypingRunId, setAiTypingRunId] = useState(0);
     const [aiTypedChars, setAiTypedChars] = useState(0);
     const fallbackSettingId = settingsNav[0]?.id || 'primaryColor';
@@ -695,6 +696,19 @@ export default function AdminTheme() {
         toast.success('הצעת AI הוחלה על עיצוב האתר');
     };
 
+    const pushAiThemeSnapshot = useCallback((snapshot) => {
+        const normalized = { ...snapshot };
+        setAiThemeHistory((prev) => {
+            const keptItems = prev.items.slice(0, prev.index + 1);
+            const last = keptItems[keptItems.length - 1];
+            if (last && JSON.stringify(last) === JSON.stringify(normalized)) {
+                return prev;
+            }
+            const items = [...keptItems, normalized];
+            return { items, index: items.length - 1 };
+        });
+    }, []);
+
     const clearAiSelections = () => {
         setAiSelectedTokenByGroup({});
     };
@@ -719,7 +733,7 @@ export default function AdminTheme() {
             return;
         }
 
-        setAiPreviousThemeSnapshot({ ...draft });
+        pushAiThemeSnapshot(draft);
         setDraft((prev) => {
             const next = {
                 ...prev,
@@ -808,26 +822,47 @@ export default function AdminTheme() {
             toast.error('אין הצעת AI מוכנה ליישום.');
             return;
         }
-        setAiPreviousThemeSnapshot({ ...draft });
+        pushAiThemeSnapshot(draft);
         applyAiTheme(aiSuggestedTheme);
     };
 
     const handleUndoAiTheme = () => {
-        if (!aiPreviousThemeSnapshot) {
-            toast.error('אין מצב קודם לשחזור.');
+        if (aiThemeHistory.index < 0) {
+            toast.error('אין שינוי קודם לחזרה.');
             return;
         }
+        const targetSnapshot = aiThemeHistory.items[aiThemeHistory.index];
         setDraft((prev) => {
-            if (JSON.stringify(prev) === JSON.stringify(aiPreviousThemeSnapshot)) {
+            if (JSON.stringify(prev) === JSON.stringify(targetSnapshot)) {
                 return prev;
             }
-            const restored = { ...aiPreviousThemeSnapshot };
+            const restored = { ...targetSnapshot };
             triggerAutoSave(restored);
             return restored;
         });
-        setCustomColor(aiPreviousThemeSnapshot.primaryColor || '#0891b2');
-        setAiPreviousThemeSnapshot(null);
-        toast.success('בוצע שחזור למצב הקודם.');
+        setCustomColor(targetSnapshot.primaryColor || '#0891b2');
+        setAiThemeHistory((prev) => ({ ...prev, index: prev.index - 1 }));
+        toast.success('חזרת לשינוי הקודם.');
+    };
+
+    const handleRedoAiTheme = () => {
+        const nextIndex = aiThemeHistory.index + 1;
+        if (nextIndex >= aiThemeHistory.items.length) {
+            toast.error('אין שינוי קדימה.');
+            return;
+        }
+        const targetSnapshot = aiThemeHistory.items[nextIndex];
+        setDraft((prev) => {
+            if (JSON.stringify(prev) === JSON.stringify(targetSnapshot)) {
+                return prev;
+            }
+            const restored = { ...targetSnapshot };
+            triggerAutoSave(restored);
+            return restored;
+        });
+        setCustomColor(targetSnapshot.primaryColor || '#0891b2');
+        setAiThemeHistory((prev) => ({ ...prev, index: prev.index + 1 }));
+        toast.success('עברת לשינוי הבא.');
     };
 
     if (loading && !theme) {
@@ -1034,11 +1069,20 @@ export default function AdminTheme() {
                                         <button
                                             type="button"
                                             onClick={handleUndoAiTheme}
-                                            disabled={!aiPreviousThemeSnapshot}
+                                            disabled={aiThemeHistory.index < 0}
                                             className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-gray-300/90 bg-white/90 px-4 text-sm font-bold text-gray-700 shadow-[0_8px_20px_rgba(15,23,42,0.08)] backdrop-blur-md transition hover:border-primary/50 hover:text-primary hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/15"
                                         >
-                                            <RotateCcw size={14} />
-                                            שחזר שינוי
+                                            <Undo2 size={14} />
+                                            חזור
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleRedoAiTheme}
+                                            disabled={aiThemeHistory.index + 1 >= aiThemeHistory.items.length}
+                                            className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-gray-300/90 bg-white/90 px-4 text-sm font-bold text-gray-700 shadow-[0_8px_20px_rgba(15,23,42,0.08)] backdrop-blur-md transition hover:border-primary/50 hover:text-primary hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/15"
+                                        >
+                                            <Redo2 size={14} />
+                                            קדימה
                                         </button>
                                     </div>
                                 </div>
@@ -1235,22 +1279,37 @@ export default function AdminTheme() {
                                                     <div className="text-sm font-black text-gray-900 dark:text-white">תקציר הצעת העיצוב</div>
                                                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">בדוק את השינויים שמחכים ליישום לפני שמירה.</div>
                                                 </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={handleApplyAiTheme}
-                                                    disabled={!aiEnabled || aiIsGenerating}
-                                                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                                                >
-                                                    החל על העיצוב
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={handleUndoAiTheme}
-                                                    disabled={!aiPreviousThemeSnapshot || aiIsGenerating}
-                                                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-2.5 text-sm font-bold text-gray-700 dark:text-gray-200 transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
-                                                >
-                                                    שחזור מצב קודם
-                                                </button>
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleUndoAiTheme}
+                                                        disabled={aiThemeHistory.index < 0 || aiIsGenerating}
+                                                        title="חזור שינוי אחד אחורה"
+                                                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-gray-700 dark:text-gray-200 transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                                                    >
+                                                        <Undo2 size={16} />
+                                                    </button>
+                                                    <div className="min-w-14 text-center text-xs font-black text-gray-600 dark:text-gray-300">
+                                                        {Math.max(0, aiThemeHistory.index + 1)}/{aiThemeHistory.items.length}
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleRedoAiTheme}
+                                                        disabled={aiThemeHistory.index + 1 >= aiThemeHistory.items.length || aiIsGenerating}
+                                                        title="התקדם לשינוי הבא"
+                                                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-gray-700 dark:text-gray-200 transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                                                    >
+                                                        <Redo2 size={16} />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleApplyAiTheme}
+                                                        disabled={!aiEnabled || aiIsGenerating}
+                                                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                                                    >
+                                                        החל על העיצוב
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             {aiDiffRows.length === 0 ? (
@@ -1277,25 +1336,6 @@ export default function AdminTheme() {
                                             <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words text-[11px] text-gray-700 dark:text-gray-300">{aiRawOutput}</pre>
                                         </details>
                                     )}
-                                    <div className="mt-6 flex flex-wrap items-center gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={handleGenerateAiTheme}
-                                            disabled={!aiEnabled || aiIsGenerating}
-                                            className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                                        >
-                                            <Wand2 size={14} />
-                                            {aiIsGenerating ? 'יוצר...' : 'צור'}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleUndoAiTheme}
-                                            disabled={!aiPreviousThemeSnapshot || aiIsGenerating}
-                                            className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-gray-300/90 bg-white/90 px-4 text-sm font-bold text-gray-700 shadow-[0_8px_20px_rgba(15,23,42,0.08)] backdrop-blur-md transition hover:border-primary/50 hover:text-primary hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/15"
-                                        >
-                                            החזר שינויים
-                                        </button>
-                                    </div>
                                 </>
                             )}
                         </section>
