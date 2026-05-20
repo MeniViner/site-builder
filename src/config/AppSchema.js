@@ -95,6 +95,10 @@ function isObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+function hasOwn(value, key) {
+    return isObject(value) && Object.prototype.hasOwnProperty.call(value, key);
+}
+
 function clone(value) {
     if (Array.isArray(value)) return value.map(clone);
     if (isObject(value)) {
@@ -1497,15 +1501,18 @@ export function migrateLegacyToV1(legacyData) {
     const legacyContent = isObject(legacy.content)
         ? legacy.content
         : (isObject(legacy.siteContent) ? legacy.siteContent : {});
+    const hasLegacyNav = hasOwn(legacy, 'nav') || hasOwn(legacy, 'navigation');
     const legacyNav = Array.isArray(legacy.nav)
         ? legacy.nav
         : (Array.isArray(legacy.navigation) ? legacy.navigation : []);
     const legacyWidgets = isObject(legacy.widgets) ? legacy.widgets : {};
     const legacyWidgetData = isObject(legacyWidgets.data) ? legacyWidgets.data : {};
     const legacyEvents = legacy.events;
+    const hasLegacyExternalLinks = hasOwn(legacy, 'externalLinks') || hasOwn(legacy, 'links');
     const legacyExternalLinks = Array.isArray(legacy.externalLinks)
         ? legacy.externalLinks
         : (Array.isArray(legacy.links) ? legacy.links : []);
+    const hasLegacyUsers = hasOwn(legacy, 'users') || hasOwn(legacy, 'adminUsers');
     const legacyUsers = Array.isArray(legacy.users)
         ? legacy.users
         : (Array.isArray(legacy.adminUsers) ? legacy.adminUsers : []);
@@ -1608,7 +1615,9 @@ export function migrateLegacyToV1(legacyData) {
         );
     }
 
-    migrated.navigation.items = normalizeNavigationNodes(legacyNav);
+    if (hasLegacyNav) {
+        migrated.navigation.items = normalizeNavigationNodes(legacyNav);
+    }
 
     const legacyActiveWidgets = Array.isArray(legacyWidgets.activeWidgets)
         ? legacyWidgets.activeWidgets
@@ -1657,8 +1666,12 @@ export function migrateLegacyToV1(legacyData) {
         migrated.widgets.data.events = normalizeEventsBranch(legacyWidgetData.events);
     }
 
-    migrated.externalLinks.items = normalizeExternalLinksItems(legacyExternalLinks);
-    migrated.access.adminUsers = normalizeAdminUsers(legacyUsers);
+    if (hasLegacyExternalLinks) {
+        migrated.externalLinks.items = normalizeExternalLinksItems(legacyExternalLinks);
+    }
+    if (hasLegacyUsers) {
+        migrated.access.adminUsers = normalizeAdminUsers(legacyUsers);
+    }
 
     return validateAndNormalize(migrated);
 }

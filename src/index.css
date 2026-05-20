@@ -137,13 +137,22 @@ select,
 /* ============================================================
    REACT-TOASTIFY — ensure top-center doesn't overflow viewport
    ============================================================ */
+:root {
+  --toastify-z-index: 13050 !important;
+}
+
+.Toastify__toast-container {
+  z-index: 13050 !important;
+}
+
 .Toastify__toast-container--top-center {
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: auto;
-  max-width: min(92vw, 420px);
-  padding: 0;
+  top: 12px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: auto !important;
+  max-width: min(92vw, 420px) !important;
+  padding: 0 !important;
+  z-index: 13050 !important;
 }
 
 .Toastify__toast {
@@ -435,7 +444,6 @@ select,
 
 @media (max-height: 900px) {
   .right-sidebar-nav {
-    top: 5rem;
     gap: 0.4rem;
     width: 78px;
   }

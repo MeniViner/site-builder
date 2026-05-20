@@ -357,6 +357,7 @@ export default function App() {
         theme={effectiveMode === 'dark' ? 'dark' : 'light'}
         autoClose={4000}
         closeButton
+        style={{ zIndex: 13050 }}
       />
       <SharePointPermissionsSetupStatus />
     </>

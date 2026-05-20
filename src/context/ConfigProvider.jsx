@@ -20,6 +20,7 @@ const STATUS = {
 };
 const MASTER_CONFIG_MOCK_KEY = import.meta.env.VITE_SP_MASTER_CONFIG_MOCK_KEY || 'bihs_master_config_v1';
 const SKIP_LEGACY_MIGRATION_ONCE_KEY = 'bihs_skip_legacy_migration_once';
+const MIGRATED_DEFAULTS_REPAIR_KEY = 'bihs_migrated_defaults_repair_v1';
 const LEGACY_MOCK_STORAGE_KEYS = [
     SHAREPOINT_CONFIG.mockStorageKey,
     SHAREPOINT_CONFIG.navMockStorageKey,
@@ -35,6 +36,18 @@ const ConfigContext = createContext(null);
 
 function isObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function cloneValue(value) {
+    if (Array.isArray(value)) return value.map(cloneValue);
+    if (isObject(value)) {
+        const next = {};
+        Object.keys(value).forEach((key) => {
+            next[key] = cloneValue(value[key]);
+        });
+        return next;
+    }
+    return value;
 }
 
 function normalizeConfigSafely(candidate) {
@@ -72,6 +85,23 @@ function markSkipLegacyMigrationFlag() {
         localStorage.setItem(SKIP_LEGACY_MIGRATION_ONCE_KEY, '1');
     } catch (error) {
         console.warn('ConfigProvider: failed setting skip migration flag', error);
+    }
+}
+
+function hasMigratedDefaultsRepairRun() {
+    try {
+        return localStorage.getItem(MIGRATED_DEFAULTS_REPAIR_KEY) === '1';
+    } catch (error) {
+        console.warn('ConfigProvider: failed reading migrated defaults repair flag', error);
+        return false;
+    }
+}
+
+function markMigratedDefaultsRepairRun() {
+    try {
+        localStorage.setItem(MIGRATED_DEFAULTS_REPAIR_KEY, '1');
+    } catch (error) {
+        console.warn('ConfigProvider: failed setting migrated defaults repair flag', error);
     }
 }
 
@@ -126,6 +156,42 @@ function extractLegacyLocalData() {
     });
 
     return hasAnyData ? legacy : null;
+}
+
+function shouldRepairEmptyMigratedArray(currentItems, legacyStorageKey) {
+    if (!Array.isArray(currentItems) || currentItems.length > 0) return false;
+
+    const legacyValue = parseLegacyStorageValue(legacyStorageKey);
+    return !Array.isArray(legacyValue.value);
+}
+
+function repairMigratedMockDefaults(config) {
+    if (!SHAREPOINT_CONFIG.useMock) {
+        return { config, repaired: false };
+    }
+    if (config?.meta?.migratedFromLegacy !== true) {
+        return { config, repaired: false };
+    }
+    if (hasMigratedDefaultsRepairRun()) {
+        return { config, repaired: false };
+    }
+
+    let repaired = false;
+    let next = config;
+
+    if (shouldRepairEmptyMigratedArray(config?.navigation?.items, SHAREPOINT_CONFIG.navMockStorageKey)) {
+        next = {
+            ...next,
+            navigation: {
+                ...next.navigation,
+                items: cloneValue(DEFAULT_CONFIG_V1.navigation.items),
+            },
+        };
+        repaired = true;
+        console.warn('[ConfigProvider] Repaired empty migrated mock navigation from schema defaults.');
+    }
+
+    return { config: repaired ? normalizeConfigSafely(next) : config, repaired };
 }
 
 export const ConfigProvider = ({ children }) => {
@@ -189,6 +255,18 @@ export const ConfigProvider = ({ children }) => {
             }
 
             resolvedConfig = normalizeConfigSafely(resolvedConfig);
+
+            const repairResult = repairMigratedMockDefaults(resolvedConfig);
+            if (repairResult.repaired) {
+                try {
+                    const savedRepair = await ConfigService.saveConfig(repairResult.config);
+                    resolvedConfig = normalizeConfigSafely(savedRepair ?? repairResult.config);
+                    markMigratedDefaultsRepairRun();
+                } catch (repairError) {
+                    console.warn('[ConfigProvider] Failed to persist migrated mock defaults repair.', repairError);
+                    resolvedConfig = repairResult.config;
+                }
+            }
 
             if (!isMountedRef.current || requestId !== requestIdRef.current) {
                 return resolvedConfig;

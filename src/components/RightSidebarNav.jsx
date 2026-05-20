@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigation } from '../context/NavigationContext';
 import { useTheme } from '../context/ThemeContext';
+import { DynamicIcon } from './DynamicIcon';
 import { ChevronDown, ExternalLink } from 'lucide-react';
 import { normalizeBorderStyle, panelStyle } from '../utils/borderStyles';
 import Tooltip from './Tooltip';
-import NavVisual from './NavVisual';
 
 /**
  * RightSidebarNav — Tactical right sidebar navigation.
@@ -124,7 +124,7 @@ export default function RightSidebarNav() {
                                     className="sidebar-nav-item sidebar-trigger flex flex-col items-center justify-center text-center cursor-pointer"
                                     style={panelStyle(topLevelBorderStyle, 10)}
                                 >
-                                    <NavVisual item={item} size={18} className="text-theme-muted group-hover:text-primary transition" imageClassName="h-[18px] w-[18px] object-contain" />
+                                    <DynamicIcon name={item.icon} size={18} />
                                     <span className="sidebar-trigger__label max-w-[64px] truncate">
                                         {item.label}
                                     </span>
@@ -139,7 +139,7 @@ export default function RightSidebarNav() {
                                 className={`gap-2 sidebar-nav-item sidebar-trigger flex flex-col items-center justify-center text-center cursor-pointer ${isOpen ? 'is-active' : ''}`}
                                 style={panelStyle(topLevelBorderStyle, 10)}
                             >
-                                <NavVisual item={item} size={18} className="text-theme-muted group-hover:text-primary transition" imageClassName="h-[18px] w-[18px] object-contain" />
+                                <DynamicIcon name={item.icon} size={18} />
                                 <span className="sidebar-trigger__label max-w-[64px] truncate ">
                                     {item.label}
                                 </span>
@@ -158,7 +158,7 @@ export default function RightSidebarNav() {
                                 {/* Panel Header */}
                                 <div className="flex items-center gap-2 px-1 pb-3 mb-2 border-b border-theme-subtle">
                                     <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center">
-                                        <NavVisual item={item} size={15} className="text-primary" imageClassName="h-[15px] w-[15px] object-contain" />
+                                        <DynamicIcon name={item.icon} size={15} className="text-primary" />
                                     </div>
                                     <span className="font-bold text-sm text-theme whitespace-nowrap">
                                         {item.label}
@@ -184,7 +184,7 @@ export default function RightSidebarNav() {
                                                                 : 'bg-theme-elevated text-theme-muted group-hover/l2:text-primary group-hover/l2:bg-primary/10'
                                                             }`}
                                                     >
-                                                        <NavVisual item={child} size={14} imageClassName="h-3.5 w-3.5 object-contain" />
+                                                        <DynamicIcon name={child.icon} size={14} />
                                                     </div>
                                                     <span
                                                         className={`flex-1 text-sm font-medium transition whitespace-nowrap ${isExpanded
@@ -214,11 +214,10 @@ export default function RightSidebarNav() {
                                                                 onClick={() => handleLevel3Click(link)}
                                                                 className="sidebar-nav-item w-full flex items-center gap-2 pr-4 pl-3 py-2 text-right transition-all hover:bg-theme-card-hover rounded-md group/l3"
                                                             >
-                                                                <NavVisual
-                                                                    item={link}
+                                                                <DynamicIcon
+                                                                    name={link.icon}
                                                                     size={13}
                                                                     className="text-theme-muted/80 group-hover/l3:text-primary transition shrink-0"
-                                                                    imageClassName="h-[13px] w-[13px] object-contain shrink-0"
                                                                 />
                                                                 <span className="text-[13px] text-theme-muted group-hover/l3:text-theme transition flex-1 whitespace-nowrap">
                                                                     {link.label}

@@ -346,22 +346,14 @@ export default function AdminHub() {
                                 title="בחירת עד 3 ווידג׳טים שיוצגו בקרוסלה"
                             />
 
-                            <SidebarButton
-                                icon={LayoutGrid}
-                                label="ניהול הווידגטים העכשוויים"
-                                isActive={activeTab === 'current-widgets'}
-                                onClick={() => navigateAdmin('/admin/current-widgets')}
-                                isSidebarOpen={isSidebarOpen}
-                                title="ניהול 3 הווידג׳טים הנבחרים מעמוד אחד"
-                            />
                         </>
                     )}
 
                     {isSidebarOpen && (
                         <button
-                            type="button"
-                            onClick={() => toggleSection('system')}
-                            className="w-full flex items-center justify-between text-sm font-extrabold text-[#0f172a] dark:text-gray-200 px-4 py-2.5 mt-4 mb-1 hover:bg-gray-50 dark:hover:bg-white/[0.04] transition rounded-lg"
+                        type="button"
+                        onClick={() => toggleSection('system')}
+                        className="w-full flex items-center justify-between text-sm font-extrabold text-[#0f172a] dark:text-gray-200 px-4 py-2.5 mt-4 mb-1 hover:bg-gray-50 dark:hover:bg-white/[0.04] transition rounded-lg"
                         >
                             <span>הגדרות מערכת</span>
                             <ChevronLeft size={16} className={`transition-transform text-gray-900 dark:text-gray-200 ${sectionOpen.system ? '-rotate-90' : ''}`} />
@@ -379,6 +371,14 @@ export default function AdminHub() {
                                 isSidebarOpen={isSidebarOpen}
                                 title="הגדרת עיצוב מתקדם לכל מקום באתר"
                             />
+<SidebarButton
+    icon={LayoutGrid}
+    label="ניהול הווידגטים העכשוויים"
+    isActive={activeTab === 'current-widgets'}
+    onClick={() => navigateAdmin('/admin/current-widgets')}
+    isSidebarOpen={isSidebarOpen}
+    title="ניהול 3 הווידג׳טים הנבחרים מעמוד אחד"
+/>
                         </>
                     )}
 

@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     DatabaseBackup,
+    Download,
     FolderOpen,
     RefreshCw,
     Save,
@@ -12,6 +13,7 @@ import {
     Loader2,
     AlertTriangle,
     RotateCcw,
+    Upload,
     X,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
@@ -33,9 +35,21 @@ import {
     updateBackupProgressToast,
 } from '../utils/backupToast';
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
+import {
+    createBackupPackage,
+    getBackupPackageFileName,
+    normalizeImportedBackupPackage,
+    packageToBackupListItem,
+    packageToFileTextsMap,
+} from '../utils/backupPackage';
+import ConfigService from '../services/ConfigService';
+import { useConfig } from '../context/ConfigProvider';
+import BackupSiteLivePreview from './BackupSiteLivePreview';
 
 const MASTER_CONFIG_TARGET_URL = import.meta.env.VITE_SP_MASTER_CONFIG_FILE_URL || SHAREPOINT_PATHS.masterConfigFileServerRelativeUrl;
 const MASTER_CONFIG_FILE_NAME = (MASTER_CONFIG_TARGET_URL || '').split('/').pop();
+const DEV_BACKUPS_STORAGE_KEY = 'bihs_dev_backup_packages_v1';
+const MAX_DEV_BACKUPS = 30;
 const RESTORE_TARGET_BY_FILE_NAME = {
     [MASTER_CONFIG_FILE_NAME]: MASTER_CONFIG_TARGET_URL,
     [String(SHAREPOINT_CONFIG.fileServerRelativeUrl || '').split('/').pop()]: SHAREPOINT_CONFIG.fileServerRelativeUrl,
@@ -57,6 +71,44 @@ const BACKUP_FILE_LABELS = {
     [String(SHAREPOINT_CONFIG.externalLinksFileServerRelativeUrl || '').split('/').pop()]: 'גיבוי קישורים חיצוניים',
     [String(SHAREPOINT_CONFIG.usersFileServerRelativeUrl || '').split('/').pop()]: 'גיבוי מנהלים',
 };
+
+const DEV_MOCK_FILE_TARGETS = [
+    {
+        fileName: String(SHAREPOINT_CONFIG.fileServerRelativeUrl || '').split('/').pop(),
+        storageKey: SHAREPOINT_CONFIG.mockStorageKey,
+        targetServerRelativeUrl: SHAREPOINT_CONFIG.fileServerRelativeUrl,
+    },
+    {
+        fileName: String(SHAREPOINT_CONFIG.navFileServerRelativeUrl || '').split('/').pop(),
+        storageKey: SHAREPOINT_CONFIG.navMockStorageKey,
+        targetServerRelativeUrl: SHAREPOINT_CONFIG.navFileServerRelativeUrl,
+    },
+    {
+        fileName: String(SHAREPOINT_CONFIG.siteContentFileServerRelativeUrl || '').split('/').pop(),
+        storageKey: SHAREPOINT_CONFIG.siteContentMockStorageKey,
+        targetServerRelativeUrl: SHAREPOINT_CONFIG.siteContentFileServerRelativeUrl,
+    },
+    {
+        fileName: String(SHAREPOINT_CONFIG.themeFileServerRelativeUrl || '').split('/').pop(),
+        storageKey: SHAREPOINT_CONFIG.themeMockStorageKey,
+        targetServerRelativeUrl: SHAREPOINT_CONFIG.themeFileServerRelativeUrl,
+    },
+    {
+        fileName: String(SHAREPOINT_CONFIG.widgetsFileServerRelativeUrl || '').split('/').pop(),
+        storageKey: SHAREPOINT_CONFIG.widgetsMockStorageKey,
+        targetServerRelativeUrl: SHAREPOINT_CONFIG.widgetsFileServerRelativeUrl,
+    },
+    {
+        fileName: String(SHAREPOINT_CONFIG.externalLinksFileServerRelativeUrl || '').split('/').pop(),
+        storageKey: SHAREPOINT_CONFIG.externalLinksMockStorageKey,
+        targetServerRelativeUrl: SHAREPOINT_CONFIG.externalLinksFileServerRelativeUrl,
+    },
+    {
+        fileName: String(SHAREPOINT_CONFIG.usersFileServerRelativeUrl || '').split('/').pop(),
+        storageKey: SHAREPOINT_CONFIG.usersMockStorageKey,
+        targetServerRelativeUrl: SHAREPOINT_CONFIG.usersFileServerRelativeUrl,
+    },
+].filter((entry) => entry.fileName && entry.storageKey && entry.targetServerRelativeUrl);
 
 const formatBytes = (value) => {
     const size = Number(value);
@@ -84,10 +136,6 @@ const parseComparableTimestamp = (backup) => {
     const timestamp = Date.parse(String(backup?.timeLastModified ?? backup?.timeCreated ?? ''));
     return Number.isFinite(timestamp) ? timestamp : 0;
 };
-
-const countOrgNodes = (nodes) => (Array.isArray(nodes)
-    ? nodes.reduce((sum, node) => sum + 1 + countOrgNodes(node?.children), 0)
-    : 0);
 
 const parseBackupJson = (fileName, text) => {
     try {
@@ -133,7 +181,87 @@ const buildPreviewFromBackupTexts = (fileTextsByName) => {
     };
 };
 
+const readLocalStorageValue = (key) => {
+    try {
+        return localStorage.getItem(key);
+    } catch {
+        return null;
+    }
+};
+
+const readDevBackupPackages = () => {
+    const raw = readLocalStorageValue(DEV_BACKUPS_STORAGE_KEY);
+    if (!raw) return [];
+
+    try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+            .map((item) => {
+                try {
+                    return normalizeImportedBackupPackage(item, { masterFileName: MASTER_CONFIG_FILE_NAME });
+                } catch {
+                    return null;
+                }
+            })
+            .filter(Boolean);
+    } catch {
+        return [];
+    }
+};
+
+const writeDevBackupPackages = (packages) => {
+    localStorage.setItem(DEV_BACKUPS_STORAGE_KEY, JSON.stringify(packages.slice(0, MAX_DEV_BACKUPS)));
+};
+
+const writeDevSplitFilesFromBackup = (fileTextsByName) => {
+    DEV_MOCK_FILE_TARGETS.forEach((target) => {
+        const text = fileTextsByName.get(target.fileName);
+        if (typeof text !== 'string') return;
+        localStorage.setItem(target.storageKey, text);
+    });
+};
+
+const upsertDevBackupPackage = (backupPackage) => {
+    const normalizedPackage = normalizeImportedBackupPackage(backupPackage, { masterFileName: MASTER_CONFIG_FILE_NAME });
+    const existingPackages = readDevBackupPackages()
+        .filter((item) => item.id !== normalizedPackage.id);
+    const nextPackages = [normalizedPackage, ...existingPackages]
+        .sort((a, b) => Date.parse(b.backup?.timeLastModified || b.exportedAt || '') - Date.parse(a.backup?.timeLastModified || a.exportedAt || ''))
+        .slice(0, MAX_DEV_BACKUPS);
+    writeDevBackupPackages(nextPackages);
+    return normalizedPackage;
+};
+
+const toBackupItemsFromPackages = (packages) => packages
+    .map((backupPackage) => packageToBackupListItem(backupPackage, { idPrefix: 'dev-backup' }))
+    .sort((a, b) => parseComparableTimestamp(b) - parseComparableTimestamp(a));
+
+const getBackupFileText = async (file, backup) => {
+    if (typeof file?.text === 'string') return file.text;
+
+    const packagedFile = backup?.backupPackage?.files?.find((item) => item.name === file?.name);
+    if (typeof packagedFile?.text === 'string') return packagedFile.text;
+
+    return readSharePointTextFile(file.serverRelativeUrl);
+};
+
+const downloadJsonFile = (fileName, payload) => {
+    const text = JSON.stringify(payload, null, 2);
+    const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+};
+
 export default function AdminBackupManagement() {
+    const { config, reload } = useConfig();
+    const importInputRef = useRef(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [backups, setBackups] = useState([]);
@@ -145,6 +273,8 @@ export default function AdminBackupManagement() {
     const [isCreatingBackup, setIsCreatingBackup] = useState(false);
     const [restoreModal, setRestoreModal] = useState(null);
     const [isRestoring, setIsRestoring] = useState(false);
+    const [exportingBackupPath, setExportingBackupPath] = useState('');
+    const [isImportingBackup, setIsImportingBackup] = useState(false);
 
     const selectedBackup = useMemo(
         () => backups.find((backup) => backup.serverRelativeUrl === selectedBackupPath) || null,
@@ -165,12 +295,122 @@ export default function AdminBackupManagement() {
         };
     }, [backups]);
 
+    const buildDevBackupPackage = ({ trigger = 'manual' } = {}) => {
+        const exportedAt = new Date().toISOString();
+        const normalizedConfig = validateAndNormalize(config);
+        const files = [
+            {
+                name: MASTER_CONFIG_FILE_NAME,
+                label: getBackupFileDisplayName(MASTER_CONFIG_FILE_NAME),
+                targetServerRelativeUrl: MASTER_CONFIG_TARGET_URL,
+                timeCreated: exportedAt,
+                timeLastModified: exportedAt,
+                text: JSON.stringify(normalizedConfig, null, 2),
+            },
+        ];
+
+        DEV_MOCK_FILE_TARGETS.forEach((target) => {
+            const text = readLocalStorageValue(target.storageKey);
+            if (typeof text !== 'string' || !text.trim()) return;
+            files.push({
+                name: target.fileName,
+                label: getBackupFileDisplayName(target.fileName),
+                targetServerRelativeUrl: target.targetServerRelativeUrl,
+                timeCreated: exportedAt,
+                timeLastModified: exportedAt,
+                text,
+            });
+        });
+
+        return createBackupPackage({
+            source: 'dev-local',
+            exportedAt,
+            backup: {
+                id: `dev-${exportedAt.replace(/[:.]/g, '-')}`,
+                name: `dev-backup-${exportedAt}`,
+                timeCreated: exportedAt,
+                timeLastModified: exportedAt,
+            },
+            files,
+            meta: {
+                trigger,
+                mode: import.meta.env.MODE,
+            },
+        });
+    };
+
+    const buildPackageFromBackup = async (backup) => {
+        if (!backup) {
+            throw new Error('לא נבחר גיבוי לייצוא.');
+        }
+
+        if (backup.backupPackage) {
+            return normalizeImportedBackupPackage(backup.backupPackage, { masterFileName: MASTER_CONFIG_FILE_NAME });
+        }
+
+        const files = await loadBackupFilesForBackup(backup);
+        const restorableFiles = files.filter((file) => RESTORE_TARGET_BY_FILE_NAME[file.name]);
+        if (restorableFiles.length === 0) {
+            throw new Error('לגיבוי הזה אין קבצים מוכרים לייצוא.');
+        }
+
+        const packageFiles = await Promise.all(restorableFiles.map(async (file) => ({
+            name: file.name,
+            label: getBackupFileDisplayName(file.name),
+            serverRelativeUrl: file.serverRelativeUrl,
+            targetServerRelativeUrl: RESTORE_TARGET_BY_FILE_NAME[file.name],
+            url: file.url || '',
+            timeCreated: file.timeCreated || '',
+            timeLastModified: file.timeLastModified || '',
+            sizeBytes: file.sizeBytes,
+            text: await getBackupFileText(file, backup),
+        })));
+
+        return createBackupPackage({
+            source: SHAREPOINT_CONFIG.useMock ? 'dev-local' : 'sharepoint',
+            backup: {
+                id: backup.id || backup.serverRelativeUrl || `backup-${Date.now()}`,
+                name: backup.name || getBackupDisplayName(backup),
+                serverRelativeUrl: backup.serverRelativeUrl || '',
+                url: backup.url || '',
+                timeCreated: backup.timeCreated || '',
+                timeLastModified: backup.timeLastModified || '',
+            },
+            files: packageFiles,
+        });
+    };
+
     const loadBackups = async ({ preserveSelection = true } = {}) => {
         if (SHAREPOINT_CONFIG.useMock) {
-            setError('ניהול גיבויים זמין רק בסביבת SharePoint אמיתית.');
-            setBackups([]);
-            setSelectedBackupPath('');
-            setSelectedBackupFiles([]);
+            setLoading(true);
+            setError('');
+            try {
+                const nextBackups = toBackupItemsFromPackages(readDevBackupPackages());
+                setBackups(nextBackups);
+                setBaseFolderUrl('');
+
+                if (nextBackups.length === 0) {
+                    setSelectedBackupPath('');
+                    setSelectedBackupFiles([]);
+                    return;
+                }
+
+                const previousSelectionExists = preserveSelection
+                    && nextBackups.some((item) => item.serverRelativeUrl === selectedBackupPath);
+                const fallbackSelection = nextBackups[0]?.serverRelativeUrl || '';
+                const nextSelection = previousSelectionExists ? selectedBackupPath : fallbackSelection;
+                setSelectedBackupPath(nextSelection);
+
+                const selectedFromRefresh = nextBackups.find((item) => item.serverRelativeUrl === nextSelection);
+                setSelectedBackupFiles(Array.isArray(selectedFromRefresh?.files) ? selectedFromRefresh.files : []);
+            } catch (loadError) {
+                setError(loadError?.message || 'טעינת גיבויי הפיתוח נכשלה.');
+                setBackups([]);
+                setSelectedBackupPath('');
+                setSelectedBackupFiles([]);
+            } finally {
+                setLoading(false);
+            }
             return;
         }
 
@@ -212,6 +452,10 @@ export default function AdminBackupManagement() {
     }, []);
 
     const loadBackupFilesForBackup = async (backup) => {
+        if (backup?.backupPackage) {
+            return Array.isArray(backup.files) ? backup.files : [];
+        }
+
         if (Array.isArray(backup.files) && backup.files.length > 0) {
             return backup.files;
         }
@@ -248,7 +492,7 @@ export default function AdminBackupManagement() {
 
             const fileTextEntries = await Promise.all(restorableFiles.map(async (file) => [
                 file.name,
-                await readSharePointTextFile(file.serverRelativeUrl),
+                await getBackupFileText(file, backup),
             ]));
             const fileTextsByName = new Map(fileTextEntries);
             const preview = buildPreviewFromBackupTexts(fileTextsByName);
@@ -305,6 +549,15 @@ export default function AdminBackupManagement() {
 
         setDeletingBackupPath(backup.serverRelativeUrl);
         try {
+            if (SHAREPOINT_CONFIG.useMock && backup.backupPackage) {
+                const nextPackages = readDevBackupPackages()
+                    .filter((item) => item.id !== backup.backupPackage.id);
+                writeDevBackupPackages(nextPackages);
+                toast.success('גיבוי הפיתוח נמחק בהצלחה.');
+                await loadBackups({ preserveSelection: true });
+                return;
+            }
+
             await deleteSharePointBackup(backup.serverRelativeUrl);
             toast.success('הגיבוי נמחק בהצלחה.');
             await loadBackups({ preserveSelection: true });
@@ -315,20 +568,21 @@ export default function AdminBackupManagement() {
         }
     };
 
-    const openInExplorer = (sharePointUrl) => {
-        const url = String(sharePointUrl ?? '').trim();
-        if (!url) return;
-        const explorerProtocolUrl = `ms-explorer:ofe|u|${url}`;
-        try {
-            window.location.href = explorerProtocolUrl;
-        } catch {
-            window.open(url, '_blank', 'noopener,noreferrer');
-        }
-    };
-
     const handleCreateManualBackup = async () => {
         if (SHAREPOINT_CONFIG.useMock) {
-            toast.info('גיבוי לא נתמך במצב פיתוח (Mock)');
+            setIsCreatingBackup(true);
+            try {
+                const backupPackage = upsertDevBackupPackage(buildDevBackupPackage({ trigger: 'manual' }));
+                toast.success('גיבוי פיתוח נוצר בהצלחה.');
+                await loadBackups({ preserveSelection: false });
+                const backupItem = packageToBackupListItem(backupPackage, { idPrefix: 'dev-backup' });
+                setSelectedBackupPath(backupItem.serverRelativeUrl);
+                setSelectedBackupFiles(backupItem.files);
+            } catch (createError) {
+                toast.error(createError?.message || 'יצירת גיבוי הפיתוח נכשלה.');
+            } finally {
+                setIsCreatingBackup(false);
+            }
             return;
         }
 
@@ -387,6 +641,20 @@ export default function AdminBackupManagement() {
 
         setIsRestoring(true);
         try {
+            if (SHAREPOINT_CONFIG.useMock) {
+                upsertDevBackupPackage(buildDevBackupPackage({ trigger: 'pre-restore' }));
+
+                const normalizedConfig = validateAndNormalize(restoreModal.preview.config);
+                await ConfigService.saveConfig(normalizedConfig);
+                writeDevSplitFilesFromBackup(restoreModal.fileTextsByName);
+                await reload();
+
+                toast.success('השחזור הושלם במצב פיתוח. הנתונים נטענו מחדש מהגיבוי.');
+                setRestoreModal(null);
+                await loadBackups({ preserveSelection: true });
+                return;
+            }
+
             const safetyBackup = await createBackup({ trigger: 'pre-restore' });
             if (!safetyBackup?.success) {
                 throw new Error(safetyBackup?.error || 'יצירת גיבוי בטיחות לפני שחזור נכשלה.');
@@ -425,6 +693,85 @@ export default function AdminBackupManagement() {
         }
     };
 
+    const handleExportBackup = async (backup = selectedBackup) => {
+        if (!backup) {
+            toast.info('בחר גיבוי לייצוא.');
+            return;
+        }
+
+        setExportingBackupPath(backup.serverRelativeUrl);
+        try {
+            const backupPackage = await buildPackageFromBackup(backup);
+            buildPreviewFromBackupTexts(packageToFileTextsMap(backupPackage));
+            downloadJsonFile(
+                getBackupPackageFileName({
+                    source: backupPackage.source || 'backup',
+                    exportedAt: new Date().toISOString(),
+                }),
+                backupPackage,
+            );
+            toast.success('קובץ הגיבוי יוצא בהצלחה.');
+        } catch (exportError) {
+            toast.error(exportError?.message || 'ייצוא הגיבוי נכשל.');
+        } finally {
+            setExportingBackupPath('');
+        }
+    };
+
+    const openImportFilePicker = () => {
+        importInputRef.current?.click();
+    };
+
+    const handleImportBackupFile = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+
+        setIsImportingBackup(true);
+        try {
+            const text = await file.text();
+            let parsed;
+            try {
+                parsed = JSON.parse(text);
+            } catch {
+                throw new Error('קובץ הגיבוי אינו JSON תקין.');
+            }
+
+            const importedPackage = normalizeImportedBackupPackage(parsed, { masterFileName: MASTER_CONFIG_FILE_NAME });
+            const fileTextsByName = packageToFileTextsMap(importedPackage);
+            const preview = buildPreviewFromBackupTexts(fileTextsByName);
+            const backupItem = packageToBackupListItem(importedPackage, { idPrefix: SHAREPOINT_CONFIG.useMock ? 'dev-backup' : 'imported-backup' });
+
+            if (SHAREPOINT_CONFIG.useMock) {
+                const savedPackage = upsertDevBackupPackage(importedPackage);
+                const savedBackupItem = packageToBackupListItem(savedPackage, { idPrefix: 'dev-backup' });
+                await loadBackups({ preserveSelection: true });
+                setSelectedBackupPath(savedBackupItem.serverRelativeUrl);
+                setSelectedBackupFiles(savedBackupItem.files);
+            }
+
+            setRestoreModal({
+                backup: backupItem,
+                files: backupItem.files,
+                loading: false,
+                error: '',
+                preview,
+                fileTextsByName,
+            });
+            toast.success('קובץ הגיבוי נטען לתצוגה מקדימה.');
+        } catch (importError) {
+            toast.error(importError?.message || 'ייבוא הגיבוי נכשל.');
+        } finally {
+            setIsImportingBackup(false);
+        }
+    };
+
+    const handleBackupRowKeyDown = (event, backup) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        handleSelectBackup(backup);
+    };
+
     return (
         <div dir="rtl" className="min-h-full bg-gray-50 px-6 py-4 text-gray-900 dark:bg-[#12141a] dark:text-white sm:px-10 sm:py-5">
             <div className="mx-auto max-w-7xl space-y-4">
@@ -435,13 +782,47 @@ export default function AdminBackupManagement() {
                                 <DatabaseBackup size={18} />
                             </div>
                             <div className="min-w-0">
-                                <h1 className="text-xl font-black tracking-tight text-gray-900 dark:text-white sm:text-2xl">ניהול גיבויים</h1>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <h1 className="text-xl font-black tracking-tight text-gray-900 dark:text-white sm:text-2xl">ניהול גיבויים</h1>
+                                    {SHAREPOINT_CONFIG.useMock && (
+                                        <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-black text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200">
+                                            מצב פיתוח
+                                        </span>
+                                    )}
+                                </div>
                                 <p className="mt-0.5 text-xs leading-snug text-gray-500 dark:text-gray-400 sm:text-sm sm:leading-relaxed">
-                                    דשבורד גיבויים מרכזי: צפייה בגיבויים, גודל כולל, קבצים לכל גיבוי ומחיקה מאובטחת.
+                                    {SHAREPOINT_CONFIG.useMock
+                                        ? 'דשבורד גיבויים מקומי לפיתוח: יצירה, ייבוא, ייצוא, תצוגה מקדימה ושחזור ללא SharePoint.'
+                                        : 'דשבורד גיבויים מרכזי: צפייה בגיבויים, גודל כולל, קבצים לכל גיבוי, ייבוא, ייצוא ומחיקה מאובטחת.'}
                                 </p>
                             </div>
                         </div>
                         <div className="flex shrink-0 flex-wrap items-center gap-2">
+                            <input
+                                ref={importInputRef}
+                                type="file"
+                                accept="application/json,.json"
+                                className="hidden"
+                                onChange={handleImportBackupFile}
+                            />
+                            <button
+                                type="button"
+                                onClick={openImportFilePicker}
+                                disabled={isImportingBackup}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-400/30 dark:text-emerald-300 dark:hover:bg-emerald-500/10 sm:text-sm"
+                            >
+                                {isImportingBackup ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+                                {isImportingBackup ? 'מייבא...' : 'ייבוא גיבוי'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleExportBackup()}
+                                disabled={!selectedBackup || Boolean(exportingBackupPath)}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 px-3 py-1.5 text-xs font-bold text-sky-700 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-sky-400/30 dark:text-sky-300 dark:hover:bg-sky-500/10 sm:text-sm"
+                            >
+                                {exportingBackupPath ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                                {exportingBackupPath ? 'מייצא...' : 'ייצוא נבחר'}
+                            </button>
                             <button
                                 type="button"
                                 onClick={handleCreateManualBackup}
@@ -533,14 +914,15 @@ export default function AdminBackupManagement() {
                                         return (
                                             <div
                                                 key={backup.serverRelativeUrl}
-                                                className={`p-4 transition ${isSelected ? 'bg-primary/5 dark:bg-primary/15' : ''}`}
+                                                role="button"
+                                                tabIndex={0}
+                                                aria-label={`בחר ${getBackupDisplayName(backup)}`}
+                                                onClick={() => handleSelectBackup(backup)}
+                                                onKeyDown={(event) => handleBackupRowKeyDown(event, backup)}
+                                                className={`cursor-pointer p-4 transition hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/30 dark:hover:bg-primary/10 ${isSelected ? 'bg-primary/5 dark:bg-primary/15' : ''}`}
                                             >
                                                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleSelectBackup(backup)}
-                                                        className="text-right"
-                                                    >
+                                                    <div className="text-right">
                                                         <div className="text-sm font-bold text-gray-900 dark:text-white">{getBackupDisplayName(backup)}</div>
                                                         <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                                             {formatDateTime(backup.timeLastModified || backup.timeCreated)}
@@ -548,25 +930,31 @@ export default function AdminBackupManagement() {
                                                         <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                                             {backup.fileCount} קבצים · {formatBytes(backup.totalSizeBytes)}
                                                         </div>
-                                                    </button>
-                                                    <div className="flex items-center gap-2">
+                                                    </div>
+                                                    <div
+                                                        className="flex items-center gap-2"
+                                                        onClick={(event) => event.stopPropagation()}
+                                                        onMouseDown={(event) => event.stopPropagation()}
+                                                    >
+                                                        {backup.url && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => window.open(backup.url, '_blank', 'noopener,noreferrer')}
+                                                                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-bold text-gray-700 transition hover:bg-gray-100 dark:border-white/10 dark:text-gray-200 dark:hover:bg-white/10"
+                                                            >
+                                                                <ExternalLink size={14} />
+                                                                פתח בטאב חדש
+                                                            </button>
+                                                        )}
                                                         <button
                                                             type="button"
-                                                            onClick={() => window.open(backup.url, '_blank', 'noopener,noreferrer')}
-                                                            className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-bold text-gray-700 transition hover:bg-gray-100 dark:border-white/10 dark:text-gray-200 dark:hover:bg-white/10"
+                                                            onClick={() => handleExportBackup(backup)}
+                                                            disabled={exportingBackupPath === backup.serverRelativeUrl}
+                                                            className="inline-flex items-center gap-1 rounded-lg border border-sky-300 px-3 py-1.5 text-xs font-bold text-sky-700 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-sky-400/30 dark:text-sky-300 dark:hover:bg-sky-500/10"
                                                         >
-                                                            <ExternalLink size={14} />
-                                                            פתח בטאב חדש
+                                                            {exportingBackupPath === backup.serverRelativeUrl ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                                                            ייצוא
                                                         </button>
-                                                        {/* <button
-                                                            type="button"
-                                                            onClick={() => openInExplorer(backup.url)}
-                                                            className="inline-flex items-center gap-1 rounded-lg border border-indigo-300 px-3 py-1.5 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50 dark:border-indigo-400/30 dark:text-indigo-300 dark:hover:bg-indigo-500/10"
-                                                            title="פתיחה בסייר קבצים (תלוי תמיכה בדפדפן/מערכת)"
-                                                        >
-                                                            <FolderOpen size={14} />
-                                                            פתח ב-Explorer
-                                                        </button> */}
                                                         <button
                                                             type="button"
                                                             onClick={() => handleDeleteBackup(backup)}
@@ -630,14 +1018,16 @@ export default function AdminBackupManagement() {
                                             </div>
                                             <div className="flex shrink-0 items-center gap-2">
                                                 <span className="text-xs text-gray-500 dark:text-gray-400">{formatBytes(file.sizeBytes)}</span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => window.open(file.url, '_blank', 'noopener,noreferrer')}
-                                                    className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-bold text-gray-700 transition hover:bg-gray-100 dark:border-white/10 dark:text-gray-200 dark:hover:bg-white/10"
-                                                >
-                                                    <ExternalLink size={14} />
-                                                    צפייה
-                                                </button>
+                                                {file.url && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => window.open(file.url, '_blank', 'noopener,noreferrer')}
+                                                        className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-bold text-gray-700 transition hover:bg-gray-100 dark:border-white/10 dark:text-gray-200 dark:hover:bg-white/10"
+                                                    >
+                                                        <ExternalLink size={14} />
+                                                        צפייה
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     ))}
@@ -649,8 +1039,14 @@ export default function AdminBackupManagement() {
             </div>
 
             {restoreModal && (
-                <div className="fixed inset-0 z-[12000] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
-                    <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#171b24]">
+                <div
+                    className="fixed inset-0 z-[12000] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
+                    onMouseDown={() => setRestoreModal(null)}
+                >
+                    <div
+                        className="flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#171b24]"
+                        onMouseDown={(event) => event.stopPropagation()}
+                    >
                         <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-white/10">
                             <div>
                                 <div className="text-xs font-bold uppercase tracking-[0.18em] text-gray-400">תצוגה מקדימה לשחזור</div>
@@ -685,62 +1081,25 @@ export default function AdminBackupManagement() {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-                                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-white/10 dark:bg-white/[0.04]">
-                                        <div className="mb-4 flex items-center justify-between gap-3">
-                                            <div>
-                                                <h3 className="text-lg font-black text-gray-900 dark:text-white">נתונים אחרי שחזור</h3>
-                                                <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                    מקור: {restoreModal.preview?.source === 'master' ? 'קובץ תצורה מלא' : 'קבצי גיבוי ישנים שהומרו לתצורה מלאה'}
-                                                </p>
-                                            </div>
-                                            <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
-                                                {restoreModal.files.length} קבצים
-                                            </span>
-                                        </div>
-
-                                        <div className="grid gap-3 sm:grid-cols-2">
-                                            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#232733]">
-                                                <div className="text-xs text-gray-500 dark:text-gray-400">שם האתר</div>
-                                                <div className="mt-1 font-black text-gray-900 dark:text-white">{restoreModal.preview?.config?.content?.hero?.siteName || '-'}</div>
-                                            </div>
-                                            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#232733]">
-                                                <div className="text-xs text-gray-500 dark:text-gray-400">כותרת Hero</div>
-                                                <div className="mt-1 font-black text-gray-900 dark:text-white">{restoreModal.preview?.config?.content?.hero?.title || '-'}</div>
-                                            </div>
-                                            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#232733]">
-                                                <div className="text-xs text-gray-500 dark:text-gray-400">צבע ראשי</div>
-                                                <div className="mt-2 flex items-center gap-2 font-black text-gray-900 dark:text-white">
-                                                    <span className="h-5 w-5 rounded-full border border-black/10 dark:border-white/20" style={{ backgroundColor: restoreModal.preview?.config?.theme?.primaryColor || '#0891b2' }} />
-                                                    {restoreModal.preview?.config?.theme?.primaryColor || '-'}
-                                                </div>
-                                            </div>
-                                            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#232733]">
-                                                <div className="text-xs text-gray-500 dark:text-gray-400">תצוגה</div>
-                                                <div className="mt-1 font-black text-gray-900 dark:text-white">{restoreModal.preview?.config?.theme?.displayMode || '-'}</div>
-                                            </div>
-                                            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#232733]">
-                                                <div className="text-xs text-gray-500 dark:text-gray-400">פריטי ניווט</div>
-                                                <div className="mt-1 text-2xl font-black text-gray-900 dark:text-white">{restoreModal.preview?.config?.navigation?.items?.length || 0}</div>
-                                            </div>
-                                            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#232733]">
-                                                <div className="text-xs text-gray-500 dark:text-gray-400">צמתים בעץ מבנה</div>
-                                                <div className="mt-1 text-2xl font-black text-gray-900 dark:text-white">{countOrgNodes(restoreModal.preview?.config?.content?.orgChart?.nodes)}</div>
-                                            </div>
-                                            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#232733]">
-                                                <div className="text-xs text-gray-500 dark:text-gray-400">ווידג׳טים פעילים</div>
-                                                <div className="mt-1 font-black text-gray-900 dark:text-white">{(restoreModal.preview?.config?.widgets?.active || []).join(', ') || '-'}</div>
-                                            </div>
-                                            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#232733]">
-                                                <div className="text-xs text-gray-500 dark:text-gray-400">קישורים חיצוניים</div>
-                                                <div className="mt-1 text-2xl font-black text-gray-900 dark:text-white">{restoreModal.preview?.config?.externalLinks?.items?.length || 0}</div>
+                                <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+                                    <div className="min-w-0 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/[0.04]">
+                                        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                                            <h3 className="text-lg font-black text-gray-900 dark:text-white">תצוגת אתר מהגיבוי</h3>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                                                    {restoreModal.preview?.source === 'master' ? 'קובץ תצורה מלא' : 'גיבוי ישן שהומר'}
+                                                </span>
+                                                <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-bold text-gray-600 dark:border-white/10 dark:bg-[#232733] dark:text-gray-200">
+                                                    {restoreModal.files.length} קבצים
+                                                </span>
                                             </div>
                                         </div>
+                                        <BackupSiteLivePreview config={restoreModal.preview?.config} />
                                     </div>
 
                                     <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#232733]">
                                         <h3 className="text-lg font-black text-gray-900 dark:text-white">קבצים שישוחזרו</h3>
-                                        <div className="mt-4 max-h-[420px] space-y-2 overflow-y-auto pr-1">
+                                        <div className="mt-4 max-h-[560px] space-y-2 overflow-y-auto pr-1">
                                             {[...restoreModal.fileTextsByName.keys()].map((fileName) => (
                                                 <div key={fileName} className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
                                                     <div className="text-sm font-bold text-gray-900 dark:text-white">{getBackupFileDisplayName(fileName)}</div>
@@ -755,7 +1114,9 @@ export default function AdminBackupManagement() {
 
                         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 px-5 py-4 dark:border-white/10">
                             <div className="text-xs text-gray-500 dark:text-gray-400">
-                                לפני שחזור ייווצר גיבוי בטיחות של המצב הנוכחי.
+                                {SHAREPOINT_CONFIG.useMock
+                                    ? 'לפני שחזור יישמר גיבוי בטיחות מקומי של מצב הפיתוח הנוכחי.'
+                                    : 'לפני שחזור ייווצר גיבוי בטיחות של המצב הנוכחי.'}
                             </div>
                             <button
                                 type="button"
