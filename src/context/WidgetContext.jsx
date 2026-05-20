@@ -402,12 +402,8 @@ export const WidgetProvider = ({ children }) => {
     }, [persistPollsToSharedStore, sharedPolls]);
 
     const updateField = useCallback((field, value) => {
-        const nextConfig = {
-            ...widgetConfig,
-            [field]: value,
-        };
-        return saveWidgetConfig(nextConfig);
-    }, [saveWidgetConfig, widgetConfig]);
+        return saveWidgetConfig({ [field]: value });
+    }, [saveWidgetConfig]);
 
     return (
         <WidgetContext.Provider

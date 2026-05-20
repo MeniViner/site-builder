@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, Bot, Sparkles, Wand2, X } from 'lucide-react';
+import { AlertTriangle, Bot, Redo2, Sparkles, Undo2, Wand2, X } from 'lucide-react';
 import { toast } from 'react-toastify';
 import AIService from '../services/AIService';
 import { parseJsonFromModel } from '../utils/aiJson';
@@ -21,7 +21,12 @@ export default function AdminAIActionCard({
     compact = false,
     compactLabel = 'AI',
     compactButtonClassName = '',
+    autoApplyLatest = true,
     autoCloseOnApply = true,
+    canUndo = false,
+    canRedo = false,
+    onUndo,
+    onRedo,
     secondaryPanel = null,
     secondaryPanelTitle = '',
     primaryPanelTabLabel = 'יצירת תוכן',
@@ -35,8 +40,11 @@ export default function AdminAIActionCard({
     const [parsedOutput, setParsedOutput] = useState(null);
     const [modelUsed, setModelUsed] = useState('');
     const [parseError, setParseError] = useState('');
+    const [autoApplyStatus, setAutoApplyStatus] = useState('');
     const [isOpen, setIsOpen] = useState(false);
     const [activePanelView, setActivePanelView] = useState('primary');
+    const lastAutoAppliedKeyRef = useRef('');
+    const autoApplyingRef = useRef(false);
 
     const isEnabled = AIService.isEnabled();
 
@@ -72,6 +80,7 @@ export default function AdminAIActionCard({
 
         setIsGenerating(true);
         setParseError('');
+        setAutoApplyStatus('');
         setRawOutput('');
         setParsedOutput(null);
 
@@ -129,6 +138,48 @@ export default function AdminAIActionCard({
             setIsApplying(false);
         }
     };
+
+    useEffect(() => {
+        if (!autoApplyLatest) return undefined;
+        if (!isEnabled || isGenerating || autoApplyingRef.current) return undefined;
+        if (typeof onApply !== 'function') return undefined;
+        if (parsedOutput === null || parsedOutput === undefined) return undefined;
+        if (parseError) return undefined;
+
+        const applyKey = `${rawOutput}::${JSON.stringify(parsedOutput)}`;
+        if (!applyKey || lastAutoAppliedKeyRef.current === applyKey) return undefined;
+        lastAutoAppliedKeyRef.current = applyKey;
+
+        let cancelled = false;
+        const run = async () => {
+            setIsApplying(true);
+            autoApplyingRef.current = true;
+            setAutoApplyStatus('מחיל הצעת AI אוטומטית...');
+            try {
+                await onApply(parsedOutput, rawOutput);
+                if (!cancelled) {
+                    setAutoApplyStatus('הצעת ה-AI הוחלה אוטומטית. ניתן לחזור אחורה או קדימה עם החצים.');
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    const msg = error?.message || 'החלת תוצאות AI נכשלה';
+                    setAutoApplyStatus('');
+                    setParseError(msg);
+                    toast.error(msg);
+                }
+            } finally {
+                if (!cancelled) {
+                    setIsApplying(false);
+                }
+                autoApplyingRef.current = false;
+            }
+        };
+
+        run();
+        return () => {
+            cancelled = true;
+        };
+    }, [autoApplyLatest, isEnabled, isGenerating, onApply, parseError, parsedOutput, rawOutput]);
 
     const panel = (
         <section className={`rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5 ${className}`}>
@@ -190,14 +241,43 @@ export default function AdminAIActionCard({
                         {isGenerating ? 'יוצר...' : generateButtonLabel}
                     </button>
 
-                    <button
-                        type="button"
-                        onClick={handleApply}
-                        disabled={!isEnabled || isGenerating || isApplying || parsedOutput === null}
-                        className="inline-flex h-10 items-center gap-2 rounded-xl border border-theme-subtle bg-theme-card px-4 text-sm font-bold text-theme transition hover:bg-theme-card-hover disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        {isApplying ? 'מחיל...' : applyButtonLabel}
-                    </button>
+                    {autoApplyLatest ? (
+                        <span className="inline-flex min-h-10 items-center rounded-xl border border-theme-subtle bg-theme-card px-4 text-sm font-bold text-theme-muted">
+                            {autoApplyStatus || 'ההצעה האחרונה תוחל אוטומטית'}
+                        </span>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={handleApply}
+                            disabled={!isEnabled || isGenerating || isApplying || parsedOutput === null}
+                            className="inline-flex h-10 items-center gap-2 rounded-xl border border-theme-subtle bg-theme-card px-4 text-sm font-bold text-theme transition hover:bg-theme-card-hover disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            {isApplying ? 'מחיל...' : applyButtonLabel}
+                        </button>
+                    )}
+
+                    {(typeof onUndo === 'function' || typeof onRedo === 'function') && (
+                        <div className="inline-flex items-center gap-1 rounded-xl border border-theme-subtle bg-theme-card p-1">
+                            <button
+                                type="button"
+                                onClick={onUndo}
+                                disabled={!canUndo || isGenerating || isApplying}
+                                aria-label="בטל שינוי AI"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-theme transition hover:bg-theme-card-hover disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                                <Undo2 size={15} />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={onRedo}
+                                disabled={!canRedo || isGenerating || isApplying}
+                                aria-label="בצע מחדש שינוי AI"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-theme transition hover:bg-theme-card-hover disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                                <Redo2 size={15} />
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {parseError && (

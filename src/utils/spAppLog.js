@@ -5,6 +5,20 @@
 
 const PREFIX = import.meta.env.VITE_APP_LOG_PREFIX || '[Portal]';
 
+const parseEnvFlag = (value, fallback = false) => {
+    if (value === undefined || value === null || value === '') return fallback;
+    return String(value).trim().toLowerCase() === 'true';
+};
+
+const APP_LOGS_ENABLED = parseEnvFlag(
+    import.meta.env.VITE_SP_APP_LOGS ?? import.meta.env.VITE_SP_VERBOSE_LOG,
+    false,
+);
+const APP_WARN_ERROR_LOGS_ENABLED = parseEnvFlag(
+    import.meta.env.VITE_SP_APP_WARN_ERROR_LOGS ?? import.meta.env.VITE_SP_APP_LOGS ?? import.meta.env.VITE_SP_VERBOSE_LOG,
+    false,
+);
+
 const E = {
     system: '⚙️',
     boot: '🚀',
@@ -17,6 +31,7 @@ const E = {
 };
 
 const line = (emoji, message, ...args) => {
+    if (!APP_LOGS_ENABLED) return;
     const head = `${PREFIX} ${emoji} ${message}`;
     if (args.length) {
         console.log(head, ...args);
@@ -32,8 +47,14 @@ export const spLog = {
     success: (message, ...args) => line(E.ok, message, ...args),
     user: (message, ...args) => line(E.user, message, ...args),
     file: (message, ...args) => line(E.file, message, ...args),
-    warn: (message, ...args) => console.warn(`${PREFIX} ${E.warn} ${message}`, ...args),
-    error: (message, ...args) => console.error(`${PREFIX} ${E.err} ${message}`, ...args),
+    warn: (message, ...args) => {
+        if (!APP_WARN_ERROR_LOGS_ENABLED) return;
+        console.warn(`${PREFIX} ${E.warn} ${message}`, ...args);
+    },
+    error: (message, ...args) => {
+        if (!APP_WARN_ERROR_LOGS_ENABLED) return;
+        console.error(`${PREFIX} ${E.err} ${message}`, ...args);
+    },
     /** ללא אימוג'י — מידע כללי */
     info: (message, ...args) => line('ℹ️', message, ...args),
 };

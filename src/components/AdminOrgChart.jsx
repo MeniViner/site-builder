@@ -3,6 +3,7 @@ import {
     AlertTriangle,
     CheckCircle2,
     ChevronLeft,
+    Download,
     Image as ImageIcon,
     LayoutGrid,
     Loader2,
@@ -416,6 +417,60 @@ function cloneOrgChart(orgChart) {
     };
 }
 
+function normalizeImportedText(value, fallback = '') {
+    if (value === null || value === undefined) return fallback;
+    const text = String(value).trim();
+    return text || fallback;
+}
+
+function normalizeImportedNodes(nodes, seenIds = new Set(), path = 'nodes') {
+    if (!Array.isArray(nodes)) {
+        throw new Error(`שדה ${path} חייב להיות מערך.`);
+    }
+
+    return nodes.map((node, index) => {
+        if (!node || typeof node !== 'object' || Array.isArray(node)) {
+            throw new Error(`צומת מספר ${index + 1} בקובץ אינו תקין.`);
+        }
+
+        const importedId = normalizeImportedText(node.id);
+        const id = importedId && !seenIds.has(importedId) ? importedId : createNodeId();
+        seenIds.add(id);
+
+        const children = node.children === undefined ? [] : normalizeImportedNodes(node.children, seenIds, `${path}.${index}.children`);
+
+        return {
+            id,
+            name: normalizeImportedText(node.name ?? node.title ?? node.label, `צומת ${index + 1}`),
+            rank: normalizeImportedText(node.rank),
+            role: normalizeImportedText(node.role ?? node.position),
+            imageUrl: normalizeImportedText(node.imageUrl ?? node.image),
+            children,
+        };
+    });
+}
+
+function validateImportedOrgChartPayload(payload) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        throw new Error('קובץ הייבוא חייב להכיל אובייקט JSON.');
+    }
+
+    const source = payload.orgChart || payload.structureTree || payload;
+    if (!source || typeof source !== 'object' || Array.isArray(source)) {
+        throw new Error('לא נמצא עץ מבנה תקין בקובץ.');
+    }
+
+    const nodes = normalizeImportedNodes(source.nodes);
+    if (nodes.length === 0) {
+        throw new Error('קובץ הייבוא לא מכיל צמתים לשחזור.');
+    }
+
+    return cloneOrgChart({
+        ...source,
+        nodes,
+    });
+}
+
 function findNodeById(nodes, targetId) {
     for (const node of Array.isArray(nodes) ? nodes : []) {
         if (node.id === targetId) return node;
@@ -792,9 +847,11 @@ export default function AdminOrgChart() {
     const [activeNodeId, setActiveNodeId] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
     const [saveMessage, setSaveMessage] = useState(null);
+    const [importError, setImportError] = useState('');
     const [modalState, setModalState] = useState(null);
     const [uploadingImage, setUploadingImage] = useState(false);
     const fileInputRef = useRef(null);
+    const structureImportInputRef = useRef(null);
     const lastSavedRef = useRef(null);
     const latestDraftRef = useRef(draft);
     const latestOrgChartRef = useRef(orgChart);
@@ -858,6 +915,59 @@ export default function AdminOrgChart() {
 
     const totalNodes = useMemo(() => countNodes(draft.nodes), [draft.nodes]);
     const depth = useMemo(() => getDepth(draft.nodes), [draft.nodes]);
+
+    const handleExportStructureTree = useCallback(() => {
+        const payload = {
+            type: 'siteBuilder-org-chart',
+            schemaVersion: 1,
+            exportedAt: new Date().toISOString(),
+            orgChart: cloneOrgChart(latestDraftRef.current),
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        const dateStamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+        anchor.href = url;
+        anchor.download = `structure-tree-${dateStamp}.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+    }, []);
+
+    const applyImportedStructureTree = useCallback((nextDraft) => {
+        setDraft(nextDraft);
+        setActiveTab('build');
+        setActiveNodeId(nextDraft.nodes[0]?.id || null);
+        setExpandedIds(new Set([ROOT_NODE_ID, ...nextDraft.nodes.map((node) => node.id)]));
+        setImportError('');
+        setSaveMessage({ type: 'success', text: 'עץ המבנה יובא בהצלחה ונשמר אוטומטית.' });
+    }, []);
+
+    const handleImportStructureTree = useCallback(async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+
+        try {
+            const text = await file.text();
+            const parsed = JSON.parse(text);
+            const nextDraft = validateImportedOrgChartPayload(parsed);
+            const confirmed = await confirmToast({
+                title: 'ייבוא עץ מבנה',
+                message: 'הייבוא יחליף את עץ המבנה הנוכחי לאחר בדיקת תקינות הקובץ. להמשיך?',
+                confirmText: 'ייבא',
+                cancelText: 'ביטול',
+                type: 'warning',
+            });
+            if (!confirmed) return;
+            applyImportedStructureTree(nextDraft);
+        } catch (err) {
+            const message = err?.message || 'קובץ עץ המבנה אינו תקין.';
+            setImportError(message);
+            setSaveMessage({ type: 'error', text: `ייבוא עץ המבנה נכשל: ${message}` });
+        }
+    }, [applyImportedStructureTree]);
 
     const updateDraftField = useCallback((field, value) => {
         setDraft((prev) => ({ ...prev, [field]: value }));
@@ -2379,6 +2489,29 @@ export default function AdminOrgChart() {
                     </div>
                     <div className="flex items-center gap-3">
                         <AdminPageHelpButton pageId="org-chart" />
+                        <button
+                            type="button"
+                            onClick={handleExportStructureTree}
+                            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-black text-gray-700 shadow-sm transition hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-gray-200"
+                        >
+                            <Download size={14} />
+                            ייצוא עץ
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => structureImportInputRef.current?.click()}
+                            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-black text-gray-700 shadow-sm transition hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-gray-200"
+                        >
+                            <Upload size={14} />
+                            ייבוא עץ
+                        </button>
+                        <input
+                            ref={structureImportInputRef}
+                            type="file"
+                            accept="application/json,.json"
+                            className="hidden"
+                            onChange={handleImportStructureTree}
+                        />
                         {isSaving && (
                             <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 shadow-sm dark:border-white/10 dark:bg-white/5">
                                 <div className="h-3.5 w-3.5 animate-spin rounded-full border-[2px] border-primary border-t-transparent" />
@@ -2408,7 +2541,28 @@ export default function AdminOrgChart() {
             </div>
 
             {error && <div className="mx-6 mt-6 flex items-center gap-3 rounded-2xl border border-primary-500/40 bg-primary-50 p-4 shadow-sm dark:bg-primary-900/20 sm:mx-10"><AlertTriangle className="shrink-0 text-primary" /><span className="text-sm font-medium text-primary-800 dark:text-primary-200">{error}</span></div>}
-            {saveMessage && <div className="mx-6 mt-6 flex items-center gap-3 rounded-2xl border border-red-300 bg-red-50 p-4 shadow-sm dark:border-red-500/20 dark:bg-red-900/30 sm:mx-10"><AlertTriangle className="shrink-0 text-red-500" /><span className="text-sm text-red-700 dark:text-red-200">{saveMessage.text}</span></div>}
+            {saveMessage && (
+                <div className={`mx-6 mt-6 flex items-center gap-3 rounded-2xl border p-4 shadow-sm sm:mx-10 ${
+                    saveMessage.type === 'success'
+                        ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-500/20 dark:bg-emerald-900/25'
+                        : 'border-red-300 bg-red-50 dark:border-red-500/20 dark:bg-red-900/30'
+                }`}>
+                    {saveMessage.type === 'success' ? (
+                        <CheckCircle2 className="shrink-0 text-emerald-600 dark:text-emerald-300" />
+                    ) : (
+                        <AlertTriangle className="shrink-0 text-red-500" />
+                    )}
+                    <span className={`text-sm ${saveMessage.type === 'success' ? 'text-emerald-800 dark:text-emerald-200' : 'text-red-700 dark:text-red-200'}`}>
+                        {saveMessage.text}
+                    </span>
+                </div>
+            )}
+            {importError && !saveMessage && (
+                <div className="mx-6 mt-6 flex items-center gap-3 rounded-2xl border border-red-300 bg-red-50 p-4 shadow-sm dark:border-red-500/20 dark:bg-red-900/30 sm:mx-10">
+                    <AlertTriangle className="shrink-0 text-red-500" />
+                    <span className="text-sm text-red-700 dark:text-red-200">{importError}</span>
+                </div>
+            )}
 
             <div className="flex-1 overflow-hidden p-4 sm:p-6 lg:p-8 space-y-8 lg:space-y-0 lg:flex lg:flex-row-reverse lg:items-start lg:gap-6 2xl:gap-8">
                     <div className="lg:flex-[1.08] lg:basis-[54%] lg:max-w-[52vw] lg:min-w-[660px] lg:shrink-0 lg:self-start" dir="rtl">
@@ -2512,4 +2666,3 @@ export default function AdminOrgChart() {
         </div>
     );
 }
-

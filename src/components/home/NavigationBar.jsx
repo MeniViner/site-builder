@@ -106,12 +106,37 @@ export default function NavigationBar({
   onBrandClick,
 }) {
   const location = useLocation();
+  const topNavGlassEffect = theme?.topNavGlassEffect === true;
+  const topNavGlassStrength = Number.isFinite(Number(theme?.topNavGlassStrength))
+    ? Math.max(0, Math.min(100, Math.round(Number(theme.topNavGlassStrength))))
+    : 62;
+  const navGlassBlur = 8 + (topNavGlassStrength * 0.34);
+  const navGlassBackgroundAlpha = effectiveMode === 'dark'
+    ? 0.12 + (topNavGlassStrength * 0.0022)
+    : 0.48 + (topNavGlassStrength * 0.0030);
+  const navGlassBorderAlpha = effectiveMode === 'dark'
+    ? 0.14 + (topNavGlassStrength * 0.0017)
+    : 0.22 + (topNavGlassStrength * 0.0018);
   const handleBrandClick = typeof onBrandClick === 'function'
     ? onBrandClick
     : () => window.scrollTo({ top: 0, behavior: 'smooth' });
 
   return (
-    <nav className="w-full px-8 py-6 flex items-center justify-between bg-theme-chrome backdrop-blur-md border-b border-theme-subtle sticky top-0 z-[100]">
+    <nav
+      className={`w-full px-8 py-6 flex items-center justify-between border-b sticky top-0 z-[100] ${topNavGlassEffect ? '' : 'bg-theme-chrome backdrop-blur-md border-theme-subtle'}`}
+      style={topNavGlassEffect
+        ? {
+          backgroundColor: effectiveMode === 'dark'
+            ? `rgba(12,15,22,${Math.min(0.45, navGlassBackgroundAlpha).toFixed(3)})`
+            : `rgba(255,255,255,${Math.min(0.80, navGlassBackgroundAlpha).toFixed(3)})`,
+          borderColor: effectiveMode === 'dark'
+            ? `rgba(255,255,255,${Math.min(0.30, navGlassBorderAlpha).toFixed(3)})`
+            : `rgba(255,255,255,${Math.min(0.38, navGlassBorderAlpha).toFixed(3)})`,
+          backdropFilter: `saturate(150%) blur(${navGlassBlur.toFixed(1)}px)`,
+          WebkitBackdropFilter: `saturate(150%) blur(${navGlassBlur.toFixed(1)}px)`,
+        }
+        : undefined}
+    >
       <div className="flex items-center gap-8 lg:gap-10">
         <div className="flex items-center gap-3 cursor-pointer group" onClick={handleBrandClick}>
           <div className="font-bold text-xl relative shrink-0" style={{ color: theme?.primaryColor ?? '#dc2626' }}>

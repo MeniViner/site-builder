@@ -24,6 +24,7 @@ import AdminTips from './AdminTips';
 import AdminOrgChart from './AdminOrgChart';
 import AdminAIHelp from './AdminAIHelp';
 import AdminSiteOwnersManagement from './AdminSiteOwnersManagement';
+import AdminAdminsSync from './AdminAdminsSync';
 import AdminBackupManagement from './AdminBackupManagement';
 import WidgetLivePreview from './WidgetLivePreview';
 import Tooltip from './Tooltip';
@@ -31,7 +32,45 @@ import NotFoundPage from './NotFoundPage';
 import { useWidget } from '../context/WidgetContext';
 import { useTheme } from '../context/ThemeContext';
 import { UI_FEATURES } from '../config/uiFeatures.config';
+import { resolveSiteImageUrl } from '../utils/assetUrl';
+import { ALPHA_TEAM_CONFIG, APP_VERSION } from '../config/alphaTeam.config';
 
+const ADMIN_SECTION_STORAGE_KEY = 'siteBuilder.adminHub.openSections.v1';
+const ADMIN_LAST_PATH_STORAGE_KEY = 'siteBuilder.adminHub.lastPath.v1';
+const DEFAULT_SECTION_OPEN = {
+    content: true,
+    system: false,
+    maintenance: false,
+};
+
+const ADMIN_SECTION_BY_TAB = {
+    info: 'content',
+    links: 'content',
+    'org-chart': 'content',
+    'external-links': 'content',
+    widgets: 'content',
+    'current-widgets': 'content',
+    theme: 'system',
+    'ai-help': 'system',
+    admins: 'maintenance',
+    'site-owners': 'maintenance',
+    backups: 'maintenance',
+};
+
+function readStoredOpenSections() {
+    try {
+        const parsed = JSON.parse(window.localStorage.getItem(ADMIN_SECTION_STORAGE_KEY) || 'null');
+        if (!parsed || typeof parsed !== 'object') return DEFAULT_SECTION_OPEN;
+        return {
+            ...DEFAULT_SECTION_OPEN,
+            content: Boolean(parsed.content ?? DEFAULT_SECTION_OPEN.content),
+            system: Boolean(parsed.system ?? DEFAULT_SECTION_OPEN.system),
+            maintenance: Boolean(parsed.maintenance ?? DEFAULT_SECTION_OPEN.maintenance),
+        };
+    } catch {
+        return DEFAULT_SECTION_OPEN;
+    }
+}
 
 function SidebarButton({ icon, label, isActive, onClick, isSidebarOpen, title }) {
     const IconComponent = icon;
@@ -65,7 +104,7 @@ function AlphaTeamAdminBanner({ isSidebarOpen }) {
         return (
             <div className="flex justify-center mt-2">
                 <img
-                    src="/images/alphalogo1.png"
+                    src={resolveSiteImageUrl(ALPHA_TEAM_CONFIG.logoPath)}
                     alt="Alpha logo"
                     className="w-10 h-10 object-contain shrink-0"
                     loading="lazy"
@@ -77,14 +116,14 @@ function AlphaTeamAdminBanner({ isSidebarOpen }) {
     return (
         <div className="rounded-xl border border-blue-100 dark:border-blue-900/30 bg-[#f4f7fb] dark:bg-blue-900/10 flex items-center gap-3 mt-1">
             <img
-                src="/images/alphalogo1.png"
+                src={resolveSiteImageUrl(ALPHA_TEAM_CONFIG.logoPath)}
                 alt="Alpha logo"
                 className="h-14 object-contain shrink-0"
                 loading="lazy"
             />
             <div className="min-w-0 flex-1 text-right">
-                <p className="text-[13px] font-bold text-gray-900 dark:text-gray-100 truncate">צוות אלפא</p>
-                <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">Alpha Team</p>
+                <p className="text-[13px] font-bold text-gray-900 dark:text-gray-100 truncate">{ALPHA_TEAM_CONFIG.nameHe}</p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">{ALPHA_TEAM_CONFIG.nameEn}</p>
             </div>
         </div>
     );
@@ -104,17 +143,22 @@ export default function AdminHub() {
         : [widgetConfig?.activeWidget || 'events'];
     const primaryWidget = activeWidgets[0] || 'events';
     const isLightMode = effectiveMode === 'light';
-    const [sectionOpen, setSectionOpen] = useState({
-        content: true,
-        system: false,
-        maintenance: false,
-    });
+    const [sectionOpen, setSectionOpen] = useState(() => readStoredOpenSections());
 
     const toggleSection = (sectionKey) => {
         setSectionOpen((prev) => ({
             ...prev,
             [sectionKey]: !prev[sectionKey],
         }));
+    };
+
+    const navigateAdmin = (path) => {
+        try {
+            window.localStorage.setItem(ADMIN_LAST_PATH_STORAGE_KEY, path);
+        } catch {
+            // Local UI state is best-effort only.
+        }
+        navigate(path);
     };
 
     const getActiveTab = () => {
@@ -126,6 +170,7 @@ export default function AdminHub() {
         if (path.includes('/admin/theme')) return 'theme';
         if (path.includes('/admin/external-links')) return 'external-links';
         if (showAiUi && path.includes('/admin/ai-help')) return 'ai-help';
+        if (path.includes('/admin/admins')) return 'admins';
         if (path.includes('/admin/site-owners')) return 'site-owners';
         if (path.includes('/admin/backups')) return 'backups';
         if (path.includes('/admin/org-chart')) return 'org-chart';
@@ -145,6 +190,48 @@ export default function AdminHub() {
     const activeTab = getActiveTab();
 
     const jumpToThemeTab = location.state?.jumpToThemeTab;
+
+    useEffect(() => {
+        try {
+            window.localStorage.setItem(ADMIN_SECTION_STORAGE_KEY, JSON.stringify(sectionOpen));
+        } catch {
+            // Local UI state is best-effort only.
+        }
+    }, [sectionOpen]);
+
+    useEffect(() => {
+        const sectionKey = ADMIN_SECTION_BY_TAB[activeTab];
+        if (!sectionKey) return;
+        setSectionOpen((prev) => (prev[sectionKey] ? prev : { ...prev, [sectionKey]: true }));
+    }, [activeTab]);
+
+    useEffect(() => {
+        if (!location.pathname.startsWith('/admin')) return;
+        if (location.pathname === '/admin' && jumpToThemeTab === 'displayMode') return;
+        if (location.pathname === '/admin') return;
+
+        const lastPath = `${location.pathname}${location.search || ''}`;
+        try {
+            window.localStorage.setItem(ADMIN_LAST_PATH_STORAGE_KEY, lastPath);
+        } catch {
+            // Local UI state is best-effort only.
+        }
+    }, [jumpToThemeTab, location.pathname, location.search]);
+
+    useEffect(() => {
+        if (location.pathname !== '/admin') return;
+        if (jumpToThemeTab === 'displayMode') return;
+
+        try {
+            const lastPath = window.localStorage.getItem(ADMIN_LAST_PATH_STORAGE_KEY);
+            if (lastPath && lastPath !== '/admin' && lastPath.startsWith('/admin/')) {
+                navigate(lastPath, { replace: true });
+            }
+        } catch {
+            // First-time users keep the default /admin page.
+        }
+    }, [jumpToThemeTab, location.pathname, navigate]);
+
     useEffect(() => {
         if (location.pathname !== '/admin') return;
         if (jumpToThemeTab !== 'displayMode') return;
@@ -178,7 +265,7 @@ export default function AdminHub() {
                             </button>
                             <div className="flex items-center gap-2 mr-1">
                                 <img
-                                    src="/images/giftFull.svg"
+                                    src={resolveSiteImageUrl("/images/giftFull.svg")}
                                     alt="Logo"
                                     className="h-10 object-contain shrink-0"
                                     loading="lazy"
@@ -205,7 +292,7 @@ export default function AdminHub() {
                             onClick={() => toggleSection('content')}
                             className="w-full flex items-center justify-between text-sm font-extrabold text-[#0f172a] dark:text-gray-200 px-4 py-2.5 mb-1 hover:bg-gray-50 dark:hover:bg-white/[0.04] transition rounded-lg"
                         >
-                            <span>ניהול תוכן</span>
+                            <span>ניהול ידע</span>
                             <ChevronLeft
                                 size={16}
                                 className={`transition-transform text-gray-900 dark:text-gray-200 ${sectionOpen.content ? '-rotate-90' : ''}`}
@@ -219,7 +306,7 @@ export default function AdminHub() {
                                 icon={FileText}
                                 label="ניהול המידע"
                                 isActive={activeTab === 'info'}
-                                onClick={() => navigate('/admin')}
+                                onClick={() => navigateAdmin('/admin')}
                                 isSidebarOpen={isSidebarOpen}
                             />
 
@@ -227,7 +314,7 @@ export default function AdminHub() {
                                 icon={LinkIcon}
                                 label="ניהול לינקים"
                                 isActive={activeTab === 'links'}
-                                onClick={() => navigate('/admin/links')}
+                                onClick={() => navigateAdmin('/admin/links')}
                                 isSidebarOpen={isSidebarOpen}
                                 title="עריכת כפתורי קישורים במערכת"
                             />
@@ -236,7 +323,7 @@ export default function AdminHub() {
                                 icon={Users}
                                 label="עץ מבנה"
                                 isActive={activeTab === 'org-chart'}
-                                onClick={() => navigate('/admin/org-chart')}
+                                onClick={() => navigateAdmin('/admin/org-chart')}
                                 isSidebarOpen={isSidebarOpen}
                                 title="בניית עץ המבנה הארגוני"
                             />
@@ -245,9 +332,27 @@ export default function AdminHub() {
                                 icon={ExternalLink}
                                 label="קישורים חיצוניים"
                                 isActive={activeTab === 'external-links'}
-                                onClick={() => navigate('/admin/external-links')}
+                                onClick={() => navigateAdmin('/admin/external-links')}
                                 isSidebarOpen={isSidebarOpen}
                                 title="הגדרת לינקים לכתובות חיצוניות"
+                            />
+
+                            <SidebarButton
+                                icon={LayoutGrid}
+                                label="בחירת ווידג׳טים פעילים"
+                                isActive={activeTab === 'widgets'}
+                                onClick={() => navigateAdmin('/admin/widgets')}
+                                isSidebarOpen={isSidebarOpen}
+                                title="בחירת עד 3 ווידג׳טים שיוצגו בקרוסלה"
+                            />
+
+                            <SidebarButton
+                                icon={LayoutGrid}
+                                label="ניהול הווידגטים העכשוויים"
+                                isActive={activeTab === 'current-widgets'}
+                                onClick={() => navigateAdmin('/admin/current-widgets')}
+                                isSidebarOpen={isSidebarOpen}
+                                title="ניהול 3 הווידג׳טים הנבחרים מעמוד אחד"
                             />
                         </>
                     )}
@@ -270,27 +375,9 @@ export default function AdminHub() {
                                 icon={Palette}
                                 label=" עיצוב האתר"
                                 isActive={activeTab === 'theme'}
-                                onClick={() => navigate('/admin/theme')}
+                                onClick={() => navigateAdmin('/admin/theme')}
                                 isSidebarOpen={isSidebarOpen}
                                 title="הגדרת עיצוב מתקדם לכל מקום באתר"
-                            />
-
-                            <SidebarButton
-                                icon={LayoutGrid}
-                                label="בחירת ווידג׳טים פעילים"
-                                isActive={activeTab === 'widgets'}
-                                onClick={() => navigate('/admin/widgets')}
-                                isSidebarOpen={isSidebarOpen}
-                                title="בחירת עד 3 ווידג׳טים שיוצגו בקרוסלה"
-                            />
-
-                            <SidebarButton
-                                icon={LayoutGrid}
-                                label="ניהול הווידגטים העכשוויים"
-                                isActive={activeTab === 'current-widgets'}
-                                onClick={() => navigate('/admin/current-widgets')}
-                                isSidebarOpen={isSidebarOpen}
-                                title="ניהול 3 הווידג׳טים הנבחרים מעמוד אחד"
                             />
                         </>
                     )}
@@ -311,18 +398,18 @@ export default function AdminHub() {
                         <>
                             <SidebarButton
                                 icon={ShieldCheck}
-                                label="ניהול מנהלים"
-                                isActive={activeTab === 'site-owners'}
-                                onClick={() => navigate('/admin/site-owners')}
+                                label="סנכרון מנהלים"
+                                isActive={activeTab === 'admins'}
+                                onClick={() => navigateAdmin('/admin/admins')}
                                 isSidebarOpen={isSidebarOpen}
-                                title="ניהול מנהלים בקובץ, מנהלי אוסף אתרים וקבוצת בעלי האתר"
+                                title="בדיקת סנכרון בין SharePoint לבין מנהלי האתר"
                             />
 
                             <SidebarButton
                                 icon={Save}
                                 label="ניהול גיבויים"
                                 isActive={activeTab === 'backups'}
-                                onClick={() => navigate('/admin/backups')}
+                                onClick={() => navigateAdmin('/admin/backups')}
                                 isSidebarOpen={isSidebarOpen}
                                 title="דשבורד גיבויים מלא עם צפייה ומחיקה"
                             />
@@ -372,12 +459,12 @@ export default function AdminHub() {
 
                     {isSidebarOpen ? (
                         <div className="text-center text-[11px] font-medium tracking-wide text-gray-500 dark:text-gray-400">
-                            siteBuilder 0.1.9
+                            siteBuilder {APP_VERSION}
                         </div>
                     ) : (
-                        <Tooltip text="siteBuilder 0.1.9">
+                        <Tooltip text={`siteBuilder ${APP_VERSION}`}>
                             <div className="w-full text-center text-[10px] font-medium text-gray-500 dark:text-gray-400">
-                                0.1.9
+                                {APP_VERSION}
                             </div>
                         </Tooltip>
                     )}
@@ -397,6 +484,7 @@ export default function AdminHub() {
                                 <Route path="/current-widgets" element={<div className="w-full h-full"><AdminCurrentWidgets /></div>} />
                                 <Route path="/theme" element={<div className="w-full h-full"><AdminTheme /></div>} />
                                 {showAiUi && <Route path="/ai-help" element={<div className="w-full h-full"><AdminAIHelp /></div>} />}
+                                <Route path="/admins" element={<div className="w-full h-full"><AdminAdminsSync /></div>} />
                                 <Route path="/site-owners" element={<div className="w-full h-full"><AdminSiteOwnersManagement /></div>} />
                                 <Route path="/backups" element={<div className="w-full h-full"><AdminBackupManagement /></div>} />
                                 <Route path="/org-chart" element={<div className="w-full h-full"><AdminOrgChart /></div>} />
@@ -430,6 +518,7 @@ export default function AdminHub() {
                             <Route path="/current-widgets" element={<div className="w-full h-full"><AdminCurrentWidgets /></div>} />
                             <Route path="/theme" element={<div className="w-full h-full"><AdminTheme /></div>} />
                             {showAiUi && <Route path="/ai-help" element={<div className="w-full h-full"><AdminAIHelp /></div>} />}
+                            <Route path="/admins" element={<div className="w-full h-full"><AdminAdminsSync /></div>} />
                             <Route path="/site-owners" element={<div className="w-full h-full"><AdminSiteOwnersManagement /></div>} />
                             <Route path="/backups" element={<div className="w-full h-full"><AdminBackupManagement /></div>} />
                             <Route path="/org-chart" element={<div className="w-full h-full"><AdminOrgChart /></div>} />

@@ -1,13 +1,29 @@
-import React, { useState, useMemo } from 'react';
-import { Search, X, Check } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Search, X, Check, RotateCcw } from 'lucide-react';
 import { DynamicIcon } from './DynamicIcon';
 import Tooltip from './Tooltip';
 import { ICON_CATEGORIES } from '../utils/iconsData';
 import { getIconHebrewLabel, getIconSearchHaystack } from '../utils/iconSearchHe';
 
-export default function IconPickerModal({ isOpen, onClose, onSelect, currentIcon }) {
+export default function IconPickerModal({ isOpen, onClose, onSelect, currentIcon, defaultSearchTerm = '' }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [activeCategory, setActiveCategory] = useState('all');
+    const searchEditedRef = useRef(false);
+
+    const resetFilters = () => {
+        searchEditedRef.current = true;
+        setSearchTerm('');
+        setActiveCategory('all');
+    };
+
+    useEffect(() => {
+        if (!isOpen) {
+            searchEditedRef.current = false;
+            return;
+        }
+        if (searchEditedRef.current) return;
+        setSearchTerm(typeof defaultSearchTerm === 'string' ? defaultSearchTerm.trim() : '');
+    }, [defaultSearchTerm, isOpen]);
 
     const filteredIcons = useMemo(() => {
         let result = [];
@@ -58,12 +74,15 @@ export default function IconPickerModal({ isOpen, onClose, onSelect, currentIcon
                             type="text"
                             placeholder="חפש אייקון בעברית או באנגלית (למשל: בית / Home, תיקייה / Folder, משתמש / User)..."
                             value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onChange={(e) => {
+                                searchEditedRef.current = true;
+                                setSearchTerm(e.target.value);
+                            }}
                             className="w-full bg-gray-100 dark:bg-[#1e212b] border border-transparent focus:border-primary focus:bg-white dark:focus:bg-[#12141a] rounded-xl pl-4 pr-10 py-3 text-gray-900 dark:text-white transition outline-none"
                         />
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <button
                             onClick={() => setActiveCategory('all')}
                             className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${activeCategory === 'all' ? 'bg-primary text-white shadow-md shadow-primary/30' : 'bg-gray-100 dark:bg-[#1e212b] text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10'}`}
@@ -79,6 +98,14 @@ export default function IconPickerModal({ isOpen, onClose, onSelect, currentIcon
                                 {cat.label}
                             </button>
                         ))}
+                        <button
+                            type="button"
+                            onClick={resetFilters}
+                            className="mr-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 transition"
+                        >
+                            <RotateCcw size={14} />
+                            אפס פילטרים
+                        </button>
                     </div>
                 </div>
 
@@ -88,6 +115,14 @@ export default function IconPickerModal({ isOpen, onClose, onSelect, currentIcon
                         <div className="flex flex-col items-center justify-center h-full text-gray-400 py-12">
                             <Search size={48} className="mb-4 opacity-20" />
                             <p className="text-lg">לא נמצאו אייקונים התואמים לחיפוש שלך.</p>
+                            <button
+                                type="button"
+                                onClick={resetFilters}
+                                className="mt-5 inline-flex items-center gap-2 rounded-xl border border-primary/40 bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-primary/25 hover:opacity-90 transition"
+                            >
+                                <RotateCcw size={16} />
+                                אפס פילטרים והצג הכל
+                            </button>
                         </div>
                     ) : (
                         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">

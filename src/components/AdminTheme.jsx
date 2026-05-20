@@ -23,6 +23,7 @@ const BASE_SETTINGS_NAV = [
     { id: 'displayMode', label: 'מצב תצוגה' },
     { id: 'borderStyle', label: 'סגנון מסגרות' },
     { id: 'widgetHeight', label: 'גובה ווידגט' },
+    { id: 'heroEffects', label: 'אזור עליון' },
     { id: 'regularLinksLayout', label: 'קטגוריות וקישורים' },
     { id: 'externalLinksLayout', label: 'קישורים חיצוניים' },
 ];
@@ -172,6 +173,10 @@ const AI_FIELD_LABELS = {
     externalLinksFixed: 'קישורים חיצוניים כפס נעוץ',
     externalLinksBordered: 'מסגרת לקישורים חיצוניים',
     externalLinksShowBackground: 'רקע לקישורים חיצוניים',
+    heroGlassEffect: 'אפקט זכוכית',
+    heroGlassStrength: 'עוצמת זכוכית אזור עליון',
+    topNavGlassEffect: 'אפקט זכוכית ניווט עליון',
+    topNavGlassStrength: 'עוצמת זכוכית ניווט עליון',
 };
 
 const AI_THEME_TOKEN_GROUPS = [
@@ -393,6 +398,10 @@ function buildThemeAiPrompt({ instruction, contextSnapshot }) {
         '  "tintedBackgroundStrength": 0-100,',
         '  "showNavCategories": true/false,',
         '  "heroGrayscale": true/false,',
+        '  "heroGlassEffect": true/false,',
+        '  "heroGlassStrength": 0-100,',
+        '  "topNavGlassEffect": true/false,',
+        '  "topNavGlassStrength": 0-100,',
         '  "externalLinksFixed": true/false,',
         '  "externalLinksBordered": true/false,',
         '  "externalLinksShowBackground": true/false',
@@ -473,6 +482,12 @@ function normalizeAiThemePayload(payload, fallback) {
     if (typeof payload?.heroGrayscale === 'boolean') {
         next.heroGrayscale = payload.heroGrayscale;
     }
+    if (typeof payload?.heroGlassEffect === 'boolean') {
+        next.heroGlassEffect = payload.heroGlassEffect;
+    }
+    if (typeof payload?.topNavGlassEffect === 'boolean') {
+        next.topNavGlassEffect = payload.topNavGlassEffect;
+    }
     if (typeof payload?.externalLinksFixed === 'boolean') {
         next.externalLinksFixed = payload.externalLinksFixed;
     }
@@ -484,6 +499,12 @@ function normalizeAiThemePayload(payload, fallback) {
     }
     if (Number.isFinite(Number(payload?.tintedBackgroundStrength))) {
         next.tintedBackgroundStrength = Math.max(0, Math.min(100, Math.round(Number(payload.tintedBackgroundStrength))));
+    }
+    if (Number.isFinite(Number(payload?.heroGlassStrength))) {
+        next.heroGlassStrength = Math.max(0, Math.min(100, Math.round(Number(payload.heroGlassStrength))));
+    }
+    if (Number.isFinite(Number(payload?.topNavGlassStrength))) {
+        next.topNavGlassStrength = Math.max(0, Math.min(100, Math.round(Number(payload.topNavGlassStrength))));
     }
 
     return next;
@@ -696,10 +717,29 @@ export default function AdminTheme() {
         toast.success('הצעת AI הוחלה על עיצוב האתר');
     };
 
+    const pushAiThemeTransition = useCallback((beforeSnapshot, afterSnapshot) => {
+        const before = { ...beforeSnapshot };
+        const after = { ...afterSnapshot };
+        setAiThemeHistory((prev) => {
+            const keptItems = prev.index >= 0 ? prev.items.slice(0, prev.index + 1) : [];
+            const baseItems = keptItems.length ? [...keptItems] : [];
+            const lastBase = baseItems[baseItems.length - 1];
+            if (!lastBase || JSON.stringify(lastBase) !== JSON.stringify(before)) {
+                baseItems.push(before);
+            }
+            const lastBeforeAfter = baseItems[baseItems.length - 1];
+            if (lastBeforeAfter && JSON.stringify(lastBeforeAfter) === JSON.stringify(after)) {
+                return { items: baseItems, index: baseItems.length - 1 };
+            }
+            const items = [...baseItems, after];
+            return { items, index: items.length - 1 };
+        });
+    }, []);
+
     const pushAiThemeSnapshot = useCallback((snapshot) => {
         const normalized = { ...snapshot };
         setAiThemeHistory((prev) => {
-            const keptItems = prev.items.slice(0, prev.index + 1);
+            const keptItems = prev.index >= 0 ? prev.items.slice(0, prev.index + 1) : prev.items.slice(0, prev.items.length);
             const last = keptItems[keptItems.length - 1];
             if (last && JSON.stringify(last) === JSON.stringify(normalized)) {
                 return prev;
@@ -733,16 +773,14 @@ export default function AdminTheme() {
             return;
         }
 
-        pushAiThemeSnapshot(draft);
-        setDraft((prev) => {
-            const next = {
-                ...prev,
-                ...nextSelectionPatch,
-                ...(nextSelectionPatch.regularLinksLayout === 'sidebar-right' ? { showNavCategories: false } : {}),
-            };
-            triggerAutoSave(next);
-            return next;
-        });
+        const nextTheme = {
+            ...draft,
+            ...nextSelectionPatch,
+            ...(nextSelectionPatch.regularLinksLayout === 'sidebar-right' ? { showNavCategories: false } : {}),
+        };
+        pushAiThemeTransition(draft, nextTheme);
+        setDraft(nextTheme);
+        triggerAutoSave(nextTheme);
 
         if (nextSelectionPatch.primaryColor) {
             setCustomColor(nextSelectionPatch.primaryColor);
@@ -805,7 +843,9 @@ export default function AdminTheme() {
             if (JSON.stringify(normalized) === JSON.stringify(draft)) {
                 toast.info('התקבלה תשובה, אבל אין שינוי ביחס לעיצוב הקיים. נסה הנחיה מדויקת יותר.');
             } else {
-                toast.success('נוצרה הצעת עיצוב חדשה לפי הבקשה שלך.');
+                const nextTheme = { ...draft, ...normalized };
+                pushAiThemeTransition(draft, nextTheme);
+                applyAiTheme(normalized);
             }
         } catch (error) {
             const message = error?.message || 'יצירת עיצוב ב-AI נכשלה.';
@@ -822,16 +862,16 @@ export default function AdminTheme() {
             toast.error('אין הצעת AI מוכנה ליישום.');
             return;
         }
-        pushAiThemeSnapshot(draft);
+        pushAiThemeTransition(draft, { ...draft, ...aiSuggestedTheme });
         applyAiTheme(aiSuggestedTheme);
     };
 
     const handleUndoAiTheme = () => {
-        if (aiThemeHistory.index < 0) {
+        if (aiThemeHistory.index <= 0) {
             toast.error('אין שינוי קודם לחזרה.');
             return;
         }
-        const targetSnapshot = aiThemeHistory.items[aiThemeHistory.index];
+        const targetSnapshot = aiThemeHistory.items[aiThemeHistory.index - 1];
         setDraft((prev) => {
             if (JSON.stringify(prev) === JSON.stringify(targetSnapshot)) {
                 return prev;
@@ -841,7 +881,7 @@ export default function AdminTheme() {
             return restored;
         });
         setCustomColor(targetSnapshot.primaryColor || '#0891b2');
-        setAiThemeHistory((prev) => ({ ...prev, index: prev.index - 1 }));
+        setAiThemeHistory((prev) => ({ ...prev, index: Math.max(0, prev.index - 1) }));
         toast.success('חזרת לשינוי הקודם.');
     };
 
@@ -1069,7 +1109,7 @@ export default function AdminTheme() {
                                         <button
                                             type="button"
                                             onClick={handleUndoAiTheme}
-                                            disabled={aiThemeHistory.index < 0}
+                                            disabled={aiThemeHistory.index <= 0}
                                             className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-gray-300/90 bg-white/90 px-4 text-sm font-bold text-gray-700 shadow-[0_8px_20px_rgba(15,23,42,0.08)] backdrop-blur-md transition hover:border-primary/50 hover:text-primary hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/15"
                                         >
                                             <Undo2 size={14} />
@@ -1283,7 +1323,7 @@ export default function AdminTheme() {
                                                     <button
                                                         type="button"
                                                         onClick={handleUndoAiTheme}
-                                                        disabled={aiThemeHistory.index < 0 || aiIsGenerating}
+                                                        disabled={aiThemeHistory.index <= 0 || aiIsGenerating}
                                                         title="חזור שינוי אחד אחורה"
                                                         className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-gray-700 dark:text-gray-200 transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
                                                     >
@@ -1301,14 +1341,9 @@ export default function AdminTheme() {
                                                     >
                                                         <Redo2 size={16} />
                                                     </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleApplyAiTheme}
-                                                        disabled={!aiEnabled || aiIsGenerating}
-                                                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                                                    >
-                                                        החל על העיצוב
-                                                    </button>
+                                                    <span className="inline-flex items-center justify-center gap-2 rounded-xl border border-primary/25 bg-primary/10 px-4 py-2.5 text-sm font-bold text-primary">
+                                                        ההצעה האחרונה הוחלה אוטומטית
+                                                    </span>
                                                 </div>
                                             </div>
 
@@ -1751,6 +1786,134 @@ export default function AdminTheme() {
                                         </div>
                                     );
                                 })}
+                            </div>
+                        </section>
+                    )}
+
+                    {/* ==================== HERO EFFECTS ==================== */}
+                    {showSection('heroEffects') && (
+                        <section className="pb-8 border-b border-gray-200 dark:border-white/5 last:border-0">
+                            <div className="flex items-center gap-3 mb-6 pb-4">
+                                <div className="bg-primary-500/10 p-2.5 rounded-lg border border-primary-500/20">
+                                    <Sparkles size={20} className="text-primary-400" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">אזור עליון</h2>
+                                        <HelpTooltipButton title="אפקטים לאזור העליון" description="כאן מפעילים אפקטים עדינים על החלק העליון של דף הבית בלבד." />
+                                    </div>
+                                    <p className="text-sm text-gray-400 dark:text-gray-500">אפשרויות ויזואליות לאזור ההירו, הווידג׳ט ודבר המפקד.</p>
+                                </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-[#1e212b] space-y-5">
+                                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/[0.04]">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-base font-black text-gray-900 dark:text-white">אפקט זכוכית - אזור עליון</h3>
+                                                <HelpTooltipButton
+                                                    title="אפקט זכוכית באזור העליון"
+                                                    description="מפעיל שכבת זכוכית על אזור ההירו העליון. ברירת מחדל כבויה לשמירה על התאמה לאתרים קיימים."
+                                                />
+                                            </div>
+                                            <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                                                שליטה נפרדת בהפעלה ובעוצמה של שכבת הזכוכית באזור ההירו.
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-col items-center gap-1.5 shrink-0">
+                                            <button
+                                                dir="ltr"
+                                                type="button"
+                                                role="switch"
+                                                aria-checked={draft.heroGlassEffect === true}
+                                                onClick={() => updateField('heroGlassEffect', draft.heroGlassEffect !== true)}
+                                                className={`relative inline-flex h-8 w-16 shrink-0 items-center rounded-full border transition-all duration-300 ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#12141a] ${draft.heroGlassEffect === true
+                                                    ? 'bg-primary-600 border-primary-400/70 shadow-[0_0_16px_var(--color-primary-hex)]'
+                                                    : 'bg-gray-300 dark:bg-gray-700 border-gray-400/60 dark:border-gray-500/60'
+                                                    }`}
+                                                aria-label="הפעלת אפקט זכוכית באזור העליון"
+                                            >
+                                                <span className={`inline-block h-6 w-6 rounded-full bg-white shadow-[0_2px_10px_rgba(0,0,0,0.28)] transform-gpu transition-transform duration-300 ease-out ${draft.heroGlassEffect === true ? 'translate-x-9' : 'translate-x-1'}`} />
+                                            </button>
+                                            <span className={`text-[10px] font-bold tracking-wide ${draft.heroGlassEffect === true ? 'text-primary-500' : 'text-gray-500 dark:text-gray-400'}`}>
+                                                {draft.heroGlassEffect === true ? 'מופעל' : 'כבוי'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className={`mt-4 pt-4 border-t border-gray-200 dark:border-white/10 ${draft.heroGlassEffect === true ? '' : 'opacity-60'}`} dir="ltr">
+                                        <div className="mb-2 flex items-center justify-between" dir="rtl">
+                                            <span className="text-xs font-bold text-gray-700 dark:text-gray-300">עוצמת אפקט זכוכית</span>
+                                            <span className="text-xs font-black text-primary">{Math.max(0, Math.min(100, Number(draft.heroGlassStrength) || 58))}%</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={100}
+                                            step={1}
+                                            value={Math.max(0, Math.min(100, Number(draft.heroGlassStrength) || 58))}
+                                            disabled={draft.heroGlassEffect !== true}
+                                            onChange={(e) => updateField('heroGlassStrength', Number(e.target.value))}
+                                            className="tint-strength-slider w-full cursor-pointer disabled:cursor-not-allowed"
+                                            style={{ '--slider-fill': `${Math.max(0, Math.min(100, Number(draft.heroGlassStrength) || 58))}%` }}
+                                            aria-label="עוצמת אפקט זכוכית באזור העליון"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/[0.04]">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-base font-black text-gray-900 dark:text-white">אפקט זכוכית - ניווט עליון</h3>
+                                                <HelpTooltipButton
+                                                    title="אפקט זכוכית בניווט העליון"
+                                                    description="מפעיל אפקט זכוכית על כל פס ה־Navbar העליון, כולל כפתורים ושורת החיפוש."
+                                                />
+                                            </div>
+                                            <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                                                שליטה נפרדת בהפעלה ובעוצמה של שכבת הזכוכית לניווט העליון.
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-col items-center gap-1.5 shrink-0">
+                                            <button
+                                                dir="ltr"
+                                                type="button"
+                                                role="switch"
+                                                aria-checked={draft.topNavGlassEffect === true}
+                                                onClick={() => updateField('topNavGlassEffect', draft.topNavGlassEffect !== true)}
+                                                className={`relative inline-flex h-8 w-16 shrink-0 items-center rounded-full border transition-all duration-300 ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#12141a] ${draft.topNavGlassEffect === true
+                                                    ? 'bg-primary-600 border-primary-400/70 shadow-[0_0_16px_var(--color-primary-hex)]'
+                                                    : 'bg-gray-300 dark:bg-gray-700 border-gray-400/60 dark:border-gray-500/60'
+                                                    }`}
+                                                aria-label="הפעלת אפקט זכוכית בניווט העליון"
+                                            >
+                                                <span className={`inline-block h-6 w-6 rounded-full bg-white shadow-[0_2px_10px_rgba(0,0,0,0.28)] transform-gpu transition-transform duration-300 ease-out ${draft.topNavGlassEffect === true ? 'translate-x-9' : 'translate-x-1'}`} />
+                                            </button>
+                                            <span className={`text-[10px] font-bold tracking-wide ${draft.topNavGlassEffect === true ? 'text-primary-500' : 'text-gray-500 dark:text-gray-400'}`}>
+                                                {draft.topNavGlassEffect === true ? 'מופעל' : 'כבוי'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className={`mt-4 pt-4 border-t border-gray-200 dark:border-white/10 ${draft.topNavGlassEffect === true ? '' : 'opacity-60'}`} dir="ltr">
+                                        <div className="mb-2 flex items-center justify-between" dir="rtl">
+                                            <span className="text-xs font-bold text-gray-700 dark:text-gray-300">עוצמת אפקט זכוכית</span>
+                                            <span className="text-xs font-black text-primary">{Math.max(0, Math.min(100, Number(draft.topNavGlassStrength) || 62))}%</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={100}
+                                            step={1}
+                                            value={Math.max(0, Math.min(100, Number(draft.topNavGlassStrength) || 62))}
+                                            disabled={draft.topNavGlassEffect !== true}
+                                            onChange={(e) => updateField('topNavGlassStrength', Number(e.target.value))}
+                                            className="tint-strength-slider w-full cursor-pointer disabled:cursor-not-allowed"
+                                            style={{ '--slider-fill': `${Math.max(0, Math.min(100, Number(draft.topNavGlassStrength) || 62))}%` }}
+                                            aria-label="עוצמת אפקט זכוכית בניווט העליון"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </section>
                     )}

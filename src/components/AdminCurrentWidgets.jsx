@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Calendar, Bell, Award, Timer, Rss, BookUser, BusFront, Vote, PartyPopper, ScrollText, Lightbulb } from 'lucide-react';
 import { useWidget } from '../context/WidgetContext';
 import WidgetLivePreview from './WidgetLivePreview';
@@ -39,6 +39,9 @@ export default function AdminCurrentWidgets() {
   const rotationInterval = Number.isFinite(Number(widgetConfig?.rotationInterval))
     ? Number(widgetConfig.rotationInterval)
     : 8;
+  const [rotationDraft, setRotationDraft] = useState(rotationInterval);
+  const [rotationSaveError, setRotationSaveError] = useState('');
+  const lastSavedRotationRef = useRef(rotationInterval);
 
   useEffect(() => {
     if (!activeWidgets.includes(selectedWidgetId)) {
@@ -46,8 +49,31 @@ export default function AdminCurrentWidgets() {
     }
   }, [activeWidgets, selectedWidgetId]);
 
-  const handleRotationChange = async (nextValue) => {
-    await updateField('rotationInterval', Number(nextValue));
+  useEffect(() => {
+    setRotationDraft(rotationInterval);
+    lastSavedRotationRef.current = rotationInterval;
+  }, [rotationInterval]);
+
+  useEffect(() => {
+    const nextValue = Math.max(3, Math.min(30, Number(rotationDraft) || 8));
+    if (nextValue === lastSavedRotationRef.current) return undefined;
+
+    const timeoutId = window.setTimeout(async () => {
+      const success = await updateField('rotationInterval', nextValue);
+      if (success) {
+        lastSavedRotationRef.current = nextValue;
+        setRotationSaveError('');
+        return;
+      }
+      setRotationSaveError('שמירת זמן ההחלפה נכשלה. אפשר להמשיך לעבוד ולנסות שוב.');
+    }, 500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [rotationDraft, updateField]);
+
+  const handleRotationChange = (nextValue) => {
+    setRotationSaveError('');
+    setRotationDraft(Number(nextValue));
   };
 
   const renderSelectedWidgetManager = () => {
@@ -137,14 +163,14 @@ export default function AdminCurrentWidgets() {
                         description="המספר הזה קובע כל כמה שניות המערכת תעבור לווידג׳ט הפעיל הבא."
                       />
                     </div>
-                    <span className="text-base font-black text-primary">{rotationInterval}s</span>
+                    <span className="text-base font-black text-primary">{rotationDraft}s</span>
                   </div>
                   <input
                     type="range"
                     min={3}
                     max={30}
                     step={1}
-                    value={rotationInterval}
+                    value={rotationDraft}
                     onChange={(e) => handleRotationChange(e.target.value)}
                     className="w-full cursor-pointer accent-primary"
                   />
@@ -152,6 +178,12 @@ export default function AdminCurrentWidgets() {
                     <span>3 שנ׳</span>
                     <span>30 שנ׳</span>
                   </div>
+                  {rotationSaveError && (
+                    <div className="mt-2 flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-500/30 dark:bg-red-950/30 dark:text-red-100">
+                      <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                      <span>{rotationSaveError}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

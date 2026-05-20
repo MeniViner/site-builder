@@ -278,6 +278,22 @@ const putTextFile = async (requestUrl, text, contentType) => {
  */
 export const buildFileValueEndpoint = (serverRelativeUrl) => toRequestUrl(serverRelativeUrl);
 
+export const readSharePointTextFile = async (serverRelativeUrl) => {
+    const endpoint = buildFileValueEndpoint(serverRelativeUrl);
+    const response = await fetch(endpoint, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Accept: 'text/plain, */*' },
+    });
+
+    if (!response.ok) {
+        const errorText = summarizeErrorText(await responseTextSafe(response));
+        throw new Error(`SharePoint read failed (${response.status}): ${errorText}`);
+    }
+
+    return response.text();
+};
+
 /**
  * Ensures a full SharePoint folder path exists (creates missing folders in order).
  */
@@ -483,6 +499,7 @@ export const createBackup = async (options = {}) => {
         const filesToBackup = Array.isArray(requestedFiles) && requestedFiles.length > 0
             ? requestedFiles
             : [
+                import.meta.env.VITE_SP_MASTER_CONFIG_FILE_URL || SHAREPOINT_PATHS.masterConfigFileServerRelativeUrl,
                 SHAREPOINT_CONFIG.fileServerRelativeUrl,
                 SHAREPOINT_CONFIG.navFileServerRelativeUrl,
                 SHAREPOINT_CONFIG.siteContentFileServerRelativeUrl,

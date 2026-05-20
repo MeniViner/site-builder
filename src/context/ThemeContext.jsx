@@ -84,6 +84,12 @@ function toCssTintStrength(value) {
     return Math.round(normalized * 1.8);
 }
 
+function normalizePercent(value, fallback = 60) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.max(0, Math.min(100, Math.round(parsed)));
+}
+
 function applyDisplayMode(effectiveMode) {
     const root = document.documentElement;
     if (effectiveMode === 'dark') {
@@ -105,6 +111,10 @@ function toLegacyTheme(config) {
         tintedBackgroundStrength: theme.backgrounds?.tinted?.strength ?? 72,
         borderTargets: theme.borderTargets || {},
         heroGrayscale: theme.backgrounds?.hero?.grayscale ?? false,
+        heroGlassEffect: theme.backgrounds?.hero?.glassEffect ?? false,
+        heroGlassStrength: normalizePercent(theme.backgrounds?.hero?.glassStrength, 58),
+        topNavGlassEffect: theme.backgrounds?.navbar?.glassEffect ?? false,
+        topNavGlassStrength: normalizePercent(theme.backgrounds?.navbar?.glassStrength, 62),
         heroPanelsBordered: layout.hero?.panelsBordered ?? true,
         commanderPanelBordered: layout.hero?.commanderPanelBordered ?? false,
         widgetPanelBordered: layout.hero?.widgetPanelBordered ?? layout.hero?.panelsBordered ?? true,
@@ -140,6 +150,17 @@ function patchConfigFromLegacyTheme(prev, newTheme) {
                 hero: {
                     ...prev.theme.backgrounds.hero,
                     grayscale: newTheme?.heroGrayscale ?? prev.theme.backgrounds.hero.grayscale,
+                    glassEffect: newTheme?.heroGlassEffect ?? prev.theme.backgrounds.hero.glassEffect,
+                    glassStrength: Number.isFinite(Number(newTheme?.heroGlassStrength))
+                        ? normalizePercent(newTheme.heroGlassStrength, prev.theme.backgrounds.hero.glassStrength)
+                        : prev.theme.backgrounds.hero.glassStrength,
+                },
+                navbar: {
+                    ...prev.theme.backgrounds.navbar,
+                    glassEffect: newTheme?.topNavGlassEffect ?? prev.theme.backgrounds.navbar.glassEffect,
+                    glassStrength: Number.isFinite(Number(newTheme?.topNavGlassStrength))
+                        ? normalizePercent(newTheme.topNavGlassStrength, prev.theme.backgrounds.navbar.glassStrength)
+                        : prev.theme.backgrounds.navbar.glassStrength,
                 },
             },
         },

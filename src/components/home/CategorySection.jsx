@@ -1,9 +1,10 @@
 import { ChevronLeft, Image as ImageIcon, Undo2 } from 'lucide-react';
 import { DynamicIcon } from '../DynamicIcon';
+import NavVisual from '../NavVisual';
 import Tooltip from '../Tooltip';
 import { panelStyle } from '../../utils/borderStyles';
 
-export function FlipCard({ id, title, icon: iconName, subLinks = [], url, isFlipped, onFlip, borderStyle = 'standard' }) {
+export function FlipCard({ id, title, icon: iconName, iconUrl = '', subLinks = [], url, isFlipped, onFlip, borderStyle = 'standard' }) {
   const handleLinkClick = (e) => e.stopPropagation();
   const handleCardClick = () => {
     if (url) {
@@ -26,7 +27,7 @@ export function FlipCard({ id, title, icon: iconName, subLinks = [], url, isFlip
           style={cardFrameStyle}
         >
           <div className="bg-theme-elevated border border-theme-subtle p-4 rounded-xl mb-4 text-primary group-hover:scale-110 transition-transform duration-300">
-            <DynamicIcon name={iconName} size={36} strokeWidth={1.5} />
+            <NavVisual icon={iconName} iconUrl={iconUrl} size={36} className="text-primary" imageClassName="h-9 w-9 object-contain" />
           </div>
           <h3 className="text-xl font-bold text-theme tracking-wide">{title}</h3>
           <div className="mt-4 flex items-center justify-center gap-1 text-xs text-theme-muted font-medium tracking-wider uppercase">
@@ -47,7 +48,7 @@ export function FlipCard({ id, title, icon: iconName, subLinks = [], url, isFlip
           <div className="flex flex-wrap gap-1.5 flex-1 content-center">
             {(subLinks || []).map((link, idx) => (
               <button key={idx} type="button" onClick={handleLinkClick} className="relative flex items-center gap-1.5 text-right bg-theme-elevated hover:bg-primary/10 hover:text-primary-300 px-3 py-2 rounded-lg transition-all text-sm text-theme-muted group/btn whitespace-nowrap">
-                <DynamicIcon name={link.icon} size={14} className="text-theme-muted group-hover/btn:text-primary-300 shrink-0" />
+                <NavVisual item={link} size={14} className="text-theme-muted group-hover/btn:text-primary-300 shrink-0" imageClassName="h-3.5 w-3.5 object-contain shrink-0" />
                 <span>{link.label}</span>
                 {link.url && <a href={link.url} target="_blank" rel="noreferrer" className="absolute inset-0" onClick={(e) => e.stopPropagation()} />}
               </button>
@@ -79,7 +80,7 @@ function CompactListSection({ cat }) {
             className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-theme-elevated transition-all group border border-transparent hover:border-theme-subtle"
           >
             <div className="w-8 h-8 rounded-lg bg-theme-elevated flex items-center justify-center text-theme-muted group-hover:text-primary group-hover:bg-primary/10 transition shrink-0">
-              <DynamicIcon name={card.icon} size={16} />
+              <NavVisual item={card} size={16} className="text-theme-muted group-hover:text-primary transition shrink-0" imageClassName="h-4 w-4 object-contain shrink-0" />
             </div>
             <span className="text-sm font-medium text-theme-muted group-hover:text-theme transition flex-1">{card.title || card.label}</span>
             {card.subLinks && card.subLinks.length > 0 && (
@@ -116,7 +117,7 @@ function HQDashboardSection({ cat, borderStyle = 'standard' }) {
             <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-l from-primary/5 to-transparent pointer-events-none" />
             <div className="absolute top-0 right-0 w-1 h-full bg-primary/0 group-hover:bg-primary transition-all shadow-[0_0_12px_var(--color-primary-hex)] group-hover:shadow-[0_0_16px_var(--color-primary-hex)]" />
             <div className="w-12 h-12 rounded-lg bg-theme-elevated border border-theme-subtle flex items-center justify-center text-primary shrink-0 group-hover:scale-105 transition-transform">
-              <DynamicIcon name={card.icon} size={24} strokeWidth={1.5} />
+              <NavVisual item={card} size={24} className="text-primary shrink-0" imageClassName="h-6 w-6 object-contain shrink-0" />
             </div>
             <div className="flex-1 min-w-0 relative z-10">
               <h3 className="font-bold text-theme text-base mb-0.5 group-hover:text-primary-300 transition">{card.title || card.label}</h3>
@@ -169,6 +170,7 @@ export default function CategorySection({
                 id={uid}
                 title={card.title || card.label}
                 icon={card.icon}
+                iconUrl={card.iconUrl}
                 subLinks={card.subLinks}
                 url={card.url}
                 isFlipped={flippedCardId === uid}

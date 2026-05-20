@@ -21,6 +21,7 @@ import { useOrgChart } from './context/OrgChartContext';
 import { normalizeBorderStyle, panelStyle } from './utils/borderStyles';
 import { normalizeOverlayImageConfig } from './utils/overlayImageConfig';
 import { resolveSiteImageUrl } from './utils/assetUrl';
+import { ALPHA_TEAM_CONFIG, APP_VERSION, getAlphaTeamLinks } from './config/alphaTeam.config';
 import OrgChartPage from './pages/OrgChartPage';
 import AdminSharePointSetupPage from './pages/AdminSharePointSetupPage';
 import 'react-toastify/dist/ReactToastify.css';
@@ -53,6 +54,10 @@ export function Home({ isPreview = false }) {
   const externalLinksFixed = theme?.externalLinksFixed ?? false;
   const externalLinksBordered = theme?.externalLinksBordered !== false;
   const externalLinksShowBackground = theme?.externalLinksShowBackground !== false;
+  const heroGlassEffect = theme?.heroGlassEffect === true;
+  const heroGlassStrength = Number.isFinite(Number(theme?.heroGlassStrength))
+    ? Math.max(0, Math.min(100, Math.round(Number(theme.heroGlassStrength))))
+    : 58;
   const commanderPanelBordered = theme?.commanderPanelBordered !== false;
   const widgetPanelBordered = theme?.widgetPanelBordered !== false;
   const commanderBorderStyle = borderTargets?.commander ? borderStyle : 'standard';
@@ -116,6 +121,10 @@ export function Home({ isPreview = false }) {
     if (externalLinksLayout === 'floating') return <footer className={footerCls}><ExtLinksFloating links={externalLinks} fixed={false} bordered={externalLinksBordered} showBackground={externalLinksShowBackground} borderStyle={extLinksBorderStyle} /></footer>;
     return <footer className={footerCls}><ExtLinksCards links={externalLinks} bordered={externalLinksBordered} borderStyle={extLinksBorderStyle} /></footer>;
   };
+  const alphaTeamLinks = getAlphaTeamLinks();
+  const heroGlassBlur = 10 + (heroGlassStrength * 0.36);
+  const heroGlassBackgroundAlpha = 0.04 + (heroGlassStrength * 0.0018);
+  const heroGlassBorderAlpha = 0.12 + (heroGlassStrength * 0.0013);
 
   const getWidgetHeight = (level) => {
     switch (level) {
@@ -169,6 +178,18 @@ export function Home({ isPreview = false }) {
         />
 
         <main data-widget-title={widgetTitle} className="w-full relative h-[calc(100vh-80px)] min-h-[calc(100vh-80px)] max-h-[calc(100vh-80px)] flex flex-col justify-between overflow-hidden pt-4 [@media(max-height:850px)]:pt-2 lg:pt-8 xl:pt-12">
+          {heroGlassEffect && (
+            <div
+              className="pointer-events-none absolute inset-x-3 top-3 bottom-4 z-[1] rounded-[28px] border shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:inset-x-6 lg:inset-x-10 xl:inset-x-20"
+              style={{
+                borderColor: `rgba(255,255,255,${heroGlassBorderAlpha.toFixed(3)})`,
+                backgroundColor: `rgba(255,255,255,${heroGlassBackgroundAlpha.toFixed(3)})`,
+                backdropFilter: `saturate(140%) blur(${heroGlassBlur.toFixed(1)}px)`,
+                WebkitBackdropFilter: `saturate(140%) blur(${heroGlassBlur.toFixed(1)}px)`,
+              }}
+              aria-hidden="true"
+            />
+          )}
           <HeroSection
             hero={hero}
             logoSrc={siteContent?.hero?.logo || '/images/gift.svg'}
@@ -223,23 +244,34 @@ export function Home({ isPreview = false }) {
         {!externalLinksFixed && renderExternalLinks()}
 
         <div className="relative z-10 border-t border-theme-subtle py-4 text-center bg-theme-bg-base flex items-center justify-center min-h-[64px]">
-          <p className="text-xs text-theme-muted text-gray-900 dark:text-gray-100 truncate leading-tight"> מתנ"ה - siteBuilder 0.1.14©</p>
+          <p className="text-xs text-theme-muted text-gray-900 dark:text-gray-100 truncate leading-tight"> מתנ"ה - siteBuilder {APP_VERSION}©</p>
 
           {/* Alpha Team Watermark */}
           <div className="absolute left-4 top-1/2 -translate-y-1/2 z-[100] opacity-90 hover:opacity-100 transition-opacity select-none rounded-xl border border-blue-100 dark:border-blue-900/30 bg-[#f4f7fb] dark:bg-blue-900/10 flex items-center gap-3 pr-2 pl-4 py-1.5 shadow-sm">
             <img
-              src="/images/alphalogo1.png"
+              src={resolveSiteImageUrl(ALPHA_TEAM_CONFIG.logoPath)}
               alt="Alpha logo"
               className="h-10 object-contain shrink-0"
               loading="lazy"
             />
             <div className="min-w-0 flex-1 text-right">
               <div className="flex items-center gap-1.5 text-[13px] font-bold text-gray-900 dark:text-gray-100">
-                <a href="mailto:alpha@mod.gov.il" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">צוות אלפא</a>
-                <span className="text-gray-300 dark:text-gray-600">|</span>
-                <a href="#" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">אתר</a>
+                {alphaTeamLinks.length > 0 ? (
+                  alphaTeamLinks.map((link, index) => (
+                    <React.Fragment key={link.key}>
+                      {index > 0 && <span className="text-gray-300 dark:text-gray-600">|</span>}
+                      <a href={link.href} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors" target={link.key === 'site' ? '_blank' : undefined} rel={link.key === 'site' ? 'noopener noreferrer' : undefined}>
+                        {link.label}
+                      </a>
+                    </React.Fragment>
+                  ))
+                ) : (
+                  <span>{ALPHA_TEAM_CONFIG.nameHe}</span>
+                )}
               </div>
-              <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate leading-tight mt-0.5">פתיחת מייל / אתר הפרוייקט</p>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate leading-tight mt-0.5">
+                {alphaTeamLinks.length > 0 ? 'פרטי קשר / אתר הפרוייקט' : ALPHA_TEAM_CONFIG.nameEn}
+              </p>
             </div>
           </div>
         </div>

@@ -83,6 +83,7 @@ export default function AdminEvents({ onClose, inHub = false }) {
     const [isSaving, setIsSaving] = useState(false);
     const lastSavedRef = useRef(null);
     const [editingEvent, setEditingEvent] = useState(null);
+    const [aiHistory, setAiHistory] = useState({ past: [], future: [] });
     const maxDisplayCount = Math.max(1, events.length || 1);
     const plannedThisMonth = (() => {
         const now = new Date();
@@ -97,6 +98,43 @@ export default function AdminEvents({ onClose, inHub = false }) {
             return eventYear === year && eventMonth === month;
         }).length;
     })();
+
+    const getEventsSnapshot = () => ({
+        events,
+        displayCount,
+        displayMode,
+        intervalMs,
+    });
+
+    const restoreEventsSnapshot = (snapshot) => {
+        setEvents(Array.isArray(snapshot?.events) ? snapshot.events : []);
+        setDisplayCount(Number.isFinite(Number(snapshot?.displayCount)) ? Number(snapshot.displayCount) : 3);
+        setDisplayMode(snapshot?.displayMode || 'default');
+        setIntervalMs(Math.max(2000, Number(snapshot?.intervalMs) || 6000));
+        setEditingEvent(null);
+    };
+
+    const handleUndoAiEvents = () => {
+        if (!aiHistory.past.length) return;
+        const target = aiHistory.past[aiHistory.past.length - 1];
+        const current = getEventsSnapshot();
+        setAiHistory((prev) => ({
+            past: prev.past.slice(0, -1),
+            future: [current, ...prev.future].slice(0, 20),
+        }));
+        restoreEventsSnapshot(target);
+    };
+
+    const handleRedoAiEvents = () => {
+        if (!aiHistory.future.length) return;
+        const target = aiHistory.future[0];
+        const current = getEventsSnapshot();
+        setAiHistory((prev) => ({
+            past: [...prev.past, current].slice(-20),
+            future: prev.future.slice(1),
+        }));
+        restoreEventsSnapshot(target);
+    };
 
     useEffect(() => {
         if (initialEvents && initialDisplayCount !== undefined) {
@@ -199,6 +237,19 @@ export default function AdminEvents({ onClose, inHub = false }) {
 
     const applyAiEvents = (parsed) => {
         const normalized = normalizeAiEventsPayload(parsed);
+        const current = getEventsSnapshot();
+        const next = {
+            events: normalized.events,
+            displayCount: normalized.displayCount,
+            displayMode: normalized.displayMode,
+            intervalMs: normalized.intervalMs,
+        };
+        if (JSON.stringify(current) !== JSON.stringify(next)) {
+            setAiHistory((prev) => ({
+                past: [...prev.past, current].slice(-20),
+                future: [],
+            }));
+        }
         setEvents(normalized.events);
         setDisplayCount(normalized.displayCount);
         setDisplayMode(normalized.displayMode);
@@ -236,6 +287,10 @@ export default function AdminEvents({ onClose, inHub = false }) {
                                     defaultInput="צור סדרת אירועים חודשית מקצועית וברורה"
                                     buildPrompt={buildEventsAiPrompt}
                                     onApply={applyAiEvents}
+                                    canUndo={aiHistory.past.length > 0}
+                                    canRedo={aiHistory.future.length > 0}
+                                    onUndo={handleUndoAiEvents}
+                                    onRedo={handleRedoAiEvents}
                                     applyButtonLabel="החל על אירועים"
                                     generateButtonLabel="ייצר אירועים"
                                 />

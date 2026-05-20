@@ -274,7 +274,8 @@ export default function AdminExternalLinks() {
                                 <input
                                     name="title"
                                     type="text"
-                                    defaultValue={editingLink.title}
+                                    value={editingLink.title}
+                                    onChange={(event) => setEditingLink((prev) => ({ ...prev, title: event.target.value }))}
                                     requiprimary
                                     className="w-full bg-gray-50 dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-primary-500 transition text-sm"
                                     placeholder='לדוגמה: "פורטל מילואים"'
@@ -376,6 +377,9 @@ export default function AdminExternalLinks() {
                                                 disabled={uploadingIcon}
                                             />
                                         </label>
+                                        <p className="mt-2 text-xs leading-5 text-amber-700 dark:text-amber-300">
+                                            מומלץ להעלות סמלים או לוגואים בלבד, ולא תמונות רגילות.
+                                        </p>
                                         {editingLink.iconUrl && (
                                             <div className="mt-3 flex items-center gap-3">
                                                 <div className="w-14 h-14 rounded-xl bg-white dark:bg-[#232733] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center">
@@ -423,6 +427,7 @@ export default function AdminExternalLinks() {
                 isOpen={iconPickerOpen}
                 onClose={() => setIconPickerOpen(false)}
                 currentIcon={editingLink?.icon || ''}
+                defaultSearchTerm={editingLink?.title || ''}
                 onSelect={(iconName) => {
                     setEditingLink(prev => ({ ...prev, icon: iconName, iconUrl: '' }));
                 }}

@@ -9,7 +9,11 @@ export type AdminLogEntry = {
     data?: unknown;
 };
 
-const LOGS_ENABLED = String(import.meta.env.VITE_SP_ADMIN_MANAGEMENT_LOGS ?? 'false').toLowerCase() === 'true';
+const LOGS_ENABLED = String(
+    import.meta.env.VITE_SP_ADMIN_MANAGEMENT_LOGS
+    ?? import.meta.env.VITE_SP_ENABLE_OWNERS_MANAGEMENT_LOGS
+    ?? 'false',
+).toLowerCase() === 'true';
 
 const sanitizeValue = (value: unknown): unknown => {
     if (!value || typeof value !== 'object') return value;

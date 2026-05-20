@@ -127,6 +127,7 @@ export function CommanderPanel({ commander, messages, borderStyle, bordered = tr
 export function WidgetSection({ borderStyle, widgetHeight, onWidgetTitleChange, showBorder = true, showBackground = true, showShadow = true }) {
   const { widgetConfig } = useWidget();
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isWidgetHovered, setIsWidgetHovered] = useState(false);
 
   const activeWidgets = useMemo(() => {
     if (Array.isArray(widgetConfig?.activeWidgets) && widgetConfig.activeWidgets.length > 0) {
@@ -150,14 +151,14 @@ export function WidgetSection({ borderStyle, widgetHeight, onWidgetTitleChange, 
   }, [activeWidgets.length, currentIndex]);
 
   useEffect(() => {
-    if (activeWidgets.length <= 1) return undefined;
+    if (activeWidgets.length <= 1 || isWidgetHovered) return undefined;
 
     const timer = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % activeWidgets.length);
     }, rotationInterval * 1000);
 
     return () => clearInterval(timer);
-  }, [currentIndex, activeWidgets, rotationInterval]);
+  }, [activeWidgets.length, isWidgetHovered, rotationInterval]);
 
   const currentWidget = activeWidgets[currentIndex] || activeWidgets[0] || 'events';
   const widgetTitle = getWidgetTitle(currentWidget);
@@ -201,6 +202,12 @@ export function WidgetSection({ borderStyle, widgetHeight, onWidgetTitleChange, 
       <div
         className="w-full lg:absolute lg:bottom-0 lg:left-0 transition-all duration-300"
         style={{ height: widgetHeight }}
+        onPointerEnter={() => setIsWidgetHovered(true)}
+        onPointerLeave={() => setIsWidgetHovered(false)}
+        onMouseEnter={() => setIsWidgetHovered(true)}
+        onMouseLeave={() => setIsWidgetHovered(false)}
+        onFocus={() => setIsWidgetHovered(true)}
+        onBlur={() => setIsWidgetHovered(false)}
       >
         <TacticalPanel
           borderStyle={borderStyle}

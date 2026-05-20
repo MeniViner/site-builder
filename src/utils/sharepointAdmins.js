@@ -8,7 +8,7 @@ const SHAREPOINT_SITE_ADMINS_ENDPOINT =
 const CURRENT_WEB_ADMINS_ENDPOINT = `/_api/web/siteusers${ADMIN_FILTER_QUERY}`;
 const CURRENT_SITE_ROOT_WEB_ADMINS_ENDPOINT = `/_api/site/rootweb/siteusers${ADMIN_FILTER_QUERY}`;
 const SHOULD_LOG_ADMIN_FETCH =
-    (String(import.meta.env.VITE_SP_LOG_FETCH_ADMINS ?? import.meta.env.VITE_SP_VERBOSE_LOG ?? 'true').toLowerCase() === 'true');
+    (String(import.meta.env.VITE_SP_LOG_FETCH_ADMINS ?? import.meta.env.VITE_SP_VERBOSE_LOG ?? 'false').toLowerCase() === 'true');
 const SHOULD_LOG_ADMIN_FETCH_VERBOSE =
     (String(import.meta.env.VITE_SP_LOG_FETCH_ADMINS_VERBOSE ?? 'false').toLowerCase() === 'true');
 

@@ -176,6 +176,7 @@ export default function AdminSiteContent() {
     const lastSavedRef = useRef(null);
     const showAiUi = UI_FEATURES.showAiUi;
     const isAiEnabled = showAiUi && AIService.isEnabled();
+    const [aiHistory, setAiHistory] = useState({ past: [], future: [] });
 
     useEffect(() => {
         if (!siteContent) return;
@@ -219,6 +220,43 @@ export default function AdminSiteContent() {
 
     const updateHeroField = (field, value) => {
         setHero((prev) => ({ ...prev, [field]: value }));
+    };
+
+    const getContentSnapshot = () => ({
+        hero,
+        commander,
+    });
+
+    const restoreContentSnapshot = (snapshot) => {
+        setHero({ ...HERO_DEFAULTS, ...(snapshot?.hero || {}) });
+        setCommander({
+            ...COMMANDER_DEFAULTS,
+            ...(snapshot?.commander || {}),
+            messages: Array.isArray(snapshot?.commander?.messages) ? snapshot.commander.messages : [],
+        });
+        setEditingMessage(null);
+    };
+
+    const handleUndoAiSiteContent = () => {
+        if (!aiHistory.past.length) return;
+        const target = aiHistory.past[aiHistory.past.length - 1];
+        const current = getContentSnapshot();
+        setAiHistory((prev) => ({
+            past: prev.past.slice(0, -1),
+            future: [current, ...prev.future].slice(0, 20),
+        }));
+        restoreContentSnapshot(target);
+    };
+
+    const handleRedoAiSiteContent = () => {
+        if (!aiHistory.future.length) return;
+        const target = aiHistory.future[0];
+        const current = getContentSnapshot();
+        setAiHistory((prev) => ({
+            past: [...prev.past, current].slice(-20),
+            future: prev.future.slice(1),
+        }));
+        restoreContentSnapshot(target);
     };
 
     const updateCommanderField = (field, value) => {
@@ -501,6 +539,14 @@ export default function AdminSiteContent() {
 
     const applyAiSiteContent = (parsed) => {
         const normalized = normalizeAiSiteContentPayload(parsed, hero, commander);
+        const current = getContentSnapshot();
+        const next = { hero: normalized.hero, commander: normalized.commander };
+        if (JSON.stringify(current) !== JSON.stringify(next)) {
+            setAiHistory((prev) => ({
+                past: [...prev.past, current].slice(-20),
+                future: [],
+            }));
+        }
         setHero(normalized.hero);
         setCommander(normalized.commander);
         setActiveSettingId('hero-content');
@@ -606,6 +652,10 @@ export default function AdminSiteContent() {
                                 defaultInput="נסח תכנים רשמיים וקצרים למסך הבית"
                                 buildPrompt={buildSiteContentAiPrompt}
                                 onApply={applyAiSiteContent}
+                                canUndo={aiHistory.past.length > 0}
+                                canRedo={aiHistory.future.length > 0}
+                                onUndo={handleUndoAiSiteContent}
+                                onRedo={handleRedoAiSiteContent}
                                 applyButtonLabel="החל על התוכן"
                                 generateButtonLabel="ייצר תוכן"
                                 primaryPanelTabLabel="תוכן האתר"

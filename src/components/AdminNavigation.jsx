@@ -2,16 +2,17 @@ import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
 import { useNavigation } from '../context/NavigationContext';
 import { useTheme } from '../context/ThemeContext';
-import { DynamicIcon } from './DynamicIcon';
 import {
     Plus, Trash2, AlertTriangle, ChevronLeft, ChevronDown,
     Folder, FolderOpen, FileText, Link as LinkIcon, Home, Search,
-    ExternalLink, GripVertical
+    ExternalLink, GripVertical, Image as ImageIcon, Loader2, Upload
 } from 'lucide-react';
 import IconPickerModal from './IconPickerModal';
 import Tooltip from './Tooltip';
 import { confirmToast } from '../utils/confirmToast';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
+import { uploadImage } from '../utils/sharepointUtils';
+import NavVisual from './NavVisual';
 
 function createNodeId(prefix) {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -32,6 +33,7 @@ function normalizeAiLink(link, index, parentId) {
         id: asText(link?.id, createNodeId(`link_${parentId}_${index}`)),
         label,
         icon: asText(link?.icon, 'Link'),
+        iconUrl: asText(link?.iconUrl || link?.imageUrl || link?.image, ''),
         url: asText(link?.url, ''),
     };
 }
@@ -47,6 +49,7 @@ function normalizeAiSubCategory(subcategory, index, categoryId) {
         title,
         label: title,
         icon: asText(subcategory?.icon, 'FileText'),
+        iconUrl: asText(subcategory?.iconUrl || subcategory?.imageUrl || subcategory?.image, ''),
         url: asText(subcategory?.url, ''),
         subLinks: subLinksSource.map((link, linkIndex) => normalizeAiLink(link, linkIndex, categoryId)),
     };
@@ -62,6 +65,7 @@ function normalizeAiNavigationTree(payload) {
             id: categoryId,
             label: asText(category?.label || category?.title, `קטגוריה ${index + 1}`),
             icon: asText(category?.icon, 'Folder'),
+            iconUrl: asText(category?.iconUrl || category?.imageUrl || category?.image, ''),
             url: asText(category?.url, ''),
             children: children.map((subCategory, subIndex) => normalizeAiSubCategory(subCategory, subIndex, categoryId)),
         };
@@ -89,6 +93,9 @@ export default function AdminNavigation() {
     const [navItems, setNavItems] = useState(initialNavItems || []);
     const [isSaving, setIsSaving] = useState(false);
     const lastSavedRef = useRef(null);
+    const iconImageInputRef = useRef(null);
+    const [imageUploadTargetPath, setImageUploadTargetPath] = useState(null);
+    const [uploadingIconPathKey, setUploadingIconPathKey] = useState('');
 
     useEffect(() => {
         if (initialNavItems?.length !== undefined) {
@@ -111,7 +118,7 @@ export default function AdminNavigation() {
     }, [navItems]);
 
     // Icon Picker State
-    const [iconPicker, setIconPicker] = useState({ isOpen: false, targetPath: null, currentIcon: '' });
+    const [iconPicker, setIconPicker] = useState({ isOpen: false, targetPath: null, currentIcon: '', defaultSearchTerm: '' });
 
     // Navigation State
     const [selectedPath, setSelectedPath] = useState([]); // [] = root, [catId], [catId, subId]
@@ -164,38 +171,97 @@ export default function AdminNavigation() {
         });
     };
 
-    // Generic Update using deep clone
-    const updateNode = (path, field, value) => {
+    const pathKey = (path) => (Array.isArray(path) ? path.join('|') : '');
+
+    const getNodeLabel = (path) => {
+        if (!Array.isArray(path)) return '';
+        if (path.length === 1) {
+            const cat = navItems.find(c => c.id === path[0]);
+            return cat?.label || cat?.title || '';
+        }
+        if (path.length === 2) {
+            const cat = navItems.find(c => c.id === path[0]);
+            const sub = cat?.children?.find(c => c.id === path[1]);
+            return sub?.title || sub?.label || '';
+        }
+        if (path.length === 3) {
+            const cat = navItems.find(c => c.id === path[0]);
+            const sub = cat?.children?.find(c => c.id === path[1]);
+            const link = sub?.subLinks?.find(l => (l.id || l.label) === path[2]);
+            return link?.label || link?.title || '';
+        }
+        return '';
+    };
+
+    const updateNodeFields = (path, fields) => {
         setNavItems(prev => {
             const copy = JSON.parse(JSON.stringify(prev));
+            const assignFields = (node) => {
+                if (!node) return;
+                Object.entries(fields || {}).forEach(([field, value]) => {
+                    if (field === 'title' || field === 'label') {
+                        node.title = value;
+                        node.label = value;
+                    } else {
+                        node[field] = value;
+                    }
+                });
+            };
+
             if (path.length === 1) {
                 const cat = copy.find(c => c.id === path[0]);
-                if (cat) cat[field] = value;
+                assignFields(cat);
             } else if (path.length === 2) {
                 const cat = copy.find(c => c.id === path[0]);
                 const sub = cat?.children?.find(c => c.id === path[1]);
-                if (sub) {
-                    if (field === 'title' || field === 'label') {
-                        sub.title = value;
-                        sub.label = value;
-                    } else {
-                        sub[field] = value;
-                    }
-                }
+                assignFields(sub);
             } else if (path.length === 3) {
                 const cat = copy.find(c => c.id === path[0]);
                 const sub = cat?.children?.find(c => c.id === path[1]);
                 const link = sub?.subLinks?.find(l => (l.id || l.label) === path[2]);
-                if (link) {
-                    if (field === 'title' || field === 'label') {
-                        link.label = value;
-                    } else {
-                        link[field] = value;
-                    }
-                }
+                assignFields(link);
             }
             return copy;
         });
+    };
+
+    // Generic Update using deep clone
+    const updateNode = (path, field, value) => {
+        updateNodeFields(path, { [field]: value });
+    };
+
+    const openIconPicker = (path, currentIcon = '') => {
+        setIconPicker({
+            isOpen: true,
+            targetPath: path,
+            currentIcon,
+            defaultSearchTerm: getNodeLabel(path),
+        });
+    };
+
+    const triggerIconImageUpload = (path) => {
+        setImageUploadTargetPath(path);
+        window.setTimeout(() => iconImageInputRef.current?.click(), 0);
+    };
+
+    const handleIconImageUpload = async (event) => {
+        const file = event.target.files?.[0];
+        const targetPath = imageUploadTargetPath;
+        event.target.value = '';
+        if (!file || !targetPath) return;
+
+        const key = pathKey(targetPath);
+        setUploadingIconPathKey(key);
+        try {
+            const iconUrl = await uploadImage(file, 'NavigationIcons');
+            updateNodeFields(targetPath, { iconUrl, icon: '' });
+            toast.success('התמונה הועלתה לאזור אייקון הצד');
+        } catch (err) {
+            toast.error(err?.message || 'העלאת תמונת האייקון נכשלה');
+        } finally {
+            setUploadingIconPathKey('');
+            setImageUploadTargetPath(null);
+        }
     };
 
     // Adders
@@ -318,6 +384,7 @@ export default function AdminNavigation() {
     let currentChildren = [];
     let currentTitle = 'כל התוכן';
     let currentModel = null;
+    const fallbackNodeIcon = currentLevel === 1 ? 'Folder' : 'FileText';
     // ספירה: אם קטגוריה/תת־קטגוריה מוגדרת כלינק (יש לה URL) — לא סופרים את התוכן שבתוכה
     const navigationStats = navItems.reduce(
         (acc, category) => {
@@ -367,6 +434,7 @@ export default function AdminNavigation() {
     if (searchTerm) {
         currentChildren = currentChildren.filter(c => c.title.toLowerCase().includes(searchTerm.toLowerCase()));
     }
+    const currentUsesImageVisual = Boolean(currentModel?.iconUrl);
 
     if (loading && !navItems.length) {
         return <div className="p-8 text-center text-gray-500 dark:text-gray-400">טוען מבנה ניווט...</div>;
@@ -411,7 +479,14 @@ export default function AdminNavigation() {
                                         <ChevronLeft size={14} className={`transform transition-transform duration-200 ${isCatExpanded ? '-rotate-90' : ''}`} />
                                     </button>
                                     <div className="relative">
-                                        <DynamicIcon name={isCatExpanded || isCatSelected ? 'FolderOpen' : 'Folder'} size={14} className={isCatSelected || isCatPathActive ? 'text-blue-400 drop-shadow-[0_0_5px_rgba(96,165,250,0.5)]' : 'text-blue-500'} />
+                                        <NavVisual
+                                            item={cat}
+                                            icon={cat.icon || (isCatExpanded || isCatSelected ? 'FolderOpen' : 'Folder')}
+                                            size={14}
+                                            className={isCatSelected || isCatPathActive ? 'text-blue-400 drop-shadow-[0_0_5px_rgba(96,165,250,0.5)]' : 'text-blue-500'}
+                                            imageClassName="w-3.5 h-3.5 object-contain"
+                                            fallbackIcon={isCatExpanded || isCatSelected ? 'FolderOpen' : 'Folder'}
+                                        />
                                     </div>
                                     <span className="text-sm truncate select-none flex-1 font-medium">{cat.label}</span>
                                         <Tooltip text="Direct Link">
@@ -430,7 +505,14 @@ export default function AdminNavigation() {
                                                     className={`flex items-center gap-2 py-1.5 pr-8 pl-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/5 rounded-md transition ${isSubSelected ? 'bg-gray-200 dark:bg-white/10 text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
                                                     onClick={() => setSelectedPath([cat.id, sub.id])}
                                                 >
-                                                    <DynamicIcon name="FileText" size={14} className={isSubSelected ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'} />
+                                                    <NavVisual
+                                                        item={sub}
+                                                        icon={sub.icon || 'FileText'}
+                                                        size={14}
+                                                        className={isSubSelected ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}
+                                                        imageClassName="w-3.5 h-3.5 object-contain"
+                                                        fallbackIcon="FileText"
+                                                    />
                                                     <span className="text-sm truncate select-none">{sub.title || sub.label}</span>
                                                 </div>
                                             );
@@ -513,7 +595,14 @@ export default function AdminNavigation() {
                 {selectedPath.length > 0 && currentModel && (
                     <div className="px-6 py-4 border-b border-gray-200 dark:border-[#1f1f22] bg-gray-50 dark:bg-[#0a0a0c] flex items-center gap-4 shrink-0 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.5)] z-20 relative">
                         <div className="w-14 h-14 bg-gray-50 dark:bg-[#141418] rounded-2xl flex items-center justify-center border border-gray-300 dark:border-[#252528] shrink-0 p-2 shadow-inner">
-                            <DynamicIcon name={currentModel.icon || 'Folder'} size={28} className={currentLevel === 1 ? 'text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.4)]' : 'text-gray-700 dark:text-gray-300 drop-shadow-[0_0_8px_rgba(209,213,219,0.2)]'} />
+                            <NavVisual
+                                item={currentModel}
+                                icon={currentModel.icon || (currentLevel === 1 ? 'Folder' : 'FileText')}
+                                size={28}
+                                className={currentLevel === 1 ? 'text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.4)]' : 'text-gray-700 dark:text-gray-300 drop-shadow-[0_0_8px_rgba(209,213,219,0.2)]'}
+                                imageClassName="w-9 h-9 object-contain"
+                                fallbackIcon={currentLevel === 1 ? 'Folder' : 'FileText'}
+                            />
                         </div>
                         <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-5">
                             <div className="space-y-1.5">
@@ -541,18 +630,62 @@ export default function AdminNavigation() {
                                     helpTitle="אייקון"
                                     helpDescription="האייקון הקטן שמופיע ליד הפריט ועוזר לזהות אותו במהירות."
                                 >
-                                    אייקון (Lucide)
+                                    אייקון או תמונה
                                 </HelpLabel>
-                                <button
-                                    onClick={() => setIconPicker({ isOpen: true, targetPath: selectedPath, currentIcon: currentModel.icon || '' })}
-                                    className="w-full h-[34px] flex items-center justify-between bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-primary-400 dark:hover:border-primary-500 rounded-md px-3 py-1.5 text-gray-900 dark:text-white transition focus:outline-none focus:ring-1 focus:ring-primary-500"
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <DynamicIcon name={currentModel.icon || 'HelpCircle'} size={16} className="text-blue-500 dark:text-blue-400" />
-                                        <span className="text-sm font-medium font-mono truncate">{currentModel.icon || 'בחר אייקון'}</span>
-                                    </div>
-                                    <ChevronDown size={14} className="text-gray-400" />
-                                </button>
+                                <div className="flex items-center gap-2 rounded-md border border-gray-300 dark:border-[#252528] bg-gray-50 dark:bg-[#141418] p-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => updateNodeFields(selectedPath, { iconUrl: '' })}
+                                        className={`flex-1 h-8 rounded-md text-xs font-bold transition ${!currentUsesImageVisual ? 'bg-white dark:bg-[#1b1f29] text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                                    >
+                                        מצב אייקון
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => triggerIconImageUpload(selectedPath)}
+                                        disabled={uploadingIconPathKey === pathKey(selectedPath)}
+                                        className={`flex-1 h-8 rounded-md text-xs font-bold transition disabled:cursor-wait disabled:opacity-70 ${currentUsesImageVisual ? 'bg-white dark:bg-[#1b1f29] text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                                    >
+                                        מצב תמונה
+                                    </button>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => openIconPicker(selectedPath, currentModel.icon || '')}
+                                        className="min-w-0 flex-1 h-[34px] flex items-center justify-between bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-primary-400 dark:hover:border-primary-500 rounded-md px-3 py-1.5 text-gray-900 dark:text-white transition focus:outline-none focus:ring-1 focus:ring-primary-500"
+                                    >
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <NavVisual
+                                                item={currentModel}
+                                                icon={currentModel.icon || fallbackNodeIcon}
+                                                size={16}
+                                                className="text-blue-500 dark:text-blue-400"
+                                                imageClassName="w-4 h-4 object-contain"
+                                            />
+                                            <span className="text-sm font-medium font-mono truncate">
+                                                {!currentUsesImageVisual ? (currentModel.icon || 'בחר אייקון') : 'תמונה פעילה (לא אייקון)'}
+                                            </span>
+                                        </div>
+                                        <ChevronDown size={14} className="text-gray-400 shrink-0" />
+                                    </button>
+                                    <Tooltip text="העלה תמונה במקום אייקון">
+                                        <button
+                                            type="button"
+                                            onClick={() => triggerIconImageUpload(selectedPath)}
+                                            disabled={uploadingIconPathKey === pathKey(selectedPath)}
+                                            className="h-[34px] w-10 rounded-md border border-gray-300 dark:border-[#252528] bg-gray-50 dark:bg-[#141418] text-gray-600 dark:text-gray-300 hover:border-primary-400 hover:text-primary-500 disabled:cursor-wait disabled:opacity-70 flex items-center justify-center transition"
+                                        >
+                                            {uploadingIconPathKey === pathKey(selectedPath) ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                                        </button>
+                                    </Tooltip>
+                                </div>
+                                <p className="text-[11px] leading-snug text-gray-500 dark:text-gray-400">
+                                    בכל רגע נתון פעיל רק סוג אחד: או אייקון או תמונה.
+                                </p>
+                                <p className="text-[11px] leading-snug text-amber-700 dark:text-amber-300">
+                                    מומלץ להעלות סמלים או לוגואים בלבד, ולא תמונות רגילות.
+                                </p>
                             </div>
                             <div className="space-y-1.5">
                                 <HelpLabel
@@ -683,19 +816,38 @@ export default function AdminNavigation() {
                                             />
                                         </td>
                                         <td className="py-2.5 px-2">
-                                            <button
-                                                onClick={() => setIconPicker({ isOpen: true, targetPath: child.nodePath, currentIcon: child.icon || '' })}
-                                                className="w-full flex items-center justify-between gap-2 bg-transparent border border-transparent hover:border-[#333] hover:bg-gray-100 dark:hover:bg-black/20 focus:border-primary-500 focus:bg-gray-50 dark:focus:bg-[#141418] rounded-md transition pl-2 pr-2 py-1.5 focus:shadow-inner"
-                                            >
-                                                <div className="flex items-center gap-2 overflow-hidden">
-                                                    <div className="w-5 flex justify-center shrink-0">
-                                                        <DynamicIcon name={child.icon || 'HelpCircle'} size={16} className="text-gray-500 dark:text-gray-400" />
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openIconPicker(child.nodePath, child.icon || '')}
+                                                    className="min-w-0 flex-1 flex items-center justify-between gap-2 bg-transparent border border-transparent hover:border-[#333] hover:bg-gray-100 dark:hover:bg-black/20 focus:border-primary-500 focus:bg-gray-50 dark:focus:bg-[#141418] rounded-md transition pl-2 pr-2 py-1.5 focus:shadow-inner"
+                                                >
+                                                    <div className="flex items-center gap-2 overflow-hidden">
+                                                        <div className="w-5 flex justify-center shrink-0">
+                                                            <NavVisual
+                                                                item={child}
+                                                                icon={child.icon || 'HelpCircle'}
+                                                                size={16}
+                                                                className="text-gray-500 dark:text-gray-400"
+                                                                imageClassName="w-4 h-4 object-contain"
+                                                            />
+                                                        </div>
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400 font-mono truncate text-left dir-ltr">
+                                                            {child.iconUrl ? 'תמונה (במקום אייקון)' : (child.icon || 'בחר אייקון...')}
+                                                        </span>
                                                     </div>
-                                                    <span className="text-xs text-gray-500 dark:text-gray-400 font-mono truncate text-left dir-ltr">
-                                                        {child.icon || 'בחר אייקון...'}
-                                                    </span>
-                                                </div>
-                                            </button>
+                                                </button>
+                                                <Tooltip text="העלה תמונה">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => triggerIconImageUpload(child.nodePath)}
+                                                        disabled={uploadingIconPathKey === pathKey(child.nodePath)}
+                                                        className="w-8 h-8 shrink-0 rounded-md border border-transparent text-gray-400 hover:border-primary-400 hover:bg-gray-100 hover:text-primary-500 dark:hover:bg-black/20 disabled:cursor-wait disabled:opacity-70 flex items-center justify-center transition"
+                                                    >
+                                                        {uploadingIconPathKey === pathKey(child.nodePath) ? <Loader2 size={14} className="animate-spin" /> : <ImageIcon size={14} />}
+                                                    </button>
+                                                </Tooltip>
+                                            </div>
                                         </td>
                                         <td className="py-2.5 px-2">
                                             <input
@@ -736,13 +888,21 @@ export default function AdminNavigation() {
             </div>
 
             {/* Icon Picker Modal */}
+            <input
+                ref={iconImageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleIconImageUpload}
+            />
             <IconPickerModal
                 isOpen={iconPicker.isOpen}
-                onClose={() => setIconPicker({ isOpen: false, targetPath: null, currentIcon: '' })}
+                onClose={() => setIconPicker({ isOpen: false, targetPath: null, currentIcon: '', defaultSearchTerm: '' })}
                 currentIcon={iconPicker.currentIcon}
+                defaultSearchTerm={iconPicker.defaultSearchTerm}
                 onSelect={(iconName) => {
                     if (iconPicker.targetPath) {
-                        updateNode(iconPicker.targetPath, 'icon', iconName);
+                        updateNodeFields(iconPicker.targetPath, { icon: iconName, iconUrl: '' });
                     }
                 }}
             />

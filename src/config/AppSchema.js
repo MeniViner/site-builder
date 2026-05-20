@@ -201,6 +201,7 @@ function normalizeNavigationNodes(nodes, prefix = 'nav') {
             id,
             label,
             icon: asString(node.icon, ''),
+            iconUrl: asString(node.iconUrl, asString(node.imageUrl, asString(node.image, ''))),
             url: asString(node.url, ''),
             children: normalizeNavigationNodes(childrenSource, id),
         });
@@ -677,6 +678,12 @@ export const DEFAULT_CONFIG_V1 = {
             },
             hero: {
                 grayscale: false,
+                glassEffect: false,
+                glassStrength: 58,
+            },
+            navbar: {
+                glassEffect: false,
+                glassStrength: 62,
             },
         },
     },
@@ -1520,6 +1527,26 @@ export function migrateLegacyToV1(legacyData) {
         migrated.theme.backgrounds.tinted.strength
     );
     migrated.theme.backgrounds.hero.grayscale = asBoolean(legacyTheme.heroGrayscale, migrated.theme.backgrounds.hero.grayscale);
+    migrated.theme.backgrounds.hero.glassEffect = asBoolean(
+        legacyTheme.heroGlassEffect,
+        asBoolean(legacyTheme.glassEffect, migrated.theme.backgrounds.hero.glassEffect)
+    );
+    migrated.theme.backgrounds.hero.glassStrength = clampNumber(
+        legacyTheme.heroGlassStrength,
+        0,
+        100,
+        migrated.theme.backgrounds.hero.glassStrength
+    );
+    migrated.theme.backgrounds.navbar.glassEffect = asBoolean(
+        legacyTheme.topNavGlassEffect,
+        asBoolean(legacyTheme.navbarGlassEffect, migrated.theme.backgrounds.navbar.glassEffect)
+    );
+    migrated.theme.backgrounds.navbar.glassStrength = clampNumber(
+        legacyTheme.topNavGlassStrength,
+        0,
+        100,
+        migrated.theme.backgrounds.navbar.glassStrength
+    );
 
     const borderTargets = isObject(legacy.borderTargets)
         ? legacy.borderTargets
@@ -1666,6 +1693,22 @@ export function validateAndNormalize(config) {
                 },
                 hero: {
                     grayscale: asBoolean(source.theme?.backgrounds?.hero?.grayscale, DEFAULT_CONFIG_V1.theme.backgrounds.hero.grayscale),
+                    glassEffect: asBoolean(source.theme?.backgrounds?.hero?.glassEffect, DEFAULT_CONFIG_V1.theme.backgrounds.hero.glassEffect),
+                    glassStrength: clampNumber(
+                        source.theme?.backgrounds?.hero?.glassStrength,
+                        0,
+                        100,
+                        DEFAULT_CONFIG_V1.theme.backgrounds.hero.glassStrength
+                    ),
+                },
+                navbar: {
+                    glassEffect: asBoolean(source.theme?.backgrounds?.navbar?.glassEffect, DEFAULT_CONFIG_V1.theme.backgrounds.navbar.glassEffect),
+                    glassStrength: clampNumber(
+                        source.theme?.backgrounds?.navbar?.glassStrength,
+                        0,
+                        100,
+                        DEFAULT_CONFIG_V1.theme.backgrounds.navbar.glassStrength
+                    ),
                 },
             },
         },
