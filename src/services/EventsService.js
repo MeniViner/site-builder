@@ -30,7 +30,7 @@ class EventsService {
             }
             return this._normalizeData(data);
         } catch (e) {
-            console.error(e);
+            spLog.error('EventsService: failed to load events.', e);
             return { displayCount: 3, events: [] };
         }
     }
@@ -92,7 +92,7 @@ class EventsService {
                 ]
             });
         } catch (error) {
-            console.error('Error reading mock events:', error);
+            spLog.error('Error reading mock events:', error);
             throw new Error('שגיאה בקריאת נתונים מהזיכרון המקומי');
         }
     }
@@ -102,7 +102,7 @@ class EventsService {
             localStorage.setItem(this.config.mockStorageKey, JSON.stringify(payload));
             return Promise.resolve(payload);
         } catch (error) {
-            console.error('Error saving mock events:', error);
+            spLog.error('Error saving mock events:', error);
             throw new Error('שגיאה בשמירת נתונים לזיכרון המקומי');
         }
     }

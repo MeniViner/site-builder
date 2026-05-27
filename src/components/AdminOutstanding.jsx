@@ -8,6 +8,7 @@ import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
 import { useConfig } from '../context/ConfigProvider';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import { resolveSiteImageUrl } from '../utils/assetUrl';
+import { spLog } from '../utils/spAppLog';
 
 const inputCls = 'w-full bg-theme-elevated border border-theme-subtle rounded-lg px-4 py-2.5 text-sm text-theme placeholder-theme-muted focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition';
 const labelCls = 'block text-xs font-semibold text-theme-muted mb-1.5 uppercase tracking-wide';
@@ -65,7 +66,7 @@ export default function AdminOutstanding() {
                 await saveNow();
                 lastSavedRef.current = JSON.stringify(list);
             } catch (saveError) {
-                console.error(saveError);
+                spLog.error('AdminOutstanding: failed to save outstanding.', saveError);
                 setSaveMessage({ type: 'error', text: 'שגיאה בשמירה. אנא נסה שוב.' });
             } finally {
                 setIsSaving(false);
@@ -112,7 +113,7 @@ export default function AdminOutstanding() {
             const dataUrl = await fileToDataUrl(file);
             setForm((prev) => ({ ...prev, image: dataUrl }));
         } catch (uploadError) {
-            console.error(uploadError);
+            spLog.error('AdminOutstanding: failed to read selected image.', uploadError);
         } finally {
             event.target.value = '';
         }

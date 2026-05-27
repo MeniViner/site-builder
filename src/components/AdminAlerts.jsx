@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Plus, Trash2, Pencil, X, Check, AlertTriangle } from 'lucide-react';
 import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
 import { useConfig } from '../context/ConfigProvider';
+import { spLog } from '../utils/spAppLog';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 
 const inputCls = 'w-full bg-theme-elevated border border-theme-subtle rounded-lg px-4 py-2.5 text-sm text-theme placeholder-theme-muted focus:outline-none focus:ring-2 focus:ring-amber-500/40 transition';
@@ -49,7 +50,7 @@ export default function AdminAlerts() {
                 await saveNow();
                 lastSavedRef.current = JSON.stringify(list);
             } catch (saveError) {
-                console.error(saveError);
+                spLog.error('AdminAlerts: failed to save alerts.', saveError);
                 setSaveMessage({ type: 'error', text: 'שגיאה בשמירה. אנא נסה שוב.' });
             } finally {
                 setIsSaving(false);

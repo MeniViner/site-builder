@@ -1,5 +1,6 @@
 import React, { createContext, useMemo, useContext, useCallback } from 'react';
 import { useConfig } from './ConfigProvider';
+import { spLog } from '../utils/spAppLog';
 
 const EventsContext = createContext();
 
@@ -65,7 +66,7 @@ export const EventsProvider = ({ children }) => {
                 await saveNow();
                 return true;
             } catch (err) {
-                console.error(err);
+                spLog.error('EventsContext: failed to save events.', err);
                 return false;
             }
         },

@@ -58,6 +58,7 @@ const RESTORE_TARGET_BY_FILE_NAME = {
     [String(SHAREPOINT_CONFIG.themeFileServerRelativeUrl || '').split('/').pop()]: SHAREPOINT_CONFIG.themeFileServerRelativeUrl,
     [String(SHAREPOINT_CONFIG.widgetsFileServerRelativeUrl || '').split('/').pop()]: SHAREPOINT_CONFIG.widgetsFileServerRelativeUrl,
     [String(SHAREPOINT_CONFIG.externalLinksFileServerRelativeUrl || '').split('/').pop()]: SHAREPOINT_CONFIG.externalLinksFileServerRelativeUrl,
+    [String(SHAREPOINT_CONFIG.ganttFileServerRelativeUrl || '').split('/').pop()]: SHAREPOINT_CONFIG.ganttFileServerRelativeUrl,
     [String(SHAREPOINT_CONFIG.usersFileServerRelativeUrl || '').split('/').pop()]: SHAREPOINT_CONFIG.usersFileServerRelativeUrl,
 };
 
@@ -69,6 +70,7 @@ const BACKUP_FILE_LABELS = {
     [String(SHAREPOINT_CONFIG.themeFileServerRelativeUrl || '').split('/').pop()]: 'גיבוי עיצוב',
     [String(SHAREPOINT_CONFIG.widgetsFileServerRelativeUrl || '').split('/').pop()]: 'גיבוי ווידג׳טים',
     [String(SHAREPOINT_CONFIG.externalLinksFileServerRelativeUrl || '').split('/').pop()]: 'גיבוי קישורים חיצוניים',
+    [String(SHAREPOINT_CONFIG.ganttFileServerRelativeUrl || '').split('/').pop()]: 'גיבוי גאנט',
     [String(SHAREPOINT_CONFIG.usersFileServerRelativeUrl || '').split('/').pop()]: 'גיבוי מנהלים',
 };
 
@@ -102,6 +104,11 @@ const DEV_MOCK_FILE_TARGETS = [
         fileName: String(SHAREPOINT_CONFIG.externalLinksFileServerRelativeUrl || '').split('/').pop(),
         storageKey: SHAREPOINT_CONFIG.externalLinksMockStorageKey,
         targetServerRelativeUrl: SHAREPOINT_CONFIG.externalLinksFileServerRelativeUrl,
+    },
+    {
+        fileName: String(SHAREPOINT_CONFIG.ganttFileServerRelativeUrl || '').split('/').pop(),
+        storageKey: SHAREPOINT_CONFIG.ganttMockStorageKey,
+        targetServerRelativeUrl: SHAREPOINT_CONFIG.ganttFileServerRelativeUrl,
     },
     {
         fileName: String(SHAREPOINT_CONFIG.usersFileServerRelativeUrl || '').split('/').pop(),
@@ -811,18 +818,18 @@ export default function AdminBackupManagement() {
                                 disabled={isImportingBackup}
                                 className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-400/30 dark:text-emerald-300 dark:hover:bg-emerald-500/10 sm:text-sm"
                             >
-                                {isImportingBackup ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+                                {isImportingBackup ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
                                 {isImportingBackup ? 'מייבא...' : 'ייבוא גיבוי'}
                             </button>
-                            <button
+                            {/* <button
                                 type="button"
                                 onClick={() => handleExportBackup()}
                                 disabled={!selectedBackup || Boolean(exportingBackupPath)}
                                 className="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 px-3 py-1.5 text-xs font-bold text-sky-700 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-sky-400/30 dark:text-sky-300 dark:hover:bg-sky-500/10 sm:text-sm"
                             >
-                                {exportingBackupPath ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                                {exportingBackupPath ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
                                 {exportingBackupPath ? 'מייצא...' : 'ייצוא נבחר'}
-                            </button>
+                            </button> */}
                             <button
                                 type="button"
                                 onClick={handleCreateManualBackup}
@@ -952,8 +959,8 @@ export default function AdminBackupManagement() {
                                                             disabled={exportingBackupPath === backup.serverRelativeUrl}
                                                             className="inline-flex items-center gap-1 rounded-lg border border-sky-300 px-3 py-1.5 text-xs font-bold text-sky-700 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-sky-400/30 dark:text-sky-300 dark:hover:bg-sky-500/10"
                                                         >
-                                                            {exportingBackupPath === backup.serverRelativeUrl ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-                                                            ייצוא
+                                                            {exportingBackupPath === backup.serverRelativeUrl ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                                                            ייצוא גיבוי
                                                         </button>
                                                         <button
                                                             type="button"

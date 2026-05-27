@@ -506,6 +506,7 @@ export const createBackup = async (options = {}) => {
                 SHAREPOINT_CONFIG.themeFileServerRelativeUrl,
                 SHAREPOINT_CONFIG.widgetsFileServerRelativeUrl,
                 SHAREPOINT_CONFIG.externalLinksFileServerRelativeUrl,
+                SHAREPOINT_CONFIG.ganttFileServerRelativeUrl,
                 SHAREPOINT_CONFIG.usersFileServerRelativeUrl,
             ];
         const totalFiles = filesToBackup.length;

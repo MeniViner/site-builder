@@ -1,5 +1,7 @@
 import React, { createContext, useMemo, useContext, useCallback } from 'react';
 import { useConfig } from './ConfigProvider';
+import { normalizeLinkTarget } from '../utils/linkTargets';
+import { spLog } from '../utils/spAppLog';
 
 const NavigationContext = createContext();
 
@@ -44,7 +46,7 @@ function toLegacyNavItems(items) {
             label: pickText(l1?.label, l1?.title),
             icon: asText(l1?.icon),
             iconUrl: pickText(l1?.iconUrl, l1?.imageUrl, l1?.image),
-            url: asText(l1?.url),
+            url: normalizeLinkTarget(asText(l1?.url)),
             children: l1Children.map((l2, l2Index) => {
                 const l2Id = resolveNodeId(l2?.id) || `${l1Id}_sub_${l2Index + 1}`;
                 const l2Children = Array.isArray(l2?.children)
@@ -58,13 +60,13 @@ function toLegacyNavItems(items) {
                     label: title,
                     icon: asText(l2?.icon),
                     iconUrl: pickText(l2?.iconUrl, l2?.imageUrl, l2?.image),
-                    url: asText(l2?.url),
+                    url: normalizeLinkTarget(asText(l2?.url)),
                     subLinks: l2Children.map((l3, l3Index) => ({
                         id: resolveNodeId(l3?.id) || `${l2Id}_link_${l3Index + 1}`,
                         label: pickText(l3?.label, l3?.title),
                         icon: asText(l3?.icon),
                         iconUrl: pickText(l3?.iconUrl, l3?.imageUrl, l3?.image),
-                        url: asText(l3?.url),
+                        url: normalizeLinkTarget(asText(l3?.url)),
                     })),
                 };
             }),
@@ -86,7 +88,7 @@ function toV1NavItems(legacyItems) {
             label: pickText(l1?.label, l1?.title),
             icon: asText(l1?.icon),
             iconUrl: pickText(l1?.iconUrl, l1?.imageUrl, l1?.image),
-            url: asText(l1?.url),
+            url: normalizeLinkTarget(asText(l1?.url)),
             children: l1Children.map((l2) => {
                 const l2Id = resolveNodeId(l2?.id) || createNodeId('nav_l2');
                 const l2Children = Array.isArray(l2?.subLinks)
@@ -98,13 +100,13 @@ function toV1NavItems(legacyItems) {
                     label: pickText(l2?.title, l2?.label),
                     icon: asText(l2?.icon),
                     iconUrl: pickText(l2?.iconUrl, l2?.imageUrl, l2?.image),
-                    url: asText(l2?.url),
+                    url: normalizeLinkTarget(asText(l2?.url)),
                     children: l2Children.map((l3) => ({
                         id: resolveNodeId(l3?.id) || createNodeId('nav_l3'),
                         label: pickText(l3?.label, l3?.title),
                         icon: asText(l3?.icon),
                         iconUrl: pickText(l3?.iconUrl, l3?.imageUrl, l3?.image),
-                        url: asText(l3?.url),
+                        url: normalizeLinkTarget(asText(l3?.url)),
                         children: [],
                     })),
                 };
@@ -205,7 +207,7 @@ export const NavigationProvider = ({ children }) => {
             await saveNow();
             return true;
         } catch (err) {
-            console.error(err);
+            spLog.error('NavigationContext: failed to save navigation.', err);
             return false;
         }
     }, [saveNow, updateConfig]);

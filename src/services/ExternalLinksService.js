@@ -28,7 +28,7 @@ class ExternalLinksService {
             }
             return this._normalizeData(data);
         } catch (e) {
-            console.error(e);
+            spLog.error('ExternalLinksService: failed to load external links.', e);
             return [];
         }
     }
@@ -63,7 +63,7 @@ class ExternalLinksService {
             this._saveMockData(DEFAULT_EXTERNAL_LINKS);
             return Promise.resolve([...DEFAULT_EXTERNAL_LINKS]);
         } catch (error) {
-            console.error('Error reading mock external links:', error);
+            spLog.error('Error reading mock external links:', error);
             throw new Error('שגיאה בקריאת קישורים חיצוניים מהזיכרון המקומי');
         }
     }
@@ -73,7 +73,7 @@ class ExternalLinksService {
             localStorage.setItem(this.config.externalLinksMockStorageKey, JSON.stringify(payload));
             return Promise.resolve(payload);
         } catch (error) {
-            console.error('Error saving mock external links:', error);
+            spLog.error('Error saving mock external links:', error);
             if (error.name === 'QuotaExceededError' || error.message.includes('quota')) {
                 throw new Error('חריגה ממגבלת הזיכרון המקומי! התמונות גדולות מדי לגירסת הפיתוח. אנא השתמש באייקונים במקום תמונות כבדות.');
             }

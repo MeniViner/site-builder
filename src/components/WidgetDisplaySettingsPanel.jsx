@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Settings2 } from 'lucide-react';
 import { useConfig } from '../context/ConfigProvider';
 import { DEFAULT_WIDGET_SETTINGS } from '../utils/widgetDisplay';
+import { spLog } from '../utils/spAppLog';
 import { HelpLabel, HelpTooltipButton } from './AdminHelp';
 
 const inputCls = 'mt-1.5 w-full rounded-lg border border-theme-subtle bg-theme-elevated px-3 py-1.5 text-sm text-theme outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/20';
@@ -88,7 +89,7 @@ export default function WidgetDisplaySettingsPanel({ widgetId, widgetKey }) {
                 }));
                 await saveNow();
             } catch (saveError) {
-                console.error('Failed to save widget display settings:', saveError);
+                spLog.error('Failed to save widget display settings:', saveError);
             } finally {
                 setIsSaving(false);
                 saveTimeoutRef.current = null;

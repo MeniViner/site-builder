@@ -2,8 +2,9 @@ import { DEFAULT_CONFIG_V1 } from '../config/AppSchema';
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { cloneDefaultSampleAdminUsers } from '../config/defaultUsers';
 import { ensureSharePointTextFileExists, upsertSharePointTextFile } from '../utils/sharepointUtils';
-import { spLog } from '../utils/spAppLog';
+import { spBootstrapLog } from '../utils/spAppLog';
 import { DEFAULT_ACTIVE_WIDGETS, mergeWidgetSettings } from '../utils/widgetDisplay';
+import { DEFAULT_GANTT_DATA } from '../utils/ganttData';
 import { resolveDefaultMasterConfigFileUrl } from './ConfigAdapter';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -249,6 +250,12 @@ const buildBootstrapFileDefinitions = () => {
             serverRelativeUrl: SHAREPOINT_CONFIG.externalLinksFileServerRelativeUrl,
             text: JSON.stringify(toLegacyExternalLinksPayload(defaults), null, 2),
         },
+        {
+            key: 'gantt',
+            label: 'גאנט',
+            serverRelativeUrl: SHAREPOINT_CONFIG.ganttFileServerRelativeUrl,
+            text: JSON.stringify(DEFAULT_GANTT_DATA, null, 2),
+        },
     ].filter((file) => typeof file.serverRelativeUrl === 'string' && file.serverRelativeUrl.trim().length > 0);
 };
 
@@ -267,7 +274,7 @@ export const ensureSharePointBootstrapFiles = async () => {
         const files = buildBootstrapFileDefinitions();
         const summary = [];
 
-        spLog.boot(`Bootstrap SharePoint: בודק/יוצר קבצי מערכת (${files.length})...`);
+        spBootstrapLog.info(`Bootstrap SharePoint: בודק/יוצר קבצי מערכת (${files.length})...`);
 
         for (const file of files) {
             try {
@@ -284,9 +291,9 @@ export const ensureSharePointBootstrapFiles = async () => {
                 });
 
                 if (result.created) {
-                    spLog.success(`Bootstrap: נוצר קובץ ${file.label}`);
+                    spBootstrapLog.info(`Bootstrap: נוצר קובץ ${file.label}`);
                 } else {
-                    spLog.file(`Bootstrap: קובץ כבר קיים ${file.label}`);
+                    spBootstrapLog.info(`Bootstrap: קובץ כבר קיים ${file.label}`);
                 }
             } catch (error) {
                 summary.push({
@@ -295,7 +302,7 @@ export const ensureSharePointBootstrapFiles = async () => {
                     serverRelativeUrl: file.serverRelativeUrl,
                     error: error?.message || String(error),
                 });
-                spLog.warn(`Bootstrap: נכשל ביצירת ${file.label} (${file.serverRelativeUrl})`, error);
+                spBootstrapLog.warn(`Bootstrap: נכשל ביצירת ${file.label} (${file.serverRelativeUrl})`, error);
             }
         }
 
@@ -313,7 +320,7 @@ export const overwriteSharePointBootstrapFiles = async () => {
     const files = buildBootstrapFileDefinitions();
     const summary = [];
 
-    spLog.boot(`Factory reset: מעדכן קבצי מערכת לברירות מחדל (${files.length})...`);
+    spBootstrapLog.info(`Factory reset: מעדכן קבצי מערכת לברירות מחדל (${files.length})...`);
 
     for (const file of files) {
         try {
@@ -332,9 +339,9 @@ export const overwriteSharePointBootstrapFiles = async () => {
             });
 
             if (ok) {
-                spLog.success(`Factory reset: עודכן קובץ ${file.label}`);
+                spBootstrapLog.info(`Factory reset: עודכן קובץ ${file.label}`);
             } else {
-                spLog.warn(
+                spBootstrapLog.warn(
                     `Factory reset: שמירת ${file.label} חזרה עם סטטוס ${response?.status ?? 'unknown'}`
                 );
             }
@@ -346,7 +353,7 @@ export const overwriteSharePointBootstrapFiles = async () => {
                 serverRelativeUrl: file.serverRelativeUrl,
                 error: error?.message || String(error),
             });
-            spLog.warn(`Factory reset: נכשל בעדכון ${file.label} (${file.serverRelativeUrl})`, error);
+            spBootstrapLog.warn(`Factory reset: נכשל בעדכון ${file.label} (${file.serverRelativeUrl})`, error);
         }
     }
 

@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useNavigation } from '../context/NavigationContext';
 import { useTheme } from '../context/ThemeContext';
 import {
     Plus, Trash2, AlertTriangle, ChevronLeft, ChevronDown,
     Folder, FolderOpen, FileText, Link as LinkIcon, Home, Search,
-    ExternalLink, GripVertical, Image as ImageIcon, Loader2, Upload
+    ExternalLink, GripVertical, Image as ImageIcon, Loader2, Upload, Palette
 } from 'lucide-react';
 import IconPickerModal from './IconPickerModal';
 import Tooltip from './Tooltip';
@@ -13,6 +14,7 @@ import { confirmToast } from '../utils/confirmToast';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import { uploadImage } from '../utils/sharepointUtils';
 import NavVisual from './NavVisual';
+import { normalizeLinkTarget } from '../utils/linkTargets';
 
 function createNodeId(prefix) {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -87,6 +89,7 @@ function moveArrayItem(source, fromIndex, toIndex) {
 }
 
 export default function AdminNavigation() {
+    const navigate = useNavigate();
     const MAX_TOP_LEVEL_NAV_ITEMS = 12;
     const { navItems: initialNavItems, loading, error, saveNavigation } = useNavigation();
     const { effectiveMode } = useTheme();
@@ -568,7 +571,15 @@ export default function AdminNavigation() {
                         )}
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center justify-end gap-3">
+                        <button
+                            type="button"
+                            onClick={() => navigate('/admin/theme?tab=regularLinksLayout')}
+                            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-300 bg-gray-50 px-3 text-xs font-bold text-gray-700 transition hover:border-primary-400 hover:text-primary-500 dark:border-[#252528] dark:bg-[#141418] dark:text-gray-300 dark:hover:text-primary-400"
+                        >
+                            <Palette size={14} />
+                            הגדרות עיצוב
+                        </button>
                         <AdminPageHelpButton pageId="navigation" />
                         <div className="relative">
                             <Search size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
@@ -693,18 +704,22 @@ export default function AdminNavigation() {
                                     className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider"
                                     wrapperClassName="flex items-center gap-2"
                                     helpTitle="קישור ישיר"
-                                    helpDescription="אם מזינים כאן כתובת מלאה, לחיצה על הפריט תפתח את הכתובת הזאת ישירות."
+                                    helpDescription="אפשר להזין כתובת אתר מלאה, נתיב Windows כמו z:/public או c:/library, נתיב Mac כמו /Users/name/Documents, או קישור רשת כמו smb://server/share."
                                 >
                                     קישור ישיר (URL)
                                 </HelpLabel>
                                 <input
-                                    type="url"
+                                    type="text"
                                     value={currentModel.url || ''}
                                     onChange={(e) => updateNode(selectedPath, 'url', e.target.value)}
+                                    onBlur={(e) => updateNode(selectedPath, 'url', normalizeLinkTarget(e.target.value))}
                                     className="w-full bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-blue-600 dark:text-blue-300 focus:outline-none focus:border-primary-500 focus:bg-gray-100 dark:focus:bg-[#1a1a1f] text-sm transition text-left dir-ltr placeholder-gray-500 dark:placeholder-[#333]"
-                                    placeholder="https://"
+                                    placeholder="https:// או z:/public או /Users/name/Documents"
                                     dir="ltr"
                                 />
+                                <p className="text-[11px] leading-snug text-gray-500 dark:text-gray-400">
+                                    נתיבי Windows ו-Mac יומרו אוטומטית ל-file:// בזמן שמירה.
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -851,11 +866,12 @@ export default function AdminNavigation() {
                                         </td>
                                         <td className="py-2.5 px-2">
                                             <input
-                                                type="url"
+                                                type="text"
                                                 value={child.url || ''}
                                                 onChange={(e) => updateNode(child.nodePath, 'url', e.target.value)}
+                                                onBlur={(e) => updateNode(child.nodePath, 'url', normalizeLinkTarget(e.target.value))}
                                                 className="bg-transparent border border-transparent hover:border-[#333] focus:border-primary-500 focus:bg-gray-50 dark:focus:bg-[#141418] rounded-md pl-2 pr-2 py-1.5 transition w-full text-xs text-blue-600 dark:text-blue-400 outline-none dir-ltr text-left placeholder-gray-500 dark:placeholder-[#333] hover:bg-gray-100 dark:hover:bg-black/20 focus:shadow-inner"
-                                                placeholder="https://"
+                                                placeholder="https:// או z:/public או /Users/name/Documents"
                                                 dir="ltr"
                                             />
                                         </td>

@@ -3,6 +3,7 @@ import React, { createContext, useMemo, useContext, useCallback, useEffect, useS
 import { useConfig } from './ConfigProvider';
 import { DEFAULT_ACTIVE_WIDGETS, mergeWidgetSettings } from '../utils/widgetDisplay';
 import WidgetService from '../services/WidgetService';
+import { spLog } from '../utils/spAppLog';
 
 export const WidgetContext = createContext();
 
@@ -325,7 +326,7 @@ export const WidgetProvider = ({ children }) => {
             setSharedPolls(storedPolls);
             return true;
         } catch (err) {
-            console.warn('WidgetContext: failed to load shared polls from widgets_data.txt', err);
+            spLog.warn('WidgetContext: failed to load shared polls from widgets_data.txt', err);
             return false;
         }
     }, []);
@@ -362,7 +363,7 @@ export const WidgetProvider = ({ children }) => {
             setSharedPolls(savedPolls);
             return true;
         } catch (err) {
-            console.error('WidgetContext: failed to persist polls to widgets_data.txt', err);
+            spLog.error('WidgetContext: failed to persist polls to widgets_data.txt', err);
             return false;
         }
     }, [sharedWidgetSnapshot]);
@@ -383,7 +384,7 @@ export const WidgetProvider = ({ children }) => {
             await saveNow();
             return pollsSaved;
         } catch (err) {
-            console.error(err);
+            spLog.error('WidgetContext: failed to save widget config.', err);
             return false;
         }
     }, [persistPollsToSharedStore, saveNow, updateConfig]);

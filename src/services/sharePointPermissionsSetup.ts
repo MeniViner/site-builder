@@ -66,7 +66,7 @@ const parseBooleanEnv = (value: unknown, fallback: boolean) => {
 
 const isConsoleLoggingEnabled = () => parseBooleanEnv(
     import.meta.env.VITE_SP_PERMISSIONS_SETUP_LOGS ?? import.meta.env.VITE_SP_VERBOSE_LOG,
-    true
+    false
 );
 
 const safeStringify = (value: unknown) => {

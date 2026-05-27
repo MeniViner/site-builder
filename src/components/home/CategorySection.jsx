@@ -1,14 +1,14 @@
 import { ChevronLeft, Image as ImageIcon, Undo2 } from 'lucide-react';
-import { DynamicIcon } from '../DynamicIcon';
 import NavVisual from '../NavVisual';
 import Tooltip from '../Tooltip';
 import { panelStyle } from '../../utils/borderStyles';
+import { getLinkTargetAttributes, openLinkTarget } from '../../utils/linkTargets';
 
 export function FlipCard({ id, title, icon: iconName, iconUrl = '', subLinks = [], url, isFlipped, onFlip, borderStyle = 'standard' }) {
   const handleLinkClick = (e) => e.stopPropagation();
   const handleCardClick = () => {
     if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
+      openLinkTarget(url);
       return;
     }
     onFlip(isFlipped ? null : id);
@@ -46,13 +46,16 @@ export function FlipCard({ id, title, icon: iconName, iconUrl = '', subLinks = [
             </button>
           </div>
           <div className="flex flex-wrap gap-1.5 flex-1 content-center">
-            {(subLinks || []).map((link, idx) => (
-              <button key={idx} type="button" onClick={handleLinkClick} className="relative flex items-center gap-1.5 text-right bg-theme-elevated hover:bg-primary/10 hover:text-primary-300 px-3 py-2 rounded-lg transition-all text-sm text-theme-muted group/btn whitespace-nowrap">
-                <NavVisual item={link} size={14} className="text-theme-muted group-hover/btn:text-primary-300 shrink-0" imageClassName="h-3.5 w-3.5 object-contain shrink-0" />
-                <span>{link.label}</span>
-                {link.url && <a href={link.url} target="_blank" rel="noreferrer" className="absolute inset-0" onClick={(e) => e.stopPropagation()} />}
-              </button>
-            ))}
+            {(subLinks || []).map((link, idx) => {
+              const attrs = getLinkTargetAttributes(link.url);
+              return (
+                <button key={idx} type="button" onClick={handleLinkClick} className="relative flex items-center gap-1.5 text-right bg-theme-elevated hover:bg-primary/10 hover:text-primary-300 px-3 py-2 rounded-lg transition-all text-sm text-theme-muted group/btn whitespace-nowrap">
+                  <NavVisual item={link} size={14} className="text-theme-muted group-hover/btn:text-primary-300 shrink-0" imageClassName="h-3.5 w-3.5 object-contain shrink-0" />
+                  <span>{link.label}</span>
+                  {link.url && <a {...attrs} className="absolute inset-0" onClick={(e) => e.stopPropagation()} />}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -66,7 +69,7 @@ function CompactListSection({ cat }) {
       <div className="flex items-center gap-4 mb-4 px-2 pb-3 relative">
         <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-primary/50 via-primary/20 to-transparent" />
         <div className="bg-primary/10 text-primary p-2.5 rounded-lg border border-primary/20">
-          <DynamicIcon name={cat.icon} size={20} />
+          <NavVisual item={cat} size={20} className="text-primary" imageClassName="h-5 w-5 object-contain" />
         </div>
         <h2 className="text-xl font-bold text-theme">{cat.label}</h2>
       </div>
@@ -74,9 +77,7 @@ function CompactListSection({ cat }) {
         {cat.children.map((card) => (
           <a
             key={card.id}
-            href={card.url || '#'}
-            target={card.url ? '_blank' : undefined}
-            rel={card.url ? 'noopener noreferrer' : undefined}
+            {...getLinkTargetAttributes(card.url)}
             className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-theme-elevated transition-all group border border-transparent hover:border-theme-subtle"
           >
             <div className="w-8 h-8 rounded-lg bg-theme-elevated flex items-center justify-center text-theme-muted group-hover:text-primary group-hover:bg-primary/10 transition shrink-0">
@@ -100,7 +101,7 @@ function HQDashboardSection({ cat, borderStyle = 'standard' }) {
       <div className="flex items-center gap-4 mb-6 px-2 pb-4 relative">
         <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-primary/50 via-primary/20 to-transparent" />
         <div className="bg-primary/10 text-primary p-3 rounded-xl border border-primary/20">
-          <DynamicIcon name={cat.icon} size={24} />
+          <NavVisual item={cat} size={24} className="text-primary" imageClassName="h-6 w-6 object-contain" />
         </div>
         <h2 className="text-2xl font-bold text-theme tracking-wide">{cat.label}</h2>
       </div>
@@ -108,9 +109,7 @@ function HQDashboardSection({ cat, borderStyle = 'standard' }) {
         {cat.children.map((card) => (
           <a
             key={card.id}
-            href={card.url || '#'}
-            target={card.url ? '_blank' : undefined}
-            rel={card.url ? 'noopener noreferrer' : undefined}
+            {...getLinkTargetAttributes(card.url)}
             className="group relative flex items-center gap-5 p-5 bg-gradient-to-l from-surface-card to-transparent border-r-2 border-primary/30 hover:border-primary hover:bg-surface-card/80 transition-all overflow-hidden"
             style={panelStyle(borderStyle, 12)}
           >
@@ -156,7 +155,7 @@ export default function CategorySection({
       <div className="flex items-center gap-4 mb-8 px-2 pb-4 relative">
         <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-primary/50 via-primary/20 to-transparent" />
         <div className="bg-primary/10 text-primary p-3 rounded-xl border border-primary/20">
-          <DynamicIcon name={cat.icon} size={24} />
+          <NavVisual item={cat} size={24} className="text-primary" imageClassName="h-6 w-6 object-contain" />
         </div>
         <h2 className="text-2xl font-bold text-theme tracking-wide">{cat.label}</h2>
       </div>

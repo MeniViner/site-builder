@@ -198,7 +198,7 @@ class NavigationService {
             return Promise.resolve(seedData);
 
         } catch (error) {
-            console.error('Error reading mock navigation:', error);
+            spLog.error('Error reading mock navigation:', error);
             throw new Error('שגיאה בקריאת נתוני הניווט מהזיכרון המקומי');
         }
     }
@@ -208,7 +208,7 @@ class NavigationService {
             localStorage.setItem(this.config.navMockStorageKey, JSON.stringify(navData));
             return Promise.resolve(navData);
         } catch (error) {
-            console.error('Error saving mock navigation:', error);
+            spLog.error('Error saving mock navigation:', error);
             throw new Error('שגיאה בשמירת נתוני הניווט לזיכרון המקומי');
         }
     }

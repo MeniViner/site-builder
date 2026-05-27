@@ -11,6 +11,8 @@ import ReactFlow, {
     useNodesState,
 } from 'reactflow';
 import { resolveSiteImageUrl } from '../utils/assetUrl';
+import { personalNumberToArmyMailto } from '../utils/personalNumber';
+import OrgChartMailLink from './OrgChartMailLink';
 import 'reactflow/dist/style.css';
 
 const FALLBACK_X_STEP = 320;
@@ -312,6 +314,7 @@ function flattenOrgTree(treeNodes, nodePositions, lineStyle, avatarShape, flowSe
                 name: node.name || '',
                 rank: node.rank || '',
                 role: node.role || '',
+                personalNumber: node.personalNumber || '',
                 imageUrl: node.imageUrl || '',
                 avatarShape,
                 depth,
@@ -366,6 +369,7 @@ function buildPositionsMapFromNodes(nodes) {
 
 function OrgNode({ data }) {
     const title = buildTitle(data);
+    const mailto = personalNumberToArmyMailto(data?.personalNumber);
     const showRank = data?.showRank !== false;
     const showRole = data?.showRole !== false;
     const showAvatar = data?.showAvatar !== false;
@@ -430,15 +434,23 @@ function OrgNode({ data }) {
                     </div>
                 )}
                 <div className="min-w-0 flex-1">
-                    <h3
-                        className="truncate font-black text-gray-900 dark:text-white"
-                        style={{
-                            fontSize: `${titleSizePx}px`,
-                            lineHeight: 1.25,
-                        }}
-                    >
-                        {title}
-                    </h3>
+                    <div className="flex min-w-0 items-center gap-1.5">
+                        <h3
+                            className="min-w-0 flex-1 truncate font-black text-gray-900 dark:text-white"
+                            style={{
+                                fontSize: `${titleSizePx}px`,
+                                lineHeight: 1.25,
+                            }}
+                        >
+                            {title}
+                        </h3>
+                        <OrgChartMailLink
+                            href={mailto}
+                            label={title}
+                            className="nodrag nopan inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary transition hover:bg-primary/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                            iconSize={12}
+                        />
+                    </div>
                     {subtitle && (
                         <p
                             className="mt-1 text-gray-600 dark:text-gray-300"

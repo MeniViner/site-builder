@@ -2,6 +2,19 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { CalendarDays } from 'lucide-react';
 import { useEvents } from '../context/EventsContext';
 import WidgetEmptyState from './widgets/WidgetEmptyState';
+import SmartTextRenderer from './SmartTextRenderer';
+import { eventColorToHex } from '../utils/colorValidation';
+
+const withHexAlpha = (hex, alpha = '1A') => {
+  const value = eventColorToHex(hex);
+  return value.length === 7 ? `${value}${alpha}` : value;
+};
+
+const getStatusWord = (color) => {
+  if (color === 'red') return 'דחוף';
+  if (color === 'gray') return 'מתוכנן';
+  return 'מסומן';
+};
 
 export default function EventsList() {
   const {
@@ -197,10 +210,21 @@ export default function EventsList() {
                             <div className="flex flex-col gap-2 flex-1">
                                 {eventsByDay[flippedDay].map((ev, ei) => (
                                     <div key={ei} className="flex gap-3 items-start bg-gray-50/80 dark:bg-white/5 rounded-xl p-3 border border-gray-100 dark:border-white/5 transition-all">
-                                        <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${ev.color === 'red' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]' : 'bg-primary shadow-[0_0_8px_rgba(var(--color-primary),0.8)]'}`} />
+                                        <div
+                                          className="mt-1.5 w-2 h-2 rounded-full shrink-0"
+                                          style={{
+                                            backgroundColor: eventColorToHex(ev.color),
+                                            boxShadow: `0 0 8px ${withHexAlpha(ev.color, 'CC')}`,
+                                          }}
+                                        />
                                         <div className="flex-1 min-w-0">
                                             <div className={`text-[13px] font-black leading-tight mb-0.5 truncate ${ev.color === 'red' ? 'text-red-500' : 'text-gray-900 dark:text-white'}`}>{ev.title || 'ללא כותרת'}</div>
-                                            <div className="text-[12px] font-medium text-gray-500 dark:text-gray-400 leading-snug line-clamp-2">{ev.subtitle}</div>
+                                            <SmartTextRenderer
+                                              text={ev.subtitle}
+                                              richText={ev.subtitleRichText}
+                                              linkLabels={ev.linkLabels}
+                                              className="block text-[12px] font-medium text-gray-500 dark:text-gray-400 leading-snug line-clamp-2"
+                                            />
                                         </div>
                                     </div>
                                 ))}
@@ -235,6 +259,7 @@ export default function EventsList() {
         ) : (
           <div className="flex flex-col gap-3">
             {slice.map((event, idx) => {
+              const eventHex = eventColorToHex(event.color);
               if (displayMode === 'monthly') {
                  return (
                    <div
@@ -242,7 +267,10 @@ export default function EventsList() {
                      className="group relative flex flex-col justify-center rounded-[16px] border border-gray-200/60 bg-white/60 p-2.5 transition-all hover:bg-white hover:shadow-lg dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 overflow-hidden"
                    >
                      <div className="flex items-center gap-3">
-                         <div className={`flex flex-col items-center justify-center rounded-xl px-3 py-2 text-center min-w-[50px] shrink-0 ${event.color === 'red' ? 'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400' : 'bg-primary/10 text-primary dark:bg-primary/20'}`}>
+                         <div
+                           className="flex flex-col items-center justify-center rounded-xl px-3 py-2 text-center min-w-[50px] shrink-0"
+                           style={{ backgroundColor: withHexAlpha(event.color, '1A'), color: eventHex }}
+                         >
                            <span className="text-xl font-black leading-none">{getDayNumeric(event.date, event.day)}</span>
                            <span className="text-[10px] font-bold uppercase tracking-wider mt-0.5">{getHebrewMonth(event.date, event.month)}</span>
                          </div>
@@ -251,14 +279,18 @@ export default function EventsList() {
                            <div className="truncate text-sm font-bold text-gray-900 dark:text-white transition-all group-hover:text-primary">
                              {event.title || 'ללא כותרת'}
                            </div>
-                           <div className="truncate text-xs font-medium text-gray-500 dark:text-gray-400 mt-0.5 transition-all max-w-[90%]">
-                             {event.subtitle || 'אירוע יחידתי'}
-                           </div>
+                           <SmartTextRenderer
+                             text={event.subtitle}
+                             richText={event.subtitleRichText}
+                             linkLabels={event.linkLabels}
+                             fallback="אירוע יחידתי"
+                             className="mt-0.5 block max-w-[90%] truncate text-xs font-medium text-gray-500 transition-all dark:text-gray-400"
+                           />
                          </div>
                          
-                         {event.color === 'red' && (
+                         {event.color !== 'gray' && (
                            <div className="shrink-0 flex items-center justify-center pl-1">
-                               <div className="h-2 w-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+                               <div className="h-2 w-2 rounded-full" style={{ backgroundColor: eventHex, boxShadow: `0 0 8px ${withHexAlpha(event.color, 'CC')}` }} />
                            </div>
                          )}
                      </div>
@@ -266,9 +298,12 @@ export default function EventsList() {
                      {/* Expandable Details Area (Visible on Hover) */}
                      <div className="max-h-0 opacity-0 overflow-hidden transition-all duration-300 ease-in-out group-hover:max-h-[100px] group-hover:opacity-100 group-hover:mt-3">
                          <div className="border-t border-gray-100 dark:border-white/10 pt-2 text-right">
-                             <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
-                                 {event.subtitle}
-                             </p>
+                             <SmartTextRenderer
+                               text={event.subtitle}
+                               richText={event.subtitleRichText}
+                               linkLabels={event.linkLabels}
+                               className="block whitespace-pre-wrap text-xs leading-relaxed text-gray-600 dark:text-gray-300"
+                             />
                          </div>
                      </div>
                    </div>
@@ -286,7 +321,10 @@ export default function EventsList() {
                   style={{ animationDelay: `${idx * 0.15}s` }}
                 >
                   <div className="absolute left-4 top-4 rounded-full border border-white/70 bg-white/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 shadow-sm dark:border-white/10 dark:bg-black/20 dark:text-gray-300">
-                    {event.color === 'red' ? 'דחוף' : 'מתוכנן'}
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: eventHex }} />
+                      {getStatusWord(event.color)}
+                    </span>
                   </div>
 
                   <div className="flex min-h-[108px] items-stretch">
@@ -302,9 +340,13 @@ export default function EventsList() {
                       <div className="pl-14 text-base font-black leading-tight text-gray-900 dark:text-white w-full">
                         {event.title || 'ללא כותרת'}
                       </div>
-                      <div className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400 w-full">
-                        {event.subtitle || 'אירוע יחידתי מתוכנן'}
-                      </div>
+                      <SmartTextRenderer
+                        text={event.subtitle}
+                        richText={event.subtitleRichText}
+                        linkLabels={event.linkLabels}
+                        fallback="אירוע יחידתי מתוכנן"
+                        className="mt-2 block w-full text-xs font-semibold text-gray-500 dark:text-gray-400"
+                      />
                     </div>
                   </div>
                 </div>

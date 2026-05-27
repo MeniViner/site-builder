@@ -1,5 +1,7 @@
 import React, { createContext, useMemo, useContext, useCallback } from 'react';
 import { useConfig } from './ConfigProvider';
+import { normalizeLinkTarget } from '../utils/linkTargets';
+import { spLog } from '../utils/spAppLog';
 
 const ExternalLinksContext = createContext();
 
@@ -13,7 +15,7 @@ function toLegacyLink(item, index) {
     return {
         id: String(item?.id ?? `${index + 1}`),
         title: item?.title ?? '',
-        url: item?.url ?? '',
+        url: normalizeLinkTarget(item?.url ?? ''),
         icon,
         iconUrl: imageUrl,
         image: imageUrl,
@@ -42,7 +44,7 @@ function toV1Links(links) {
     return source.map((link, index) => ({
         id: String(link?.id ?? `${index + 1}`),
         title: link?.title ?? '',
-        url: link?.url ?? '',
+        url: normalizeLinkTarget(link?.url ?? ''),
         visual: toV1Visual(link),
         order: Number.isFinite(Number(link?.order)) ? Number(link.order) : index,
     }));
@@ -81,7 +83,7 @@ export const ExternalLinksProvider = ({ children }) => {
                 await saveNow();
                 return true;
             } catch (err) {
-                console.error(err);
+                spLog.error('ExternalLinksContext: failed to save external links.', err);
                 return false;
             }
         },

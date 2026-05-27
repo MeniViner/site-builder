@@ -3,7 +3,7 @@ import { Search, X, Check, RotateCcw } from 'lucide-react';
 import { DynamicIcon } from './DynamicIcon';
 import Tooltip from './Tooltip';
 import { ICON_CATEGORIES } from '../utils/iconsData';
-import { getIconHebrewLabel, getIconSearchHaystack } from '../utils/iconSearchHe';
+import { getIconHebrewLabel, searchIconNames } from '../utils/iconSearchHe';
 
 export default function IconPickerModal({ isOpen, onClose, onSelect, currentIcon, defaultSearchTerm = '' }) {
     const [searchTerm, setSearchTerm] = useState('');
@@ -23,6 +23,7 @@ export default function IconPickerModal({ isOpen, onClose, onSelect, currentIcon
         }
         if (searchEditedRef.current) return;
         setSearchTerm(typeof defaultSearchTerm === 'string' ? defaultSearchTerm.trim() : '');
+        setActiveCategory('all');
     }, [defaultSearchTerm, isOpen]);
 
     const filteredIcons = useMemo(() => {
@@ -35,15 +36,12 @@ export default function IconPickerModal({ isOpen, onClose, onSelect, currentIcon
         }
 
         if (searchTerm) {
-            const needle = searchTerm.trim().toLowerCase();
-            result = result.filter((iconName) => {
-                // Match English name or Hebrew keywords/label
-                if (iconName.toLowerCase().includes(needle)) return true;
-                return getIconSearchHaystack(iconName).includes(needle);
+            return searchIconNames(searchTerm, {
+                categories: ICON_CATEGORIES,
+                iconNames: result,
             });
         }
 
-        // Remove duplicates if any
         return [...new Set(result)];
     }, [searchTerm, activeCategory]);
 

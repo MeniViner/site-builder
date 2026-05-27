@@ -7,7 +7,7 @@ export const ICON_CATEGORIES = [
             'Bookmark', 'Flag', 'MoreHorizontal', 'MoreVertical', 'Menu', 'Grid',
             'List', 'Maximize', 'Minimize', 'ZoomIn', 'ZoomOut', 'CheckCircle',
             'XCircle', 'AlertCircle', 'AlertTriangle', 'Eye', 'EyeOff', 'Hash',
-            'Filter', 'Slider', 'Sliders', 'Activity', 'Anchor', 'Aperture', 'Zap',
+            'Filter', 'SlidersHorizontal', 'Sliders', 'Activity', 'Anchor', 'Aperture', 'Zap',
             'Layout', 'LayoutDashboard', 'LayoutGrid', 'LayoutList', 'LayoutTemplate',
             'Command', 'Compass', 'Crosshair', 'ToggleLeft', 'ToggleRight',
             'Sparkles', 'Wand2', 'Badge', 'BadgeInfo', 'BadgeAlert'
@@ -144,7 +144,7 @@ export const ICON_CATEGORIES = [
             'Wifi', 'WifiOff', 'Bluetooth', 'BluetoothOff', 'BluetoothConnected',
             'Battery', 'BatteryCharging', 'BatteryFull', 'BatteryLow', 'BatteryMedium', 'BatteryWarning',
             'Database', 'DatabaseBackup', 'DatabaseZap', 'Terminal', 'Code', 'Code2',
-            'Modem', 'Router', 'Usb', 'Speaker', 'Gamepad', 'Gamepad2',
+            'Router', 'Usb', 'Speaker', 'Gamepad', 'Gamepad2',
             'QrCode', 'ScanLine', 'ScanFace'
         ]
     },
@@ -153,9 +153,47 @@ export const ICON_CATEGORIES = [
         label: 'בריאות וטבע',
         icons: [
             'Heart', 'HeartPulse', 'HeartHandshake', 'Stethoscope', 'Pill', 'Syringe',
-            'Thermometer', 'Cross', 'FirstAid', 'Activity',
+            'Thermometer', 'Cross', 'BriefcaseMedical', 'Activity',
             'Leaf', 'Feather', 'Droplet', 'Flame', 'Mountain', 'MountainSnow',
             'TreePine', 'TreeDeciduous', 'Sprout', 'Flower', 'Flower2'
+        ]
+    },
+    {
+        id: 'military_org',
+        label: 'צבא / ארגון',
+        icons: [
+            'Shield', 'ShieldCheck', 'ShieldAlert', 'Swords', 'Medal', 'Badge',
+            'BadgeCheck', 'Flag', 'Building2', 'Landmark', 'Network', 'RadioTower',
+            'Users', 'UserCheck', 'IdCard', 'ContactRound', 'Briefcase', 'ClipboardCheck',
+            'BookOpenCheck', 'Handshake', 'Target', 'MapPinned', 'Route'
+        ]
+    },
+    {
+        id: 'links_sites',
+        label: 'קישורים ואתרים',
+        icons: [
+            'Link', 'ExternalLink', 'Globe', 'MousePointerClick', 'Share2', 'Send',
+            'Bookmark', 'BookOpen', 'Home', 'LayoutDashboard', 'PanelTop', 'PanelRight',
+            'AtSign', 'QrCode', 'ScanLine', 'Waypoints'
+        ]
+    },
+    {
+        id: 'reports_data',
+        label: 'דוחות ונתונים',
+        icons: [
+            'ChartNoAxesCombined', 'BarChart3', 'BarChart4', 'LineChart', 'AreaChart',
+            'PieChart', 'FileChartColumn', 'FileSpreadsheet', 'Table', 'Database',
+            'DatabaseBackup', 'ClipboardList', 'ListChecks', 'Calculator', 'Percent',
+            'TrendingUp', 'TrendingDown'
+        ]
+    },
+    {
+        id: 'support_service',
+        label: 'תמיכה ושירות',
+        icons: [
+            'LifeBuoy', 'Headset', 'CircleHelp', 'Info', 'MessageCircle', 'MessagesSquare',
+            'PhoneCall', 'MailQuestion', 'Wrench', 'Settings', 'Bug', 'ToolCase',
+            'ClipboardCheck', 'BadgeCheck', 'Handshake', 'UserRoundCheck'
         ]
     }
 ];

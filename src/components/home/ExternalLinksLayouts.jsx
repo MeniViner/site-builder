@@ -4,6 +4,7 @@ import { DynamicIcon } from '../DynamicIcon';
 import Tooltip from '../Tooltip';
 import { panelStyle } from '../../utils/borderStyles';
 import { resolveSiteImageUrl } from '../../utils/assetUrl';
+import { getLinkTargetAttributes } from '../../utils/linkTargets';
 
 function ExtLinkIcon({ icon, src, alt, size = 18, className = '' }) {
   const [failed, setFailed] = useState(false);
@@ -24,6 +25,18 @@ function ExtLinkIcon({ icon, src, alt, size = 18, className = '' }) {
   );
 }
 
+function ExternalLinkAnchor({ link, className = '', style, children }) {
+  return (
+    <a
+      {...getLinkTargetAttributes(link?.url)}
+      className={className}
+      style={style}
+    >
+      {children}
+    </a>
+  );
+}
+
 export function ExtLinksCards({ links, compact, bordered = true, borderStyle = 'standard' }) {
   const cardBorder = bordered ? 'border border-theme-subtle hover:border-primary/30' : '';
   const iconWrap = bordered
@@ -37,11 +50,9 @@ export function ExtLinksCards({ links, compact, bordered = true, borderStyle = '
     return (
       <div className="flex items-center gap-2 flex-nowrap">
         {links.map((link) => (
-          <a
+          <ExternalLinkAnchor
             key={link.id}
-            href={link.url}
-            target="_blank"
-            rel="noopener noreferrer"
+            link={link}
             className={`group flex flex-col items-center gap-1.5 p-2.5 rounded-lg bg-theme-card ${cardBorder} hover:bg-primary/5 transition-all text-center shrink-0 overflow-hidden`}
             style={panelStyle(borderStyle, 10)}
           >
@@ -49,7 +60,7 @@ export function ExtLinksCards({ links, compact, bordered = true, borderStyle = '
               <ExtLinkIcon icon={link.icon} src={link.iconUrl || link.image} alt={link.title} size={18} />
             </div>
             <span className="text-[10px] font-medium text-theme-muted group-hover:text-theme transition truncate max-w-[64px]">{link.title}</span>
-          </a>
+          </ExternalLinkAnchor>
         ))}
       </div>
     );
@@ -64,11 +75,9 @@ export function ExtLinksCards({ links, compact, bordered = true, borderStyle = '
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
         {links.map((link) => (
-          <a
+          <ExternalLinkAnchor
             key={link.id}
-            href={link.url}
-            target="_blank"
-            rel="noopener noreferrer"
+            link={link}
             className={`group flex flex-col items-center gap-3 p-5 rounded-xl bg-theme-card ${cardBorder} hover:bg-primary/5 transition-all text-center overflow-hidden`}
             style={panelStyle(borderStyle, 12)}
           >
@@ -76,7 +85,7 @@ export function ExtLinksCards({ links, compact, bordered = true, borderStyle = '
               <ExtLinkIcon icon={link.icon} src={link.iconUrl || link.image} alt={link.title} size={24} />
             </div>
             <span className="text-sm font-medium text-theme-muted group-hover:text-theme transition truncate w-full">{link.title}</span>
-          </a>
+          </ExternalLinkAnchor>
         ))}
       </div>
     </div>
@@ -94,9 +103,9 @@ export function ExtLinksMinimal({ links, compact, bordered = true }) {
     <div className={wrapCls}>
       {links.map((link) => (
         <Tooltip key={link.id} text={link.title}>
-          <a href={link.url} target="_blank" rel="noopener noreferrer" className={linkCls}>
+          <ExternalLinkAnchor link={link} className={linkCls}>
             <ExtLinkIcon icon={link.icon} src={link.iconUrl || link.image} alt={link.title} size={compact ? 16 : 22} />
-          </a>
+          </ExternalLinkAnchor>
         </Tooltip>
       ))}
     </div>
@@ -113,12 +122,12 @@ export function ExtLinksFloating({ links, fixed: isFixed = true, bordered = true
     <div className={`flex items-center gap-2 ${barBg} ${barBorder} rounded-full px-4 py-2.5 overflow-hidden`} style={barShape}>
       {links.map((link) => (
         <Tooltip key={link.id} text={link.title}>
-          <a href={link.url} target="_blank" rel="noopener noreferrer" className="group relative flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-theme-card-hover transition-all">
+          <ExternalLinkAnchor link={link} className="group relative flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-theme-card-hover transition-all">
             <div className={`w-6 h-6 rounded-full ${iconBg} flex items-center justify-center overflow-hidden shrink-0`}>
               <ExtLinkIcon icon={link.icon} src={link.iconUrl || link.image} alt={link.title} size={14} className="!p-0" />
             </div>
             <span className="text-xs font-medium text-theme-muted group-hover:text-theme transition hidden sm:inline max-w-[80px] truncate">{link.title}</span>
-          </a>
+          </ExternalLinkAnchor>
         </Tooltip>
       ))}
     </div>

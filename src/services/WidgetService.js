@@ -87,7 +87,7 @@ class WidgetService {
             }
             return this._normalizeData(data);
         } catch (e) {
-            console.error(e);
+            spLog.error('WidgetService: failed to load widget config.', e);
             return createDefaultWidgetConfig();
         }
     }
@@ -141,7 +141,7 @@ class WidgetService {
             this._saveMockData(createDefaultWidgetConfig());
             return Promise.resolve(createDefaultWidgetConfig());
         } catch (error) {
-            console.error('Error reading mock widget config:', error);
+            spLog.error('Error reading mock widget config:', error);
             throw new Error('שגיאה בקריאת הגדרות ווידגטים מהזיכרון המקומי');
         }
     }
@@ -151,7 +151,7 @@ class WidgetService {
             localStorage.setItem(this.config.widgetsMockStorageKey, JSON.stringify(payload));
             return Promise.resolve(payload);
         } catch (error) {
-            console.error('Error saving mock widget config:', error);
+            spLog.error('Error saving mock widget config:', error);
             throw new Error('שגיאה בשמירת הגדרות ווידגטים לזיכרון המקומי');
         }
     }

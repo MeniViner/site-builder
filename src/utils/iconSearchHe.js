@@ -1,5 +1,6 @@
 // Hebrew search + labels for lucide icon names.
 // Purpose: allow searching icons by Hebrew terms (and show nicer labels).
+import { ICON_CATEGORIES } from './iconsData';
 
 const EXPLICIT_HE = {
   Home: ['בית', 'דף הבית', 'מסך הבית'],
@@ -11,8 +12,13 @@ const EXPLICIT_HE = {
   User: ['משתמש', 'אדם', 'פרופיל'],
   Users: ['משתמשים', 'אנשים', 'קבוצה'],
   Phone: ['טלפון', 'שיחה', 'חיוג'],
-  Mail: ['מייל', 'דוא״ל', 'דואר'],
-  Calendar: ['יומן', 'לוח שנה', 'תאריך'],
+  PhoneCall: ['טלפון', 'שיחה', 'חיוג', 'נייד', 'phone', 'call', 'mobile'],
+  Smartphone: ['טלפון נייד', 'נייד', 'סלולרי', 'phone', 'mobile'],
+  Mail: ['מייל', 'דוא״ל', 'דואר', 'הודעה', 'תקשורת', 'email', 'mail'],
+  MailOpen: ['מייל', 'דואר פתוח', 'email', 'mail'],
+  AtSign: ['מייל', 'דואר', 'שטרודל', 'email', 'mail'],
+  Calendar: ['יומן', 'לוח שנה', 'תאריך', 'אירוע', 'calendar', 'date', 'event'],
+  CalendarDays: ['לוח שנה', 'תאריך', 'אירוע', 'calendar', 'date', 'event'],
   Clock: ['שעה', 'שעון', 'זמן'],
   Bell: ['התראות', 'פעמון', 'הודעה'],
   Map: ['מפה'],
@@ -22,8 +28,10 @@ const EXPLICIT_HE = {
   ExternalLink: ['קישור חיצוני', 'יציאה'],
   Folder: ['תיקייה', 'תיק'],
   FolderOpen: ['תיקייה פתוחה', 'תיק פתוח'],
-  File: ['קובץ'],
-  FileText: ['מסמך', 'טקסט', 'קובץ טקסט'],
+  FileText: ['מסמך', 'טקסט', 'קובץ טקסט', 'קובץ', 'document', 'file', 'pdf'],
+  File: ['קובץ', 'מסמך', 'file', 'document'],
+  FileSpreadsheet: ['אקסל', 'טבלה', 'קובץ נתונים', 'excel', 'spreadsheet', 'data'],
+  FileChartColumn: ['דוח', 'גרף', 'נתונים', 'report', 'chart', 'data'],
   Image: ['תמונה', 'תמונות'],
   Video: ['וידאו', 'סרטון'],
   Music: ['מוזיקה', 'שיר', 'צליל'],
@@ -33,11 +41,19 @@ const EXPLICIT_HE = {
   Download: ['הורדה', 'הורד'],
   Upload: ['העלאה', 'העלה'],
   RefreshCw: ['רענון', 'רענן'],
-  Shield: ['מגן', 'אבטחה'],
-  ShieldCheck: ['אבטחה', 'מוגן', 'בדוק'],
+  Shield: ['מגן', 'אבטחה', 'צבא', 'חייל', 'army', 'security'],
+  ShieldCheck: ['אבטחה', 'מוגן', 'בדוק', 'צבא', 'army', 'unit'],
   ShieldBan: ['חסום', 'איסור', 'מניעה', 'אבטחה'],
+  Swords: ['צבא', 'חייל', 'יחידה', 'לחימה', 'army', 'soldier', 'military'],
+  Medal: ['מדליה', 'דרגה', 'אות', 'צבא', 'rank', 'army'],
+  Badge: ['תג', 'דרגה', 'זיהוי', 'צבא', 'rank', 'badge'],
+  BadgeCheck: ['תג מאושר', 'אישור', 'דרגה', 'צבא', 'badge', 'rank'],
   Siren: ['אזעקה', 'התראה', 'חירום'],
-  Building2: ['בניין', 'מבנה', 'משרד'],
+  Building2: ['בניין', 'מבנה', 'משרד', 'יחידה', 'ארגון', 'organization', 'unit'],
+  Network: ['רשת', 'מבנה ארגוני', 'יחידה', 'organization', 'unit'],
+  RadioTower: ['תקשורת', 'אנטנה', 'חמ״ל', 'צבא', 'radio', 'command'],
+  Flag: ['דגל', 'סימון', 'יחידה', 'צבא', 'army', 'unit'],
+  IdCard: ['תעודה', 'זיהוי', 'מספר אישי', 'id', 'identity'],
   Car: ['רכב', 'מכונית'],
   Bus: ['אוטובוס'],
   Train: ['רכבת'],
@@ -446,5 +462,124 @@ export function getIconHebrewLabel(iconName) {
 }
 
 export function getIconSearchHaystack(iconName) {
-  return getIconHebrewKeywords(iconName).join(' ').toLowerCase();
+  const raw = getIconHebrewKeywords(iconName).join(' ').toLowerCase();
+  return `${raw} ${normalizeIconSearchText(raw)}`.trim();
+}
+
+const HEBREW_FINAL_LETTERS = {
+  ך: 'כ',
+  ם: 'מ',
+  ן: 'נ',
+  ף: 'פ',
+  ץ: 'צ',
+};
+
+function normalizeHebrewFinalLetters(value) {
+  return String(value || '').replace(/[ךםןףץ]/g, (char) => HEBREW_FINAL_LETTERS[char] || char);
+}
+
+export function normalizeIconSearchText(value) {
+  return normalizeHebrewFinalLetters(String(value ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\u0591-\u05C7]/g, '')
+    .toLowerCase())
+    .replace(/[^\p{L}\p{N}@]+/gu, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function getAllIconEntries(categories = ICON_CATEGORIES) {
+  const entries = [];
+  const seen = new Set();
+
+  (Array.isArray(categories) ? categories : []).forEach((category) => {
+    const icons = Array.isArray(category?.icons) ? category.icons : [];
+    icons.forEach((name) => {
+      if (!name || seen.has(name)) return;
+      seen.add(name);
+      entries.push({
+        name,
+        categoryId: category?.id || '',
+        categoryLabel: category?.label || '',
+      });
+    });
+  });
+
+  return entries;
+}
+
+export function getIconSearchMetadata(iconName, { categories = ICON_CATEGORIES } = {}) {
+  const name = String(iconName || '').trim();
+  const entry = getAllIconEntries(categories).find((item) => item.name === name) || {
+    name,
+    categoryId: '',
+    categoryLabel: '',
+  };
+  const label = getIconHebrewLabel(name);
+  const keywords = getIconHebrewKeywords(name);
+  const haystackParts = [
+    name,
+    label,
+    entry.categoryId,
+    entry.categoryLabel,
+    ...keywords,
+  ];
+
+  return {
+    name,
+    label,
+    categoryId: entry.categoryId,
+    categoryLabel: entry.categoryLabel,
+    keywords,
+    haystack: normalizeIconSearchText(haystackParts.join(' ')),
+  };
+}
+
+function scoreIconMetadata(metadata, queryTokens) {
+  if (queryTokens.length === 0) return 1;
+
+  const normalizedName = normalizeIconSearchText(metadata.name);
+  const normalizedLabel = normalizeIconSearchText(metadata.label);
+  const normalizedCategory = normalizeIconSearchText(`${metadata.categoryId} ${metadata.categoryLabel}`);
+
+  return queryTokens.reduce((score, token) => {
+    if (normalizedName === token) return score + 120;
+    if (normalizedName.startsWith(token)) return score + 90;
+    if (normalizedLabel === token) return score + 85;
+    if (normalizedLabel.startsWith(token)) return score + 70;
+    if (metadata.haystack.includes(token)) return score + 40;
+    if (normalizedCategory.includes(token)) return score + 25;
+    return -Infinity;
+  }, 0);
+}
+
+export function searchIcons(query = '', {
+  categories = ICON_CATEGORIES,
+  iconNames,
+  limit = Infinity,
+} = {}) {
+  const allowedNames = Array.isArray(iconNames) ? new Set(iconNames) : null;
+  const normalizedQuery = normalizeIconSearchText(query);
+  const queryTokens = normalizedQuery ? normalizedQuery.split(' ') : [];
+
+  return getAllIconEntries(categories)
+    .filter((entry) => !allowedNames || allowedNames.has(entry.name))
+    .map((entry) => {
+      const metadata = getIconSearchMetadata(entry.name, { categories });
+      return {
+        ...metadata,
+        score: scoreIconMetadata(metadata, queryTokens),
+      };
+    })
+    .filter((entry) => entry.score > -Infinity)
+    .sort((left, right) => {
+      if (right.score !== left.score) return right.score - left.score;
+      return left.name.localeCompare(right.name);
+    })
+    .slice(0, Number.isFinite(limit) ? Math.max(0, limit) : undefined);
+}
+
+export function searchIconNames(query = '', options = {}) {
+  return searchIcons(query, options).map((icon) => icon.name);
 }

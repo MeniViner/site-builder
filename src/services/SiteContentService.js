@@ -59,7 +59,7 @@ class SiteContentService {
             }
             return this._normalizeData(data);
         } catch (e) {
-            console.error(e);
+            spLog.error('SiteContentService: failed to load site content.', e);
             return { ...DEFAULT_SITE_CONTENT };
         }
     }
@@ -98,7 +98,7 @@ class SiteContentService {
             try {
                 await this._saveMockData(payload);
             } catch (e) {
-                console.warn('Dev: could not persist site content to localStorage', e);
+                spLog.warn('Dev: could not persist site content to localStorage', e);
             }
         }
         return result;
@@ -113,7 +113,7 @@ class SiteContentService {
             this._saveMockData(DEFAULT_SITE_CONTENT);
             return Promise.resolve({ ...DEFAULT_SITE_CONTENT });
         } catch (error) {
-            console.error('Error reading mock site content:', error);
+            spLog.error('Error reading mock site content:', error);
             throw new Error('שגיאה בקריאת תוכן האתר מהזיכרון המקומי');
         }
     }
@@ -123,7 +123,7 @@ class SiteContentService {
             localStorage.setItem(this.config.siteContentMockStorageKey, JSON.stringify(payload));
             return Promise.resolve(payload);
         } catch (error) {
-            console.error('Error saving mock site content:', error);
+            spLog.error('Error saving mock site content:', error);
             throw new Error('שגיאה בשמירת תוכן האתר לזיכרון המקומי');
         }
     }

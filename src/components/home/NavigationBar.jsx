@@ -152,6 +152,15 @@ export default function NavigationBar({
       </div>
       <div className="flex flex-row-reverse items-center gap-3">
         <SearchBar borderStyle={searchBorderStyle} />
+        {canOpenAdmin && (
+          <button
+            onClick={onOpenAdmin}
+            className="border text-theme px-6 h-10 font-bold transition text-sm whitespace-nowrap hidden sm:block bg-theme-elevated hover:brightness-110"
+            style={{ ...panelStyle(topNavBorderStyle, 10), borderColor: theme?.primaryColor ?? '#dc2626' }}
+          >
+            ניהול
+          </button>
+        )}
         {utilityLinks.map((link) => {
           const isActive = link?.isActivePath ? location.pathname === link.isActivePath : location.pathname === link.to;
           return (
@@ -165,15 +174,6 @@ export default function NavigationBar({
             </Link>
           );
         })}
-        {canOpenAdmin && (
-          <button
-            onClick={onOpenAdmin}
-            className="border text-theme px-6 h-10 font-bold transition text-sm whitespace-nowrap hidden sm:block bg-theme-elevated hover:brightness-110"
-            style={{ ...panelStyle(topNavBorderStyle, 10), borderColor: theme?.primaryColor ?? '#dc2626' }}
-          >
-            ניהול
-          </button>
-        )}
         {theme?.displayMode === 'user-toggle' && (
           <Tooltip text={effectiveMode === 'dark' ? 'מעבר למצב בהיר' : 'מעבר למצב כהה'}>
             <button

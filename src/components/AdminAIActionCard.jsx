@@ -242,8 +242,8 @@ export default function AdminAIActionCard({
                     </button>
 
                     {autoApplyLatest ? (
-                        <span className="inline-flex min-h-10 items-center rounded-xl border border-theme-subtle bg-theme-card px-4 text-sm font-bold text-theme-muted">
-                            {autoApplyStatus || 'ההצעה האחרונה תוחל אוטומטית'}
+                        <span className="hidden">
+                            {/* {autoApplyStatus || 'ההצעה האחרונה תוחל אוטומטית'} */}
                         </span>
                     ) : (
                         <button

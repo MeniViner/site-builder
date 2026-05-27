@@ -6,63 +6,81 @@ import { confirmToast } from '../utils/confirmToast';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import AdminAIActionCard from './AdminAIActionCard';
 import { UI_FEATURES } from '../config/uiFeatures.config';
+import { eventColorToHex, getContrastingTextColor, normalizeEventColor } from '../utils/colorValidation';
+import {
+    DEFAULT_AI_EVENTS_COUNT,
+    buildEventsAiPromptText,
+    normalizeAiEventsPayload,
+    resolveRequestedAiEventCount,
+} from '../utils/eventsAi';
+import {
+    SMART_LINK_TYPES,
+    cleanSmartText,
+    getSmartTextDocument,
+    smartTextTokensToPlainText,
+    updateSmartTextLinkLabel,
+} from '../utils/smartText';
+import SmartTextRenderer from './SmartTextRenderer';
+import SmartTextEditor from './SmartTextEditor';
 
 const STATUS_OPTIONS = [
-    { value: 'gray', label: 'אפור (כלל משתמשי חרום)', colorClass: 'bg-gray-500', textClass: 'text-gray-200' },
-    { value: 'red', label: 'אדום (דחוף / חשוב)', colorClass: 'bg-red-500', textClass: 'text-white' },
+    { value: 'gray', label: 'אפור (כלל משתמשי חרום)', hex: '#6B7280' },
+    { value: 'red', label: 'אדום (דחוף / חשוב)', hex: '#EF4444' },
 ];
-const VALID_EVENT_DISPLAY_MODES = new Set(['default', 'monthly', 'calendar']);
-const VALID_EVENT_COLOR = new Set(['gray', 'red']);
 
-function normalizeAiEventsPayload(payload) {
-    const sourceEvents = Array.isArray(payload?.events) ? payload.events : [];
-    const normalizedEvents = sourceEvents
-        .map((item, index) => {
-            const rawDate = String(item?.date || '').trim();
-            const title = String(item?.title || '').trim();
-            const subtitle = String(item?.subtitle || '').trim();
-            const color = String(item?.color || 'gray').trim().toLowerCase();
-
-            if (!rawDate || !/^\d{4}-\d{2}-\d{2}$/.test(rawDate) || !title) {
-                return null;
-            }
-
-            return {
-                id: String(item?.id || `ev_${Date.now()}_${index}`),
-                date: rawDate,
-                title,
-                subtitle,
-                color: VALID_EVENT_COLOR.has(color) ? color : 'gray',
-            };
-        })
+function getUrlPromptKeys(token) {
+    return [token?.raw, token?.value, token?.href, String(token?.raw || '').toLowerCase(), String(token?.href || '').toLowerCase()]
+        .map((key) => cleanSmartText(key).trim())
         .filter(Boolean);
+}
 
-    if (!normalizedEvents.length) {
-        throw new Error('לא התקבלו אירועים תקינים מה-AI');
+function hasHandledUrl(linkLabels, token, promptedLinks, queuedLinks = new Set()) {
+    const labels = linkLabels && typeof linkLabels === 'object' ? linkLabels : {};
+    const keys = getUrlPromptKeys(token);
+    const tokenText = cleanSmartText(token?.text).trim();
+    const defaultTexts = new Set(keys);
+
+    if (tokenText && !defaultTexts.has(tokenText) && !defaultTexts.has(tokenText.toLowerCase())) {
+        return true;
     }
 
-    const requestedDisplayMode = String(payload?.displayMode || 'default').trim().toLowerCase();
-    const displayMode = VALID_EVENT_DISPLAY_MODES.has(requestedDisplayMode)
-        ? requestedDisplayMode
-        : 'default';
-    const requestedDisplayCount = Number(payload?.displayCount);
-    const displayCount = Number.isFinite(requestedDisplayCount)
-        ? Math.max(1, Math.min(normalizedEvents.length, Math.round(requestedDisplayCount)))
-        : Math.min(3, normalizedEvents.length);
+    return keys.some((key) => {
+        const normalizedKey = cleanSmartText(key).trim();
+        if (!normalizedKey) return false;
+        return Boolean(labels[normalizedKey]) || promptedLinks.has(normalizedKey) || queuedLinks.has(normalizedKey);
+    });
+}
 
-    let intervalMs = 6000;
-    if (Number.isFinite(Number(payload?.intervalMs))) {
-        intervalMs = Math.max(2000, Math.round(Number(payload.intervalMs)));
-    } else if (Number.isFinite(Number(payload?.intervalSeconds))) {
-        intervalMs = Math.max(2000, Math.round(Number(payload.intervalSeconds) * 1000));
+function findUnhandledUrls(tokens, linkLabels, promptedLinks, queuedLinks) {
+    return getSmartTextDocument(tokens, '', linkLabels).filter((token) => (
+        token.linkType === SMART_LINK_TYPES.url
+        && token.href
+        && !hasHandledUrl(linkLabels, token, promptedLinks, queuedLinks)
+    ));
+}
+
+function isUrlPromptReady(token) {
+    try {
+        const url = new URL(token.href);
+        const labels = url.hostname.split('.').filter(Boolean);
+        const tld = labels[labels.length - 1] || '';
+        return labels.length >= 2 && tld.length >= 2;
+    } catch {
+        return false;
     }
+}
 
+function buildUrlPrompt(token) {
     return {
-        events: normalizedEvents,
-        displayCount,
-        displayMode,
-        intervalMs,
+        raw: token.raw,
+        href: token.href,
+        value: token.value,
+        label: token.raw || token.text || token.href,
     };
+}
+
+function getEventStatusLabel(color) {
+    return STATUS_OPTIONS.find((option) => option.value === color)?.label || 'צבע מותאם';
 }
 
 export default function AdminEvents({ onClose, inHub = false }) {
@@ -83,7 +101,13 @@ export default function AdminEvents({ onClose, inHub = false }) {
     const [isSaving, setIsSaving] = useState(false);
     const lastSavedRef = useRef(null);
     const [editingEvent, setEditingEvent] = useState(null);
+    const [smartLinkPrompt, setSmartLinkPrompt] = useState(null);
     const [aiHistory, setAiHistory] = useState({ past: [], future: [] });
+    const promptedLinksRef = useRef(new Set());
+    const queuedLinksRef = useRef(new Set());
+    const smartLinkQueueRef = useRef([]);
+    const subtitlePromptTimerRef = useRef(null);
+    const aiRequestedEventCountRef = useRef(DEFAULT_AI_EVENTS_COUNT);
     const maxDisplayCount = Math.max(1, events.length || 1);
     const plannedThisMonth = (() => {
         const now = new Date();
@@ -170,6 +194,63 @@ export default function AdminEvents({ onClose, inHub = false }) {
         setDisplayCount((prev) => Math.min(maxDisplayCount, Math.max(1, prev)));
     }, [maxDisplayCount]);
 
+    useEffect(() => () => {
+        if (subtitlePromptTimerRef.current) {
+            window.clearTimeout(subtitlePromptTimerRef.current);
+        }
+    }, []);
+
+    const clearSubtitlePromptTimer = () => {
+        if (subtitlePromptTimerRef.current) {
+            window.clearTimeout(subtitlePromptTimerRef.current);
+            subtitlePromptTimerRef.current = null;
+        }
+    };
+
+    const resetSmartLinkPromptState = () => {
+        clearSubtitlePromptTimer();
+        promptedLinksRef.current = new Set();
+        queuedLinksRef.current = new Set();
+        smartLinkQueueRef.current = [];
+        setSmartLinkPrompt(null);
+    };
+
+    const openNextSmartLinkPrompt = () => {
+        clearSubtitlePromptTimer();
+        setSmartLinkPrompt((current) => {
+            if (current) return current;
+            const next = smartLinkQueueRef.current.shift() || null;
+            if (next) {
+                getUrlPromptKeys(next).forEach((key) => queuedLinksRef.current.delete(key));
+            }
+            return next;
+        });
+    };
+
+    const scheduleNextSmartLinkPrompt = () => {
+        clearSubtitlePromptTimer();
+        subtitlePromptTimerRef.current = window.setTimeout(() => {
+            openNextSmartLinkPrompt();
+            subtitlePromptTimerRef.current = null;
+        }, 350);
+    };
+
+    const enqueueUrlPrompts = (tokens, linkLabels) => {
+        if (smartLinkPrompt) return;
+        const urls = findUnhandledUrls(tokens, linkLabels, promptedLinksRef.current, queuedLinksRef.current)
+            .filter(isUrlPromptReady);
+        if (!urls.length) return;
+
+        urls.forEach((token) => {
+            const keys = getUrlPromptKeys(token);
+            if (!keys.length || keys.some((key) => queuedLinksRef.current.has(key))) return;
+            keys.forEach((key) => queuedLinksRef.current.add(key));
+            smartLinkQueueRef.current.push(buildUrlPrompt(token));
+        });
+
+        if (smartLinkQueueRef.current.length) scheduleNextSmartLinkPrompt();
+    };
+
     const handleRemove = (id) => {
         confirmToast({
             title: 'מחיקת אירוע',
@@ -186,13 +267,22 @@ export default function AdminEvents({ onClose, inHub = false }) {
     const handleSaveEvent = (event) => {
         event.preventDefault();
         const formData = new FormData(event.target);
+        const subtitleRichText = getSmartTextDocument(
+            editingEvent.subtitleRichText,
+            editingEvent.subtitle,
+            editingEvent.linkLabels,
+        );
 
         const nextEvent = {
             id: editingEvent.id || Date.now().toString(),
             date: formData.get('date'),
             title: formData.get('title'),
-            subtitle: formData.get('subtitle'),
-            color: formData.get('color'),
+            subtitle: smartTextTokensToPlainText(subtitleRichText),
+            subtitleRichText,
+            linkLabels: editingEvent.linkLabels && typeof editingEvent.linkLabels === 'object'
+                ? editingEvent.linkLabels
+                : {},
+            color: normalizeEventColor(editingEvent.color, 'gray'),
         };
 
         if (editingEvent.isNew) {
@@ -202,10 +292,117 @@ export default function AdminEvents({ onClose, inHub = false }) {
         }
 
         setEditingEvent(null);
+        setSmartLinkPrompt(null);
+    };
+
+    const openNewEventEditor = () => {
+        resetSmartLinkPromptState();
+        setEditingEvent({
+            date: new Date().toISOString().split('T')[0],
+            title: '',
+            subtitle: '',
+            subtitleRichText: [],
+            linkLabels: {},
+            color: 'gray',
+            isNew: true,
+        });
+    };
+
+    const openExistingEventEditor = (eventItem) => {
+        resetSmartLinkPromptState();
+        const linkLabels = eventItem.linkLabels && typeof eventItem.linkLabels === 'object' ? eventItem.linkLabels : {};
+        setEditingEvent({
+            ...eventItem,
+            subtitleRichText: getSmartTextDocument(eventItem.subtitleRichText, eventItem.subtitle, linkLabels),
+            linkLabels,
+            isNew: false,
+        });
+    };
+
+    const closeEventEditor = () => {
+        resetSmartLinkPromptState();
+        setEditingEvent(null);
+    };
+
+    const handleSubtitleEditorChange = ({ tokens, plainText }) => {
+        const linkLabels = editingEvent?.linkLabels || {};
+        setEditingEvent((prev) => prev ? {
+            ...prev,
+            subtitle: plainText,
+            subtitleRichText: tokens,
+        } : prev);
+        enqueueUrlPrompts(tokens, linkLabels);
+    };
+
+    const applySmartLinkPromptLabel = (rawLabel) => {
+        if (!smartLinkPrompt) return;
+        clearSubtitlePromptTimer();
+        const label = cleanSmartText(rawLabel || smartLinkPrompt.raw || smartLinkPrompt.href).trim();
+        const handledKeys = [smartLinkPrompt.raw, smartLinkPrompt.href, smartLinkPrompt.value]
+            .map((item) => cleanSmartText(item).trim())
+            .filter(Boolean);
+        handledKeys.forEach((key) => promptedLinksRef.current.add(key));
+
+        let nextPrompt = smartLinkQueueRef.current.shift() || null;
+        if (nextPrompt) {
+            getUrlPromptKeys(nextPrompt).forEach((key) => queuedLinksRef.current.delete(key));
+        }
+
+        if (label) {
+            const currentLabels = editingEvent?.linkLabels && typeof editingEvent.linkLabels === 'object'
+                ? editingEvent.linkLabels
+                : {};
+            const previewLabels = { ...currentLabels };
+            handledKeys.forEach((key) => {
+                previewLabels[key] = label;
+            });
+            const previewRichText = updateSmartTextLinkLabel(
+                getSmartTextDocument(editingEvent?.subtitleRichText, editingEvent?.subtitle, previewLabels),
+                smartLinkPrompt,
+                label,
+            );
+
+            if (!nextPrompt) {
+                const nextUrl = findUnhandledUrls(previewRichText, previewLabels, promptedLinksRef.current, new Set())
+                    .filter(isUrlPromptReady)[0];
+                if (nextUrl) nextPrompt = buildUrlPrompt(nextUrl);
+            }
+
+            setEditingEvent((prev) => {
+                if (!prev) return prev;
+                const nextLabels = { ...(prev.linkLabels || {}) };
+                handledKeys.forEach((key) => {
+                    nextLabels[key] = label;
+                });
+                const subtitleRichText = updateSmartTextLinkLabel(
+                    getSmartTextDocument(prev.subtitleRichText, prev.subtitle, nextLabels),
+                    smartLinkPrompt,
+                    label,
+                );
+                return {
+                    ...prev,
+                    subtitle: smartTextTokensToPlainText(subtitleRichText),
+                    subtitleRichText,
+                    linkLabels: nextLabels,
+                };
+            });
+        }
+
+        setSmartLinkPrompt(nextPrompt);
+    };
+
+    const saveSmartLinkLabel = () => {
+        applySmartLinkPromptLabel(smartLinkPrompt?.label);
+    };
+
+    const cancelSmartLinkLabel = () => {
+        applySmartLinkPromptLabel(smartLinkPrompt?.raw || smartLinkPrompt?.href);
     };
 
     const buildEventsAiPrompt = (instruction) => {
         const today = new Date().toISOString().slice(0, 10);
+        const requestedEventCount = resolveRequestedAiEventCount(instruction);
+        aiRequestedEventCountRef.current = requestedEventCount;
         const currentSnapshot = {
             displayCount,
             displayMode,
@@ -213,30 +410,18 @@ export default function AdminEvents({ onClose, inHub = false }) {
             events: events.slice(0, 12),
         };
 
-        return [
-            'אתה עורך תוכן אירועים לפורטל ארגוני.',
-            'החזר JSON בלבד ללא טקסט נוסף.',
-            'סכימה נדרשת:',
-            '{',
-            '  "events": [',
-            '    { "date": "YYYY-MM-DD", "title": "string", "subtitle": "string", "color": "gray|red" }',
-            '  ],',
-            '  "displayCount": 1-10,',
-            '  "displayMode": "default|monthly|calendar",',
-            '  "intervalSeconds": number',
-            '}',
-            'חוקים:',
-            '- לפחות 3 אירועים.',
-            '- כל title קצר וברור.',
-            '- תאריכים חייבים להיות תקינים.',
-            `תאריך היום: ${today}`,
-            `נתונים קיימים: ${JSON.stringify(currentSnapshot)}`,
-            `בקשת המשתמש: ${instruction}`,
-        ].join('\n');
+        return buildEventsAiPromptText({
+            instruction,
+            today,
+            currentSnapshot,
+            requestedEventCount,
+        });
     };
 
     const applyAiEvents = (parsed) => {
-        const normalized = normalizeAiEventsPayload(parsed);
+        const normalized = normalizeAiEventsPayload(parsed, {
+            eventCount: aiRequestedEventCountRef.current,
+        });
         const current = getEventsSnapshot();
         const next = {
             events: normalized.events,
@@ -281,9 +466,9 @@ export default function AdminEvents({ onClose, inHub = false }) {
                                     compact
                                     compactLabel="AI"
                                     title="עוזר AI לאירועים"
-                                    description="ייצור רשימת אירועים + הגדרות תצוגה לפי בקשה חופשית, ואז Apply ישירות למסך."
+                                    description="ייצור רשימת אירועים + טקסט עשיר והגדרות תצוגה. ברירת מחדל 3 אירועים, מקסימום 6."
                                     inputLabel="מה לייצר?"
-                                    inputPlaceholder='דוגמה: "צור 6 אירועים לחודש הקרוב עם דגש על הכשרות ורווחה, ושמור על ניסוח קצר"'
+                                    inputPlaceholder='דוגמה: "צור 6 אירועים לחודש הקרוב עם דגש על הכשרות ורווחה, כולל קישורים והדגשות"'
                                     defaultInput="צור סדרת אירועים חודשית מקצועית וברורה"
                                     buildPrompt={buildEventsAiPrompt}
                                     onApply={applyAiEvents}
@@ -296,7 +481,7 @@ export default function AdminEvents({ onClose, inHub = false }) {
                                 />
                             )}
                             <button
-                                onClick={() => setEditingEvent({ date: new Date().toISOString().split('T')[0], title: '', subtitle: '', color: 'gray', isNew: true })}
+                                onClick={openNewEventEditor}
                                 className="h-10 inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-lg text-sm font-bold transition"
                             >
                                 <span className="inline-flex items-center gap-2">
@@ -340,7 +525,8 @@ export default function AdminEvents({ onClose, inHub = false }) {
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {events.map((eventItem) => {
-                            const statusOpt = STATUS_OPTIONS.find((status) => status.value === eventItem.color) || STATUS_OPTIONS[0];
+                            const statusHex = eventColorToHex(eventItem.color);
+                            const statusLabel = getEventStatusLabel(eventItem.color);
                             return (
                                 <div key={eventItem.id} className="bg-theme-card border border-theme-subtle rounded-xl flex flex-col relative overflow-hidden">
                                     <div className="p-5 flex-1 flex flex-col min-h-[190px] text-right">
@@ -357,13 +543,22 @@ export default function AdminEvents({ onClose, inHub = false }) {
 
                                         <div className="mt-5 flex-1">
                                             <h3 className="text-4xl leading-tight font-black text-theme break-words">{eventItem.title || 'ללא כותרת'}</h3>
-                                            <p className="text-theme-muted text-lg mt-2 break-words">{eventItem.subtitle || 'תיאור קצר'}</p>
+                                            <SmartTextRenderer
+                                                text={eventItem.subtitle}
+                                                richText={eventItem.subtitleRichText}
+                                                linkLabels={eventItem.linkLabels}
+                                                fallback="תיאור קצר"
+                                                className="mt-2 block text-theme-muted text-lg break-words"
+                                            />
                                         </div>
 
                                         <div className="flex flex-col items-center gap-1 mt-4">
                                             <span className="text-sm font-medium text-theme-muted">סטטוס</span>
-                                            <div className={`px-4 py-1.5 rounded-full text-xs font-bold ${statusOpt.colorClass} ${statusOpt.textClass}`}>
-                                                {statusOpt.label}
+                                            <div
+                                                className="px-4 py-1.5 rounded-full text-xs font-bold text-white"
+                                                style={{ backgroundColor: statusHex }}
+                                            >
+                                                {statusLabel}
                                             </div>
                                         </div>
                                     </div>
@@ -378,7 +573,7 @@ export default function AdminEvents({ onClose, inHub = false }) {
                                         </button>
                                         <div className="w-px bg-theme-subtle"></div>
                                         <button
-                                            onClick={() => setEditingEvent({ ...eventItem, isNew: false })}
+                                            onClick={() => openExistingEventEditor(eventItem)}
                                             className="flex-1 flex items-center justify-center gap-2 py-3 text-theme-muted hover:text-theme hover:bg-theme-card-hover transition"
                                         >
                                             <span>עריכה</span>
@@ -476,16 +671,17 @@ export default function AdminEvents({ onClose, inHub = false }) {
             </div>
 
             {editingEvent && (
+                <>
                 <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-theme-card border border-theme-subtle rounded-2xl w-full max-w-lg shadow-2xl flex flex-col">
+                    <div className="bg-theme-card border border-theme-subtle rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col">
                         <div className="flex items-center justify-between p-6 border-b border-theme-subtle">
                             <h2 className="text-xl font-bold text-theme">{editingEvent.isNew ? 'הוסף אירוע חדש' : 'עריכת אירוע'}</h2>
-                            <button onClick={() => setEditingEvent(null)} className="text-theme-muted hover:text-theme transition">
+                            <button onClick={closeEventEditor} className="text-theme-muted hover:text-theme transition">
                                 <X size={20} />
                             </button>
                         </div>
 
-                        <form onSubmit={handleSaveEvent} className="p-6 flex flex-col gap-5">
+                        <form onSubmit={handleSaveEvent} className="p-6 flex max-h-[78vh] flex-col gap-5 overflow-y-auto custom-scrollbar">
                             <div>
                                 <HelpLabel
                                     as="span"
@@ -526,21 +722,34 @@ export default function AdminEvents({ onClose, inHub = false }) {
                             </div>
 
                             <div>
-                                <HelpLabel
-                                    as="span"
-                                    className="block text-sm font-bold text-theme-muted"
-                                    wrapperClassName="mb-2 flex items-center gap-2"
-                                    helpTitle="תת-כותרת"
-                                    helpDescription="מידע משלים כמו שעה, מקום או קהל יעד."
-                                >
-                                    תת-כותרת (תיאור קצר)
-                                </HelpLabel>
-                                <input
-                                    name="subtitle"
-                                    type="text"
-                                    defaultValue={editingEvent.subtitle}
-                                    placeholder="פרטים נוספים למשל: שעות או קהל יעד..."
-                                    className="w-full bg-theme-elevated border border-theme-subtle rounded-xl px-4 py-3 text-theme outline-none focus:border-blue-500 transition text-sm"
+                                <div className="mb-2 flex items-center justify-between gap-3">
+                                    <HelpLabel
+                                        as="span"
+                                        className="block text-sm font-bold text-theme-muted"
+                                        wrapperClassName="flex items-center gap-2"
+                                        helpTitle="תת-כותרת"
+                                        helpDescription="מידע משלים כמו שעה, מקום או קהל יעד."
+                                    >
+                                        תת-כותרת (תיאור קצר)
+                                    </HelpLabel>
+                                    <HelpTooltipButton
+                                        title="כתיבה חכמה"
+                                        description="טקסט האירוע תומך בקישורים, הדגשה וקיצורי מקלדת."
+                                        items={[
+                                            'איך להדגיש טקסט: סמנו טקסט ולחצו על כפתור ההדגשה, או השתמשו ב־Ctrl+B / Cmd+B.',
+                                            'איך להוסיף קישור: לחצו על כפתור הקישור ליד B/I/U, הזינו שם וכתובת, או הדביקו URL לזיהוי אוטומטי.',
+                                            'מספר אישי: מספר אישי שמתחיל ב־S או C ואחריו 7 או 8 ספרות, למשל S1234567, הופך לקישור מייל צבאי.',
+                                            'מספר טלפון הופך לקישור חיוג.',
+                                            'כתובות URL: כתובות כמו https://example.com וגם www.example.com מזוהות אוטומטית.',
+                                        ]}
+                                    />
+                                </div>
+                                <SmartTextEditor
+                                    value={editingEvent.subtitleRichText}
+                                    plainText={editingEvent.subtitle || ''}
+                                    linkLabels={editingEvent.linkLabels || {}}
+                                    onChange={handleSubtitleEditorChange}
+                                    placeholder="פרטים נוספים למשל: שעות, קהל יעד או קישור..."
                                 />
                             </div>
 
@@ -554,28 +763,101 @@ export default function AdminEvents({ onClose, inHub = false }) {
                                 >
                                     סטטוס מופע / צבע
                                 </HelpLabel>
-                                <select
-                                    name="color"
-                                    defaultValue={editingEvent.color || 'gray'}
-                                    className="w-full bg-theme-elevated border border-theme-subtle rounded-xl px-4 py-3 text-theme outline-none focus:border-blue-500 transition text-sm"
+                                <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                                    <div className="flex flex-wrap gap-2">
+                                        {STATUS_OPTIONS.map((option) => {
+                                            const isActive = editingEvent.color === option.value;
+                                            return (
+                                                <button
+                                                    key={option.value}
+                                                    type="button"
+                                                    onClick={() => setEditingEvent((prev) => prev ? { ...prev, color: option.value } : prev)}
+                                                    className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition ${
+                                                        isActive
+                                                            ? 'border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-300'
+                                                            : 'border-theme-subtle bg-theme-elevated text-theme-muted hover:text-theme'
+                                                    }`}
+                                                >
+                                                    <span className="h-4 w-4 rounded-full border border-white/50" style={{ backgroundColor: option.hex }} />
+                                                    {option.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    <label className="inline-flex items-center gap-3 rounded-xl border border-theme-subtle bg-theme-elevated px-3 py-2">
+                                        <span className="text-sm font-bold text-theme-muted">צבע מותאם</span>
+                                        <input
+                                            type="color"
+                                            value={eventColorToHex(editingEvent.color)}
+                                            onChange={(event) => setEditingEvent((prev) => prev ? { ...prev, color: normalizeEventColor(event.target.value, prev.color || 'gray') } : prev)}
+                                            className="h-8 w-10 cursor-pointer rounded border-0 bg-transparent p-0"
+                                            title="בחירת צבע סטטוס מותאם"
+                                        />
+                                    </label>
+                                </div>
+                                <div
+                                    className="mt-3 inline-flex items-center gap-2 rounded-full border border-black/10 px-4 py-1.5 text-xs font-bold"
+                                    style={{
+                                        backgroundColor: eventColorToHex(editingEvent.color),
+                                        color: getContrastingTextColor(editingEvent.color),
+                                    }}
                                 >
-                                    {STATUS_OPTIONS.map((option) => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
-                                    ))}
-                                </select>
+                                    <span className="h-2 w-2 rounded-full bg-current opacity-80" />
+                                    {getEventStatusLabel(editingEvent.color)}
+                                </div>
                             </div>
 
                             <div className="flex gap-4 mt-4 pt-4 border-t border-theme-subtle">
                                 <button type="submit" className="h-10 flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition">
                                     {editingEvent.isNew ? 'הוסף' : 'עדכן'}
                                 </button>
-                                <button type="button" onClick={() => setEditingEvent(null)} className="h-10 flex-1 bg-theme-elevated hover:bg-theme-card-hover text-theme rounded-xl text-sm font-bold transition border border-theme-subtle">
+                                <button type="button" onClick={closeEventEditor} className="h-10 flex-1 bg-theme-elevated hover:bg-theme-card-hover text-theme rounded-xl text-sm font-bold transition border border-theme-subtle">
                                     ביטול
                                 </button>
                             </div>
                         </form>
                     </div>
                 </div>
+                {smartLinkPrompt && (
+                    <div className="fixed inset-0 z-[230] flex items-center justify-center bg-black/40 p-4">
+                        <div
+                            className="w-full max-w-md rounded-2xl border border-theme-subtle bg-theme-card p-5 text-right shadow-2xl"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="smart-link-label-title"
+                        >
+                            <div className="mb-4">
+                                <h3 id="smart-link-label-title" className="text-lg font-black text-theme">שם תצוגה לקישור</h3>
+                                <p className="mt-1 text-sm text-theme-muted">
+                                    זוהתה כתובת URL. אפשר לבחור שם ידידותי שיוצג במקום הכתובת הארוכה.
+                                </p>
+                            </div>
+                            <div className="mb-3 rounded-xl border border-theme-subtle bg-theme-elevated px-3 py-2 text-left font-mono text-xs text-theme-muted" dir="ltr">
+                                {smartLinkPrompt.href}
+                            </div>
+                            <input
+                                autoFocus
+                                value={smartLinkPrompt.label}
+                                onChange={(event) => setSmartLinkPrompt((prev) => prev ? { ...prev, label: event.target.value } : prev)}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter') saveSmartLinkLabel();
+                                    if (event.key === 'Escape') cancelSmartLinkLabel();
+                                }}
+                                className="w-full rounded-xl border border-theme-subtle bg-theme-elevated px-4 py-3 text-theme outline-none transition focus:border-blue-500"
+                                placeholder="לדוגמה: טופס הרשמה"
+                            />
+                            <div className="mt-5 flex gap-3">
+                                <button type="button" onClick={saveSmartLinkLabel} className="h-10 flex-1 rounded-xl bg-blue-600 text-sm font-bold text-white transition hover:bg-blue-700">
+                                    שמור שם
+                                </button>
+                                <button type="button" onClick={cancelSmartLinkLabel} className="h-10 flex-1 rounded-xl border border-theme-subtle bg-theme-elevated text-sm font-bold text-theme transition hover:bg-theme-card-hover">
+                                    השאר כתובת
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                </>
             )}
         </div>
     );

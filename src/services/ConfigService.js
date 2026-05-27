@@ -4,6 +4,7 @@ import {
     migrateLegacyToV1,
     validateAndNormalize,
 } from '../config/AppSchema';
+import { spLog } from '../utils/spAppLog';
 
 function isObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -55,15 +56,6 @@ class ConfigService {
         this.adapter = adapter;
     }
 
-    async _persistDefaultConfigSafely(defaultConfig, reason) {
-        try {
-            await this.saveConfig(defaultConfig);
-            console.log(`ConfigService: persisted default master config (${reason}).`);
-        } catch (saveError) {
-            console.warn(`ConfigService: failed to persist default master config (${reason}).`, saveError);
-        }
-    }
-
     _withDefaults(config) {
         return deepMergeReplaceArrays(DEFAULT_CONFIG_V1, isObject(config) ? config : {});
     }
@@ -74,10 +66,13 @@ class ConfigService {
         return validateAndNormalize(merged);
     }
 
-    async loadConfig(legacySplitData = null) {
+    async loadConfigEnvelope(legacySplitData = null) {
         try {
             if (isObject(legacySplitData)) {
-                return this.migrateFromLegacySplitData(legacySplitData);
+                return {
+                    config: this.migrateFromLegacySplitData(legacySplitData),
+                    source: 'legacy-split-data',
+                };
             }
 
             const loaded = await this.adapter.load();
@@ -85,31 +80,38 @@ class ConfigService {
 
             if (text === null || text.trim() === '') {
                 const defaults = validateAndNormalize(DEFAULT_CONFIG_V1);
-                await this._persistDefaultConfigSafely(defaults, 'missing-or-empty');
-                return defaults;
+                return { config: defaults, source: 'missing-or-empty' };
             }
 
             let parsed;
             try {
                 parsed = JSON.parse(text);
             } catch (parseError) {
-                console.error('ConfigService: failed to parse master config JSON, falling back to defaults.', parseError);
+                spLog.error('ConfigService: failed to parse master config JSON, falling back to defaults.', parseError);
                 const defaults = validateAndNormalize(DEFAULT_CONFIG_V1);
-                await this._persistDefaultConfigSafely(defaults, 'invalid-json');
-                return defaults;
+                return { config: defaults, source: 'invalid-json', error: parseError };
             }
 
             if (isObject(parsed) && parsed.schemaVersion === '1.0.0') {
-                return validateAndNormalize(parsed);
+                return { config: validateAndNormalize(parsed), source: 'schema-v1' };
             }
 
             const migrated = migrateLegacyToV1(parsed);
             const merged = this._withDefaults(migrated);
-            return validateAndNormalize(merged);
+            return { config: validateAndNormalize(merged), source: 'migrated-legacy' };
         } catch (error) {
-            console.error('ConfigService: load failed, returning defaults.', error);
-            return validateAndNormalize(DEFAULT_CONFIG_V1);
+            spLog.error('ConfigService: load failed, returning defaults.', error);
+            return {
+                config: validateAndNormalize(DEFAULT_CONFIG_V1),
+                source: 'load-error',
+                error,
+            };
         }
+    }
+
+    async loadConfig(legacySplitData = null) {
+        const envelope = await this.loadConfigEnvelope(legacySplitData);
+        return envelope.config;
     }
 
     async saveConfig(config) {

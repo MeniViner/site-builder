@@ -21,10 +21,13 @@ import { IDF_RANKS, IDF_ROLES } from '../data/idfDictionaries';
 import { uploadImage } from '../utils/sharepointUtils';
 import { resolveSiteImageUrl } from '../utils/assetUrl';
 import { confirmToast } from '../utils/confirmToast';
+import { spLog } from '../utils/spAppLog';
 import Tooltip from './Tooltip';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import OrgChartFlow from './OrgChartFlow';
 import OrgChartLivePreview from './OrgChartLivePreview';
+import OrgChartMailLink from './OrgChartMailLink';
+import { isValidPersonalNumber, personalNumberToArmyMailto } from '../utils/personalNumber';
 
 const ROOT_NODE_ID = '__org_chart_root__';
 const RANK_DATALIST_ID = 'org-chart-rank-options';
@@ -350,7 +353,7 @@ function createNodeId() {
 }
 
 function createNodeDraft() {
-    return { id: createNodeId(), name: '', rank: '', role: '', imageUrl: '', children: [] };
+    return { id: createNodeId(), name: '', rank: '', role: '', personalNumber: '', imageUrl: '', children: [] };
 }
 
 function cloneNodes(nodes) {
@@ -423,6 +426,10 @@ function normalizeImportedText(value, fallback = '') {
     return text || fallback;
 }
 
+function normalizePersonalNumberInput(value) {
+    return String(value ?? '').trim().toUpperCase().replace(/\s+/g, '');
+}
+
 function normalizeImportedNodes(nodes, seenIds = new Set(), path = 'nodes') {
     if (!Array.isArray(nodes)) {
         throw new Error(`שדה ${path} חייב להיות מערך.`);
@@ -444,6 +451,7 @@ function normalizeImportedNodes(nodes, seenIds = new Set(), path = 'nodes') {
             name: normalizeImportedText(node.name ?? node.title ?? node.label, `צומת ${index + 1}`),
             rank: normalizeImportedText(node.rank),
             role: normalizeImportedText(node.role ?? node.position),
+            personalNumber: normalizePersonalNumberInput(node.personalNumber ?? node.personalId ?? node.armyPersonalNumber),
             imageUrl: normalizeImportedText(node.imageUrl ?? node.image),
             children,
         };
@@ -729,10 +737,10 @@ function PreviewMonitor({ draft, activeTab, onSaveFlowPositions, onFlowSettingCh
 
     return (
         <div className={`sticky top-[128px] ${isFlowTab ? 'max-h-[calc(100vh-145px)] overflow-y-auto custom-scrollbar pr-1' : ''}`}>
-            <div className="mb-3 flex items-center justify-between px-1" dir="rtl">
+            {/* <div className="mb-3 flex items-center justify-between px-1" dir="rtl">
                 <p className="text-sm font-bold text-gray-500 dark:text-gray-400">תצוגה מקדימה</p>
                 <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-primary">חי</span>
-            </div>
+            </div> */}
 
             {isFlowTab && (
                 <div className="mb-4 rounded-2xl border border-gray-200 bg-white/80 p-1.5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
@@ -810,13 +818,13 @@ function PreviewMonitor({ draft, activeTab, onSaveFlowPositions, onFlowSettingCh
                             >
                                 {isManualDragEnabled ? 'כיבוי גרירה' : 'הפעלת גרירה'}
                             </button>
-                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${
+                            {/* <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${
                                 isFlowLayout
                                     ? 'border-primary/40 bg-primary/10 text-primary dark:text-primary'
                                     : 'border-gray-300/70 bg-white/70 text-gray-500 dark:border-white/15 dark:bg-white/10 dark:text-gray-300'
                             }`}>
                                 {isFlowLayout ? (isManualDragEnabled ? 'גרירה פעילה' : 'גרירה כבויה') : 'נעול'}
-                            </span>
+                            </span> */}
                         </div>
                     </div>
 
@@ -837,7 +845,7 @@ function PreviewMonitor({ draft, activeTab, onSaveFlowPositions, onFlowSettingCh
 
 export default function AdminOrgChart() {
     useEffect(() => {
-        console.log('Premium AdminOrgChart Loaded');
+        spLog.info('Premium AdminOrgChart Loaded');
     }, []);
 
     const { orgChart, loading, error, saveOrgChart } = useOrgChart();
@@ -1168,7 +1176,7 @@ export default function AdminOrgChart() {
             const imageUrl = await uploadImage(file, 'OrgChart');
             updateModalForm('imageUrl', imageUrl);
         } catch (err) {
-            console.error(err);
+            spLog.error('AdminOrgChart: image upload failed.', err);
             setSaveMessage({ type: 'error', text: `העלאת התמונה נכשלה: ${err.message}` });
         } finally {
             setUploadingImage(false);
@@ -1185,6 +1193,7 @@ export default function AdminOrgChart() {
             name: modalState.form.name.trim(),
             rank: modalState.form.rank,
             role: modalState.form.role.trim(),
+            personalNumber: normalizePersonalNumberInput(modalState.form.personalNumber),
             imageUrl: modalState.form.imageUrl || '',
             children: [],
         };
@@ -1231,6 +1240,7 @@ export default function AdminOrgChart() {
         const hasChildren = node.children.length > 0;
         const isExpanded = expandedIds.has(node.id);
         const isActive = activeNodeId === node.id;
+        const mailto = personalNumberToArmyMailto(node.personalNumber);
 
         return (
             <div key={node.id} className="space-y-3">
@@ -1255,10 +1265,22 @@ export default function AdminOrgChart() {
 
                     <NodeAvatar node={node} avatarShape={draft.avatarShape} />
 
-                    <button type="button" onClick={() => setActiveNodeId(node.id)} className="min-w-0 flex-1 text-right">
-                        <div className="truncate text-sm font-black text-gray-900 dark:text-white">{displayName(node)}</div>
-                        <div className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{subtitle(node)}</div>
-                    </button>
+                    <div className="min-w-0 flex-1 text-right">
+                        <div className="flex min-w-0 items-center gap-2">
+                            <button type="button" onClick={() => setActiveNodeId(node.id)} className="min-w-0 flex-1 text-right">
+                                <span className="block truncate text-sm font-black text-gray-900 dark:text-white">{displayName(node)}</span>
+                            </button>
+                            <OrgChartMailLink
+                                href={mailto}
+                                label={displayName(node)}
+                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary transition hover:bg-primary/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                                iconSize={14}
+                            />
+                        </div>
+                        <button type="button" onClick={() => setActiveNodeId(node.id)} className="mt-1 block max-w-full text-right">
+                            <span className="block truncate text-xs text-gray-500 dark:text-gray-400">{subtitle(node)}</span>
+                        </button>
+                    </div>
 
                     <div className="flex shrink-0 items-center gap-1.5">
                         <Tooltip text="הוסף כפיף">
@@ -1291,6 +1313,10 @@ export default function AdminOrgChart() {
     if (loading && lastSavedRef.current === null) {
         return <div className="p-8 text-center text-gray-500 dark:text-gray-400">טוען עץ מבנה...</div>;
     }
+
+    const modalPersonalNumber = normalizePersonalNumberInput(modalState?.form?.personalNumber);
+    const modalPersonalNumberInvalid = Boolean(modalPersonalNumber && !isValidPersonalNumber(modalPersonalNumber));
+    const modalMailto = personalNumberToArmyMailto(modalPersonalNumber);
 
     const renderDesignTab = () => (
         <div className="space-y-6">
@@ -1348,6 +1374,38 @@ export default function AdminOrgChart() {
                             className={`${inputCls} h-11`}
                             placeholder="לדוגמה: עץ מבנה יחידתי"
                         />
+                    </div>
+
+                    <div className="rounded-2xl border border-gray-200 bg-gradient-to-b from-gray-50 to-white p-4 shadow-sm dark:border-white/10 dark:from-[#1b1f2a] dark:to-[#171b24]">
+                        <div className="mb-3">
+                            <div className="text-sm font-black text-gray-900 dark:text-white">ייצוא וייבוא עץ</div>
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">שמירה או שחזור של עץ המבנה כקובץ JSON. הייבוא מחליף את העץ הנוכחי לאחר אישור.</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={handleExportStructureTree}
+                                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-gray-200"
+                            >
+                                <Download size={16} />
+                                ייצוא עץ
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => structureImportInputRef.current?.click()}
+                                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-gray-200"
+                            >
+                                <Upload size={16} />
+                                ייבוא עץ
+                            </button>
+                            <input
+                                ref={structureImportInputRef}
+                                type="file"
+                                accept="application/json,.json"
+                                className="hidden"
+                                onChange={handleImportStructureTree}
+                            />
+                        </div>
                     </div>
                 </div>
             </SettingCard>}
@@ -2489,29 +2547,6 @@ export default function AdminOrgChart() {
                     </div>
                     <div className="flex items-center gap-3">
                         <AdminPageHelpButton pageId="org-chart" />
-                        <button
-                            type="button"
-                            onClick={handleExportStructureTree}
-                            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-black text-gray-700 shadow-sm transition hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-gray-200"
-                        >
-                            <Download size={14} />
-                            ייצוא עץ
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => structureImportInputRef.current?.click()}
-                            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-black text-gray-700 shadow-sm transition hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-gray-200"
-                        >
-                            <Upload size={14} />
-                            ייבוא עץ
-                        </button>
-                        <input
-                            ref={structureImportInputRef}
-                            type="file"
-                            accept="application/json,.json"
-                            className="hidden"
-                            onChange={handleImportStructureTree}
-                        />
                         {isSaving && (
                             <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 shadow-sm dark:border-white/10 dark:bg-white/5">
                                 <div className="h-3.5 w-3.5 animate-spin rounded-full border-[2px] border-primary border-t-transparent" />
@@ -2614,6 +2649,37 @@ export default function AdminOrgChart() {
                                 <div>
                                     <HelpLabel as="span" className="text-sm font-bold text-gray-800 dark:text-gray-200" helpTitle="תפקיד" helpDescription="אפשר לבחור תפקיד מהרשימה או להקליד תפקיד מותאם." wrapperClassName="mb-2 flex items-center gap-2">תפקיד</HelpLabel>
                                     <input type="text" list={ROLE_DATALIST_ID} value={modalState.form.role} onChange={(event) => updateModalForm('role', event.target.value)} className={inputCls} placeholder="לדוגמה: מפקד יחידה" />
+                                </div>
+
+                                <div>
+                                    <HelpLabel
+                                        as="span"
+                                        className="text-sm font-bold text-gray-800 dark:text-gray-200"
+                                        helpTitle="מספר אישי"
+                                        helpDescription="שדה אופציונלי. מספר תקין מתחיל ב-S או C ואחריו 7 או 8 ספרות, למשל S1234567."
+                                        wrapperClassName="mb-2 flex items-center gap-2"
+                                    >
+                                        מספר אישי
+                                    </HelpLabel>
+                                    <input
+                                        type="text"
+                                        value={modalState.form.personalNumber || ''}
+                                        onChange={(event) => updateModalForm('personalNumber', normalizePersonalNumberInput(event.target.value))}
+                                        className={`${inputCls} ${modalPersonalNumberInvalid ? 'border-amber-400 focus:border-amber-500 dark:border-amber-400/60' : ''}`}
+                                        placeholder="S1234567"
+                                        dir="ltr"
+                                    />
+                                    {modalPersonalNumberInvalid && (
+                                        <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-100">
+                                            הזן מספר אישי תקין, ישמש גם לשליחת מייל למשתמש
+                                        </div>
+                                    )}
+                                    <OrgChartMailLink
+                                        href={modalMailto}
+                                        label={displayName(modalState.form)}
+                                        className="mt-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary transition hover:bg-primary/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                                        iconSize={15}
+                                    />
                                 </div>
 
                                 <div className="flex gap-3 pt-4">

@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useExternalLinks } from '../context/ExternalLinksContext';
 import {
     AlertTriangle, Plus, Trash2, Edit2, X,
-    ExternalLink, GripVertical, Image as ImageIcon, Link as LinkIcon, Type, Upload, Loader2, Star
+    ExternalLink, GripVertical, Image as ImageIcon, Link as LinkIcon, Type, Upload, Loader2, Star, Palette
 } from 'lucide-react';
 import { uploadImage } from '../utils/sharepointUtils';
 import { resolveSiteImageUrl } from '../utils/assetUrl';
+import { normalizeLinkTarget } from '../utils/linkTargets';
+import { spLog } from '../utils/spAppLog';
 import { toast } from 'react-toastify';
 import IconPickerModal from './IconPickerModal';
 import { DynamicIcon } from './DynamicIcon';
@@ -16,6 +19,7 @@ function generateId() {
 }
 
 export default function AdminExternalLinks() {
+    const navigate = useNavigate();
     const { externalLinks, loading, error, saveExternalLinks } = useExternalLinks();
     const [links, setLinks] = useState([]);
     const [isSaving, setIsSaving] = useState(false);
@@ -55,7 +59,7 @@ export default function AdminExternalLinks() {
             const url = await uploadImage(file, 'ExternalLinks');
             setEditingLink(prev => ({ ...prev, iconUrl: url, icon: '' }));
         } catch (err) {
-            console.error('שגיאה בהעלאת יוצג:', err);
+            spLog.error('שגיאה בהעלאת יוצג:', err);
             toast.error(`שגיאה בהעלאת תמונה: ${err.message}`);
         } finally {
             setUploadingIcon(false);
@@ -81,7 +85,7 @@ export default function AdminExternalLinks() {
         const updated = {
             id: editingLink.id,
             title: formData.get('title').trim(),
-            url: formData.get('url').trim(),
+            url: normalizeLinkTarget(formData.get('url')),
             icon: editingLink.visualType === 'icon' ? (editingLink.icon || '') : '',
             iconUrl: editingLink.visualType === 'image' ? (editingLink.iconUrl || '') : '',
         };
@@ -144,6 +148,14 @@ export default function AdminExternalLinks() {
                     </div>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
+                    <button
+                        type="button"
+                        onClick={() => navigate('/admin/theme?tab=externalLinksLayout')}
+                        className="flex items-center gap-2 rounded-xl border-2 border-gray-200 bg-white px-5 py-2.5 text-sm font-bold text-gray-900 transition hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+                    >
+                        <Palette size={18} />
+                        <span>הגדרות עיצוב</span>
+                    </button>
                     <AdminPageHelpButton pageId="external-links" />
                     <button
                         onClick={addLink}
@@ -288,7 +300,7 @@ export default function AdminExternalLinks() {
                                     className="flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-300"
                                     wrapperClassName="mb-2 flex items-center gap-2"
                                     helpTitle="כתובת קישור"
-                                    helpDescription="הכתובת שאליה המשתמש יגיע אחרי לחיצה. צריך להזין כתובת מלאה."
+                                    helpDescription="אפשר להזין כתובת אתר מלאה, נתיב Windows כמו z:/public או c:/library, נתיב Mac כמו /Users/name/Documents, או קישור רשת כמו smb://server/share."
                                 >
                                     <><LinkIcon size={14} className="text-gray-400 dark:text-gray-500" />כתובת URL</>
                                 </HelpLabel>
@@ -296,11 +308,17 @@ export default function AdminExternalLinks() {
                                     name="url"
                                     type="text"
                                     defaultValue={editingLink.url}
+                                    onBlur={(event) => {
+                                        event.currentTarget.value = normalizeLinkTarget(event.currentTarget.value);
+                                    }}
                                     requiprimary
                                     className="w-full bg-gray-50 dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-primary-500 transition text-sm font-mono dir-ltr text-left"
-                                    placeholder="https://example.idf.il"
+                                    placeholder="https://example.idf.il או z:/public או /Users/name/Documents"
                                     dir="ltr"
                                 />
+                                <p className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                    נתיבי Windows ו-Mac יומרו אוטומטית ל-file:// בעת שמירה. קישורי smb:// יישמרו כקישור רשת.
+                                </p>
                             </div>
 
                             <div>

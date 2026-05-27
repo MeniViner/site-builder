@@ -53,7 +53,7 @@ class UsersService {
             this._saveMockData(defaultUsers);
             return Promise.resolve(defaultUsers);
         } catch (error) {
-            console.error('Error reading mock users:', error);
+            spLog.error('Error reading mock users:', error);
             throw new Error('שגיאה בקריאת נתוני משתמשים מהזיכרון המקומי');
         }
     }
@@ -63,7 +63,7 @@ class UsersService {
             localStorage.setItem(this.config.usersMockStorageKey, JSON.stringify(usersData));
             return Promise.resolve(usersData);
         } catch (error) {
-            console.error('Error saving mock users:', error);
+            spLog.error('Error saving mock users:', error);
             throw new Error('שגיאה בשמירת נתוני משתמשים לזיכרון המקומי');
         }
     }

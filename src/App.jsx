@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { ExternalLink, Mail } from 'lucide-react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import AdminHub from './components/AdminHub';
@@ -18,13 +19,21 @@ import { useSiteContent } from './context/SiteContentContext';
 import { useTheme } from './context/ThemeContext';
 import { useExternalLinks } from './context/ExternalLinksContext';
 import { useOrgChart } from './context/OrgChartContext';
+import { useGantt } from './context/GanttContext';
 import { normalizeBorderStyle, panelStyle } from './utils/borderStyles';
 import { normalizeOverlayImageConfig } from './utils/overlayImageConfig';
 import { resolveSiteImageUrl } from './utils/assetUrl';
+import { openLinkTarget } from './utils/linkTargets';
 import { ALPHA_TEAM_CONFIG, APP_VERSION, getAlphaTeamLinks } from './config/alphaTeam.config';
 import OrgChartPage from './pages/OrgChartPage';
 import AdminSharePointSetupPage from './pages/AdminSharePointSetupPage';
+import GanttPage from './pages/GanttPage';
 import 'react-toastify/dist/ReactToastify.css';
+
+const ALPHA_TEAM_LINK_ICONS = {
+  email: Mail,
+  site: ExternalLink,
+};
 
 export function Home({ isPreview = false }) {
   const navigate = useNavigate();
@@ -38,6 +47,7 @@ export function Home({ isPreview = false }) {
   const { theme, effectiveMode, toggleUserMode, borderTargets } = useTheme();
   const { externalLinks } = useExternalLinks();
   const { orgChart } = useOrgChart();
+  const { gantt } = useGantt();
   const [widgetTitle, setWidgetTitle] = useState(() => getWidgetTitle('events'));
 
   const hero = siteContent?.hero || { title: '', subtitle: '', description: '', backgroundImages: [] };
@@ -67,9 +77,10 @@ export function Home({ isPreview = false }) {
   const flipCardBorderStyle = borderTargets?.flipCards ? borderStyle : 'standard';
   const hqDashBorderStyle = borderTargets?.hqDash ? borderStyle : 'standard';
   const extLinksBorderStyle = borderTargets?.extLinks ? borderStyle : 'standard';
-  const utilityLinks = orgChart?.enabled
-    ? [{ id: 'org-chart', label: orgChart.pageTitle || 'עץ מבנה', to: '/org-chart' }]
-    : [];
+  const utilityLinks = [
+    ...(orgChart?.enabled ? [{ id: 'org-chart', label: orgChart.pageTitle || 'עץ מבנה', to: '/org-chart' }] : []),
+    ...(gantt?.enabled ? [{ id: 'gantt', label: gantt.buttonLabel || gantt.pageTitle || 'גאנט עבודה', to: '/gantt' }] : []),
+  ];
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour >= 6 && hour < 12) return 'בוקר טוב';
@@ -88,7 +99,7 @@ export function Home({ isPreview = false }) {
 
   const handleNavTo = (cat) => {
     if ((cat.isDirectLink && cat.url) || cat.url) {
-      window.open(cat.url, '_blank', 'noopener,noreferrer');
+      openLinkTarget(cat.url);
       return;
     }
     const el = document.getElementById(cat.id);
@@ -122,6 +133,8 @@ export function Home({ isPreview = false }) {
     return <footer className={footerCls}><ExtLinksCards links={externalLinks} bordered={externalLinksBordered} borderStyle={extLinksBorderStyle} /></footer>;
   };
   const alphaTeamLinks = getAlphaTeamLinks();
+  const alphaTeamEmailLink = alphaTeamLinks.find((link) => link.key === 'email');
+  const alphaTeamEmail = ALPHA_TEAM_CONFIG.email?.trim?.() || ALPHA_TEAM_CONFIG.nameEn;
   const heroGlassBlur = 10 + (heroGlassStrength * 0.36);
   const heroGlassBackgroundAlpha = 0.04 + (heroGlassStrength * 0.0018);
   const heroGlassBorderAlpha = 0.12 + (heroGlassStrength * 0.0013);
@@ -243,35 +256,66 @@ export function Home({ isPreview = false }) {
 
         {!externalLinksFixed && renderExternalLinks()}
 
-        <div className="relative z-10 border-t border-theme-subtle py-4 text-center bg-theme-bg-base flex items-center justify-center min-h-[64px]">
+        <div className="relative z-10 border-t border-theme-subtle py-4 sm:py-5 px-3 text-center bg-theme-bg-base flex flex-col sm:flex-row items-center justify-center gap-2 min-h-[118px] sm:min-h-[104px]">
           <p className="text-xs text-theme-muted text-gray-900 dark:text-gray-100 truncate leading-tight"> מתנ"ה - siteBuilder {APP_VERSION}©</p>
 
           {/* Alpha Team Watermark */}
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 z-[100] opacity-90 hover:opacity-100 transition-opacity select-none rounded-xl border border-blue-100 dark:border-blue-900/30 bg-[#f4f7fb] dark:bg-blue-900/10 flex items-center gap-3 pr-2 pl-4 py-1.5 shadow-sm">
-            <img
-              src={resolveSiteImageUrl(ALPHA_TEAM_CONFIG.logoPath)}
-              alt="Alpha logo"
-              className="h-10 object-contain shrink-0"
-              loading="lazy"
-            />
-            <div className="min-w-0 flex-1 text-right">
-              <div className="flex items-center gap-1.5 text-[13px] font-bold text-gray-900 dark:text-gray-100">
-                {alphaTeamLinks.length > 0 ? (
-                  alphaTeamLinks.map((link, index) => (
-                    <React.Fragment key={link.key}>
-                      {index > 0 && <span className="text-gray-300 dark:text-gray-600">|</span>}
-                      <a href={link.href} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors" target={link.key === 'site' ? '_blank' : undefined} rel={link.key === 'site' ? 'noopener noreferrer' : undefined}>
-                        {link.label}
-                      </a>
-                    </React.Fragment>
-                  ))
+          <div
+            dir="rtl"
+            className="relative order-first sm:absolute sm:left-4 sm:top-1/2 sm:-translate-y-1/2 z-[100] max-w-[min(460px,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-primary/70 dark:border-primary/20 bg-white/85 dark:bg-slate-950/75 bg-gradient-to-br from-white via-primary/10 to-primary/20 dark:from-slate-950 dark:via-primary/40 dark:to-primary/30 px-3 py-1 ring-1 ring-white/60 dark:ring-white/5 backdrop-blur-xl opacity-95 transition-all duration-200 select-none"
+       
+       
+       
+          >
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-l from-transparent via-cyan-300/80 to-transparent" />
+            <div className="flex items-center gap-3">
+              <img
+                src={resolveSiteImageUrl(ALPHA_TEAM_CONFIG.logoPath)}
+                alt="Alpha logo"
+                className="h-11 w-11 object-contain shrink-0 rounded-xl bg-white/70 p-1 shadow-inner ring-1 ring-cyan-100 dark:bg-white/10 dark:ring-white/10"
+                loading="lazy"
+              />
+              <div className="min-w-0 flex-1 text-right">
+                {alphaTeamEmailLink ? (
+                  <a
+                    className="group inline-flex max-w-full items-baseline gap-1.5 text-[13px] font-extrabold text-slate-950 transition-colors dark:text-white"
+                    aria-label={`שליחת מייל אל ${ALPHA_TEAM_CONFIG.nameHe}`}
+                  >
+                    <span className="truncate">בפיתוח ותחזוק {ALPHA_TEAM_CONFIG.nameHe}</span>
+                  </a>
                 ) : (
-                  <span>{ALPHA_TEAM_CONFIG.nameHe}</span>
+                  <div className="flex items-baseline gap-1.5 text-[13px] font-extrabold text-slate-950 dark:text-white">
+                    <span className="truncate">{ALPHA_TEAM_CONFIG.nameHe}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-normal text-cyan-700/80 dark:text-cyan-200/80">
+                      {ALPHA_TEAM_CONFIG.nameEn}
+                    </span>
+                  </div>
                 )}
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  {alphaTeamLinks.length > 0 ? (
+                    alphaTeamLinks.map((link) => {
+                      const LinkIcon = ALPHA_TEAM_LINK_ICONS[link.key];
+                      return (
+                        <a
+                          key={link.key}
+                          href={link.href}
+                          className="inline-flex h-7 items-center gap-1.5  px-2.5 text-[11px] font-bold text-cyan-900  transition-all  hover:text-cyan-700 focus-visible:outline-none focus-visible:ring-2   dark:text-cyan-100  dark:hover:text-white"
+                          target={link.key === 'site' ? '_blank' : undefined}
+                          rel={link.key === 'site' ? 'noopener noreferrer' : undefined}
+                        >
+                          {LinkIcon && <LinkIcon size={13} strokeWidth={2.3} aria-hidden="true" />}
+                          {link.label}
+                        </a>
+                      );
+                    })
+                  ) : (
+                    <span className="text-[11px] font-bold text-cyan-900 dark:text-cyan-100">{ALPHA_TEAM_CONFIG.nameHe}</span>
+                  )}
+                </div>
+                {/* <p dir="ltr" className="mt-1 max-w-[250px] truncate text-left text-[10px] leading-tight text-slate-500 dark:text-cyan-100/60">
+                  {alphaTeamLinks.length > 0 ? alphaTeamEmail : ALPHA_TEAM_CONFIG.nameEn}
+                </p> */}
               </div>
-              <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate leading-tight mt-0.5">
-                {alphaTeamLinks.length > 0 ? 'פרטי קשר / אתר הפרוייקט' : ALPHA_TEAM_CONFIG.nameEn}
-              </p>
             </div>
           </div>
         </div>
@@ -347,6 +391,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/org-chart" element={<OrgChartPage />} />
+        <Route path="/gantt" element={<GanttPage />} />
         <Route path="/admin/sharepoint-setup" element={<AdminSharePointSetupPage />} />
         <Route path="/admin/*" element={<AdminRoute />} />
         <Route path="*" element={<NotFoundPage />} />

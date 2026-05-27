@@ -80,6 +80,7 @@ export const SHAREPOINT_PATHS = {
     themeFileServerRelativeUrl: resolveFilePath('theme_data.txt', 'site'),
     widgetsFileServerRelativeUrl: resolveFilePath('widgets_data.txt', widgetsDb),
     externalLinksFileServerRelativeUrl: resolveFilePath('external_links_data.txt', 'site'),
+    ganttFileServerRelativeUrl: resolveFilePath('gantt_data.txt', 'site'),
     masterConfigFileServerRelativeUrl: resolveFilePath('bihs_master_config_v1.txt', 'site'),
 };
 

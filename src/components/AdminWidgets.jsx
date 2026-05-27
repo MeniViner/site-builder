@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle, Calendar, Bell, Award, Timer, Rss, BookUser,
   BusFront, Vote, PartyPopper, ScrollText, Lightbulb, Check,
-  Monitor
+  Monitor, Palette
 } from 'lucide-react';
 import { useWidget } from '../context/WidgetContext';
 import WidgetLivePreview from './WidgetLivePreview';
@@ -24,6 +25,7 @@ const AVAILABLE_WIDGETS = [
 ];
 
 export default function AdminWidgets() {
+  const navigate = useNavigate();
   const { widgetConfig, loading, error, updateField } = useWidget();
   const activeWidgets = Array.isArray(widgetConfig?.activeWidgets) && widgetConfig.activeWidgets.length > 0
     ? widgetConfig.activeWidgets
@@ -55,15 +57,23 @@ export default function AdminWidgets() {
   }
 
   return (
-    <div dir="rtl" className="h-full min-h-0 bg-gray-50 dark:bg-[#12141a] text-gray-900 dark:text-white font-heebo flex flex-col">
-      <div className="sticky top-0 z-20 bg-gray-50/95 dark:bg-[#12141a]/95 backdrop-blur border-b border-gray-200 dark:border-white/10 px-8 pt-6 pb-4 flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-gray-900 dark:text-white">בחירת ווידג׳טים פעילים</h1>
+    <div dir="rtl" className="h-full min-h-0 min-w-0 overflow-hidden bg-gray-50 dark:bg-[#12141a] text-gray-900 dark:text-white font-heebo flex flex-col">
+      <div className="sticky top-0 z-20 bg-gray-50/95 dark:bg-[#12141a]/95 backdrop-blur border-b border-gray-200 dark:border-white/10 px-4 sm:px-6 xl:px-8 pt-5 xl:pt-6 pb-4 flex flex-wrap items-center justify-between gap-3 xl:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl xl:text-3xl leading-tight font-black text-gray-900 dark:text-white">בחירת ווידג׳טים פעילים</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             בחר עד 3 ווידג׳טים שיוצגו בקרוסלה בעמוד הבית.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="min-w-0 max-w-full flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => navigate('/admin/theme?tab=widgetHeight')}
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:bg-white/10"
+          >
+            <Palette size={16} />
+            הגדרות עיצוב
+          </button>
           <AdminPageHelpButton pageId="widgets" />
           <span className="rounded-full border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-1 text-xs font-bold text-gray-600 dark:text-gray-300">
             נבחרו {activeWidgets.length}/3
@@ -80,12 +90,12 @@ export default function AdminWidgets() {
         </div>
       )}
 
-      <div className="flex-1 min-h-0 px-8 pb-8 pt-4 overflow-y-auto 2xl:overflow-hidden">
-        <div className="h-full flex flex-col gap-6 2xl:flex-row 2xl:items-stretch">
-          <div className="flex-1 min-h-0 space-y-6 2xl:overflow-y-auto 2xl:pr-2 custom-scrollbar">
-            <div className="rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#232733] p-4">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
+      <div className="flex-1 min-h-0 min-w-0 px-4 sm:px-6 xl:px-8 pb-8 pt-4 overflow-y-auto overflow-x-hidden 2xl:overflow-hidden">
+        <div className="min-h-full 2xl:h-full flex flex-col gap-6 2xl:flex-row 2xl:items-stretch">
+          <div className="min-w-0 shrink-0 space-y-6 2xl:flex-1 2xl:shrink 2xl:min-h-0 2xl:overflow-y-auto 2xl:pr-2 custom-scrollbar">
+            <div className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#232733] p-4">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0 flex items-center gap-2">
                   <h2 className="text-lg font-bold text-gray-900 dark:text-white">רשימת הווידג׳טים</h2>
                   <HelpTooltipButton
                     title="רשימת הווידג׳טים"
@@ -138,13 +148,13 @@ export default function AdminWidgets() {
 
           <div className="hidden 2xl:block w-px self-stretch bg-gradient-to-b from-primary/0 via-primary/60 to-primary/0" />
 
-          <div className="min-w-0 2xl:w-[560px] 2xl:max-w-[44vw] 2xl:shrink-0 ">
-            <div className="sticky top-24 h-[calc(100vh-8rem)]">
-              <div className="mb-2 -mt-2 ">
+          <div className="min-w-0 w-full max-w-[560px] self-center 2xl:w-[560px] 2xl:max-w-[44vw] 2xl:shrink-0 2xl:self-stretch">
+            <div className="h-[min(620px,calc(100vh-8rem))] 2xl:sticky 2xl:top-24 2xl:h-[calc(100vh-8rem)]">
+              <div className="mb-2 -mt-2 min-w-0">
                 {/* <div className="text-xs font-bold text-grey-muted">תצוגת ווידג׳ט לבדיקה</div> */}
-                <div className=" flex flex-wrap gap-2 items-center">
-                      <Monitor size={20} className="text-primary dark:text-primary-600 " />
-                                      {/* <div className="text-xs font-bold text-primary-600">תצוגה לבדיקה</div> */}
+                <div className="flex min-w-0 max-w-full flex-wrap gap-2 items-center">
+                  <Monitor size={20} className="shrink-0 text-primary dark:text-primary-600 " />
+                  {/* <div className="text-xs font-bold text-primary-600">תצוגה לבדיקה</div> */}
 
                   {activeWidgets.map((widgetId, index) => {
                     const widgetMeta = AVAILABLE_WIDGETS.find((item) => item.id === widgetId);
@@ -154,13 +164,15 @@ export default function AdminWidgets() {
                         key={widgetId}
                         type="button"
                         onClick={() => setPreviewWidgetId(widgetId)}
-                        className={`rounded-lg border px-3 py-0.5 text-xs font-bold transition ${
+                        className={`min-w-0 max-w-full rounded-lg border px-3 py-0.5 text-xs font-bold transition ${
                           isPreviewActive
                             ? 'border-primary bg-primary/10 text-primary'
                             : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-[#1b1f2a] text-gray-500 dark:text-gray-300 hover:border-primary/40 hover:text-gray-900 dark:hover:text-white'
                         }`}
                       >
-                        {`#${index + 1} ${widgetMeta?.label || widgetId}`}
+                        <span className="block max-w-full truncate">
+                          {`#${index + 1} ${widgetMeta?.label || widgetId}`}
+                        </span>
                       </button>
                     );
                   })}

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { uploadImage } from '../utils/sharepointUtils';
 import { resolveSiteImageUrl } from '../utils/assetUrl';
+import { spLog } from '../utils/spAppLog';
 import Tooltip from './Tooltip';
 import { DEFAULT_OVERLAY_IMAGE, normalizeOverlayImageConfig } from '../utils/overlayImageConfig';
 import { confirmToast } from '../utils/confirmToast';
@@ -321,7 +322,7 @@ export default function AdminSiteContent() {
             const url = await uploadImage(file, 'Hero');
             setHero((prev) => ({ ...prev, backgroundImages: [...prev.backgroundImages, url] }));
         } catch (err) {
-            console.error('שגיאה בהעלאת תמונת רקע:', err);
+            spLog.error('שגיאה בהעלאת תמונת רקע:', err);
             setSaveMessage({ type: 'error', text: `שגיאה בהעלאת תמונה: ${err.message}` });
             setTimeout(() => setSaveMessage(null), 4000);
         } finally {
@@ -339,7 +340,7 @@ export default function AdminSiteContent() {
             const url = await uploadImage(file, 'Commander');
             setCommander((prev) => ({ ...prev, image: url }));
         } catch (err) {
-            console.error('שגיאה בהעלאת תמונת מפקד:', err);
+            spLog.error('שגיאה בהעלאת תמונת מפקד:', err);
             setSaveMessage({ type: 'error', text: `שגיאה בהעלאת תמונה: ${err.message}` });
             setTimeout(() => setSaveMessage(null), 4000);
         } finally {
@@ -357,7 +358,7 @@ export default function AdminSiteContent() {
             const url = await uploadImage(file, 'Logo');
             setHero((prev) => ({ ...prev, logo: url }));
         } catch (err) {
-            console.error('שגיאה בהעלאת תמונת לוגו:', err);
+            spLog.error('שגיאה בהעלאת תמונת לוגו:', err);
             setSaveMessage({ type: 'error', text: `שגיאה בהעלאת תמונה: ${err.message}` });
             setTimeout(() => setSaveMessage(null), 4000);
         } finally {
@@ -379,7 +380,7 @@ export default function AdminSiteContent() {
                 enabled: true,
             }));
         } catch (err) {
-            console.error('שגיאה בהעלאת תמונת אלמנט:', err);
+            spLog.error('שגיאה בהעלאת תמונת אלמנט:', err);
             setSaveMessage({ type: 'error', text: `שגיאה בהעלאת תמונה: ${err.message}` });
             setTimeout(() => setSaveMessage(null), 4000);
         } finally {

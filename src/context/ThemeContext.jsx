@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useConfig } from './ConfigProvider';
+import { spLog } from '../utils/spAppLog';
 
 export const ThemeContext = createContext();
 
@@ -260,7 +261,7 @@ export const ThemeProvider = ({ children }) => {
             await reload();
             return true;
         } catch (err) {
-            console.error(err);
+            spLog.error('ThemeContext: failed to fetch theme.', err);
             return false;
         }
     }, [reload]);
@@ -271,7 +272,7 @@ export const ThemeProvider = ({ children }) => {
             await saveNow();
             return true;
         } catch (err) {
-            console.error(err);
+            spLog.error('ThemeContext: failed to save theme.', err);
             return false;
         }
     }, [saveNow, updateConfig]);
@@ -294,7 +295,7 @@ export const ThemeProvider = ({ children }) => {
             };
         });
         saveNow().catch((err) => {
-            console.error('ThemeContext: failed to persist borderTargets', err);
+            spLog.error('ThemeContext: failed to persist borderTargets', err);
         });
     }, [saveNow, updateConfig]);
 

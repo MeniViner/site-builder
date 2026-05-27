@@ -11,6 +11,7 @@ import { ensureSharePointBootstrapFiles, overwriteSharePointBootstrapFiles } fro
 import { DEFAULT_CONFIG_V1, validateAndNormalize } from '../config/AppSchema';
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { confirmToast } from '../utils/confirmToast';
+import { spLog } from '../utils/spAppLog';
 
 const STATUS = {
     LOADING: 'loading',
@@ -54,7 +55,7 @@ function normalizeConfigSafely(candidate) {
     try {
         return validateAndNormalize(isObject(candidate) ? candidate : DEFAULT_CONFIG_V1);
     } catch (error) {
-        console.error('[ConfigProvider] Failed to normalize config candidate. Falling back to defaults.', error);
+        spLog.error('[ConfigProvider] Failed to normalize config candidate. Falling back to defaults.', error);
         return validateAndNormalize(DEFAULT_CONFIG_V1);
     }
 }
@@ -63,7 +64,7 @@ function safeReadLocalStorageRaw(key) {
     try {
         return localStorage.getItem(key);
     } catch (error) {
-        console.warn(`ConfigProvider: failed to read localStorage key "${key}"`, error);
+        spLog.warn(`ConfigProvider: failed to read localStorage key "${key}"`, error);
         return null;
     }
 }
@@ -75,7 +76,7 @@ function consumeSkipLegacyMigrationFlag() {
         localStorage.removeItem(SKIP_LEGACY_MIGRATION_ONCE_KEY);
         return true;
     } catch (error) {
-        console.warn('ConfigProvider: failed handling skip migration flag', error);
+        spLog.warn('ConfigProvider: failed handling skip migration flag', error);
         return false;
     }
 }
@@ -84,7 +85,7 @@ function markSkipLegacyMigrationFlag() {
     try {
         localStorage.setItem(SKIP_LEGACY_MIGRATION_ONCE_KEY, '1');
     } catch (error) {
-        console.warn('ConfigProvider: failed setting skip migration flag', error);
+        spLog.warn('ConfigProvider: failed setting skip migration flag', error);
     }
 }
 
@@ -92,7 +93,7 @@ function hasMigratedDefaultsRepairRun() {
     try {
         return localStorage.getItem(MIGRATED_DEFAULTS_REPAIR_KEY) === '1';
     } catch (error) {
-        console.warn('ConfigProvider: failed reading migrated defaults repair flag', error);
+        spLog.warn('ConfigProvider: failed reading migrated defaults repair flag', error);
         return false;
     }
 }
@@ -101,7 +102,7 @@ function markMigratedDefaultsRepairRun() {
     try {
         localStorage.setItem(MIGRATED_DEFAULTS_REPAIR_KEY, '1');
     } catch (error) {
-        console.warn('ConfigProvider: failed setting migrated defaults repair flag', error);
+        spLog.warn('ConfigProvider: failed setting migrated defaults repair flag', error);
     }
 }
 
@@ -110,7 +111,7 @@ function clearLegacyMockStorageKeys() {
         try {
             localStorage.removeItem(key);
         } catch (error) {
-            console.warn(`ConfigProvider: failed removing legacy key "${key}"`, error);
+            spLog.warn(`ConfigProvider: failed removing legacy key "${key}"`, error);
         }
     });
 }
@@ -125,11 +126,11 @@ function parseLegacyStorageValue(storageKey) {
         try {
             return { exists: true, value: JSON.parse(raw) };
         } catch (parseError) {
-            console.warn(`[ConfigProvider] Legacy key "${storageKey}" contains invalid JSON. Using null for this key.`, parseError);
+            spLog.warn(`[ConfigProvider] Legacy key "${storageKey}" contains invalid JSON. Using null for this key.`, parseError);
             return { exists: true, value: null };
         }
     } catch (error) {
-        console.warn(`[ConfigProvider] Failed reading legacy key "${storageKey}". Using null for this key.`, error);
+        spLog.warn(`[ConfigProvider] Failed reading legacy key "${storageKey}". Using null for this key.`, error);
         return { exists: false, value: null };
     }
 }
@@ -188,7 +189,7 @@ function repairMigratedMockDefaults(config) {
             },
         };
         repaired = true;
-        console.warn('[ConfigProvider] Repaired empty migrated mock navigation from schema defaults.');
+        spLog.warn('[ConfigProvider] Repaired empty migrated mock navigation from schema defaults.');
     }
 
     return { config: repaired ? normalizeConfigSafely(next) : config, repaired };
@@ -225,29 +226,21 @@ export const ConfigProvider = ({ children }) => {
         let resolvedConfig = normalizeConfigSafely(DEFAULT_CONFIG_V1);
 
         try {
-            console.log('[ConfigProvider] Init started...');
-
-            if (!SHAREPOINT_CONFIG.useMock && !bootstrapAttemptedRef.current) {
-                bootstrapAttemptedRef.current = true;
-                try {
-                    await ensureSharePointBootstrapFiles();
-                } catch (bootstrapError) {
-                    console.warn('[ConfigProvider] SharePoint bootstrap failed. Continuing init.', bootstrapError);
-                }
-            }
+            spLog.info('[ConfigProvider] Init started...');
 
             const masterRawBeforeLoad = safeReadLocalStorageRaw(MASTER_CONFIG_MOCK_KEY);
             const masterWasEmpty = !masterRawBeforeLoad || !masterRawBeforeLoad.trim();
             const skipLegacyMigration = SHAREPOINT_CONFIG.useMock && consumeSkipLegacyMigrationFlag();
 
-            resolvedConfig = normalizeConfigSafely(await ConfigService.loadConfig());
-            console.log('[ConfigProvider] Loaded config from adapter...');
+            const loadEnvelope = await ConfigService.loadConfigEnvelope();
+            resolvedConfig = normalizeConfigSafely(loadEnvelope.config);
+            spLog.info(`[ConfigProvider] Loaded config from adapter (${loadEnvelope.source || 'unknown'}).`);
             const loadedLooksDefault = JSON.stringify(resolvedConfig) === JSON.stringify(normalizeConfigSafely(DEFAULT_CONFIG_V1));
 
             if (SHAREPOINT_CONFIG.useMock && !skipLegacyMigration && (masterWasEmpty || loadedLooksDefault)) {
                 const legacySplitData = extractLegacyLocalData();
                 if (legacySplitData) {
-                    console.log('[ConfigProvider] Executing legacy migration...');
+                    spLog.info('[ConfigProvider] Executing legacy migration...');
                     const migratedConfig = await ConfigService.loadConfig(legacySplitData);
                     const savedMigrated = await ConfigService.saveConfig(migratedConfig);
                     resolvedConfig = normalizeConfigSafely(savedMigrated ?? migratedConfig);
@@ -256,6 +249,15 @@ export const ConfigProvider = ({ children }) => {
 
             resolvedConfig = normalizeConfigSafely(resolvedConfig);
 
+            if (!SHAREPOINT_CONFIG.useMock && !bootstrapAttemptedRef.current) {
+                bootstrapAttemptedRef.current = true;
+                try {
+                    await ensureSharePointBootstrapFiles();
+                } catch (bootstrapError) {
+                    spLog.warn('[ConfigProvider] SharePoint bootstrap failed. Continuing init.', bootstrapError);
+                }
+            }
+
             const repairResult = repairMigratedMockDefaults(resolvedConfig);
             if (repairResult.repaired) {
                 try {
@@ -263,7 +265,7 @@ export const ConfigProvider = ({ children }) => {
                     resolvedConfig = normalizeConfigSafely(savedRepair ?? repairResult.config);
                     markMigratedDefaultsRepairRun();
                 } catch (repairError) {
-                    console.warn('[ConfigProvider] Failed to persist migrated mock defaults repair.', repairError);
+                    spLog.warn('[ConfigProvider] Failed to persist migrated mock defaults repair.', repairError);
                     resolvedConfig = repairResult.config;
                 }
             }
@@ -276,7 +278,7 @@ export const ConfigProvider = ({ children }) => {
             setError(null);
             return resolvedConfig;
         } catch (err) {
-            console.error('[ConfigProvider] Init failed. Falling back to defaults.', err);
+            spLog.error('[ConfigProvider] Init failed. Falling back to defaults.', err);
             resolvedConfig = normalizeConfigSafely(DEFAULT_CONFIG_V1);
             if (isMountedRef.current && requestId === requestIdRef.current) {
                 configRef.current = resolvedConfig;
@@ -287,7 +289,7 @@ export const ConfigProvider = ({ children }) => {
         } finally {
             if (isMountedRef.current && requestId === requestIdRef.current) {
                 setStatus(STATUS.IDLE);
-                console.log('[ConfigProvider] Init complete.');
+                spLog.info('[ConfigProvider] Init complete.');
             }
         }
     }, []);
@@ -298,7 +300,7 @@ export const ConfigProvider = ({ children }) => {
 
     const updateConfig = useCallback((updater) => {
         if (typeof updater !== 'function') {
-            console.error('ConfigProvider.updateConfig expected a function updater');
+            spLog.error('ConfigProvider.updateConfig expected a function updater');
             return;
         }
 
@@ -309,7 +311,7 @@ export const ConfigProvider = ({ children }) => {
             configRef.current = resolvedConfig;
             setConfig(resolvedConfig);
         } catch (err) {
-            console.error('ConfigProvider.updateConfig failed:', err);
+            spLog.error('ConfigProvider.updateConfig failed:', err);
             if (isMountedRef.current) {
                 setStatus(STATUS.ERROR);
                 setError(err?.message || 'Failed to update configuration');
@@ -371,7 +373,7 @@ export const ConfigProvider = ({ children }) => {
                 const summary = await overwriteSharePointBootstrapFiles();
                 const failures = summary.filter((entry) => entry?.ok === false);
                 if (failures.length > 0) {
-                    console.warn('[ConfigProvider] Factory reset failed on some SharePoint legacy files.', failures);
+                    spLog.warn('[ConfigProvider] Factory reset failed on some SharePoint legacy files.', failures);
                     throw new Error(`Factory reset failed to overwrite ${failures.length} SharePoint file(s).`);
                 }
             }
@@ -385,7 +387,7 @@ export const ConfigProvider = ({ children }) => {
             window.location.reload();
             return true;
         } catch (err) {
-            console.error('Factory reset failed', err);
+            spLog.error('Factory reset failed', err);
             if (isMountedRef.current) {
                 setError(err?.message || 'Factory reset failed');
                 setStatus(STATUS.ERROR);

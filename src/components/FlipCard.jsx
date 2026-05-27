@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronLeft, Undo2 } from 'lucide-react';
 import { DynamicIcon } from './DynamicIcon';
+import { getLinkTargetAttributes, openLinkTarget } from '../utils/linkTargets';
 
 export const FlipCard = ({ id, title, icon: iconName, subLinks = [], url, isFlipped, onFlip }) => {
     const handleLinkClick = (e) => {
@@ -9,7 +10,7 @@ export const FlipCard = ({ id, title, icon: iconName, subLinks = [], url, isFlip
 
     const handleCardClick = () => {
         if (url) {
-            window.open(url, '_blank', 'noopener,noreferrer');
+            openLinkTarget(url);
             return;
         }
         onFlip(isFlipped ? null : id);
@@ -54,6 +55,7 @@ export const FlipCard = ({ id, title, icon: iconName, subLinks = [], url, isFlip
 
                     <div className="flex flex-wrap gap-1.5 flex-1 content-center">
                         {(subLinks || []).map((link, idx) => {
+                            const attrs = getLinkTargetAttributes(link.url);
                             return (
                                 <button
                                     key={idx}
@@ -64,7 +66,7 @@ export const FlipCard = ({ id, title, icon: iconName, subLinks = [], url, isFlip
                                     <DynamicIcon name={link.icon} size={14} className="text-gray-700 dark:text-gray-400 group-hover/btn:text-red-400 shrink-0" />
                                     <span>{link.label}</span>
                                     {link.url ? (
-                                        <a href={link.url} target="_blank" rel="noreferrer" className="absolute inset-0" onClick={(e) => e.stopPropagation()} />
+                                        <a {...attrs} className="absolute inset-0" onClick={(e) => e.stopPropagation()} />
                                     ) : null}
                                 </button>
                             );

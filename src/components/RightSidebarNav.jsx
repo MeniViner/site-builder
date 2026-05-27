@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigation } from '../context/NavigationContext';
 import { useTheme } from '../context/ThemeContext';
-import { DynamicIcon } from './DynamicIcon';
 import { ChevronDown, ExternalLink } from 'lucide-react';
 import { normalizeBorderStyle, panelStyle } from '../utils/borderStyles';
 import Tooltip from './Tooltip';
+import NavVisual from './NavVisual';
+import { getLinkTargetAttributes, openLinkTarget } from '../utils/linkTargets';
 
 /**
  * RightSidebarNav — Tactical right sidebar navigation.
@@ -62,7 +63,7 @@ export default function RightSidebarNav() {
 
     const handleLevel1Click = (item) => {
         if (item.url || item.isDirectLink) {
-            if (item.url) window.open(item.url, '_blank', 'noopener,noreferrer');
+            if (item.url) openLinkTarget(item.url);
             return;
         }
         const openUpward = shouldOpenUpward(item.id);
@@ -73,7 +74,7 @@ export default function RightSidebarNav() {
 
     const handleLevel2Click = (child) => {
         if (child.url) {
-            window.open(child.url, '_blank', 'noopener,noreferrer');
+            openLinkTarget(child.url);
             return;
         }
         setExpandedLevel2((prev) => (prev === child.id ? null : child.id));
@@ -81,7 +82,7 @@ export default function RightSidebarNav() {
 
     const handleLevel3Click = (link) => {
         if (link.url) {
-            window.open(link.url, '_blank', 'noopener,noreferrer');
+            openLinkTarget(link.url);
         }
     };
 
@@ -118,13 +119,11 @@ export default function RightSidebarNav() {
                         {isDirectLink ? (
                             <Tooltip text={item.label}>
                                 <a
-                                    href={item.url || '#'}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                    {...getLinkTargetAttributes(item.url)}
                                     className="sidebar-nav-item sidebar-trigger flex flex-col items-center justify-center text-center cursor-pointer"
                                     style={panelStyle(topLevelBorderStyle, 10)}
                                 >
-                                    <DynamicIcon name={item.icon} size={18} />
+                                    <NavVisual item={item} size={18} imageClassName="h-[18px] w-[18px] object-contain" />
                                     <span className="sidebar-trigger__label max-w-[64px] truncate">
                                         {item.label}
                                     </span>
@@ -139,7 +138,7 @@ export default function RightSidebarNav() {
                                 className={`gap-2 sidebar-nav-item sidebar-trigger flex flex-col items-center justify-center text-center cursor-pointer ${isOpen ? 'is-active' : ''}`}
                                 style={panelStyle(topLevelBorderStyle, 10)}
                             >
-                                <DynamicIcon name={item.icon} size={18} />
+                                <NavVisual item={item} size={18} imageClassName="h-[18px] w-[18px] object-contain" />
                                 <span className="sidebar-trigger__label max-w-[64px] truncate ">
                                     {item.label}
                                 </span>
@@ -158,7 +157,7 @@ export default function RightSidebarNav() {
                                 {/* Panel Header */}
                                 <div className="flex items-center gap-2 px-1 pb-3 mb-2 border-b border-theme-subtle">
                                     <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center">
-                                        <DynamicIcon name={item.icon} size={15} className="text-primary" />
+                                        <NavVisual item={item} size={15} className="text-primary" imageClassName="h-[15px] w-[15px] object-contain" />
                                     </div>
                                     <span className="font-bold text-sm text-theme whitespace-nowrap">
                                         {item.label}
@@ -184,7 +183,7 @@ export default function RightSidebarNav() {
                                                                 : 'bg-theme-elevated text-theme-muted group-hover/l2:text-primary group-hover/l2:bg-primary/10'
                                                             }`}
                                                     >
-                                                        <DynamicIcon name={child.icon} size={14} />
+                                                        <NavVisual item={child} size={14} imageClassName="h-3.5 w-3.5 object-contain" />
                                                     </div>
                                                     <span
                                                         className={`flex-1 text-sm font-medium transition whitespace-nowrap ${isExpanded
@@ -214,10 +213,11 @@ export default function RightSidebarNav() {
                                                                 onClick={() => handleLevel3Click(link)}
                                                                 className="sidebar-nav-item w-full flex items-center gap-2 pr-4 pl-3 py-2 text-right transition-all hover:bg-theme-card-hover rounded-md group/l3"
                                                             >
-                                                                <DynamicIcon
-                                                                    name={link.icon}
+                                                                <NavVisual
+                                                                    item={link}
                                                                     size={13}
                                                                     className="text-theme-muted/80 group-hover/l3:text-primary transition shrink-0"
+                                                                    imageClassName="h-[13px] w-[13px] object-contain shrink-0"
                                                                 />
                                                                 <span className="text-[13px] text-theme-muted group-hover/l3:text-theme transition flex-1 whitespace-nowrap">
                                                                     {link.label}

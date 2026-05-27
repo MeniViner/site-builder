@@ -46,7 +46,7 @@ class ThemeService {
             }
             return this._normalizeData(data);
         } catch (e) {
-            console.error(e);
+            spLog.error('ThemeService: failed to load theme.', e);
             return { ...DEFAULT_THEME };
         }
     }
@@ -106,7 +106,7 @@ class ThemeService {
             this._saveMockData(DEFAULT_THEME);
             return Promise.resolve({ ...DEFAULT_THEME });
         } catch (error) {
-            console.error('Error reading mock theme:', error);
+            spLog.error('Error reading mock theme:', error);
             throw new Error('שגיאה בקריאת הגדרות עיצוב מהזיכרון המקומי');
         }
     }
@@ -116,7 +116,7 @@ class ThemeService {
             localStorage.setItem(this.config.themeMockStorageKey, JSON.stringify(payload));
             return Promise.resolve(payload);
         } catch (error) {
-            console.error('Error saving mock theme:', error);
+            spLog.error('Error saving mock theme:', error);
             throw new Error('שגיאה בשמירת הגדרות עיצוב לזיכרון המקומי');
         }
     }

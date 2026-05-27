@@ -18,6 +18,10 @@ const APP_WARN_ERROR_LOGS_ENABLED = parseEnvFlag(
     import.meta.env.VITE_SP_APP_WARN_ERROR_LOGS ?? import.meta.env.VITE_SP_APP_LOGS ?? import.meta.env.VITE_SP_VERBOSE_LOG,
     false,
 );
+const BOOTSTRAP_SETUP_LOGS_ENABLED = parseEnvFlag(
+    import.meta.env.VITE_SP_BOOTSTRAP_SETUP_LOGS ?? import.meta.env.VITE_SP_VERBOSE_LOG,
+    false,
+);
 
 const E = {
     system: '⚙️',
@@ -57,6 +61,21 @@ export const spLog = {
     },
     /** ללא אימוג'י — מידע כללי */
     info: (message, ...args) => line('ℹ️', message, ...args),
+};
+
+export const spBootstrapLog = {
+    info: (message, ...args) => {
+        if (!BOOTSTRAP_SETUP_LOGS_ENABLED) return;
+        console.log(`${PREFIX} ${E.boot} ${message}`, ...args);
+    },
+    warn: (message, ...args) => {
+        if (!BOOTSTRAP_SETUP_LOGS_ENABLED) return;
+        console.warn(`${PREFIX} ${E.warn} ${message}`, ...args);
+    },
+    error: (message, ...args) => {
+        if (!BOOTSTRAP_SETUP_LOGS_ENABLED) return;
+        console.error(`${PREFIX} ${E.err} ${message}`, ...args);
+    },
 };
 
 /** שם קובץ מנתיב SharePoint */

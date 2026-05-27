@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
     Undo2, Menu, Save, FileText, Link as LinkIcon,
-    LayoutGrid, Palette, ExternalLink, Sun, Moon, Users, ShieldCheck, ChevronDown, ChevronLeft, ChevronRight
+    LayoutGrid, Palette, ExternalLink, Sun, Moon, Users, ShieldCheck, ChevronDown, ChevronLeft, ChevronRight, CalendarDays
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import AdminEvents from './AdminEvents';
@@ -22,6 +22,7 @@ import AdminCelebrations from './AdminCelebrations';
 import AdminHeritage from './AdminHeritage';
 import AdminTips from './AdminTips';
 import AdminOrgChart from './AdminOrgChart';
+import AdminGantt from './AdminGantt';
 import AdminAIHelp from './AdminAIHelp';
 import AdminSiteOwnersManagement from './AdminSiteOwnersManagement';
 import AdminAdminsSync from './AdminAdminsSync';
@@ -39,23 +40,45 @@ const ADMIN_SECTION_STORAGE_KEY = 'siteBuilder.adminHub.openSections.v1';
 const ADMIN_LAST_PATH_STORAGE_KEY = 'siteBuilder.adminHub.lastPath.v1';
 const DEFAULT_SECTION_OPEN = {
     content: true,
+    addons: false,
     system: false,
     maintenance: false,
 };
 
+const ADMIN_SECTION_KEYS = ['content', 'addons', 'system', 'maintenance'];
+
 const ADMIN_SECTION_BY_TAB = {
     info: 'content',
     links: 'content',
-    'org-chart': 'content',
+    'org-chart': 'addons',
+    gantt: 'addons',
     'external-links': 'content',
     widgets: 'content',
-    'current-widgets': 'content',
+    'current-widgets': 'system',
     theme: 'system',
     'ai-help': 'system',
     admins: 'maintenance',
     'site-owners': 'maintenance',
     backups: 'maintenance',
+    events: 'content',
+    alerts: 'content',
+    outstanding: 'content',
+    countdown: 'content',
+    news: 'content',
+    phonebook: 'content',
+    shuttles: 'content',
+    polls: 'content',
+    celebrations: 'content',
+    heritage: 'content',
+    tips: 'content',
 };
+
+function openOnlySection(sectionKey) {
+    return ADMIN_SECTION_KEYS.reduce((acc, key) => {
+        acc[key] = key === sectionKey;
+        return acc;
+    }, {});
+}
 
 function readStoredOpenSections() {
     try {
@@ -64,6 +87,7 @@ function readStoredOpenSections() {
         return {
             ...DEFAULT_SECTION_OPEN,
             content: Boolean(parsed.content ?? DEFAULT_SECTION_OPEN.content),
+            addons: Boolean(parsed.addons ?? DEFAULT_SECTION_OPEN.addons),
             system: Boolean(parsed.system ?? DEFAULT_SECTION_OPEN.system),
             maintenance: Boolean(parsed.maintenance ?? DEFAULT_SECTION_OPEN.maintenance),
         };
@@ -146,10 +170,12 @@ export default function AdminHub() {
     const [sectionOpen, setSectionOpen] = useState(() => readStoredOpenSections());
 
     const toggleSection = (sectionKey) => {
-        setSectionOpen((prev) => ({
-            ...prev,
-            [sectionKey]: !prev[sectionKey],
-        }));
+        setSectionOpen((prev) => {
+            if (prev[sectionKey]) {
+                return { ...prev, [sectionKey]: false };
+            }
+            return openOnlySection(sectionKey);
+        });
     };
 
     const navigateAdmin = (path) => {
@@ -174,6 +200,7 @@ export default function AdminHub() {
         if (path.includes('/admin/site-owners')) return 'site-owners';
         if (path.includes('/admin/backups')) return 'backups';
         if (path.includes('/admin/org-chart')) return 'org-chart';
+        if (path.includes('/admin/gantt')) return 'gantt';
         if (path.includes('/admin/outstanding')) return 'outstanding';
         if (path.includes('/admin/countdown')) return 'countdown';
         if (path.includes('/admin/news')) return 'news';
@@ -188,8 +215,18 @@ export default function AdminHub() {
     };
 
     const activeTab = getActiveTab();
+    const activeSectionKey = ADMIN_SECTION_BY_TAB[activeTab];
 
     const jumpToThemeTab = location.state?.jumpToThemeTab;
+
+    useEffect(() => {
+        if (!activeSectionKey) return;
+        setSectionOpen((prev) => {
+            const next = openOnlySection(activeSectionKey);
+            const unchanged = ADMIN_SECTION_KEYS.every((key) => prev[key] === next[key]);
+            return unchanged ? prev : next;
+        });
+    }, [activeSectionKey]);
 
     useEffect(() => {
         try {
@@ -198,12 +235,6 @@ export default function AdminHub() {
             // Local UI state is best-effort only.
         }
     }, [sectionOpen]);
-
-    useEffect(() => {
-        const sectionKey = ADMIN_SECTION_BY_TAB[activeTab];
-        if (!sectionKey) return;
-        setSectionOpen((prev) => (prev[sectionKey] ? prev : { ...prev, [sectionKey]: true }));
-    }, [activeTab]);
 
     useEffect(() => {
         if (!location.pathname.startsWith('/admin')) return;
@@ -320,15 +351,6 @@ export default function AdminHub() {
                             />
 
                             <SidebarButton
-                                icon={Users}
-                                label="עץ מבנה"
-                                isActive={activeTab === 'org-chart'}
-                                onClick={() => navigateAdmin('/admin/org-chart')}
-                                isSidebarOpen={isSidebarOpen}
-                                title="בניית עץ המבנה הארגוני"
-                            />
-
-                            <SidebarButton
                                 icon={ExternalLink}
                                 label="קישורים חיצוניים"
                                 isActive={activeTab === 'external-links'}
@@ -346,6 +368,43 @@ export default function AdminHub() {
                                 title="בחירת עד 3 ווידג׳טים שיוצגו בקרוסלה"
                             />
 
+                        </>
+                    )}
+
+                    {isSidebarOpen && (
+                        <button
+                            type="button"
+                            onClick={() => toggleSection('addons')}
+                            className="w-full flex items-center justify-between text-sm font-extrabold text-[#0f172a] dark:text-gray-200 px-4 py-2.5 mt-4 mb-1 hover:bg-gray-50 dark:hover:bg-white/[0.04] transition rounded-lg"
+                        >
+                            <span>תוספים</span>
+                            <ChevronLeft
+                                size={16}
+                                className={`transition-transform text-gray-900 dark:text-gray-200 ${sectionOpen.addons ? '-rotate-90' : ''}`}
+                            />
+                        </button>
+                    )}
+                    {!isSidebarOpen && <div className="my-4 border-t border-gray-300 dark:border-white/10" />}
+
+                    {(sectionOpen.addons || !isSidebarOpen) && (
+                        <>
+                            <SidebarButton
+                                icon={Users}
+                                label="עץ מבנה"
+                                isActive={activeTab === 'org-chart'}
+                                onClick={() => navigateAdmin('/admin/org-chart')}
+                                isSidebarOpen={isSidebarOpen}
+                                title="בניית עץ המבנה הארגוני"
+                            />
+
+                            <SidebarButton
+                                icon={CalendarDays}
+                                label="ניהול גאנט"
+                                isActive={activeTab === 'gantt'}
+                                onClick={() => navigateAdmin('/admin/gantt')}
+                                isSidebarOpen={isSidebarOpen}
+                                title="ניהול עמוד גאנט ציבורי"
+                            />
                         </>
                     )}
 
@@ -472,7 +531,7 @@ export default function AdminHub() {
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 flex flex-col h-full bg-gray-100 dark:bg-[#1e212b] overflow-hidden">
+            <div className="flex-1 min-w-0 flex flex-col h-full bg-gray-100 dark:bg-[#1e212b] overflow-hidden">
                 {isOnWidgetPage ? (
                     <div className="flex-1 flex gap-4 w-full min-h-0 overflow-hidden px-4 py-4">
                         <div className="flex-1 min-w-0 overflow-y-auto custom-scrollbar">
@@ -488,6 +547,7 @@ export default function AdminHub() {
                                 <Route path="/site-owners" element={<div className="w-full h-full"><AdminSiteOwnersManagement /></div>} />
                                 <Route path="/backups" element={<div className="w-full h-full"><AdminBackupManagement /></div>} />
                                 <Route path="/org-chart" element={<div className="w-full h-full"><AdminOrgChart /></div>} />
+                                <Route path="/gantt" element={<div className="w-full h-full"><AdminGantt /></div>} />
                                 <Route path="/external-links" element={<div className="w-full h-full"><AdminExternalLinks /></div>} />
                                 <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />
                                 <Route path="/countdown" element={<div className="w-full h-full"><AdminCountdown /></div>} />
@@ -509,7 +569,7 @@ export default function AdminHub() {
                         </aside>
                     </div>
                 ) : (
-                    <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
+                    <div className="flex-1 min-w-0 overflow-y-auto w-full custom-scrollbar">
                         <Routes>
                             <Route path="/" element={<div className="w-full h-full"><AdminSiteContent /></div>} />
                             <Route path="/links" element={<div className="w-full h-full p-8 max-w-8xl mx-auto"><AdminNavigation /></div>} />
@@ -522,6 +582,7 @@ export default function AdminHub() {
                             <Route path="/site-owners" element={<div className="w-full h-full"><AdminSiteOwnersManagement /></div>} />
                             <Route path="/backups" element={<div className="w-full h-full"><AdminBackupManagement /></div>} />
                             <Route path="/org-chart" element={<div className="w-full h-full"><AdminOrgChart /></div>} />
+                            <Route path="/gantt" element={<div className="w-full h-full"><AdminGantt /></div>} />
                             <Route path="/external-links" element={<div className="w-full h-full"><AdminExternalLinks /></div>} />
                             <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />
                             <Route path="/countdown" element={<div className="w-full h-full"><AdminCountdown /></div>} />

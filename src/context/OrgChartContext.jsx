@@ -2,6 +2,7 @@
 import React, { createContext, useCallback, useContext, useMemo } from 'react';
 import { DEFAULT_CONFIG_V1 } from '../config/AppSchema';
 import { useConfig } from './ConfigProvider';
+import { spLog } from '../utils/spAppLog';
 
 const OrgChartContext = createContext(null);
 const DEFAULT_ORG_CHART = DEFAULT_CONFIG_V1.content.orgChart;
@@ -49,6 +50,20 @@ function normalizeNodePositions(nodePositionsLike) {
     });
 
     return normalized;
+}
+
+function normalizeOrgNodes(nodes, prefix = 'org-node') {
+    return (Array.isArray(nodes) ? nodes : [])
+        .filter((node) => node && typeof node === 'object' && !Array.isArray(node))
+        .map((node, index) => ({
+            id: typeof node.id === 'string' && node.id.trim() ? node.id.trim() : `${prefix}-${index + 1}`,
+            name: typeof node.name === 'string' ? node.name : '',
+            rank: typeof node.rank === 'string' ? node.rank : '',
+            role: typeof node.role === 'string' ? node.role : '',
+            personalNumber: typeof node.personalNumber === 'string' ? node.personalNumber.trim().toUpperCase() : '',
+            imageUrl: typeof node.imageUrl === 'string' ? node.imageUrl : (typeof node.image === 'string' ? node.image : ''),
+            children: normalizeOrgNodes(node.children, typeof node.id === 'string' && node.id.trim() ? node.id.trim() : `${prefix}-${index + 1}`),
+        }));
 }
 
 function normalizeFlowCanvas(flowCanvasLike, fallback = DEFAULT_ORG_CHART.flowCanvas) {
@@ -198,7 +213,7 @@ function normalizeOrgChartInput(orgChartLike, fallback = DEFAULT_ORG_CHART) {
         graph3d,
         flowCanvas: normalizeFlowCanvas(source.flowCanvas, fallback?.flowCanvas),
         nodePositions: normalizeNodePositions(source.nodePositions),
-        nodes: Array.isArray(source.nodes) ? source.nodes : fallback.nodes,
+        nodes: normalizeOrgNodes(Array.isArray(source.nodes) ? source.nodes : fallback.nodes),
     };
 }
 
@@ -247,7 +262,7 @@ export const OrgChartProvider = ({ children }) => {
             await saveNow();
             return true;
         } catch (err) {
-            console.error(err);
+            spLog.error('OrgChartContext: failed to save org chart.', err);
             return false;
         }
     }, [saveNow, updateOrgChart]);
@@ -257,7 +272,7 @@ export const OrgChartProvider = ({ children }) => {
             await reload();
             return true;
         } catch (err) {
-            console.error(err);
+            spLog.error('OrgChartContext: failed to fetch org chart.', err);
             return false;
         }
     }, [reload]);

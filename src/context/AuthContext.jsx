@@ -280,7 +280,7 @@ const readStoredUser = () => {
         try {
             return normalizeCurrentUser(JSON.parse(rawIdentity));
         } catch {
-            console.warn('Invalid tracker_user_identity JSON in sessionStorage, falling back to tracker_user_name');
+            spLog.warn('Invalid tracker_user_identity JSON in sessionStorage, falling back to tracker_user_name');
         }
     }
 

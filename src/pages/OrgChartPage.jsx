@@ -3,6 +3,7 @@ import { ArrowRight, Users } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import OrgChartFlow from '../components/OrgChartFlow';
 import OrgChart3D from '../components/OrgChart3D';
+import OrgChartMailLink from '../components/OrgChartMailLink';
 import NavigationBar from '../components/home/NavigationBar';
 import { useAuth } from '../context/AuthContext';
 import { useConfig } from '../context/ConfigProvider';
@@ -10,6 +11,7 @@ import { useSiteContent } from '../context/SiteContentContext';
 import { useTheme } from '../context/ThemeContext';
 import { resolveSiteImageUrl } from '../utils/assetUrl';
 import { normalizeBorderStyle } from '../utils/borderStyles';
+import { personalNumberToArmyMailto } from '../utils/personalNumber';
 
 const LINE_STYLE_CLASS_MAP = {
     solid: 'border-solid',
@@ -77,7 +79,16 @@ function NodePortrait({ node, size = 'md', avatarShape = 'circle' }) {
 function NodeCard({ node, cardStyle, avatarShape }) {
     const title = buildDisplayName(node);
     const subtitle = buildSubtitle(node);
+    const mailto = personalNumberToArmyMailto(node?.personalNumber);
     const baseCardClass = 'group relative isolate max-w-full border border-theme-strong bg-theme-card/80 text-theme backdrop-blur-xl shadow-[0_14px_38px_rgba(15,23,42,0.18)] transition duration-300 hover:-translate-y-1 hover:border-primary/35 hover:shadow-[0_22px_54px_rgba(15,23,42,0.24)]';
+    const mailAction = (
+        <OrgChartMailLink
+            href={mailto}
+            label={title}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary transition hover:bg-primary/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            iconSize={14}
+        />
+    );
 
     if (cardStyle === 'horizontal') {
         return (
@@ -86,7 +97,10 @@ function NodeCard({ node, cardStyle, avatarShape }) {
                 <div className="flex items-center gap-4 text-right">
                     <NodePortrait node={node} size="md" avatarShape={avatarShape} />
                     <div className="min-w-0 flex-1">
-                        <h3 className="truncate text-base font-black">{title}</h3>
+                        <div className="flex min-w-0 items-center gap-2">
+                            <h3 className="min-w-0 flex-1 truncate text-base font-black">{title}</h3>
+                            {mailAction}
+                        </div>
                         <p className="mt-1 text-sm leading-6 text-theme-muted">{subtitle}</p>
                     </div>
                 </div>
@@ -101,7 +115,10 @@ function NodeCard({ node, cardStyle, avatarShape }) {
                 <div className="flex flex-col items-center gap-5">
                     <NodePortrait node={node} size="lg" avatarShape={avatarShape} />
                     <div className="space-y-1">
-                        <h3 className="break-words text-lg font-black leading-6">{title}</h3>
+                        <div className="flex max-w-full min-w-0 items-center justify-center gap-2">
+                            <h3 className="min-w-0 break-words text-lg font-black leading-6">{title}</h3>
+                            {mailAction}
+                        </div>
                         <p className="text-sm leading-6 text-theme-muted">{subtitle}</p>
                     </div>
                 </div>
@@ -116,7 +133,10 @@ function NodeCard({ node, cardStyle, avatarShape }) {
                 <div className="flex items-center gap-3 text-right">
                     <NodePortrait node={node} size="sm" avatarShape={avatarShape} />
                     <div className="min-w-0 flex-1">
-                        <h3 className="truncate text-sm font-black">{title}</h3>
+                        <div className="flex min-w-0 items-center gap-2">
+                            <h3 className="min-w-0 flex-1 truncate text-sm font-black">{title}</h3>
+                            {mailAction}
+                        </div>
                         <p className="truncate text-xs text-theme-muted">{subtitle}</p>
                     </div>
                 </div>
@@ -130,7 +150,10 @@ function NodeCard({ node, cardStyle, avatarShape }) {
             <div className="flex flex-col items-center gap-4">
                 <NodePortrait node={node} size="md" avatarShape={avatarShape} />
                 <div className="space-y-1">
-                    <h3 className="break-words text-lg font-black leading-6">{title}</h3>
+                    <div className="flex max-w-full min-w-0 items-center justify-center gap-2">
+                        <h3 className="min-w-0 break-words text-lg font-black leading-6">{title}</h3>
+                        {mailAction}
+                    </div>
                     <p className="text-sm leading-6 text-theme-muted">{subtitle}</p>
                 </div>
             </div>

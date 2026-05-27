@@ -73,7 +73,7 @@ const parseBooleanEnv = (value: unknown, fallback: boolean) => {
 };
 
 const isConsoleLoggingEnabled = () =>
-  parseBooleanEnv(env.VITE_SP_LIBRARY_PROVISIONING_LOGS ?? env.VITE_SP_VERBOSE_LOG, true);
+  parseBooleanEnv(env.VITE_SP_LIBRARY_PROVISIONING_LOGS ?? env.VITE_SP_VERBOSE_LOG, false);
 
 const recordLog = (
   logs: SharePointLibrarySetupLogEntry[],

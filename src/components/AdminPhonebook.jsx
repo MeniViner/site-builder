@@ -3,6 +3,7 @@ import { BookUser, Plus, Trash2, Pencil, X, Check, User, Phone, Hash, AlertTrian
 import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
 import Tooltip from './Tooltip';
 import { useConfig } from '../context/ConfigProvider';
+import { spLog } from '../utils/spAppLog';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 
 const inputCls = 'w-full bg-theme-elevated border border-theme-subtle rounded-lg px-4 py-2.5 text-sm text-theme placeholder-theme-muted focus:outline-none focus:ring-2 focus:ring-violet-500/40 transition';
@@ -49,7 +50,7 @@ export default function AdminPhonebook() {
                 await saveNow();
                 lastSavedRef.current = JSON.stringify(list);
             } catch (saveError) {
-                console.error(saveError);
+                spLog.error('AdminPhonebook: failed to save phonebook.', saveError);
                 setSaveMessage({ type: 'error', text: 'שגיאה בשמירה. אנא נסה שוב.' });
             } finally {
                 setIsSaving(false);

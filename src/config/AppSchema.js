@@ -1,5 +1,7 @@
 // src/config/AppSchema.js
 import { DEFAULT_BORDER_TARGETS } from '../utils/borderStyles';
+import { normalizeEventColor } from '../utils/colorValidation';
+import { normalizeSmartTextTokens } from '../utils/smartText';
 import { DEFAULT_ACTIVE_WIDGETS } from '../utils/widgetDisplay';
 
 const SCHEMA_VERSION = '1.0.0';
@@ -26,7 +28,6 @@ const VALID_FLOW_CONTROL_ORIENTATION = ['vertical', 'horizontal'];
 const VALID_FLOW_VIEWPORT_MODES = ['map', 'design'];
 const VALID_FLOW_NODE_VISUAL_STYLES = ['command', 'clean', 'minimal'];
 const VALID_FLOW_AUTO_LAYOUT_DIRECTIONS = ['center', 'rtl', 'ltr'];
-const VALID_EVENT_COLORS = ['gray', 'red'];
 const VALID_OVERLAY_OBJECT_FIT = ['contain', 'cover'];
 const VALID_OVERLAY_POSITION_MODES = ['fixed', 'absolute'];
 const VALID_OVERLAY_DISPLAY_AREAS = ['fixed-site', 'hero-full', 'hero-content'];
@@ -173,6 +174,20 @@ function asStringArray(value) {
     return Array.isArray(value) ? value.filter((item) => typeof item === 'string') : [];
 }
 
+function normalizeStringMap(value) {
+    const source = isObject(value) ? value : {};
+    const normalized = {};
+
+    Object.entries(source).forEach(([key, entryValue]) => {
+        const normalizedKey = typeof key === 'string' ? key.trim() : '';
+        if (!normalizedKey || typeof entryValue !== 'string') return;
+        const normalizedValue = entryValue.trim();
+        if (normalizedValue) normalized[normalizedKey] = normalizedValue;
+    });
+
+    return normalized;
+}
+
 function normalizeActiveWidgets(value) {
     const input = Array.isArray(value) ? value : (typeof value === 'string' ? [value] : []);
     const seen = new Set();
@@ -223,6 +238,7 @@ function normalizeOrgNode(node, index, prefix = 'org-node') {
         name: asString(source.name, ''),
         rank: asString(source.rank, ''),
         role: asString(source.role, ''),
+        personalNumber: asString(source.personalNumber, ''),
         imageUrl: asString(source.imageUrl, asString(source.image, '')),
         children: normalizeOrgNodes(source.children, id),
     };
@@ -423,13 +439,20 @@ function normalizeEventItems(items) {
     const source = Array.isArray(items) ? items : [];
     return source
         .filter(isObject)
-        .map((item, index) => ({
-            id: asId(item.id, String(index + 1)),
-            date: asString(item.date, ''),
-            title: asString(item.title, ''),
-            subtitle: asString(item.subtitle, ''),
-            color: asEnum(item.color, VALID_EVENT_COLORS, 'gray'),
-        }));
+        .map((item, index) => {
+            const linkLabels = normalizeStringMap(item.linkLabels);
+            const subtitleRichText = normalizeSmartTextTokens(item.subtitleRichText, linkLabels);
+            const normalized = {
+                id: asId(item.id, String(index + 1)),
+                date: asString(item.date, ''),
+                title: asString(item.title, ''),
+                subtitle: asString(item.subtitle, ''),
+                linkLabels,
+                color: normalizeEventColor(item.color, 'gray'),
+            };
+            if (subtitleRichText.length) normalized.subtitleRichText = subtitleRichText;
+            return normalized;
+        });
 }
 
 function normalizeEventsBranch(eventsLike) {

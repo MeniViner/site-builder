@@ -18,6 +18,7 @@ export const SHAREPOINT_CONFIG = {
     themeMockStorageKey: 'bihs_theme_data',
     widgetsMockStorageKey: 'bihs_widgets_data',
     externalLinksMockStorageKey: 'bihs_external_links_data',
+    ganttMockStorageKey: 'bihs_gantt_data',
 
     // SharePoint file URLs (production mode)
     fileServerRelativeUrl: import.meta.env.VITE_SP_EVENTS_FILE_URL || SHAREPOINT_PATHS.eventsFileServerRelativeUrl,
@@ -27,4 +28,5 @@ export const SHAREPOINT_CONFIG = {
     themeFileServerRelativeUrl: import.meta.env.VITE_SP_THEME_FILE_URL || SHAREPOINT_PATHS.themeFileServerRelativeUrl,
     widgetsFileServerRelativeUrl: import.meta.env.VITE_SP_WIDGETS_FILE_URL || SHAREPOINT_PATHS.widgetsFileServerRelativeUrl,
     externalLinksFileServerRelativeUrl: import.meta.env.VITE_SP_EXTERNAL_LINKS_FILE_URL || SHAREPOINT_PATHS.externalLinksFileServerRelativeUrl,
+    ganttFileServerRelativeUrl: import.meta.env.VITE_SP_GANTT_FILE_URL || SHAREPOINT_PATHS.ganttFileServerRelativeUrl,
 };

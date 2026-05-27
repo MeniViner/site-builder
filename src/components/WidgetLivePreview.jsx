@@ -47,11 +47,11 @@ export default function WidgetLivePreview({
     };
 
     return (
-        <div className={`flex flex-col items-center w-full ${fillHeight ? 'h-full max-w-none' : 'max-w-[400px] mx-auto'}`}>
+        <div className={`flex min-w-0 max-w-full flex-col items-center overflow-hidden w-full ${fillHeight ? 'h-full' : 'max-w-[400px] mx-auto'}`}>
             {/* The Screen Bezel */}
             <div
                 ref={containerRef}
-                className={`w-full rounded-2xl border-[6px] lg:border-[8px] border-[#1e212b] shadow-2xl relative overflow-hidden bg-gray-50 dark:bg-[#1e212b] ${fillHeight ? 'flex-1 min-h-0' : ''}`}
+                className={`w-full max-w-full rounded-2xl border-[6px] lg:border-[8px] border-[#1e212b] shadow-2xl relative overflow-hidden bg-gray-50 dark:bg-[#1e212b] ${fillHeight ? 'flex-1 min-h-0' : ''}`}
                 style={fillHeight ? undefined : { aspectRatio: '4 / 5' }}
             >
                 {/* The Virtual Desktop anchored to the bottom left */}

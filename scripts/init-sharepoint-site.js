@@ -28,6 +28,7 @@ const fileMap = {
   theme: normalizeServerRelative(siteAssetsRel, 'theme_data.txt'),
   widgets: widgetsFileRel,
   externalLinks: normalizeServerRelative(siteAssetsRel, 'external_links_data.txt'),
+  gantt: normalizeServerRelative(siteAssetsRel, 'gantt_data.txt'),
 };
 
 const defaultFiles = [
@@ -39,6 +40,7 @@ const defaultFiles = [
   { key: 'theme', content: JSON.stringify({}, null, 2) },
   { key: 'widgets', content: JSON.stringify({}, null, 2) },
   { key: 'externalLinks', content: JSON.stringify([], null, 2) },
+  { key: 'gantt', content: JSON.stringify({ enabled: false, buttonLabel: 'גאנט עבודה', pageTitle: 'גאנט עבודה', description: '', groupBy: 'category', defaultView: 'month', showLegend: true, showToday: true, categories: [], items: [] }, null, 2) },
 ];
 
 const checkLibrary = (title, rel) => {

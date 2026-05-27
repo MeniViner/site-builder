@@ -5,10 +5,12 @@ import { NavigationProvider } from '../context/NavigationContext';
 import { EventsProvider } from '../context/EventsContext';
 import { SiteContentProvider } from '../context/SiteContentContext';
 import { OrgChartProvider } from '../context/OrgChartContext';
+import { GanttContext } from '../context/GanttContext';
 import { ThemeContext, applyThemeToElement } from '../context/ThemeContext';
 import { WidgetContext } from '../context/WidgetContext';
 import { ExternalLinksProvider } from '../context/ExternalLinksContext';
 import { DEFAULT_ACTIVE_WIDGETS, mergeWidgetSettings } from '../utils/widgetDisplay';
+import { DEFAULT_GANTT_DATA, normalizeGanttData } from '../utils/ganttData';
 import { validateAndNormalize } from '../config/AppSchema';
 
 const DESKTOP_WIDTH = 1440;
@@ -150,6 +152,15 @@ function BackupPreviewProviders({ config, children }) {
         [normalizedConfig.theme?.borderTargets],
     );
     const widgetConfig = useMemo(() => toPreviewWidgetConfig(normalizedConfig.widgets), [normalizedConfig.widgets]);
+    const ganttContextValue = useMemo(() => ({
+        gantt: normalizeGanttData(DEFAULT_GANTT_DATA),
+        loading: false,
+        saving: false,
+        error: null,
+        updateGantt: noop,
+        saveGantt: noopAsync,
+        reloadGantt: noopAsync,
+    }), []);
 
     const configContextValue = useMemo(() => ({
         config: normalizedConfig,
@@ -193,13 +204,15 @@ function BackupPreviewProviders({ config, children }) {
                 <EventsProvider>
                     <SiteContentProvider>
                         <OrgChartProvider>
-                            <ExternalLinksProvider>
-                                <ThemeContext.Provider value={themeContextValue}>
-                                    <WidgetContext.Provider value={widgetContextValue}>
-                                        {children}
-                                    </WidgetContext.Provider>
-                                </ThemeContext.Provider>
-                            </ExternalLinksProvider>
+                            <GanttContext.Provider value={ganttContextValue}>
+                                <ExternalLinksProvider>
+                                    <ThemeContext.Provider value={themeContextValue}>
+                                        <WidgetContext.Provider value={widgetContextValue}>
+                                            {children}
+                                        </WidgetContext.Provider>
+                                    </ThemeContext.Provider>
+                                </ExternalLinksProvider>
+                            </GanttContext.Provider>
                         </OrgChartProvider>
                     </SiteContentProvider>
                 </EventsProvider>

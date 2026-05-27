@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { resolveCurrentSharePointWebUrl } from '../utils/resolveCurrentSharePointWebUrl';
+import { useAuth } from '../context/AuthContext';
+import { spBootstrapLog } from '../utils/spAppLog';
 
 const ODATA_ACCEPT = 'application/json;odata=verbose';
 const ODATA_CONTENT = 'application/json;odata=verbose';
@@ -51,6 +53,7 @@ const badgeClass = (s) => {
 };
 
 export default function AdminSharePointSetupPage() {
+  const { isAdmin, loading: authLoading } = useAuth();
   const [status, setStatus] = useState('idle');
   const [logs, setLogs] = useState([]);
   const [showLogs, setShowLogs] = useState(false);
@@ -92,9 +95,11 @@ export default function AdminSharePointSetupPage() {
     };
   }, []);
 
+  const buildInitialMasterConfig = () => ({ schemaVersion: '1.0.0' });
+
   const addLog = (msg, prefix = 'sharepoint-browser-setup') => {
     const line = `[${prefix}] ${msg}`;
-    console.log(line);
+    spBootstrapLog.info(line);
     setLogs((prev) => [...prev, line]);
   };
   const addRunSeparator = () => addLog(`--- run ${new Date().toISOString()} ---`);
@@ -396,12 +401,6 @@ export default function AdminSharePointSetupPage() {
     return { files: normalized, jsAssets, cssAssets };
   };
 
-  const loadManifest = async () => {
-    setLatestStep('טעינת manifest');
-    const webUrl = resolveCurrentSharePointWebUrl();
-    return preflightSource(webUrl);
-  };
-
   const copyFromBootstrapToFinal = async (webUrl, digest) => {
     setState((p) => ({ ...p, copyFiles: 'copying' }));
     setLatestStep('העתקת קבצי האתר');
@@ -488,13 +487,14 @@ export default function AdminSharePointSetupPage() {
       await ensureFolder(webUrl, `${cfg.siteDbRoot}/images`, digest, 'images');
       await refreshSetupStatus();
 
-      await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/bihs_master_config_v1.txt`, JSON.stringify({ schemaVersion: '1.0.0' }, null, 2), digest);
+      await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/bihs_master_config_v1.txt`, JSON.stringify(buildInitialMasterConfig(), null, 2), digest);
       await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/users_data.txt`, JSON.stringify([], null, 2), digest);
       await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/events_data.txt`, JSON.stringify({ displayCount: 3, displayMode: 'default', events: [] }, null, 2), digest);
       await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/nav_data.txt`, JSON.stringify([], null, 2), digest);
       await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/site_content_data.txt`, JSON.stringify({}, null, 2), digest);
       await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/theme_data.txt`, JSON.stringify({}, null, 2), digest);
       await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/external_links_data.txt`, JSON.stringify([], null, 2), digest);
+      await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/gantt_data.txt`, JSON.stringify({ enabled: false, buttonLabel: 'גאנט עבודה', pageTitle: 'גאנט עבודה', description: '', groupBy: 'category', defaultView: 'month', showLegend: true, showToday: true, categories: [], items: [] }, null, 2), digest);
       await ensureTextFileIfMissing(webUrl, `${cfg.usersDbRoot}/widgets_data.txt`, JSON.stringify({}, null, 2), digest);
       await refreshSetupStatus();
 
@@ -516,8 +516,9 @@ export default function AdminSharePointSetupPage() {
   };
 
   useEffect(() => {
+    if (authLoading || !isAdmin) return;
     refreshSetupStatus().catch((error) => addLog(`status refresh failed: ${error.message}`));
-  }, []);
+  }, [authLoading, isAdmin]);
 
   const copyLogs = async () => {
     try { await navigator.clipboard.writeText(logs.join('\n')); addLog('logs copied'); } catch { addLog('logs copy failed'); }
@@ -534,6 +535,22 @@ export default function AdminSharePointSetupPage() {
     ['קבצי TXT', state.txtFiles],
     ['העתקת קבצי האתר', state.copyFiles],
   ];
+
+  if (authLoading) {
+    return (
+      <div dir="rtl" className="min-h-screen bg-slate-100 text-slate-900 p-8 font-heebo">
+        טוען הרשאות...
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div dir="rtl" className="min-h-screen bg-slate-100 text-slate-900 p-8 font-heebo">
+        אין הרשאה לפתיחת מסך הקמת SharePoint.
+      </div>
+    );
+  }
 
   return (
     <div dir="rtl" className="min-h-screen bg-slate-100 text-slate-900 p-4 md:p-8 font-heebo">

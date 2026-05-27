@@ -1,5 +1,6 @@
 import React, { createContext, useMemo, useContext, useCallback } from 'react';
 import { useConfig } from './ConfigProvider';
+import { spLog } from '../utils/spAppLog';
 
 export const SiteContentContext = createContext();
 
@@ -241,7 +242,7 @@ export const SiteContentProvider = ({ children }) => {
                 await saveNow();
                 return true;
             } catch (err) {
-                console.error(err);
+                spLog.error('SiteContentContext: failed to save site content.', err);
                 return false;
             }
         },
