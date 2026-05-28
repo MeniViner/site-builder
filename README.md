@@ -46,11 +46,29 @@
 - `npm run server:test`  
   מריץ את בדיקות שכבת השרת.
 
+- `npm run dev:mongo:up`  
+  מעלה MongoDB מקומי דרך Docker Compose בלבד.
+
+- `npm run dev:mongo:check`  
+  מריץ בדיקת preflight ל-Docker, Mongo, קבצי env, CORS ו-API key.
+
+- `npm run server:dev:mongo`  
+  מריץ את השרת עם `server/.env.local`.
+
+- `npm run dev:frontend:mongo`  
+  מריץ את ה-Frontend עם `.env.local` במצב Mongo.
+
+- `npm run dev:mongo:reset -- --confirm-local-reset`  
+  מאפס רק את מסדי הנתונים המקומיים `site_builder_dev` ו-`site_builder_test`.
+
 - `npm run migrate:sharepoint-to-mongo -- --dry-run`  
   מבצע סימולציית מיגרציה מ-TXT/SharePoint ל-MongoDB ומייצר דוח.
 
 - `npm run sharepoint:closed-validate -- --input sharepoint-export-input --site <siteCode>`  
   מאמת תיקיית TXT שהורדה ידנית מ-SharePoint סגור ויוצר artifact מקומי למיגרציית Mongo dry-run.
+
+- `npm run sharepoint:install-export-helper -- --site <siteCode> --dry-run`  
+  מציג נתיב ו-URL להתקנת דף עזר לקריאת TXT מתוך SharePoint, בלי לגעת בקבצי הנתונים.
 
 - `npm run sharepoint:closed-validate -- --input sharepoint-export-input --all-sites`  
   מאמת תיקיית export שמכילה תתי-תיקיות נפרדות לכמה אתרים, ויוצר artifact batch עם בידוד לפי אתר ובדיקת collision לשמות collections.
@@ -78,6 +96,10 @@
 ## MongoDB persistence backend
 
 הפרויקט כולל שרת backend חדש תחת `server/` שמחליף כתיבה ישירה לקבצי TXT ב-SharePoint.
+
+להקמת סביבת Mongo מקומית עם Docker Compose, קבצי env, בדיקות והרצה:
+
+- `docs/LOCAL_MONGO_DEV.md`
 
 משתני סביבה נדרשים לשרת:
 

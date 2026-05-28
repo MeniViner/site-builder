@@ -9,6 +9,61 @@ For a concrete two-site example with fake local TXT files, see `MULTI_SITE_EXAMP
 scripts/sharepoint-closed-export/examples/sharepoint-export-input/
 ```
 
+## SharePoint-Hosted Export Helper
+
+Use this when you are inside the closed environment and have the SharePoint WebDAV path available, the same way `site:init` works.
+
+The installer writes only these helper files:
+
+```text
+/sites/<siteCode>/siteDB/siteAssets/export-helper/index.html
+/sites/<siteCode>/siteDB/siteAssets/export-helper/export-helper.js
+```
+
+It does not write, initialize, reset, delete, or overwrite legacy TXT data.
+
+Dry-run first:
+
+```bash
+npm run sharepoint:install-export-helper -- --site <siteCode> --dry-run
+```
+
+Install or update the helper page:
+
+```bash
+npm run sharepoint:install-export-helper -- --site <siteCode>
+```
+
+For a subsite path, pass the SharePoint-style path:
+
+```bash
+npm run sharepoint:install-export-helper -- --site Sites/siteName/subsite --dry-run
+```
+
+The script prints the exact URL to open, for example:
+
+```text
+https://portal.army.idf/sites/siteName/subsite/siteDB/siteAssets/export-helper/index.html
+```
+
+Open that URL in the authenticated SharePoint browser session, click `בדוק סטטוס קבצים`, then click `Download all site data`.
+
+The browser downloads one JSON artifact containing manifest metadata, a report, raw TXT contents, and normalized legacy objects. Validate it locally:
+
+```bash
+npm run sharepoint:closed-validate -- --browser-export ~/Downloads/site-builder-sharepoint-hosted-export-<timestamp>.json
+```
+
+The artifact includes the real `siteCode`, so `--site` is optional for hosted helper downloads. You can still pass `--site <siteCode>` to override.
+
+For multiple sites, install one helper per site:
+
+```bash
+npm run sharepoint:install-export-helper -- --all-sites --sites-config scripts/sharepoint-closed-export/install.sites.example.json --dry-run
+```
+
+The helper page exports one site at a time. After downloading artifacts from multiple sites, validate each artifact or copy the raw TXT files into the batch folder layout described below.
+
 ## What This Exports
 
 The current legacy Site Builder TXT files are:

@@ -28,6 +28,14 @@ export function getBackendApiBaseUrl() {
     return String(import.meta.env.VITE_BACKEND_API_URL || '').trim().replace(/\/+$/g, '');
 }
 
+export function requireBackendApiBaseUrl() {
+    const baseUrl = getBackendApiBaseUrl();
+    if (isMongoStorageBackend() && !baseUrl) {
+        throw new Error('VITE_BACKEND_API_URL is required when VITE_STORAGE_BACKEND=mongo. Refusing to call a relative /api URL.');
+    }
+    return baseUrl;
+}
+
 export function getSiteId() {
     return String(
         import.meta.env.VITE_SITE_ID

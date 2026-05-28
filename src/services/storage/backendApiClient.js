@@ -1,4 +1,4 @@
-import { getBackendApiBaseUrl } from './storageBackend';
+import { requireBackendApiBaseUrl } from './storageBackend';
 
 export class BackendStorageError extends Error {
     constructor(message, { status = 0, code = 'backend_error', details = null } = {}) {
@@ -19,7 +19,15 @@ const apiKey = () => String(
 
 class BackendApiClient {
     async request(path, options = {}) {
-        const baseUrl = getBackendApiBaseUrl();
+        let baseUrl;
+        try {
+            baseUrl = requireBackendApiBaseUrl();
+        } catch (error) {
+            throw new BackendStorageError(error.message, {
+                status: 0,
+                code: 'missing_backend_url',
+            });
+        }
         const url = `${baseUrl}${path}`;
         const headers = {
             Accept: 'application/json',

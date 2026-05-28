@@ -443,32 +443,38 @@ export async function createClosedSharePointExportArtifact({
   createdAt = new Date().toISOString(),
   exportId = '',
 } = {}) {
-  const siteCode = String(config.siteCode || 'siteBuilder').trim() || 'siteBuilder';
-  const siteSlug = String(config.siteSlug || siteCode).trim() || siteCode;
-  const displayName = String(config.displayName || siteCode).trim() || siteCode;
-  const safeSiteFolder = String(config.safeSiteFolder || sanitizeLocalFolderName(siteCode)).trim();
-  const targetMongoCollectionName = targetMongoCollectionNameForSite({
-    siteCode,
-    siteSlug,
-    collectionPrefix: config.siteCollectionPrefix || config.collectionPrefix || '',
-  });
-  const resolvedExportId = exportId || toExportId(createdAt, siteCode);
-  const exportDir = path.join(outputRoot, resolvedExportId);
-  const filePlan = buildLegacyFilePlan(config);
-  await ensureCleanOutputDirectories(exportDir);
-
+  const effectiveConfig = { ...config };
   let browserFilesByName = new Map();
   if (browserExportPath) {
     const rawBrowserExport = await fs.readFile(browserExportPath, 'utf8');
     const parsedBrowserExport = JSON.parse(rawBrowserExport);
+    if (!effectiveConfig.siteCode && parsedBrowserExport.siteCode) effectiveConfig.siteCode = parsedBrowserExport.siteCode;
+    if (!effectiveConfig.displayName && parsedBrowserExport.displayName) effectiveConfig.displayName = parsedBrowserExport.displayName;
+    if (!effectiveConfig.siteRelativePath && parsedBrowserExport.siteRelativePath) {
+      effectiveConfig.siteRelativePath = parsedBrowserExport.siteRelativePath;
+    }
     browserFilesByName = new Map((parsedBrowserExport.files || []).map((file) => [file.fileName, file]));
     sourceMode = 'browser-helper';
   }
 
+  const siteCode = String(effectiveConfig.siteCode || 'siteBuilder').trim() || 'siteBuilder';
+  const siteSlug = String(effectiveConfig.siteSlug || siteCode).trim() || siteCode;
+  const displayName = String(effectiveConfig.displayName || siteCode).trim() || siteCode;
+  const safeSiteFolder = String(effectiveConfig.safeSiteFolder || sanitizeLocalFolderName(siteCode)).trim();
+  const targetMongoCollectionName = targetMongoCollectionNameForSite({
+    siteCode,
+    siteSlug,
+    collectionPrefix: effectiveConfig.siteCollectionPrefix || effectiveConfig.collectionPrefix || '',
+  });
+  const resolvedExportId = exportId || toExportId(createdAt, siteCode);
+  const exportDir = path.join(outputRoot, resolvedExportId);
+  const filePlan = buildLegacyFilePlan(effectiveConfig);
+  await ensureCleanOutputDirectories(exportDir);
+
   const files = [];
   const objects = [];
-  const warnings = Array.isArray(config.preflightWarnings) ? [...config.preflightWarnings] : [];
-  const errors = Array.isArray(config.preflightErrors) ? [...config.preflightErrors] : [];
+  const warnings = Array.isArray(effectiveConfig.preflightWarnings) ? [...effectiveConfig.preflightWarnings] : [];
+  const errors = Array.isArray(effectiveConfig.preflightErrors) ? [...effectiveConfig.preflightErrors] : [];
 
   for (const mapping of filePlan) {
     const browserFile = browserFilesByName.get(mapping.fileName);
@@ -564,7 +570,7 @@ export async function createClosedSharePointExportArtifact({
     siteCode,
     siteSlug,
     displayName,
-    siteRelativePath: normalizeSharePointServerRelativePath(config.siteRelativePath || (siteCode ? `/sites/${siteCode}` : '')),
+    siteRelativePath: normalizeSharePointServerRelativePath(effectiveConfig.siteRelativePath || (siteCode ? `/sites/${siteCode}` : '')),
     safeSiteFolder,
     targetMongoCollectionName,
     status,

@@ -1,8 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
-import { BackendStorageError } from './backendApiClient';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import backendApiClient, { BackendStorageError } from './backendApiClient';
 import { LegacyObjectStorageAdapter, toUserFacingStorageError } from './LegacyObjectStorageAdapter';
 
 describe('LegacyObjectStorageAdapter', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+        vi.unstubAllGlobals();
+    });
+
     it('loads through the backend and saves with optimistic version', async () => {
         const client = {
             readLegacyObject: vi.fn().mockResolvedValue({ data: { title: 'Site' }, version: 4, hash: 'abc' }),
@@ -35,5 +40,17 @@ describe('LegacyObjectStorageAdapter', () => {
     it('shows conflict responses clearly', () => {
         const error = new BackendStorageError('Version conflict', { status: 409, code: 'conflict' });
         expect(toUserFacingStorageError(error).message).toContain('הנתונים השתנו');
+    });
+
+    it('fails closed when Mongo frontend mode is missing VITE_BACKEND_API_URL', async () => {
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+        vi.stubEnv('VITE_STORAGE_BACKEND', 'mongo');
+        vi.stubEnv('VITE_BACKEND_API_URL', '');
+
+        await expect(backendApiClient.request('/api/healthz')).rejects.toMatchObject({
+            code: 'missing_backend_url',
+        });
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 });

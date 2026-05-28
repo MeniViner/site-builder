@@ -1,0 +1,31 @@
+name: site-builder-dev
+
+services:
+  mongo:
+    image: mongodb/mongodb-community-server:7.0-ubuntu2204
+    container_name: site-builder-mongo-dev
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - site-builder-mongo-dev-data:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval \"db.adminCommand({ ping: 1 }).ok\" | grep 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  mongo-rs-init:
+    image: mongodb/mongodb-community-server:7.0-ubuntu2204
+    container_name: site-builder-mongo-rs-init
+    depends_on:
+      mongo:
+        condition: service_healthy
+    volumes:
+      - ./scripts/dev/mongo-init-rs.js:/scripts/mongo-init-rs.js:ro
+    entrypoint: ["bash", "-lc", "mongosh --host mongo --port 27017 /scripts/mongo-init-rs.js"]
+    restart: "no"
+
+volumes:
+  site-builder-mongo-dev-data:

@@ -1,0 +1,13 @@
+{
+  "sites": [
+    {
+      "siteCode": "demo-main-site",
+      "displayName": "Demo Main Site"
+    },
+    {
+      "siteCode": "Sites/demo-main-site/subsite-a",
+      "displayName": "Demo Subsite A",
+      "siteRelativePath": "/Sites/demo-main-site/subsite-a"
+    }
+  ]
+}

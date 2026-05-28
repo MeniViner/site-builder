@@ -1,10 +1,10 @@
-import { getServerConfig } from './src/config/env.js';
+import { assertServerConfig, getServerConfig } from './src/config/env.js';
 import { createMongoDb } from './src/db/mongo.js';
 import { SiteDataRepository } from './src/repository/SiteDataRepository.js';
 import { LegacyCompatibilityRepository } from './src/repository/LegacyCompatibilityRepository.js';
 import { createApp } from './src/app.js';
 
-const config = getServerConfig();
+const config = assertServerConfig(getServerConfig());
 
 async function main() {
   const { client, db } = await createMongoDb(config);
