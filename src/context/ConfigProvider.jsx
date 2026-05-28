@@ -12,6 +12,7 @@ import { DEFAULT_CONFIG_V1, validateAndNormalize } from '../config/AppSchema';
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { confirmToast } from '../utils/confirmToast';
 import { spLog } from '../utils/spAppLog';
+import { isMongoStorageBackend, isSharePointReadonlyBackend } from '../services/storage/storageBackend';
 
 const STATUS = {
     LOADING: 'loading',
@@ -204,6 +205,7 @@ export const ConfigProvider = ({ children }) => {
     const requestIdRef = useRef(0);
     const configRef = useRef(normalizeConfigSafely(DEFAULT_CONFIG_V1));
     const bootstrapAttemptedRef = useRef(false);
+    const loadFailedRef = useRef(false);
 
     useEffect(() => {
         configRef.current = config;
@@ -234,6 +236,7 @@ export const ConfigProvider = ({ children }) => {
 
             const loadEnvelope = await ConfigService.loadConfigEnvelope();
             resolvedConfig = normalizeConfigSafely(loadEnvelope.config);
+            loadFailedRef.current = false;
             spLog.info(`[ConfigProvider] Loaded config from adapter (${loadEnvelope.source || 'unknown'}).`);
             const loadedLooksDefault = JSON.stringify(resolvedConfig) === JSON.stringify(normalizeConfigSafely(DEFAULT_CONFIG_V1));
 
@@ -249,7 +252,7 @@ export const ConfigProvider = ({ children }) => {
 
             resolvedConfig = normalizeConfigSafely(resolvedConfig);
 
-            if (!SHAREPOINT_CONFIG.useMock && !bootstrapAttemptedRef.current) {
+            if (!SHAREPOINT_CONFIG.useMock && !isMongoStorageBackend() && !isSharePointReadonlyBackend() && !bootstrapAttemptedRef.current) {
                 bootstrapAttemptedRef.current = true;
                 try {
                     await ensureSharePointBootstrapFiles();
@@ -278,17 +281,29 @@ export const ConfigProvider = ({ children }) => {
             setError(null);
             return resolvedConfig;
         } catch (err) {
-            spLog.error('[ConfigProvider] Init failed. Falling back to defaults.', err);
-            resolvedConfig = normalizeConfigSafely(DEFAULT_CONFIG_V1);
+            const fatalLoad = ConfigService.adapter?.isLoadFailureFatal?.(err) || isMongoStorageBackend();
+            loadFailedRef.current = fatalLoad;
+            spLog.error(
+                fatalLoad
+                    ? '[ConfigProvider] Init failed. Blocking saves to avoid empty overwrite.'
+                    : '[ConfigProvider] Init failed. Falling back to defaults.',
+                err
+            );
+            resolvedConfig = fatalLoad ? configRef.current : normalizeConfigSafely(DEFAULT_CONFIG_V1);
             if (isMountedRef.current && requestId === requestIdRef.current) {
-                configRef.current = resolvedConfig;
-                setConfig(resolvedConfig);
+                if (!fatalLoad) {
+                    configRef.current = resolvedConfig;
+                    setConfig(resolvedConfig);
+                }
                 setError(err?.message || 'Failed to load configuration');
+                if (fatalLoad) {
+                    setStatus(STATUS.ERROR);
+                }
             }
             return resolvedConfig;
         } finally {
             if (isMountedRef.current && requestId === requestIdRef.current) {
-                setStatus(STATUS.IDLE);
+                setStatus(loadFailedRef.current ? STATUS.ERROR : STATUS.IDLE);
                 spLog.info('[ConfigProvider] Init complete.');
             }
         }
@@ -320,6 +335,10 @@ export const ConfigProvider = ({ children }) => {
     }, []);
 
     const saveNow = useCallback(async () => {
+        if (loadFailedRef.current) {
+            throw new Error('Cannot save because the initial data load failed. Reload after fixing the backend connection.');
+        }
+
         if (isMountedRef.current) {
             setStatus(STATUS.SAVING);
             setError(null);
@@ -369,7 +388,7 @@ export const ConfigProvider = ({ children }) => {
             if (SHAREPOINT_CONFIG.useMock) {
                 markSkipLegacyMigrationFlag();
                 clearLegacyMockStorageKeys();
-            } else {
+            } else if (!isMongoStorageBackend()) {
                 const summary = await overwriteSharePointBootstrapFiles();
                 const failures = summary.filter((entry) => entry?.ok === false);
                 if (failures.length > 0) {
@@ -400,6 +419,26 @@ export const ConfigProvider = ({ children }) => {
         return (
             <div className="min-h-screen w-full flex items-center justify-center bg-[#0c0d12]">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+        );
+    }
+
+    if (status === STATUS.ERROR && loadFailedRef.current) {
+        return (
+            <div className="min-h-screen w-full flex items-center justify-center bg-[#0c0d12] px-6 text-white">
+                <div className="max-w-xl rounded-xl border border-red-400/40 bg-red-500/10 p-6 text-center shadow-2xl">
+                    <h1 className="text-xl font-black">טעינת נתוני האתר נכשלה</h1>
+                    <p className="mt-3 text-sm text-red-100">
+                        {error || 'לא ניתן להתחבר לשכבת האחסון. שמירה נחסמה כדי למנוע דריסת נתונים ריקים.'}
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => loadConfig()}
+                        className="mt-5 rounded-lg bg-white px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-50"
+                    >
+                        נסה שוב
+                    </button>
+                </div>
             </div>
         );
     }

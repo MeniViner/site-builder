@@ -1,6 +1,8 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { buildFileValueEndpoint, upsertSharePointTextFile } from '../utils/sharepointUtils';
 import { DEFAULT_OVERLAY_IMAGE, normalizeOverlayImageConfig } from '../utils/overlayImageConfig';
+import { createLegacyObjectStorageAdapter } from './storage/LegacyObjectStorageAdapter';
+import { isMongoStorageBackend, isSharePointReadonlyBackend } from './storage/storageBackend';
 import {
     spLog,
     spLogFileReadStart,
@@ -45,14 +47,18 @@ const DEFAULT_SITE_CONTENT = {
 class SiteContentService {
     constructor() {
         this.config = SHAREPOINT_CONFIG;
-        this.useMock = this.config.useMock;
-        spLog.system(`SiteContentService — מצב ${this.useMock ? 'MOCK' : 'PRODUCTION'}`);
+        this.useMongo = isMongoStorageBackend();
+        this.useMock = !this.useMongo && this.config.useMock;
+        this.mongoAdapter = createLegacyObjectStorageAdapter({ key: this.config.siteContentFileServerRelativeUrl });
+        spLog.system(`SiteContentService — מצב ${this.useMongo ? 'MONGO' : (this.useMock ? 'MOCK' : 'PRODUCTION')}`);
     }
 
     async getSiteContent() {
         try {
             let data;
-            if (this.useMock) {
+            if (this.useMongo) {
+                data = await this.mongoAdapter.load();
+            } else if (this.useMock) {
                 data = await this._getMockData();
             } else {
                 data = await this._getSharePointData();
@@ -60,6 +66,7 @@ class SiteContentService {
             return this._normalizeData(data);
         } catch (e) {
             spLog.error('SiteContentService: failed to load site content.', e);
+            if (this.useMongo) throw e;
             return { ...DEFAULT_SITE_CONTENT };
         }
     }
@@ -89,9 +96,15 @@ class SiteContentService {
 
     async saveSiteContent(payload) {
         const isDev = import.meta.env.DEV;
+        if (this.useMongo) {
+            return this.mongoAdapter.save(payload);
+        }
         if (this.useMock) {
             const result = await this._saveMockData(payload);
             return result;
+        }
+        if (isSharePointReadonlyBackend()) {
+            throw new Error('SharePoint TXT storage is read-only. Save site content through the Mongo backend.');
         }
         const result = await this._saveSharePointData(payload);
         if (isDev) {

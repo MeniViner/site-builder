@@ -4,6 +4,7 @@ import UsersService from '../services/UsersService';
 import { spLog } from '../utils/spAppLog';
 import { ensureRecentBackup } from '../utils/sharepointUtils';
 import { fetchSharePointAdmins } from '../utils/sharepointAdmins';
+import { isMongoStorageBackend, isSharePointReadonlyBackend } from '../services/storage/storageBackend';
 import {
     closeBackupProgressToast,
     showBackupCompletedToast,
@@ -382,11 +383,13 @@ export const AuthProvider = ({ children }) => {
 
             // First, fetch the allowed users list
             let sysUsers = [];
+            let sysUsersLoadFailed = false;
             try {
                 sysUsers = await UsersService.getUsers();
                 const n = Array.isArray(sysUsers) ? sysUsers.length : 0;
                 spLog.success(`רשימת מנהלים נטענה | פריטים: ${n}`);
             } catch (e) {
+                sysUsersLoadFailed = true;
                 spLog.error('שגיאה בטעינת רשימת מנהלים — ממשיכים עם רשימה ריקה', e);
             }
 
@@ -407,6 +410,7 @@ export const AuthProvider = ({ children }) => {
 
             const shouldPersistUsersFile =
                 !SHAREPOINT_CONFIG.useMock
+                && !sysUsersLoadFailed
                 && hasAdminUsersListChanged(sysUsers, combinedAdminUsers);
 
             spLog.system('בדיקת צורך בשמירת users_data.txt לאחר מיזוג', {
@@ -475,7 +479,7 @@ export const AuthProvider = ({ children }) => {
             backupCheckTimerRef.current = null;
         }
 
-        if (loading || !currentUser || !isAdmin || SHAREPOINT_CONFIG.useMock) {
+        if (loading || !currentUser || !isAdmin || SHAREPOINT_CONFIG.useMock || isMongoStorageBackend() || isSharePointReadonlyBackend()) {
             return undefined;
         }
 

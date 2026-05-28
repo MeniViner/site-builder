@@ -1,0 +1,6 @@
+{
+  "activeWidgets": [
+    "events"
+  ],
+  "items": []
+}

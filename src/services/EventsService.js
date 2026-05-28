@@ -1,5 +1,7 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { buildFileValueEndpoint, upsertSharePointTextFile } from '../utils/sharepointUtils';
+import { createLegacyObjectStorageAdapter } from './storage/LegacyObjectStorageAdapter';
+import { isMongoStorageBackend, isSharePointReadonlyBackend } from './storage/storageBackend';
 import {
     spLog,
     spLogFileReadStart,
@@ -12,8 +14,10 @@ import {
 class EventsService {
     constructor() {
         this.config = SHAREPOINT_CONFIG;
-        this.useMock = this.config.useMock;
-        spLog.system(`EventsService — מצב ${this.useMock ? 'MOCK' : 'PRODUCTION'}`);
+        this.useMongo = isMongoStorageBackend();
+        this.useMock = !this.useMongo && this.config.useMock;
+        this.mongoAdapter = createLegacyObjectStorageAdapter({ key: this.config.fileServerRelativeUrl });
+        spLog.system(`EventsService — מצב ${this.useMongo ? 'MONGO' : (this.useMock ? 'MOCK' : 'PRODUCTION')}`);
     }
 
     /**
@@ -23,7 +27,9 @@ class EventsService {
     async getEvents() {
         try {
             let data;
-            if (this.useMock) {
+            if (this.useMongo) {
+                data = await this.mongoAdapter.load();
+            } else if (this.useMock) {
                 data = await this._getMockData();
             } else {
                 data = await this._getSharePointData();
@@ -31,6 +37,7 @@ class EventsService {
             return this._normalizeData(data);
         } catch (e) {
             spLog.error('EventsService: failed to load events.', e);
+            if (this.useMongo) throw e;
             return { displayCount: 3, events: [] };
         }
     }
@@ -64,11 +71,16 @@ class EventsService {
      * @param {Object} payload { displayCount: Number, events: Array }
      */
     async saveEvents(payload) {
+        if (this.useMongo) {
+            return this.mongoAdapter.save(payload);
+        }
         if (this.useMock) {
             return this._saveMockData(payload);
-        } else {
-            return this._saveSharePointData(payload);
         }
+        if (isSharePointReadonlyBackend()) {
+            throw new Error('SharePoint TXT storage is read-only. Save events through the Mongo backend.');
+        }
+        return this._saveSharePointData(payload);
     }
 
     // ==========================================

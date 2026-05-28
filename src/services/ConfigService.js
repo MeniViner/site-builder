@@ -87,6 +87,9 @@ class ConfigService {
             try {
                 parsed = JSON.parse(text);
             } catch (parseError) {
+                if (this.adapter?.isStrictPersistence?.() || this.adapter?.isLoadFailureFatal?.(parseError)) {
+                    throw parseError;
+                }
                 spLog.error('ConfigService: failed to parse master config JSON, falling back to defaults.', parseError);
                 const defaults = validateAndNormalize(DEFAULT_CONFIG_V1);
                 return { config: defaults, source: 'invalid-json', error: parseError };
@@ -100,6 +103,9 @@ class ConfigService {
             const merged = this._withDefaults(migrated);
             return { config: validateAndNormalize(merged), source: 'migrated-legacy' };
         } catch (error) {
+            if (this.adapter?.isLoadFailureFatal?.(error)) {
+                throw error;
+            }
             spLog.error('ConfigService: load failed, returning defaults.', error);
             return {
                 config: validateAndNormalize(DEFAULT_CONFIG_V1),

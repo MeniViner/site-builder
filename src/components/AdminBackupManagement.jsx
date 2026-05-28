@@ -45,6 +45,7 @@ import {
 import ConfigService from '../services/ConfigService';
 import { useConfig } from '../context/ConfigProvider';
 import BackupSiteLivePreview from './BackupSiteLivePreview';
+import { isMongoStorageBackend, isSharePointReadonlyBackend } from '../services/storage/storageBackend';
 
 const MASTER_CONFIG_TARGET_URL = import.meta.env.VITE_SP_MASTER_CONFIG_FILE_URL || SHAREPOINT_PATHS.masterConfigFileServerRelativeUrl;
 const MASTER_CONFIG_FILE_NAME = (MASTER_CONFIG_TARGET_URL || '').split('/').pop();
@@ -267,6 +268,7 @@ const downloadJsonFile = (fileName, payload) => {
 };
 
 export default function AdminBackupManagement() {
+    const useLocalBackupStore = SHAREPOINT_CONFIG.useMock || isMongoStorageBackend() || isSharePointReadonlyBackend();
     const { config, reload } = useConfig();
     const importInputRef = useRef(null);
     const [loading, setLoading] = useState(false);
@@ -330,7 +332,7 @@ export default function AdminBackupManagement() {
         });
 
         return createBackupPackage({
-            source: 'dev-local',
+                source: isMongoStorageBackend() ? 'mongo-local-package' : 'dev-local',
             exportedAt,
             backup: {
                 id: `dev-${exportedAt.replace(/[:.]/g, '-')}`,
@@ -374,7 +376,7 @@ export default function AdminBackupManagement() {
         })));
 
         return createBackupPackage({
-            source: SHAREPOINT_CONFIG.useMock ? 'dev-local' : 'sharepoint',
+            source: useLocalBackupStore ? 'dev-local' : 'sharepoint',
             backup: {
                 id: backup.id || backup.serverRelativeUrl || `backup-${Date.now()}`,
                 name: backup.name || getBackupDisplayName(backup),
@@ -388,7 +390,7 @@ export default function AdminBackupManagement() {
     };
 
     const loadBackups = async ({ preserveSelection = true } = {}) => {
-        if (SHAREPOINT_CONFIG.useMock) {
+        if (useLocalBackupStore) {
             setLoading(true);
             setError('');
             try {
@@ -556,7 +558,7 @@ export default function AdminBackupManagement() {
 
         setDeletingBackupPath(backup.serverRelativeUrl);
         try {
-            if (SHAREPOINT_CONFIG.useMock && backup.backupPackage) {
+            if (useLocalBackupStore && backup.backupPackage) {
                 const nextPackages = readDevBackupPackages()
                     .filter((item) => item.id !== backup.backupPackage.id);
                 writeDevBackupPackages(nextPackages);
@@ -576,7 +578,7 @@ export default function AdminBackupManagement() {
     };
 
     const handleCreateManualBackup = async () => {
-        if (SHAREPOINT_CONFIG.useMock) {
+        if (useLocalBackupStore) {
             setIsCreatingBackup(true);
             try {
                 const backupPackage = upsertDevBackupPackage(buildDevBackupPackage({ trigger: 'manual' }));
@@ -648,15 +650,17 @@ export default function AdminBackupManagement() {
 
         setIsRestoring(true);
         try {
-            if (SHAREPOINT_CONFIG.useMock) {
+            if (useLocalBackupStore) {
                 upsertDevBackupPackage(buildDevBackupPackage({ trigger: 'pre-restore' }));
 
                 const normalizedConfig = validateAndNormalize(restoreModal.preview.config);
                 await ConfigService.saveConfig(normalizedConfig);
-                writeDevSplitFilesFromBackup(restoreModal.fileTextsByName);
+                if (SHAREPOINT_CONFIG.useMock) {
+                    writeDevSplitFilesFromBackup(restoreModal.fileTextsByName);
+                }
                 await reload();
 
-                toast.success('השחזור הושלם במצב פיתוח. הנתונים נטענו מחדש מהגיבוי.');
+                toast.success(isMongoStorageBackend() ? 'השחזור נשמר ל-Mongo ונטען מחדש.' : 'השחזור הושלם במצב פיתוח. הנתונים נטענו מחדש מהגיבוי.');
                 setRestoreModal(null);
                 await loadBackups({ preserveSelection: true });
                 return;
@@ -747,9 +751,9 @@ export default function AdminBackupManagement() {
             const importedPackage = normalizeImportedBackupPackage(parsed, { masterFileName: MASTER_CONFIG_FILE_NAME });
             const fileTextsByName = packageToFileTextsMap(importedPackage);
             const preview = buildPreviewFromBackupTexts(fileTextsByName);
-            const backupItem = packageToBackupListItem(importedPackage, { idPrefix: SHAREPOINT_CONFIG.useMock ? 'dev-backup' : 'imported-backup' });
+            const backupItem = packageToBackupListItem(importedPackage, { idPrefix: useLocalBackupStore ? 'dev-backup' : 'imported-backup' });
 
-            if (SHAREPOINT_CONFIG.useMock) {
+            if (useLocalBackupStore) {
                 const savedPackage = upsertDevBackupPackage(importedPackage);
                 const savedBackupItem = packageToBackupListItem(savedPackage, { idPrefix: 'dev-backup' });
                 await loadBackups({ preserveSelection: true });
@@ -791,14 +795,14 @@ export default function AdminBackupManagement() {
                             <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
                                     <h1 className="text-xl font-black tracking-tight text-gray-900 dark:text-white sm:text-2xl">ניהול גיבויים</h1>
-                                    {SHAREPOINT_CONFIG.useMock && (
+                                    {useLocalBackupStore && (
                                         <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-black text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200">
-                                            מצב פיתוח
+                                            {isMongoStorageBackend() ? 'Mongo' : 'מצב פיתוח'}
                                         </span>
                                     )}
                                 </div>
                                 <p className="mt-0.5 text-xs leading-snug text-gray-500 dark:text-gray-400 sm:text-sm sm:leading-relaxed">
-                                    {SHAREPOINT_CONFIG.useMock
+                                    {useLocalBackupStore
                                         ? 'דשבורד גיבויים מקומי לפיתוח: יצירה, ייבוא, ייצוא, תצוגה מקדימה ושחזור ללא SharePoint.'
                                         : 'דשבורד גיבויים מרכזי: צפייה בגיבויים, גודל כולל, קבצים לכל גיבוי, ייבוא, ייצוא ומחיקה מאובטחת.'}
                                 </p>
@@ -1121,7 +1125,7 @@ export default function AdminBackupManagement() {
 
                         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 px-5 py-4 dark:border-white/10">
                             <div className="text-xs text-gray-500 dark:text-gray-400">
-                                {SHAREPOINT_CONFIG.useMock
+                                {useLocalBackupStore
                                     ? 'לפני שחזור יישמר גיבוי בטיחות מקומי של מצב הפיתוח הנוכחי.'
                                     : 'לפני שחזור ייווצר גיבוי בטיחות של המצב הנוכחי.'}
                             </div>

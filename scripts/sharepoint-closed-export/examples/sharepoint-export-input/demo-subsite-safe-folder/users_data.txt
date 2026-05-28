@@ -1,0 +1,6 @@
+[
+  {
+    "id": "admin-demo-subsite",
+    "name": "Demo Subsite Admin"
+  }
+]

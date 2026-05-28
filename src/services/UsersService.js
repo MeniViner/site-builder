@@ -1,6 +1,8 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { cloneDefaultSampleAdminUsers } from '../config/defaultUsers';
 import { buildFileValueEndpoint, upsertSharePointTextFile } from '../utils/sharepointUtils';
+import { createLegacyObjectStorageAdapter } from './storage/LegacyObjectStorageAdapter';
+import { isMongoStorageBackend, isSharePointReadonlyBackend } from './storage/storageBackend';
 import {
     spLog,
     spLogFileReadStart,
@@ -13,11 +15,16 @@ import {
 class UsersService {
     constructor() {
         this.config = SHAREPOINT_CONFIG;
-        this.useMock = this.config.useMock;
-        spLog.system(`UsersService — מצב ${this.useMock ? 'MOCK' : 'PRODUCTION'}`);
+        this.useMongo = isMongoStorageBackend();
+        this.useMock = !this.useMongo && this.config.useMock;
+        this.mongoAdapter = createLegacyObjectStorageAdapter({ key: this.config.usersFileServerRelativeUrl });
+        spLog.system(`UsersService — מצב ${this.useMongo ? 'MONGO' : (this.useMock ? 'MOCK' : 'PRODUCTION')}`);
     }
 
     async getUsers() {
+        if (this.useMongo) {
+            return this._getMongoData();
+        }
         if (this.useMock) {
             return this._getMockData();
         } else {
@@ -26,10 +33,33 @@ class UsersService {
     }
 
     async saveUsers(usersData) {
+        if (this.useMongo) {
+            return this._saveMongoData(usersData);
+        }
         if (this.useMock) {
             return this._saveMockData(usersData);
-        } else {
-            return this._saveSharePointData(usersData);
+        }
+        if (isSharePointReadonlyBackend()) {
+            throw new Error('SharePoint TXT storage is read-only. Save users through the Mongo backend.');
+        }
+        return this._saveSharePointData(usersData);
+    }
+
+    async _getMongoData() {
+        try {
+            return await this.mongoAdapter.load();
+        } catch (error) {
+            spLog.error('שגיאה בקריאת משתמשים מה-Backend Mongo:', error);
+            throw error;
+        }
+    }
+
+    async _saveMongoData(usersData) {
+        try {
+            return await this.mongoAdapter.save(usersData);
+        } catch (error) {
+            spLog.error('שגיאה בשמירת משתמשים ל-Backend Mongo:', error);
+            throw error;
         }
     }
 

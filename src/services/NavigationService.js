@@ -1,5 +1,7 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { buildFileValueEndpoint, upsertSharePointTextFile } from '../utils/sharepointUtils';
+import { createLegacyObjectStorageAdapter } from './storage/LegacyObjectStorageAdapter';
+import { isMongoStorageBackend, isSharePointReadonlyBackend } from './storage/storageBackend';
 import {
     spLog,
     spLogFileReadStart,
@@ -12,24 +14,33 @@ import {
 class NavigationService {
     constructor() {
         this.config = SHAREPOINT_CONFIG;
-        this.useMock = this.config.useMock;
-        spLog.system(`NavigationService — מצב ${this.useMock ? 'MOCK' : 'PRODUCTION'}`);
+        this.useMongo = isMongoStorageBackend();
+        this.useMock = !this.useMongo && this.config.useMock;
+        this.mongoAdapter = createLegacyObjectStorageAdapter({ key: this.config.navFileServerRelativeUrl });
+        spLog.system(`NavigationService — מצב ${this.useMongo ? 'MONGO' : (this.useMock ? 'MOCK' : 'PRODUCTION')}`);
     }
 
     async getNavigation() {
+        if (this.useMongo) {
+            return this.mongoAdapter.load();
+        }
         if (this.useMock) {
             return this._getMockData();
-        } else {
-            return this._getSharePointData();
         }
+        return this._getSharePointData();
     }
 
     async saveNavigation(navData) {
+        if (this.useMongo) {
+            return this.mongoAdapter.save(navData);
+        }
         if (this.useMock) {
             return this._saveMockData(navData);
-        } else {
-            return this._saveSharePointData(navData);
         }
+        if (isSharePointReadonlyBackend()) {
+            throw new Error('SharePoint TXT storage is read-only. Save navigation through the Mongo backend.');
+        }
+        return this._saveSharePointData(navData);
     }
 
     // ==========================================

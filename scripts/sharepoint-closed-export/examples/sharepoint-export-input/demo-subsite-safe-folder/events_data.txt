@@ -1,0 +1,9 @@
+{
+  "displayCount": 2,
+  "events": [
+    {
+      "id": "event-demo-subsite",
+      "title": "Demo Subsite Event"
+    }
+  ]
+}

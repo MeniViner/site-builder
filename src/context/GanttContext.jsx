@@ -20,8 +20,7 @@ export const GanttProvider = ({ children }) => {
             return loaded;
         } catch (loadError) {
             setError(loadError?.message || 'Failed to load gantt');
-            setGantt(normalizeGanttData(DEFAULT_GANTT_DATA));
-            return DEFAULT_GANTT_DATA;
+            return null;
         } finally {
             setLoading(false);
         }

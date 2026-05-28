@@ -1,0 +1,3 @@
+{
+  "primaryColor": "#7c3aed"
+}

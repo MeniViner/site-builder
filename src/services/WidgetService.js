@@ -1,6 +1,8 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { buildFileValueEndpoint, upsertSharePointTextFile } from '../utils/sharepointUtils';
 import { DEFAULT_ACTIVE_WIDGETS, mergeWidgetSettings } from '../utils/widgetDisplay';
+import { createLegacyObjectStorageAdapter } from './storage/LegacyObjectStorageAdapter';
+import { isMongoStorageBackend, isSharePointReadonlyBackend } from './storage/storageBackend';
 import {
     spLog,
     spLogFileReadStart,
@@ -73,14 +75,18 @@ export const createDefaultWidgetConfig = () => JSON.parse(JSON.stringify(DEFAULT
 class WidgetService {
     constructor() {
         this.config = SHAREPOINT_CONFIG;
-        this.useMock = this.config.useMock;
-        spLog.system(`WidgetService — מצב ${this.useMock ? 'MOCK' : 'PRODUCTION'}`);
+        this.useMongo = isMongoStorageBackend();
+        this.useMock = !this.useMongo && this.config.useMock;
+        this.mongoAdapter = createLegacyObjectStorageAdapter({ key: this.config.widgetsFileServerRelativeUrl });
+        spLog.system(`WidgetService — מצב ${this.useMongo ? 'MONGO' : (this.useMock ? 'MOCK' : 'PRODUCTION')}`);
     }
 
     async getWidgetConfig() {
         try {
             let data;
-            if (this.useMock) {
+            if (this.useMongo) {
+                data = await this.mongoAdapter.load();
+            } else if (this.useMock) {
                 data = await this._getMockData();
             } else {
                 data = await this._getSharePointData();
@@ -88,6 +94,7 @@ class WidgetService {
             return this._normalizeData(data);
         } catch (e) {
             spLog.error('WidgetService: failed to load widget config.', e);
+            if (this.useMongo) throw e;
             return createDefaultWidgetConfig();
         }
     }
@@ -125,11 +132,16 @@ class WidgetService {
     }
 
     async saveWidgetConfig(payload) {
+        if (this.useMongo) {
+            return this.mongoAdapter.save(payload);
+        }
         if (this.useMock) {
             return this._saveMockData(payload);
-        } else {
-            return this._saveSharePointData(payload);
         }
+        if (isSharePointReadonlyBackend()) {
+            throw new Error('SharePoint TXT storage is read-only. Save widgets through the Mongo backend.');
+        }
+        return this._saveSharePointData(payload);
     }
 
     _getMockData() {

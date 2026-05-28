@@ -2,6 +2,13 @@
 import { buildFileValueEndpoint, upsertSharePointTextFile } from '../utils/sharepointUtils';
 import { SHAREPOINT_PATHS } from '../config/sharepointPaths';
 import { spLog, spLogFileReadStart, spLogFileReadResponse, spLogFileSaveStart, spLogFileSaveResponse } from '../utils/spAppLog';
+import { createLegacyObjectStorageAdapter, isBackendStorageError } from './storage/LegacyObjectStorageAdapter';
+import {
+    getStorageBackend,
+    isLocalDevStorageBackend,
+    isMongoStorageBackend,
+    isSharePointReadonlyBackend,
+} from './storage/storageBackend';
 
 const DEFAULT_MASTER_CONFIG_KEY = 'bihs_master_config_v1';
 const DEFAULT_MASTER_CONFIG_FILE_URL = SHAREPOINT_PATHS.masterConfigFileServerRelativeUrl;
@@ -39,12 +46,17 @@ const resolveDefaultMasterConfigFileUrl = () => {
 
 class ConfigAdapter {
     constructor(options = {}) {
-        this.useMock = import.meta.env.DEV || import.meta.env.MODE === 'development';
+        this.storageBackend = getStorageBackend();
+        this.useMock = isLocalDevStorageBackend();
         this.mockStorageKey = options.mockStorageKey || import.meta.env.VITE_SP_MASTER_CONFIG_MOCK_KEY || DEFAULT_MASTER_CONFIG_KEY;
         this.fileServerRelativeUrl = options.fileServerRelativeUrl || resolveDefaultMasterConfigFileUrl();
+        this.mongoAdapter = options.mongoAdapter || createLegacyObjectStorageAdapter({ key: this.fileServerRelativeUrl });
     }
 
     async load() {
+        if (isMongoStorageBackend()) {
+            return await this._loadMongo();
+        }
         if (this.useMock) {
             return await this._loadMock();
         }
@@ -56,10 +68,44 @@ class ConfigAdapter {
             throw new Error('ConfigAdapter.save(text) expects a string payload');
         }
 
+        if (isMongoStorageBackend()) {
+            return await this._saveMongo(text);
+        }
+
         if (this.useMock) {
             return await this._saveMock(text);
         }
+
+        if (isSharePointReadonlyBackend()) {
+            throw new Error('SharePoint TXT storage is read-only. Set VITE_STORAGE_BACKEND=mongo to save through the backend.');
+        }
+
         return await this._saveSharePoint(text);
+    }
+
+    isStrictPersistence() {
+        return isMongoStorageBackend();
+    }
+
+    isLoadFailureFatal(error) {
+        return isMongoStorageBackend() || isBackendStorageError(error);
+    }
+
+    async _loadMongo() {
+        const data = await this.mongoAdapter.load();
+        return { text: data === null || data === undefined ? null : JSON.stringify(data, null, 2) };
+    }
+
+    async _saveMongo(text) {
+        let parsed;
+        try {
+            parsed = JSON.parse(text);
+        } catch (error) {
+            throw new Error('ConfigAdapter.save expected valid JSON text for Mongo storage: ' + error.message);
+        }
+
+        await this.mongoAdapter.save(parsed);
+        return { ok: true };
     }
 
     async _loadMock() {

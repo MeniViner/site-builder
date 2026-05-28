@@ -1,0 +1,39 @@
+{
+  "mode": "manual-folder",
+  "siteCode": "siteBuilder",
+  "siteSlug": "siteBuilder",
+  "displayName": "Site Builder",
+  "sharePointBaseUrl": "https://portal.army.idf",
+  "siteRelativePath": "/sites/siteBuilder",
+  "documentLibraryName": "siteDB",
+  "usersDocumentLibraryName": "siteUsersDb",
+  "siteAssetsFolder": "siteAssets",
+  "legacyFolderPath": "/sites/siteBuilder/siteDB/siteAssets",
+  "usersLegacyFolderPath": "/sites/siteBuilder/siteUsersDb",
+  "widgetsDbTarget": "users",
+  "mountedRootPath": "",
+  "inputDirectory": "sharepoint-export-input",
+  "outputDirectory": "exports/sharepoint-closed",
+  "batchMode": false,
+  "siteExportMetadataFile": "site.export.json",
+  "multiSiteInputExample": {
+    "sharepoint-export-input/site-a": "flat TXT files for site A",
+    "sharepoint-export-input/site-b": "flat TXT files for site B",
+    "sharepoint-export-input/site-b/site.export.json": {
+      "siteCode": "Sites/real/site-b/subsite",
+      "displayName": "Site B",
+      "siteRelativePath": "/Sites/real/site-b/subsite"
+    }
+  },
+  "expectedLegacyTxtKeys": [
+    "bihs_master_config_v1.txt",
+    "users_data.txt",
+    "events_data.txt",
+    "nav_data.txt",
+    "site_content_data.txt",
+    "theme_data.txt",
+    "widgets_data.txt",
+    "external_links_data.txt",
+    "gantt_data.txt"
+  ]
+}
