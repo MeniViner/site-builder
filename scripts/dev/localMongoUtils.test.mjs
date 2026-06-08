@@ -30,6 +30,13 @@ describe('local Mongo dev utilities', () => {
     })).toThrow('Refusing to reset non-local database');
   });
 
+  it('refuses non-local Mongo URI for local reset', () => {
+    expect(() => assertSafeLocalMongoTarget({
+      uri: 'mongodb://mongo.example.com:27017/site_builder_dev',
+      dbName: 'site_builder_dev',
+    })).toThrow('Refusing non-local MongoDB URI');
+  });
+
   it('reset requires an explicit confirmation flag', () => {
     expect(() => requireResetConfirmation([])).toThrow('Refusing reset without --confirm-local-reset');
     expect(() => requireResetConfirmation(['--confirm-local-reset'])).not.toThrow();

@@ -68,6 +68,21 @@ mongodb://localhost:27017/site_builder_test?replicaSet=rs0&directConnection=true
 
 The replica set is useful because it is closer to production write concern behavior and keeps the setup ready for future transaction support. It is still a single local node, so it is not a high availability setup.
 
+### Native MongoDB (Windows, optional)
+
+Docker is still the recommended path for this project. If you are on Windows and cannot run Docker,
+you can run MongoDB as a local Windows service and use:
+
+```bash
+npm run dev:mongo:native:check
+npm run server:dev:mongo:native
+npm run test:server:mongo:native
+```
+
+Use the companion doc for exact PowerShell steps:
+
+`docs/WINDOWS_NATIVE_MONGO_LOCAL_DEV_HE.md`
+
 ## 3. Create Local Env Files
 
 Copy the examples:
@@ -76,6 +91,8 @@ Copy the examples:
 cp .env.local.example .env.local
 cp server/.env.local.example server/.env.local
 cp server/.env.test.example server/.env.test
+cp server/.env.local.native.example server/.env.local.native
+cp server/.env.test.native.example server/.env.test.native
 ```
 
 Frontend local env:
@@ -122,6 +139,12 @@ Run:
 npm run dev:mongo:check
 ```
 
+or for native setup:
+
+```bash
+npm run dev:mongo:native:check
+```
+
 It checks:
 
 - Docker is installed
@@ -140,6 +163,13 @@ Backend:
 
 ```bash
 npm run server:dev:mongo
+```
+
+Native mode:
+
+```bash
+npm run server:dev:mongo:native
+npm run dev:frontend:mongo:native
 ```
 
 Frontend:

@@ -6,6 +6,9 @@
 **אין deploy**.
 **אין real migration**.
 
+**לחלופה ללא Docker ל-Mongo מקומי ב-Windows**: ראה
+`docs/WINDOWS_NATIVE_MONGO_LOCAL_DEV_HE.md`
+
 ## 1) דרישות בסיס
 
 - Windows עם הרשאות להריץ PowerShell.
