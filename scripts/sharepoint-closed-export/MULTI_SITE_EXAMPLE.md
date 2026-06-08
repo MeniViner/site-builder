@@ -1,5 +1,7 @@
 # Multi-Site Closed SharePoint Export Example
 
+Hebrew version: `MULTI_SITE_EXAMPLE_HE.md`
+
 This example is offline-only. It does not access SharePoint, write MongoDB, deploy, initialize, or reset anything.
 
 ## Example Input Folder

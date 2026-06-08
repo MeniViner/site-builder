@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_GANTT_DATA } from '../utils/ganttData';
 import { GanttService } from './GanttService';
 
@@ -11,7 +11,12 @@ const mockConfig = {
 describe('GanttService', () => {
     beforeEach(() => {
         localStorage.clear();
+        vi.stubEnv('VITE_STORAGE_BACKEND', 'sharepoint-readonly');
         vi.restoreAllMocks();
+    });
+
+    afterEach(() => {
+        vi.unstubAllEnvs();
     });
 
     it('falls back to default disabled gantt data when local mock data is missing', async () => {
@@ -67,6 +72,7 @@ describe('GanttService', () => {
     });
 
     it('uses the SharePoint gantt_data.txt path in production mode', async () => {
+        vi.stubEnv('VITE_STORAGE_BACKEND', 'local-dev');
         const service = new GanttService({ ...mockConfig, useMock: false });
         let savedPath = '';
         service._saveSharePointData = async function saveSharePointData(payload) {
@@ -84,6 +90,7 @@ describe('GanttService', () => {
             ok: false,
             status: 404,
             statusText: 'Not Found',
+            text: vi.fn().mockResolvedValue(''),
         });
         const service = new GanttService({ ...mockConfig, useMock: false });
 

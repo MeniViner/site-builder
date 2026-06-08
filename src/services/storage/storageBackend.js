@@ -1,4 +1,5 @@
 import { SHAREPOINT_PATHS } from '../../config/sharepointPaths';
+import { getRuntimeValue } from './runtimeConfig';
 
 export const STORAGE_BACKENDS = Object.freeze({
     MONGO: 'mongo',
@@ -7,7 +8,8 @@ export const STORAGE_BACKENDS = Object.freeze({
 });
 
 export function getStorageBackend() {
-    const configured = String(import.meta.env.VITE_STORAGE_BACKEND || import.meta.env.STORAGE_BACKEND || '').trim().toLowerCase();
+    const runtimeConfigured = String(getRuntimeValue('storageBackend') || '').trim().toLowerCase();
+    const configured = String(runtimeConfigured || import.meta.env.VITE_STORAGE_BACKEND || import.meta.env.STORAGE_BACKEND || '').trim().toLowerCase();
     if (configured) return configured;
     return import.meta.env.DEV ? STORAGE_BACKENDS.LOCAL_DEV : STORAGE_BACKENDS.SHAREPOINT_READONLY;
 }
@@ -25,6 +27,8 @@ export function isLocalDevStorageBackend() {
 }
 
 export function getBackendApiBaseUrl() {
+    const runtimeUrl = String(getRuntimeValue('backendApiUrl') || '').trim();
+    if (runtimeUrl) return runtimeUrl.replace(/\/+$/g, '');
     return String(import.meta.env.VITE_BACKEND_API_URL || '').trim().replace(/\/+$/g, '');
 }
 
@@ -37,6 +41,9 @@ export function requireBackendApiBaseUrl() {
 }
 
 export function getSiteId() {
+    const runtimeSiteId = String(getRuntimeValue('siteId') || '').trim();
+    if (runtimeSiteId) return runtimeSiteId;
+
     return String(
         import.meta.env.VITE_SITE_ID
         || import.meta.env.VITE_SP_SITE_CODE

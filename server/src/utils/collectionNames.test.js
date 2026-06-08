@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach } from 'vitest';
 import { sanitizeSiteCollectionName } from './collectionNames.js';
 
 describe('sanitizeSiteCollectionName', () => {
+  beforeEach(() => {
+    delete process.env.SITE_COLLECTION_PREFIX;
+  });
+
   it('handles slashes and spaces', () => {
     const name = sanitizeSiteCollectionName('Sites/my site/subsite');
     expect(name).toMatch(/^site_sites_my_site_subsite_[a-f0-9]{10}$/);
@@ -34,5 +38,11 @@ describe('sanitizeSiteCollectionName', () => {
     const three = sanitizeSiteCollectionName('alpha-2');
     expect(one).toBe(two);
     expect(one).not.toBe(three);
+  });
+
+  it('uses custom prefix when configured', () => {
+    process.env.SITE_COLLECTION_PREFIX = 'test_site';
+    const name = sanitizeSiteCollectionName('alpha');
+    expect(name).toMatch(/^test_site_alpha_[a-f0-9]{10}$/);
   });
 });

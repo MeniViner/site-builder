@@ -3,7 +3,12 @@
 This kit is for closed/private SharePoint environments where Codex cannot access the real site.
 It is read-only. It does not deploy, initialize, reset, upload, delete, or write to SharePoint.
 
-For a concrete two-site example with fake local TXT files, see `MULTI_SITE_EXAMPLE.md` and:
+For a concrete two-site example with fake local TXT files, see:
+
+- `MULTI_SITE_EXAMPLE.md` (English quick reference)
+- `MULTI_SITE_EXAMPLE_HE.md` (Hebrew step-by-step guide)
+
+and:
 
 ```text
 scripts/sharepoint-closed-export/examples/sharepoint-export-input/

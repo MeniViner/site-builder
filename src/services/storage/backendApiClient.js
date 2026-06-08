@@ -1,4 +1,5 @@
 import { requireBackendApiBaseUrl } from './storageBackend';
+import { getRuntimeValue } from './runtimeConfig';
 
 export class BackendStorageError extends Error {
     constructor(message, { status = 0, code = 'backend_error', details = null } = {}) {
@@ -12,7 +13,8 @@ export class BackendStorageError extends Error {
 }
 
 const apiKey = () => String(
-    import.meta.env.VITE_SITE_BUILDER_API_KEY
+    getRuntimeValue('apiKey')
+    || import.meta.env.VITE_SITE_BUILDER_API_KEY
     || import.meta.env.VITE_ADMIN_API_KEY
     || ''
 ).trim();
