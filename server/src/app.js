@@ -4,7 +4,7 @@ import { createCorsMiddleware } from './api/cors.js';
 import { createSiteRouter } from './routes/siteRoutes.js';
 import { toErrorResponse } from './utils/errors.js';
 
-export function createApp({ repository, legacyRepository, config }) {
+export function createApp({ repository, legacyRepository, backupRepository = null, config }) {
   const app = express();
 
   app.disable('x-powered-by');
@@ -30,7 +30,7 @@ export function createApp({ repository, legacyRepository, config }) {
     adminApiKey: config.adminApiKey,
     nodeEnv: config.nodeEnv,
   }));
-  app.use('/api', createSiteRouter({ repository, legacyRepository }));
+  app.use('/api', createSiteRouter({ repository, legacyRepository, backupRepository }));
 
   app.use((req, res) => {
     res.status(404).json({
@@ -42,7 +42,8 @@ export function createApp({ repository, legacyRepository, config }) {
     });
   });
 
-  app.use((error, _req, res) => {
+  app.use((error, _req, res, _next) => {
+    void _next;
     const response = toErrorResponse(error);
     res.status(response.statusCode).json(response.body);
   });

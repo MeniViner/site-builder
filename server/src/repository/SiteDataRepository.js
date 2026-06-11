@@ -21,6 +21,7 @@ export function isSuspiciousEmptyOverwrite(data) {
 }
 
 function documentId(scope, entityId) {
+  if (scope === 'backups') return `backup:${entityId}`;
   return `${scope}:${entityId}`;
 }
 

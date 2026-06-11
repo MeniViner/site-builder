@@ -90,6 +90,35 @@ class BackendApiClient {
             },
         });
     }
+
+    listBackups(siteId) {
+        return this.request(`/api/sites/${encodeURIComponent(siteId)}/backups`);
+    }
+
+    createBackup(siteId, payload = {}) {
+        return this.request(`/api/sites/${encodeURIComponent(siteId)}/backups`, {
+            method: 'POST',
+            body: payload,
+        });
+    }
+
+    getBackup(siteId, backupId) {
+        return this.request(`/api/sites/${encodeURIComponent(siteId)}/backups/${encodeURIComponent(backupId)}`);
+    }
+
+    deleteBackup(siteId, backupId, { expectedVersion } = {}) {
+        return this.request(`/api/sites/${encodeURIComponent(siteId)}/backups/${encodeURIComponent(backupId)}`, {
+            method: 'DELETE',
+            body: expectedVersion === undefined ? {} : { expectedVersion },
+        });
+    }
+
+    restoreBackup(siteId, backupId, { allowSiteIdMismatch = false } = {}) {
+        return this.request(`/api/sites/${encodeURIComponent(siteId)}/backups/${encodeURIComponent(backupId)}/restore`, {
+            method: 'POST',
+            body: { allowSiteIdMismatch },
+        });
+    }
 }
 
 export const backendApiClient = new BackendApiClient();

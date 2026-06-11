@@ -53,4 +53,40 @@ describe('LegacyObjectStorageAdapter', () => {
         });
         expect(fetchMock).not.toHaveBeenCalled();
     });
+
+    it('calls Mongo backup endpoints with API key auth', async () => {
+        vi.stubEnv('VITE_STORAGE_BACKEND', 'mongo');
+        vi.stubEnv('VITE_BACKEND_API_URL', 'http://127.0.0.1:3001');
+        vi.stubEnv('VITE_SITE_BUILDER_API_KEY', 'secret');
+        const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ ok: true, backups: [] }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+        })));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await backendApiClient.listBackups('alpha');
+        await backendApiClient.createBackup('alpha', { backupPackage: { id: 'one', files: [] } });
+        await backendApiClient.getBackup('alpha', 'one');
+        await backendApiClient.deleteBackup('alpha', 'one', { expectedVersion: 1 });
+        await backendApiClient.restoreBackup('alpha', 'one');
+
+        expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://127.0.0.1:3001/api/sites/alpha/backups', expect.objectContaining({
+            method: 'GET',
+            headers: expect.objectContaining({ 'X-API-Key': 'secret' }),
+        }));
+        expect(fetchMock).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:3001/api/sites/alpha/backups', expect.objectContaining({
+            method: 'POST',
+        }));
+        expect(fetchMock).toHaveBeenNthCalledWith(3, 'http://127.0.0.1:3001/api/sites/alpha/backups/one', expect.objectContaining({
+            method: 'GET',
+        }));
+        expect(fetchMock).toHaveBeenNthCalledWith(4, 'http://127.0.0.1:3001/api/sites/alpha/backups/one', expect.objectContaining({
+            method: 'DELETE',
+            body: JSON.stringify({ expectedVersion: 1 }),
+        }));
+        expect(fetchMock).toHaveBeenNthCalledWith(5, 'http://127.0.0.1:3001/api/sites/alpha/backups/one/restore', expect.objectContaining({
+            method: 'POST',
+            body: JSON.stringify({ allowSiteIdMismatch: false }),
+        }));
+    });
 });
