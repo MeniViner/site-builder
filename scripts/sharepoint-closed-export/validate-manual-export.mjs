@@ -48,6 +48,12 @@ async function main() {
       errors: result.manifest.errors.length,
       collectionCollisionCheck: result.manifest.collectionCollisionCheck,
       nextCommand: `npm run migrate:sharepoint-export-to-mongo:dry-run -- --from-export ${result.exportDir} --all-sites`,
+      nextSiteCommands: result.manifest.sites.map((site) => ({
+        safeSiteFolder: site.safeSiteFolder,
+        siteCode: site.siteCode,
+        targetMongoCollectionName: site.targetMongoCollectionName,
+        nextCommand: site.nextCommand,
+      })),
     }, null, 2));
 
     if (!result.manifest.safeForMongoDryRun) {

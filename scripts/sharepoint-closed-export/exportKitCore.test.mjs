@@ -166,6 +166,8 @@ describe('Closed SharePoint export kit', () => {
       siteCode: 'Sites/real site/subsite',
       siteSlug: 'Sites/real site/subsite',
     }));
+    expect(site.nextCommand).toContain(`--from-export ${site.exportDir} --site Sites/real site/subsite`);
+    expect(site.nextCommand).not.toContain('--site safe-folder');
   });
 
   it('detects collection collisions before migration', async () => {

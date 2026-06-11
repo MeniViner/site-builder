@@ -321,6 +321,18 @@ npm run migrate:sharepoint-export-to-mongo:dry-run -- --from-export exports/shar
 
 This dry-run reads only the local export artifact. It does not access SharePoint and does not write Mongo data.
 
+## Real Local Mongo Import
+
+After the dry-run is reviewed, import one site at a time into local MongoDB:
+
+```bash
+npm run migrate:sharepoint-to-mongo -- --from-export exports/sharepoint-closed/<batchExportId>/sites/<safeSiteFolder> --site <real-site-id>
+```
+
+`<safeSiteFolder>` is only the local artifact folder name. It must not become the logical site id. The real API/frontend site id is the value passed to `--site`, and `site.export.json` should contain the real `siteCode` when the local folder name has been sanitized.
+
+There is no script named `migrate:sharepoint-export-to-mongo` without `:dry-run`.
+
 ## What Must Not Be Done
 
 - Do not run `site:init` for this export.

@@ -50,10 +50,18 @@ async function main() {
     throw new Error('Batch export migration currently supports dry-run only.');
   }
 
+  const cliSiteId = String(cli.site || cli.siteId || '').trim();
   const exportSiteCode = !exportIsBatch
     ? String(exportManifest?.siteCode || '').trim()
     : '';
-  const siteId = String(cli.site || cli.siteId || exportSiteCode || spConfig.siteCode || '').trim();
+  const siteId = String(cliSiteId || exportSiteCode || spConfig.siteCode || '').trim();
+  const exportManifestMatchesSite = !exportSiteCode || exportSiteCode === siteId;
+  const siteSlug = exportManifestMatchesSite
+    ? (exportManifest?.siteSlug || siteId)
+    : siteId;
+  const displayName = exportManifestMatchesSite
+    ? (exportManifest?.displayName || siteId)
+    : siteId;
   const inputDir = cli['input-dir'] ? path.resolve(projectRoot, String(cli['input-dir'])) : '';
 
   let client = null;
@@ -84,8 +92,8 @@ async function main() {
         })
       : await migrateSharePointToMongo({
           siteId,
-          siteSlug: exportManifest?.siteSlug || spConfig.siteCode,
-          displayName: exportManifest?.displayName || spConfig.siteCode,
+          siteSlug,
+          displayName,
           dryRun,
           force,
           inputDir,
@@ -105,6 +113,10 @@ async function main() {
       fromExport,
       batch: Boolean(report.batch),
       siteId: report.siteId || undefined,
+      safeSiteFolder: report.safeSiteFolder || undefined,
+      realSiteCode: report.realSiteCode || undefined,
+      exportManifestSiteCode: report.exportManifestSiteCode || undefined,
+      targetMongoCollectionName: report.targetMongoCollectionName || undefined,
       totalSites: report.totalSites || undefined,
       imported: report.imported.length,
       skippedExisting: report.skippedExisting.length,
@@ -113,6 +125,7 @@ async function main() {
       failedSites: report.failedSites || [],
       sites: report.sites?.map((site) => ({
         siteCode: site.siteCode,
+        safeSiteFolder: site.safeSiteFolder,
         status: site.status,
         targetMongoCollectionName: site.targetMongoCollectionName,
         documentsImported: site.documentsImported,

@@ -212,6 +212,7 @@ Export ID: \`${manifest.exportId}\`
 Created at: \`${manifest.createdAt}\`
 Site code: \`${manifest.siteCode}\`
 Display name: \`${manifest.displayName || manifest.siteCode}\`
+Safe local folder: \`${manifest.safeSiteFolder || ''}\`
 Source mode: \`${manifest.sourceMode}\`
 Target Mongo collection: \`${manifest.targetMongoCollectionName}\`
 Safe for Mongo dry-run: **${manifest.safeForMongoDryRun ? 'yes' : 'no'}**
@@ -326,6 +327,7 @@ function buildSiteBatchSummary(manifest) {
     warnings: manifest.warnings,
     errors: manifest.errors,
     safeForMongoDryRun: manifest.safeForMongoDryRun,
+    nextCommand: `npm run migrate:sharepoint-to-mongo -- --from-export ${manifest.exportDir} --site ${manifest.siteCode}`,
   };
 }
 
@@ -376,6 +378,7 @@ function buildBatchReportMarkdown(manifest) {
   const collisions = manifest.collectionCollisionCheck.collisions.map((collision) =>
     `${collision.collectionName}: ${collision.sites.map((site) => site.siteCode).join(', ')}`
   );
+  const importCommands = manifest.sites.map((site) => `${site.siteCode}: ${site.nextCommand}`);
 
   return `# Closed SharePoint Batch Export Report
 
@@ -431,6 +434,10 @@ ${line(manifest.errors)}
 \`\`\`bash
 npm run migrate:sharepoint-export-to-mongo:dry-run -- --from-export ${manifest.exportDir} --all-sites
 \`\`\`
+
+## Per-Site Real Local Import Commands
+
+${line(importCommands)}
 `;
 }
 
