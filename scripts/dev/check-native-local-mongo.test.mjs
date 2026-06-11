@@ -20,4 +20,10 @@ describe('native Mongo check helpers', () => {
     const source = fs.readFileSync(path.resolve(process.cwd(), 'scripts/dev/check-native-local-mongo.mjs'), 'utf8');
     expect(/\bdocker\b/.test(source)).toBe(false);
   });
+
+  it('does not require replica set initialization for native standalone MongoDB', () => {
+    const source = fs.readFileSync(path.resolve(process.cwd(), 'scripts/dev/check-native-local-mongo.mjs'), 'utf8');
+    expect(source).not.toContain('Initialize replica set first');
+    expect(source).toContain('Mongo reachable as standalone server');
+  });
 });

@@ -3,6 +3,9 @@ import { actorFromRequest } from '../auth/apiKey.js';
 import {
   batchReadSchema,
   batchWriteSchema,
+  backupCreateSchema,
+  backupDeleteSchema,
+  backupRestoreSchema,
   createSiteSchema,
   legacyBatchReadSchema,
   legacyBatchWriteSchema,
@@ -12,6 +15,7 @@ import {
   putDataSchema,
 } from '../validation/schemas.js';
 import { badRequest } from '../utils/errors.js';
+import { SiteBackupRepository } from '../repository/SiteBackupRepository.js';
 
 function expectedVersionFrom(req, body = {}) {
   if (body.expectedVersion !== undefined) return body.expectedVersion;
@@ -27,8 +31,9 @@ function requestMeta(req) {
   };
 }
 
-export function createSiteRouter({ repository, legacyRepository }) {
+export function createSiteRouter({ repository, legacyRepository, backupRepository = null }) {
   const router = Router();
+  const backups = backupRepository || new SiteBackupRepository(repository, legacyRepository);
 
   router.get('/sites', async (_req, res, next) => {
     try {
@@ -53,6 +58,73 @@ export function createSiteRouter({ repository, legacyRepository }) {
     try {
       const site = await repository.getSite(req.params.siteId);
       res.json({ ok: true, site });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get('/sites/:siteId/backups', async (req, res, next) => {
+    try {
+      const backupItems = await backups.listBackups(req.params.siteId);
+      res.json({ ok: true, backups: backupItems });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post('/sites/:siteId/backups', async (req, res, next) => {
+    try {
+      const body = parseOrBadRequest(backupCreateSchema, req.body);
+      const backup = await backups.createBackup({
+        siteId: req.params.siteId,
+        backupPackage: body.backupPackage,
+        name: body.name,
+        description: body.description,
+        actor: actorFromRequest(req),
+        metadata: requestMeta(req),
+      });
+      res.status(201).json({ ok: true, backup });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get('/sites/:siteId/backups/:backupId', async (req, res, next) => {
+    try {
+      const backup = await backups.getBackup(req.params.siteId, decodeURIComponent(req.params.backupId));
+      res.json({ ok: true, backup });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete('/sites/:siteId/backups/:backupId', async (req, res, next) => {
+    try {
+      const body = parseOrBadRequest(backupDeleteSchema, req.body || {});
+      const backup = await backups.deleteBackup({
+        siteId: req.params.siteId,
+        backupId: decodeURIComponent(req.params.backupId),
+        expectedVersion: expectedVersionFrom(req, body || {}),
+        actor: actorFromRequest(req),
+        metadata: requestMeta(req),
+      });
+      res.json({ ok: true, backup });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post('/sites/:siteId/backups/:backupId/restore', async (req, res, next) => {
+    try {
+      const body = parseOrBadRequest(backupRestoreSchema, req.body || {});
+      const result = await backups.restoreBackup({
+        siteId: req.params.siteId,
+        backupId: decodeURIComponent(req.params.backupId),
+        allowSiteIdMismatch: body?.allowSiteIdMismatch === true,
+        actor: actorFromRequest(req),
+        metadata: requestMeta(req),
+      });
+      res.json({ ok: true, ...result });
     } catch (error) {
       next(error);
     }

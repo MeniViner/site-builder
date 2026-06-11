@@ -38,55 +38,19 @@ export class LegacyCompatibilityRepository {
   async readLegacyObject(siteId, key) {
     const normalizedKey = normalizeLegacyKey(key);
     const mapping = getLegacyMapping(normalizedKey);
+    const snapshot = await this.readLegacySnapshot(siteId, normalizedKey, mapping);
 
-    if (mapping.unknown) {
-      const doc = await this.repository.getDocument(siteId, UNKNOWN_LEGACY_SCOPE, mapping.entityId);
-      return {
-        key: normalizedKey,
-        mapping,
-        data: doc.data,
-        version: doc.version,
-        hash: doc.hash,
-        documents: [doc],
-      };
-    }
-
-    const manifest = await this.readManifestIfExists(siteId, normalizedKey);
-
-    if (mapping.mode === 'singleton') {
-      const doc = await this.repository.getDocument(siteId, mapping.scope, mapping.entityId);
-      return {
-        key: normalizedKey,
-        mapping,
-        data: doc.data,
-        version: manifest?.version ?? doc.version,
-        hash: sha256OfCanonicalJson(doc.data),
-        documents: [doc, manifest].filter(Boolean),
-      };
-    }
-
-    const docs = (await this.repository.listDocuments(siteId, mapping.scope))
-      .filter((doc) => !String(doc.entityId).startsWith('__legacy_meta_'));
-    const meta = await this.readListMetaIfExists(siteId, normalizedKey);
-    if (!manifest && !meta && docs.length === 0) {
+    if (!snapshot.exists) {
       throw notFound(`Legacy object "${normalizedKey}" was not found`);
     }
-    const orderedData = sortDocsByOrder(docs, meta?.data?.order || []).map((doc) => doc.data);
-
-    const data = mapping.mode === 'list-with-settings'
-      ? {
-          ...(isObject(meta?.data?.settings) ? meta.data.settings : {}),
-          [mapping.listProperty]: orderedData,
-        }
-      : orderedData;
 
     return {
       key: normalizedKey,
       mapping,
-      data,
-      version: manifest?.version ?? meta?.version ?? Math.max(0, ...docs.map((doc) => doc.version || 0)),
-      hash: sha256OfCanonicalJson(data),
-      documents: [...docs, meta, manifest].filter(Boolean),
+      data: snapshot.data,
+      version: snapshot.version,
+      hash: snapshot.hash,
+      documents: snapshot.documents,
     };
   }
 
@@ -106,49 +70,62 @@ export class LegacyCompatibilityRepository {
     }
 
     const mapping = getLegacyMapping(normalizedKey);
-    const manifest = await this.readManifestIfExists(siteId, normalizedKey);
+    const current = await this.readLegacySnapshot(siteId, normalizedKey, mapping, { allowMissing: true });
     const expected = expectedVersion === undefined || expectedVersion === null ? 0 : Number(expectedVersion);
 
-    if (manifest && manifest.version !== expected) {
+    if (current.version !== expected) {
       throw conflict('Legacy object version conflict', {
         key: normalizedKey,
         expectedVersion: expected,
-        actualVersion: manifest.version,
-      });
-    }
-    if (!manifest && expected !== 0) {
-      throw conflict('Legacy object version conflict', {
-        key: normalizedKey,
-        expectedVersion: expected,
-        actualVersion: 0,
+        actualVersion: current.version,
       });
     }
 
     let documents;
     if (mapping.unknown || mapping.mode === 'singleton') {
-      documents = [await this.writeSingleton(siteId, mapping, data, allowEmptyOverwrite, actor, metadata)];
+      documents = [await this.writeSingleton(
+        siteId,
+        mapping,
+        data,
+        allowEmptyOverwrite,
+        actor,
+        metadata,
+        current.dataDocuments[0] || null,
+      )];
     } else {
-      documents = await this.writeList(siteId, normalizedKey, mapping, data, allowEmptyOverwrite, actor, metadata);
+      documents = await this.writeList(
+        siteId,
+        normalizedKey,
+        mapping,
+        data,
+        allowEmptyOverwrite,
+        actor,
+        metadata,
+        {
+          currentDocs: current.dataDocuments,
+          currentMeta: current.listMeta || null,
+        },
+      );
     }
 
-    const nextManifest = await this.repository.replaceDocument({
+    const manifestData = {
+      key: normalizedKey,
+      mappingKey: mapping.key,
+      fileName: mapping.fileName,
+      mode: mapping.mode,
+      normalizedAs: describeLegacyMapping(mapping),
+      hash: sha256OfCanonicalJson(data),
+      documentKeys: documents.map((doc) => doc._id),
+    };
+
+    const nextManifest = await this.writeManifestDocument({
       siteId,
-      scope: LEGACY_META_SCOPE,
-      entityId: getLegacyMetaEntityId(normalizedKey),
-      data: {
-        key: normalizedKey,
-        mappingKey: mapping.key,
-        fileName: mapping.fileName,
-        mode: mapping.mode,
-        normalizedAs: describeLegacyMapping(mapping),
-        hash: sha256OfCanonicalJson(data),
-        documentKeys: documents.map((doc) => doc._id),
-      },
-      expectedVersion: manifest?.version ?? 0,
-      allowEmptyOverwrite: true,
+      normalizedKey,
+      data: manifestData,
+      currentManifest: current.manifest,
+      desiredVersion: current.version + 1,
       actor,
       metadata: { legacyKey: normalizedKey, ...metadata },
-      operation: 'legacy-write',
     });
 
     return {
@@ -161,16 +138,15 @@ export class LegacyCompatibilityRepository {
     };
   }
 
-  async writeSingleton(siteId, mapping, data, allowEmptyOverwrite, actor, metadata) {
+  async writeSingleton(siteId, mapping, data, allowEmptyOverwrite, actor, metadata, currentDoc = null) {
     const scope = mapping.unknown ? UNKNOWN_LEGACY_SCOPE : mapping.scope;
     const entityId = mapping.unknown ? mapping.entityId : mapping.entityId;
-    const existing = await this.readDocIfExists(siteId, scope, entityId);
     return this.repository.replaceDocument({
       siteId,
       scope,
       entityId,
       data,
-      expectedVersion: existing?.version ?? 0,
+      expectedVersion: currentDoc?.version ?? 0,
       allowEmptyOverwrite,
       actor,
       metadata: { legacyFileName: mapping.fileName, ...metadata },
@@ -178,7 +154,7 @@ export class LegacyCompatibilityRepository {
     });
   }
 
-  async writeList(siteId, normalizedKey, mapping, data, allowEmptyOverwrite, actor, metadata) {
+  async writeList(siteId, normalizedKey, mapping, data, allowEmptyOverwrite, actor, metadata, current = {}) {
     const list = mapping.mode === 'list-with-settings'
       ? (Array.isArray(data?.[mapping.listProperty]) ? data[mapping.listProperty] : [])
       : (Array.isArray(data) ? data : []);
@@ -187,10 +163,9 @@ export class LegacyCompatibilityRepository {
       throw badRequest(`Legacy mapping ${mapping.fileName} expects an array`);
     }
 
-    const currentDocs = await this.repository.listDocuments(siteId, mapping.scope);
+    const currentDocs = Array.isArray(current.currentDocs) ? current.currentDocs : [];
     const currentByEntityId = new Map(
       currentDocs
-        .filter((doc) => !String(doc.entityId).startsWith('__legacy_meta_'))
         .map((doc) => [String(doc.entityId), doc]),
     );
 
@@ -231,7 +206,7 @@ export class LegacyCompatibilityRepository {
     }
 
     const metaEntityId = getLegacyListMetaEntityId(normalizedKey);
-    const existingMeta = await this.readDocIfExists(siteId, mapping.scope, metaEntityId);
+    const existingMeta = current.currentMeta || null;
     const settings = mapping.mode === 'list-with-settings'
       ? Object.entries(data || {}).reduce((acc, [key, value]) => {
           if (key !== mapping.listProperty) acc[key] = value;
@@ -256,6 +231,126 @@ export class LegacyCompatibilityRepository {
     });
 
     return [...written, metaDoc];
+  }
+
+  async writeManifestDocument({
+    siteId,
+    normalizedKey,
+    data,
+    currentManifest = null,
+    desiredVersion,
+    actor,
+    metadata,
+  }) {
+    const entityId = getLegacyMetaEntityId(normalizedKey);
+    if (currentManifest) {
+      return this.repository.replaceDocument({
+        siteId,
+        scope: LEGACY_META_SCOPE,
+        entityId,
+        data,
+        expectedVersion: currentManifest.version,
+        allowEmptyOverwrite: true,
+        actor,
+        metadata,
+        operation: 'legacy-write',
+      });
+    }
+
+    let manifest = await this.repository.replaceDocument({
+      siteId,
+      scope: LEGACY_META_SCOPE,
+      entityId,
+      data,
+      expectedVersion: 0,
+      allowEmptyOverwrite: true,
+      actor,
+      metadata: {
+        ...metadata,
+        adoptedLegacyVersion: Math.max(0, Number(desiredVersion || 1) - 1),
+      },
+      operation: 'legacy-manifest-adopt',
+    });
+
+    while (manifest.version < desiredVersion) {
+      manifest = await this.repository.replaceDocument({
+        siteId,
+        scope: LEGACY_META_SCOPE,
+        entityId,
+        data,
+        expectedVersion: manifest.version,
+        allowEmptyOverwrite: true,
+        actor,
+        metadata,
+        operation: 'legacy-write',
+      });
+    }
+
+    return manifest;
+  }
+
+  async readLegacySnapshot(siteId, normalizedKey, mapping, { allowMissing = false } = {}) {
+    const missing = () => ({
+      exists: false,
+      data: null,
+      version: 0,
+      hash: null,
+      documents: [],
+      dataDocuments: [],
+      listMeta: null,
+      manifest: null,
+    });
+
+    const manifest = await this.readManifestIfExists(siteId, normalizedKey);
+
+    if (mapping.unknown || mapping.mode === 'singleton') {
+      const scope = mapping.unknown ? UNKNOWN_LEGACY_SCOPE : mapping.scope;
+      const entityId = mapping.unknown ? mapping.entityId : mapping.entityId;
+      const doc = await this.readDocIfExists(siteId, scope, entityId);
+      if (!doc) {
+        if (allowMissing) return missing();
+        throw notFound(`Legacy object "${normalizedKey}" was not found`);
+      }
+      const data = doc.data;
+      return {
+        exists: true,
+        data,
+        version: manifest?.version ?? doc.version,
+        hash: sha256OfCanonicalJson(data),
+        documents: [doc, manifest].filter(Boolean),
+        dataDocuments: [doc],
+        listMeta: null,
+        manifest,
+      };
+    }
+
+    const allDocs = await this.repository.listDocuments(siteId, mapping.scope);
+    const docs = allDocs.filter((doc) => !String(doc.entityId).startsWith('__legacy_meta_'));
+    const meta = allDocs.find((doc) => doc.entityId === getLegacyListMetaEntityId(normalizedKey))
+      || await this.readListMetaIfExists(siteId, normalizedKey);
+    if (!manifest && !meta && docs.length === 0) {
+      if (allowMissing) return missing();
+      throw notFound(`Legacy object "${normalizedKey}" was not found`);
+    }
+    const orderedData = sortDocsByOrder(docs, meta?.data?.order || []).map((doc) => doc.data);
+
+    const data = mapping.mode === 'list-with-settings'
+      ? {
+          ...(isObject(meta?.data?.settings) ? meta.data.settings : {}),
+          [mapping.listProperty]: orderedData,
+        }
+      : orderedData;
+
+    return {
+      exists: true,
+      data,
+      version: manifest?.version ?? meta?.version ?? Math.max(0, ...docs.map((doc) => doc.version || 0)),
+      hash: sha256OfCanonicalJson(data),
+      documents: [...docs, meta, manifest].filter(Boolean),
+      dataDocuments: docs,
+      listMeta: meta || null,
+      manifest,
+    };
   }
 
   async readManifestIfExists(siteId, key) {

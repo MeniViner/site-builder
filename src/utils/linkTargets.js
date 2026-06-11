@@ -163,6 +163,12 @@ export function buildWindowsFileOpenerHref(value) {
     return encodedPath ? `${WINDOWS_FILE_OPENER_SCHEME}://open?target=${encodedPath}` : '';
 }
 
+export function getSystemLaunchHref(value) {
+    const href = normalizeLinkTarget(value);
+    if (!href || href === '#') return '';
+    return buildWindowsFileOpenerHref(href) || (isSystemLinkTarget(href) ? href : '');
+}
+
 export function isLocalFilePath(value) {
     const raw = asTrimmedText(value);
     if (!raw) return false;
@@ -200,16 +206,13 @@ export function getLinkTargetAttributes(value) {
     const href = normalizeLinkTarget(value);
     if (!href) return { href: '#' };
 
-    const windowsFileOpenerHref = buildWindowsFileOpenerHref(href);
-    if (windowsFileOpenerHref) {
+    const systemLaunchHref = getSystemLaunchHref(href);
+    if (systemLaunchHref) {
         return {
-            href: windowsFileOpenerHref,
+            href: systemLaunchHref,
             'data-original-href': href,
+            onClick: (event) => handleLinkTargetClick(value, event),
         };
-    }
-
-    if (isSystemLinkTarget(href)) {
-        return { href };
     }
 
     return {
@@ -219,28 +222,33 @@ export function getLinkTargetAttributes(value) {
     };
 }
 
+export function handleLinkTargetClick(value, event) {
+    const systemLaunchHref = getSystemLaunchHref(value);
+    if (!systemLaunchHref) return false;
+
+    if (event?.preventDefault) event.preventDefault();
+    openSystemHref(systemLaunchHref);
+    return true;
+}
+
+function openSystemHref(href) {
+    if (typeof window === 'undefined') return false;
+
+    const opened = window.open(href, '_blank');
+    if (!opened) {
+        window.location.href = href;
+    }
+    return true;
+}
+
 export function openLinkTarget(value) {
     const href = normalizeLinkTarget(value);
     if (!href || href === '#') return false;
 
     if (typeof window === 'undefined') return false;
 
-    const windowsFileOpenerHref = buildWindowsFileOpenerHref(href);
-    if (windowsFileOpenerHref) {
-        const opened = window.open(windowsFileOpenerHref, '_self');
-        if (!opened) {
-            window.location.href = windowsFileOpenerHref;
-        }
-        return true;
-    }
-
-    if (isSystemLinkTarget(href)) {
-        const opened = window.open(href, '_self');
-        if (!opened) {
-            window.location.href = href;
-        }
-        return true;
-    }
+    const systemLaunchHref = getSystemLaunchHref(href);
+    if (systemLaunchHref) return openSystemHref(systemLaunchHref);
 
     window.open(href, '_blank', 'noopener,noreferrer');
     return true;

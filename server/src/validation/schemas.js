@@ -70,6 +70,20 @@ export const legacyBatchWriteSchema = z.object({
   items: z.array(legacyWriteSchema).min(1).max(100),
 });
 
+export const backupCreateSchema = z.object({
+  backupPackage: z.unknown(),
+  name: z.string().trim().max(240).optional(),
+  description: z.string().trim().max(2000).optional(),
+});
+
+export const backupDeleteSchema = z.object({
+  expectedVersion: z.number().int().min(0).optional(),
+}).optional();
+
+export const backupRestoreSchema = z.object({
+  allowSiteIdMismatch: z.boolean().optional(),
+}).optional();
+
 export function parseOrBadRequest(schema, value) {
   const parsed = schema.safeParse(value);
   if (!parsed.success) {

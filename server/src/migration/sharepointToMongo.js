@@ -32,11 +32,13 @@ function estimateDocuments(mapping, data) {
   return 1;
 }
 
-function plannedCollectionName(siteId, siteSlug = siteId) {
+function plannedCollectionName(siteId, siteSlug = siteId, collectionPrefix = '') {
   const normalizedSiteId = String(siteId || '').trim();
   const normalizedSiteSlug = String(siteSlug || normalizedSiteId).trim();
   const safeNameSource = normalizedSiteSlug ? `${normalizedSiteSlug}:${normalizedSiteId}` : normalizedSiteId;
-  return sanitizeSiteCollectionName(safeNameSource);
+  return sanitizeSiteCollectionName(safeNameSource, {
+    ...(collectionPrefix ? { prefix: collectionPrefix } : {}),
+  });
 }
 
 function documentCountsByScope(imported = []) {
@@ -148,13 +150,34 @@ export async function migrateSharePointToMongo({
     throw new Error('repository and legacyRepository are required for real migration runs');
   }
 
+  const exportArtifact = fromExport
+    ? await readFromExportArtifact(fromExport, { allowUnsafeExport })
+    : null;
+  const exportManifest = exportArtifact?.manifest || null;
+  const safeSiteFolder = String(
+    exportManifest?.safeSiteFolder
+      || (exportArtifact?.exportDir ? path.basename(exportArtifact.exportDir) : '')
+      || '',
+  ).trim();
+  const exportManifestSiteCode = String(exportManifest?.siteCode || '').trim();
+  const collectionPrefix = repository?.collectionPrefix || '';
+  const exportManifestMatchesSite = !exportManifestSiteCode || exportManifestSiteCode === siteId;
+
   const report = {
     dryRun,
     force,
     siteId,
+    siteCode: siteId,
+    realSiteId: siteId,
+    realSiteCode: siteId,
     siteSlug,
     displayName,
-    targetMongoCollectionName: plannedCollectionName(siteId, siteSlug),
+    safeSiteFolder,
+    exportManifestSiteCode,
+    exportManifestMatchesSite,
+    targetMongoCollectionName: exportManifestMatchesSite && exportManifest?.targetMongoCollectionName
+      ? exportManifest.targetMongoCollectionName
+      : plannedCollectionName(siteId, siteSlug, collectionPrefix),
     fromExport: fromExport || '',
     startedAt: new Date().toISOString(),
     completedAt: null,
@@ -167,12 +190,14 @@ export async function migrateSharePointToMongo({
   };
 
   if (!dryRun) {
-    await repository.ensureSite({ siteId, siteSlug, displayName, actor });
+    const site = await repository.ensureSite({ siteId, siteSlug, displayName, actor });
+    report.targetMongoCollectionName = site.safeCollectionName;
+    report.siteRecord = {
+      siteId: site.siteId,
+      siteSlug: site.siteSlug,
+      safeCollectionName: site.safeCollectionName,
+    };
   }
-
-  const exportArtifact = fromExport
-    ? await readFromExportArtifact(fromExport, { allowUnsafeExport })
-    : null;
 
   for (const mapping of LEGACY_MAPPINGS) {
     const key = sharePointConfig?.fileMap?.[mapping.key] || mapping.fileName;

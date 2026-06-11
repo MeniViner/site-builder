@@ -45,7 +45,8 @@ import {
 import ConfigService from '../services/ConfigService';
 import { useConfig } from '../context/ConfigProvider';
 import BackupSiteLivePreview from './BackupSiteLivePreview';
-import { isMongoStorageBackend, isSharePointReadonlyBackend } from '../services/storage/storageBackend';
+import backendApiClient from '../services/storage/backendApiClient';
+import { getSiteId, isMongoStorageBackend, isSharePointReadonlyBackend } from '../services/storage/storageBackend';
 
 const MASTER_CONFIG_TARGET_URL = import.meta.env.VITE_SP_MASTER_CONFIG_FILE_URL || SHAREPOINT_PATHS.masterConfigFileServerRelativeUrl;
 const MASTER_CONFIG_FILE_NAME = (MASTER_CONFIG_TARGET_URL || '').split('/').pop();
@@ -268,7 +269,9 @@ const downloadJsonFile = (fileName, payload) => {
 };
 
 export default function AdminBackupManagement() {
-    const useLocalBackupStore = SHAREPOINT_CONFIG.useMock || isMongoStorageBackend() || isSharePointReadonlyBackend();
+    const mongoBackupStore = isMongoStorageBackend();
+    const useLocalBackupStore = !mongoBackupStore && (SHAREPOINT_CONFIG.useMock || isSharePointReadonlyBackend());
+    const currentSiteId = getSiteId();
     const { config, reload } = useConfig();
     const importInputRef = useRef(null);
     const [loading, setLoading] = useState(false);
@@ -332,7 +335,7 @@ export default function AdminBackupManagement() {
         });
 
         return createBackupPackage({
-                source: isMongoStorageBackend() ? 'mongo-local-package' : 'dev-local',
+            source: 'dev-local',
             exportedAt,
             backup: {
                 id: `dev-${exportedAt.replace(/[:.]/g, '-')}`,
@@ -348,6 +351,37 @@ export default function AdminBackupManagement() {
         });
     };
 
+    const buildMongoBackupPackage = ({ trigger = 'manual' } = {}) => {
+        const exportedAt = new Date().toISOString();
+        const normalizedConfig = validateAndNormalize(config);
+        return createBackupPackage({
+            source: 'admin-backup-management',
+            exportedAt,
+            backup: {
+                id: `backup-${exportedAt.replace(/[:.]/g, '-')}`,
+                name: `mongo-backup-${exportedAt}`,
+                timeCreated: exportedAt,
+                timeLastModified: exportedAt,
+            },
+            files: [
+                {
+                    name: MASTER_CONFIG_FILE_NAME,
+                    label: getBackupFileDisplayName(MASTER_CONFIG_FILE_NAME),
+                    targetServerRelativeUrl: MASTER_CONFIG_TARGET_URL,
+                    timeCreated: exportedAt,
+                    timeLastModified: exportedAt,
+                    text: JSON.stringify(normalizedConfig, null, 2),
+                },
+            ],
+            meta: {
+                trigger,
+                storageBackend: 'mongo',
+                siteId: currentSiteId,
+                mode: import.meta.env.MODE,
+            },
+        });
+    };
+
     const buildPackageFromBackup = async (backup) => {
         if (!backup) {
             throw new Error('לא נבחר גיבוי לייצוא.');
@@ -355,6 +389,11 @@ export default function AdminBackupManagement() {
 
         if (backup.backupPackage) {
             return normalizeImportedBackupPackage(backup.backupPackage, { masterFileName: MASTER_CONFIG_FILE_NAME });
+        }
+
+        if (mongoBackupStore && backup.id) {
+            const response = await backendApiClient.getBackup(currentSiteId, backup.id);
+            return normalizeImportedBackupPackage(response?.backup?.backupPackage, { masterFileName: MASTER_CONFIG_FILE_NAME });
         }
 
         const files = await loadBackupFilesForBackup(backup);
@@ -390,6 +429,41 @@ export default function AdminBackupManagement() {
     };
 
     const loadBackups = async ({ preserveSelection = true } = {}) => {
+        if (mongoBackupStore) {
+            setLoading(true);
+            setError('');
+            try {
+                const response = await backendApiClient.listBackups(currentSiteId);
+                const nextBackups = Array.isArray(response?.backups) ? response.backups : [];
+                setBackups(nextBackups);
+                setBaseFolderUrl('');
+
+                if (nextBackups.length === 0) {
+                    setSelectedBackupPath('');
+                    setSelectedBackupFiles([]);
+                    return;
+                }
+
+                const previousSelectionExists = preserveSelection
+                    && nextBackups.some((item) => item.serverRelativeUrl === selectedBackupPath);
+                const fallbackSelection = nextBackups[0]?.serverRelativeUrl || '';
+                const nextSelection = previousSelectionExists ? selectedBackupPath : fallbackSelection;
+                setSelectedBackupPath(nextSelection);
+
+                const selectedFromRefresh = nextBackups.find((item) => item.serverRelativeUrl === nextSelection);
+                setSelectedBackupFiles(Array.isArray(selectedFromRefresh?.files) ? selectedFromRefresh.files : []);
+            } catch (loadError) {
+                const message = loadError?.message || 'טעינת גיבויי Mongo נכשלה.';
+                setError(message);
+                setBackups([]);
+                setSelectedBackupPath('');
+                setSelectedBackupFiles([]);
+            } finally {
+                setLoading(false);
+            }
+            return;
+        }
+
         if (useLocalBackupStore) {
             setLoading(true);
             setError('');
@@ -467,6 +541,25 @@ export default function AdminBackupManagement() {
 
         if (Array.isArray(backup.files) && backup.files.length > 0) {
             return backup.files;
+        }
+
+        if (mongoBackupStore && backup?.id) {
+            const response = await backendApiClient.getBackup(currentSiteId, backup.id);
+            const backupPackage = normalizeImportedBackupPackage(response?.backup?.backupPackage, { masterFileName: MASTER_CONFIG_FILE_NAME });
+            const backupItem = packageToBackupListItem(backupPackage, { idPrefix: 'mongo-backup' });
+            const files = backupItem.files;
+            setBackups((prevBackups) => prevBackups.map((item) => (
+                item.id === backup.id
+                    ? {
+                        ...item,
+                        backupPackage,
+                        files,
+                        fileCount: files.length,
+                        totalSizeBytes: files.reduce((sum, file) => sum + (Number(file?.sizeBytes) || 0), 0),
+                    }
+                    : item
+            )));
+            return files;
         }
 
         const files = await listSharePointBackupFiles(backup.serverRelativeUrl);
@@ -558,6 +651,13 @@ export default function AdminBackupManagement() {
 
         setDeletingBackupPath(backup.serverRelativeUrl);
         try {
+            if (mongoBackupStore && backup.id) {
+                await backendApiClient.deleteBackup(currentSiteId, backup.id, { expectedVersion: backup.version });
+                toast.success('הגיבוי נמחק מ-Mongo בהצלחה.');
+                await loadBackups({ preserveSelection: true });
+                return;
+            }
+
             if (useLocalBackupStore && backup.backupPackage) {
                 const nextPackages = readDevBackupPackages()
                     .filter((item) => item.id !== backup.backupPackage.id);
@@ -578,6 +678,40 @@ export default function AdminBackupManagement() {
     };
 
     const handleCreateManualBackup = async () => {
+        if (mongoBackupStore) {
+            const confirmed = await confirmToast({
+                title: 'גיבוי מערכת ל-Mongo',
+                message: 'האם ליצור גיבוי של כלל נתוני האתר ולשמור אותו ב-Mongo?',
+                confirmText: 'צור גיבוי',
+                cancelText: 'ביטול',
+            });
+            if (!confirmed) return;
+
+            setIsCreatingBackup(true);
+            setError('');
+            try {
+                const backupPackage = buildMongoBackupPackage({ trigger: 'manual' });
+                const response = await backendApiClient.createBackup(currentSiteId, {
+                    backupPackage,
+                    name: backupPackage.backup?.name || '',
+                    description: '',
+                });
+                toast.success('הגיבוי נשמר ב-Mongo בהצלחה.');
+                await loadBackups({ preserveSelection: false });
+                if (response?.backup?.serverRelativeUrl) {
+                    setSelectedBackupPath(response.backup.serverRelativeUrl);
+                    setSelectedBackupFiles(Array.isArray(response.backup.files) ? response.backup.files : []);
+                }
+            } catch (createError) {
+                const message = createError?.message || 'יצירת גיבוי Mongo נכשלה.';
+                setError(message);
+                toast.error(message);
+            } finally {
+                setIsCreatingBackup(false);
+            }
+            return;
+        }
+
         if (useLocalBackupStore) {
             setIsCreatingBackup(true);
             try {
@@ -650,6 +784,26 @@ export default function AdminBackupManagement() {
 
         setIsRestoring(true);
         try {
+            if (mongoBackupStore) {
+                if (!restoreModal.backup?.id) {
+                    throw new Error('לגיבוי Mongo חסר מזהה לשחזור.');
+                }
+
+                const safetyPackage = buildMongoBackupPackage({ trigger: 'pre-restore' });
+                await backendApiClient.createBackup(currentSiteId, {
+                    backupPackage: safetyPackage,
+                    name: `pre-restore-${safetyPackage.exportedAt}`,
+                    description: `Safety backup before restoring ${restoreModal.backup.id}`,
+                });
+
+                await backendApiClient.restoreBackup(currentSiteId, restoreModal.backup.id);
+                await reload();
+                toast.success('השחזור בוצע דרך Mongo ונתוני האתר נטענו מחדש.');
+                setRestoreModal(null);
+                await loadBackups({ preserveSelection: true });
+                return;
+            }
+
             if (useLocalBackupStore) {
                 upsertDevBackupPackage(buildDevBackupPackage({ trigger: 'pre-restore' }));
 
@@ -753,6 +907,40 @@ export default function AdminBackupManagement() {
             const preview = buildPreviewFromBackupTexts(fileTextsByName);
             const backupItem = packageToBackupListItem(importedPackage, { idPrefix: useLocalBackupStore ? 'dev-backup' : 'imported-backup' });
 
+            if (mongoBackupStore) {
+                const response = await backendApiClient.createBackup(currentSiteId, {
+                    backupPackage: {
+                        ...importedPackage,
+                        meta: {
+                            ...importedPackage.meta,
+                            importedAt: new Date().toISOString(),
+                            importedToSiteId: currentSiteId,
+                        },
+                    },
+                    name: importedPackage.backup?.name || 'imported-backup',
+                    description: 'Imported from a local JSON backup file.',
+                });
+                await loadBackups({ preserveSelection: true });
+                const savedBackup = response?.backup || backupItem;
+                setSelectedBackupPath(savedBackup.serverRelativeUrl || backupItem.serverRelativeUrl);
+                setSelectedBackupFiles(backupItem.files);
+                setRestoreModal({
+                    backup: {
+                        ...backupItem,
+                        ...savedBackup,
+                        backupPackage: importedPackage,
+                        files: backupItem.files,
+                    },
+                    files: backupItem.files,
+                    loading: false,
+                    error: '',
+                    preview,
+                    fileTextsByName,
+                });
+                toast.success('קובץ הגיבוי יובא ונשמר ב-Mongo.');
+                return;
+            }
+
             if (useLocalBackupStore) {
                 const savedPackage = upsertDevBackupPackage(importedPackage);
                 const savedBackupItem = packageToBackupListItem(savedPackage, { idPrefix: 'dev-backup' });
@@ -795,16 +983,23 @@ export default function AdminBackupManagement() {
                             <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
                                     <h1 className="text-xl font-black tracking-tight text-gray-900 dark:text-white sm:text-2xl">ניהול גיבויים</h1>
+                                    {mongoBackupStore && (
+                                        <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[11px] font-black text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-200">
+                                            Mongo
+                                        </span>
+                                    )}
                                     {useLocalBackupStore && (
                                         <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-black text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200">
-                                            {isMongoStorageBackend() ? 'Mongo' : 'מצב פיתוח'}
+                                            מצב פיתוח
                                         </span>
                                     )}
                                 </div>
                                 <p className="mt-0.5 text-xs leading-snug text-gray-500 dark:text-gray-400 sm:text-sm sm:leading-relaxed">
-                                    {useLocalBackupStore
-                                        ? 'דשבורד גיבויים מקומי לפיתוח: יצירה, ייבוא, ייצוא, תצוגה מקדימה ושחזור ללא SharePoint.'
-                                        : 'דשבורד גיבויים מרכזי: צפייה בגיבויים, גודל כולל, קבצים לכל גיבוי, ייבוא, ייצוא ומחיקה מאובטחת.'}
+                                    {mongoBackupStore
+                                        ? `גיבויים נשמרים ב-Mongo בתוך collection האתר הנוכחי (${currentSiteId}), תחת scope: backups.`
+                                        : (useLocalBackupStore
+                                            ? 'דשבורד גיבויים מקומי לפיתוח: יצירה, ייבוא, ייצוא, תצוגה מקדימה ושחזור ללא SharePoint.'
+                                            : 'דשבורד גיבויים מרכזי: צפייה בגיבויים, גודל כולל, קבצים לכל גיבוי, ייבוא, ייצוא ומחיקה מאובטחת.')}
                                 </p>
                             </div>
                         </div>
@@ -1125,9 +1320,11 @@ export default function AdminBackupManagement() {
 
                         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 px-5 py-4 dark:border-white/10">
                             <div className="text-xs text-gray-500 dark:text-gray-400">
-                                {useLocalBackupStore
-                                    ? 'לפני שחזור יישמר גיבוי בטיחות מקומי של מצב הפיתוח הנוכחי.'
-                                    : 'לפני שחזור ייווצר גיבוי בטיחות של המצב הנוכחי.'}
+                                {mongoBackupStore
+                                    ? 'לפני שחזור יישמר גיבוי בטיחות ב-Mongo של מצב האתר הנוכחי.'
+                                    : (useLocalBackupStore
+                                        ? 'לפני שחזור יישמר גיבוי בטיחות מקומי של מצב הפיתוח הנוכחי.'
+                                        : 'לפני שחזור ייווצר גיבוי בטיחות של המצב הנוכחי.')}
                             </div>
                             <button
                                 type="button"
