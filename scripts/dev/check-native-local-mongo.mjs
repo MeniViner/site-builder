@@ -76,7 +76,6 @@ export async function checkMongoEnvDatabase(name, uri, dbName) {
     return createCheck(name, 'FAIL', `Refusing to use unexpected database name: ${dbName}`);
   }
 
-  const expectedReplicaSet = LOCAL_MONGO.replicaSet;
   const client = new MongoClient(uri, {
     serverSelectionTimeoutMS: 3000,
   });
@@ -85,24 +84,14 @@ export async function checkMongoEnvDatabase(name, uri, dbName) {
     await client.connect();
     const hello = await client.db('admin').command({ hello: 1 });
 
-    if (!hello?.setName) {
-      return createCheck(
-        name,
-        'FAIL',
-        `Mongo does not report replica set info for ${dbName}. Initialize replica set first (${expectedReplicaSet}).`,
-      );
-    }
-
-    if (hello.setName !== expectedReplicaSet) {
-      return createCheck(
-        name,
-        'FAIL',
-        `Unexpected replica set name ${hello.setName || '(none)'}. Expected ${expectedReplicaSet}.`,
-      );
-    }
-
     await client.db(dbName).command({ ping: 1 });
-    return createCheck(name, 'PASS', `Mongo reachable and replica set ${hello.setName} available for ${dbName}`);
+    return createCheck(
+      name,
+      'PASS',
+      hello?.setName
+        ? `Mongo reachable with replica set ${hello.setName} for ${dbName}`
+        : `Mongo reachable as standalone server for ${dbName}`,
+    );
   } catch (error) {
     return createCheck(name, 'FAIL', `Mongo not reachable for ${dbName}: ${error.message}`);
   } finally {
