@@ -41,7 +41,7 @@
   מריץ בדיקות יחידה עם Vitest.
 
 - `npm run server:dev`  
-  מריץ את שרת ה-Mongo backend המקומי.
+  מריץ את שרת ה-Mongo backend המקומי עם `server/.env.local`.
 
 - `npm run server:test`  
   מריץ את בדיקות שכבת השרת.
@@ -63,6 +63,9 @@
 
 - `npm run migrate:sharepoint-to-mongo -- --dry-run`  
   מבצע סימולציית מיגרציה מ-TXT/SharePoint ל-MongoDB ומייצר דוח.
+
+- `npm run migrate:sharepoint-to-mongo -- --from-export <batch-export-dir>/sites/<safe-site-folder> --site <real-site-id>`  
+  מבצע import אמיתי ל-Mongo מקומי מתוך artifact של אתר אחד. הסקריפט טוען `server/.env.local`.
 
 - `npm run sharepoint:closed-validate -- --input sharepoint-export-input --site <siteCode>`  
   מאמת תיקיית TXT שהורדה ידנית מ-SharePoint סגור ויוצר artifact מקומי למיגרציית Mongo dry-run.
@@ -100,6 +103,7 @@
 להקמת סביבת Mongo מקומית עם Docker Compose, קבצי env, בדיקות והרצה:
 
 - `docs/LOCAL_MONGO_DEV.md`
+- `docs/WINDOWS_NATIVE_MONGO_LOCAL_DEV_HE.md` למסלול Windows native ללא Docker.
 
 משתני סביבה נדרשים לשרת:
 
@@ -115,7 +119,7 @@
 משתני סביבה ל-Frontend:
 
 - `VITE_STORAGE_BACKEND=mongo`
-- `VITE_BACKEND_API_URL=http://localhost:<SERVER_PORT>`
+- `VITE_BACKEND_API_URL=http://127.0.0.1:<SERVER_PORT>`
 - `VITE_SITE_ID=<site-id>` או `VITE_SP_SITE_CODE`
 - `VITE_SITE_BUILDER_API_KEY=<ADMIN_API_KEY>` עד להחלפתו ב-JWT/SSO אמיתי.
 
@@ -125,6 +129,13 @@ MongoDB משתמש במסד נתונים אחד לכלל האתרים:
 - `site_data_revisions` - snapshots לפני/אחרי כתיבות חשובות.
 - `site_data_audit_logs` - audit לכתיבות, מחיקות וקונפליקטים.
 - collection פיזי אחד לכל אתר, בשם מחוטא עם hash יציב.
+
+ניתוב אתר:
+
+- `sites.siteId` הוא ה-id הלוגי שבו משתמשים ה-API וה-Frontend, למשל `alphateam`.
+- `sites.safeCollectionName` הוא שם ה-collection הפיזי ב-Mongo.
+- אתרים קיימים נפתרים לפי `sites.safeCollectionName`; לא משנים collection חי אוטומטית.
+- `SITE_COLLECTION_PREFIX` משפיע רק על שמות חדשים שנוצרים אחרי שינוי הערך.
 
 כתיבות משתמשות ב-version optimistic concurrency. `PUT`, `PATCH` ו-`DELETE` דורשים `expectedVersion` או `If-Match`; מחיקה היא soft delete; דריסות ריקות (`{}`, `[]`, `null`) נחסמות אלא אם נשלח `allowEmptyOverwrite=true`.
 
@@ -139,6 +150,56 @@ MongoDB משתמש במסד נתונים אחד לכלל האתרים:
 - `widgets_data.txt` -> `widgets:config` כסינגלטון עד נרמול בטוח יותר
 - `external_links_data.txt` -> מסמכי `externalLinks`
 - `gantt_data.txt` -> `gantt:settings`
+
+### Admin Backups ב-Mongo
+
+כאשר `VITE_STORAGE_BACKEND=mongo`, מסך ניהול הגיבויים שומר גיבויים ב-Mongo ולא ב-`localStorage`.
+הגיבויים נשמרים בתוך אותו collection פיזי של האתר, לפי `sites.safeCollectionName`, עם:
+
+```js
+{
+  _id: "backup:<backupId>",
+  siteId: "<siteId>",
+  scope: "backups",
+  entityId: "<backupId>",
+  data: {
+    backupId: "<backupId>",
+    name: "...",
+    description: "...",
+    createdAt: "...",
+    createdBy: "...",
+    source: "admin-backup-management",
+    summary: {},
+    snapshot: {},
+    sizeBytes: 0,
+    storageBackend: "mongo",
+    siteId: "<siteId>"
+  },
+  version: 1,
+  schemaVersion: 1,
+  createdAt: Date,
+  updatedAt: Date,
+  deletedAt: null
+}
+```
+
+ב-MongoDB Compass:
+
+1. פותחים את `site_builder_dev`.
+2. פותחים את ה-collection שמופיע ב-`sites.safeCollectionName` עבור האתר.
+3. מסננים:
+
+```js
+{ scope: "backups", deletedAt: null }
+```
+
+הבדלים חשובים:
+
+- live site data: מסמכי האתר הפעילים באותו collection לפי `scope` ו-`entityId`.
+- `site_data_revisions`: snapshots אוטומטיים לפני/אחרי כתיבות חשובות.
+- `site_data_audit_logs`: audit לכתיבות, מחיקות, קונפליקטים, יצירת/מחיקת/שחזור גיבויים.
+- admin backups: packages מלאים תחת `scope: "backups"` באותו collection של האתר.
+- `localStorage` נשאר רק לגיבויי מצב mock/local legacy, ולא משמש כאחסון ראשי במצב Mongo.
 
 הערת durability: השרת מבקש write concern של `majority` ו-journaling. בפריסת MongoDB יחידה ללא replica set יש לוודא journaling פעיל ולהכיר בכך שאין majority אמיתי כמו ב-replica set.
 
@@ -169,6 +230,14 @@ npm run sharepoint:closed-validate -- --input sharepoint-export-input --all-site
 ```bash
 npm run migrate:sharepoint-export-to-mongo:dry-run -- --from-export exports/sharepoint-closed/<batchExportId> --all-sites
 ```
+
+לאחר dry-run תקין, import אמיתי מקומי לאתר אחד משתמש בתיקיית האתר הפנימית אבל ב-`--site` של האתר הלוגי:
+
+```bash
+npm run migrate:sharepoint-to-mongo -- --from-export exports/sharepoint-closed/<batchExportId>/sites/<safe-site-folder> --site <real-site-id>
+```
+
+אין סקריפט בשם `migrate:sharepoint-export-to-mongo`; ל-dry-run משתמשים רק ב-`migrate:sharepoint-export-to-mongo:dry-run`, ול-import אמיתי מקומי ב-`migrate:sharepoint-to-mongo`.
 
 ## הגדרת מנהלים ו-SharePoint
 

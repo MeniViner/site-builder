@@ -1,0 +1,433 @@
+{
+  "batch": true,
+  "dryRun": true,
+  "force": false,
+  "fromExport": "/tmp/site-builder-sharepoint-closed-verify/batch-2026-06-10T11-12-04-073Z-d48e552a",
+  "batchExportId": "batch-2026-06-10T11-12-04-073Z-d48e552a",
+  "sourceMode": "manual-folder",
+  "startedAt": "2026-06-10T11:12:09.496Z",
+  "completedAt": "2026-06-10T11:12:09.498Z",
+  "totalSites": 2,
+  "collectionCollisionCheck": {
+    "passed": true,
+    "collisions": []
+  },
+  "documentsImportedBySite": {
+    "demo-main-site": 17,
+    "Sites/demo-main-site/subsite-a": 17
+  },
+  "sites": [
+    {
+      "siteCode": "demo-main-site",
+      "siteSlug": "demo-main-site",
+      "displayName": "demo-main-site",
+      "safeSiteFolder": "demo_main_site_9f43ab8a",
+      "fromExport": "/tmp/site-builder-sharepoint-closed-verify/batch-2026-06-10T11-12-04-073Z-d48e552a/sites/demo_main_site_9f43ab8a",
+      "targetMongoCollectionName": "site_demo_main_site_demo_main_site_338ad5969d",
+      "status": "PASS",
+      "documentsImported": 17,
+      "documentCountsByScope": {
+        "config": 1,
+        "admins": 3,
+        "events": 3,
+        "navigation": 3,
+        "content": 1,
+        "design": 1,
+        "widgets": 1,
+        "externalLinks": 3,
+        "gantt": 1
+      },
+      "imported": 9,
+      "failedKeys": [],
+      "skippedEmptyFiles": [],
+      "report": {
+        "dryRun": true,
+        "force": false,
+        "siteId": "demo-main-site",
+        "siteCode": "demo-main-site",
+        "realSiteId": "demo-main-site",
+        "realSiteCode": "demo-main-site",
+        "siteSlug": "demo-main-site",
+        "displayName": "demo-main-site",
+        "safeSiteFolder": "demo_main_site_9f43ab8a",
+        "exportManifestSiteCode": "demo-main-site",
+        "exportManifestMatchesSite": true,
+        "targetMongoCollectionName": "site_demo_main_site_demo_main_site_338ad5969d",
+        "fromExport": "/tmp/site-builder-sharepoint-closed-verify/batch-2026-06-10T11-12-04-073Z-d48e552a/sites/demo_main_site_9f43ab8a",
+        "startedAt": "2026-06-10T11:12:09.497Z",
+        "completedAt": "2026-06-10T11:12:09.497Z",
+        "sitesImported": 0,
+        "documentsImportedBySite": {
+          "demo-main-site": 17
+        },
+        "imported": [
+          {
+            "key": "/sites/demo-main-site/siteDB/siteAssets/bihs_master_config_v1.txt",
+            "fileName": "bihs_master_config_v1.txt",
+            "mappingKey": "masterConfig",
+            "estimatedDocuments": 1,
+            "hash": "ff3a8987b344824804bbcb6d7602216d464d7507c1b5ebbc8f7d3cbaa3df135f",
+            "dryRun": true
+          },
+          {
+            "key": "/sites/demo-main-site/siteDB/siteAssets/users_data.txt",
+            "fileName": "users_data.txt",
+            "mappingKey": "users",
+            "estimatedDocuments": 3,
+            "hash": "7dd4b4f4003d40ed86e3ff3f7ae85ecb73fddf0d3752bdb3ef8827912a98647d",
+            "dryRun": true
+          },
+          {
+            "key": "/sites/demo-main-site/siteDB/siteAssets/events_data.txt",
+            "fileName": "events_data.txt",
+            "mappingKey": "events",
+            "estimatedDocuments": 3,
+            "hash": "42b2963df2f10e1279cd9415f474b31ce3fe1507f2047cd05670cef927cdfdf0",
+            "dryRun": true
+          },
+          {
+            "key": "/sites/demo-main-site/siteDB/siteAssets/nav_data.txt",
+            "fileName": "nav_data.txt",
+            "mappingKey": "navigation",
+            "estimatedDocuments": 3,
+            "hash": "df83d3b470534141a08a38cca6fd4be71cc7a795301b667063214ff5bc90f08b",
+            "dryRun": true
+          },
+          {
+            "key": "/sites/demo-main-site/siteDB/siteAssets/site_content_data.txt",
+            "fileName": "site_content_data.txt",
+            "mappingKey": "siteContent",
+            "estimatedDocuments": 1,
+            "hash": "8c762be3e4908eb6f881183e7fc7fb1db91f6e4733ce43201cfcaf40e2361611",
+            "dryRun": true
+          },
+          {
+            "key": "/sites/demo-main-site/siteDB/siteAssets/theme_data.txt",
+            "fileName": "theme_data.txt",
+            "mappingKey": "theme",
+            "estimatedDocuments": 1,
+            "hash": "fa78d50ebc01a6341abafb80ec97cef84bf321970b869058a6d1bd2b4801013f",
+            "dryRun": true
+          },
+          {
+            "key": "/sites/demo-main-site/siteUsersDb/widgets_data.txt",
+            "fileName": "widgets_data.txt",
+            "mappingKey": "widgets",
+            "estimatedDocuments": 1,
+            "hash": "670698938cc955f921da456af453999bde4270b06ada40eaa03f69d2e9139221",
+            "dryRun": true
+          },
+          {
+            "key": "/sites/demo-main-site/siteDB/siteAssets/external_links_data.txt",
+            "fileName": "external_links_data.txt",
+            "mappingKey": "externalLinks",
+            "estimatedDocuments": 3,
+            "hash": "d02dc1669776eeb0371957c484e9f8c7579b5416d384637888a5ab38710d9f10",
+            "dryRun": true
+          },
+          {
+            "key": "/sites/demo-main-site/siteDB/siteAssets/gantt_data.txt",
+            "fileName": "gantt_data.txt",
+            "mappingKey": "gantt",
+            "estimatedDocuments": 1,
+            "hash": "5606f476df30b4f035cc084afb6f2009502616e96796fe7cb773c4c26e055527",
+            "dryRun": true
+          }
+        ],
+        "failedKeys": [],
+        "skippedEmptyFiles": [],
+        "skippedExisting": []
+      }
+    },
+    {
+      "siteCode": "Sites/demo-main-site/subsite-a",
+      "siteSlug": "Sites/demo-main-site/subsite-a",
+      "displayName": "Demo Subsite A",
+      "safeSiteFolder": "demo_subsite_safe_folder_de5526db",
+      "fromExport": "/tmp/site-builder-sharepoint-closed-verify/batch-2026-06-10T11-12-04-073Z-d48e552a/sites/demo_subsite_safe_folder_de5526db",
+      "targetMongoCollectionName": "site_sites_demo_main_site_subsite_a_sites_demo_main_site_subsite_a_3fb33f8fff",
+      "status": "PASS",
+      "documentsImported": 17,
+      "documentCountsByScope": {
+        "config": 1,
+        "admins": 3,
+        "events": 3,
+        "navigation": 3,
+        "content": 1,
+        "design": 1,
+        "widgets": 1,
+        "externalLinks": 3,
+        "gantt": 1
+      },
+      "imported": 9,
+      "failedKeys": [],
+      "skippedEmptyFiles": [],
+      "report": {
+        "dryRun": true,
+        "force": false,
+        "siteId": "Sites/demo-main-site/subsite-a",
+        "siteCode": "Sites/demo-main-site/subsite-a",
+        "realSiteId": "Sites/demo-main-site/subsite-a",
+        "realSiteCode": "Sites/demo-main-site/subsite-a",
+        "siteSlug": "Sites/demo-main-site/subsite-a",
+        "displayName": "Demo Subsite A",
+        "safeSiteFolder": "demo_subsite_safe_folder_de5526db",
+        "exportManifestSiteCode": "Sites/demo-main-site/subsite-a",
+        "exportManifestMatchesSite": true,
+        "targetMongoCollectionName": "site_sites_demo_main_site_subsite_a_sites_demo_main_site_subsite_a_3fb33f8fff",
+        "fromExport": "/tmp/site-builder-sharepoint-closed-verify/batch-2026-06-10T11-12-04-073Z-d48e552a/sites/demo_subsite_safe_folder_de5526db",
+        "startedAt": "2026-06-10T11:12:09.498Z",
+        "completedAt": "2026-06-10T11:12:09.498Z",
+        "sitesImported": 0,
+        "documentsImportedBySite": {
+          "Sites/demo-main-site/subsite-a": 17
+        },
+        "imported": [
+          {
+            "key": "/Sites/demo-main-site/subsite-a/siteDB/siteAssets/bihs_master_config_v1.txt",
+            "fileName": "bihs_master_config_v1.txt",
+            "mappingKey": "masterConfig",
+            "estimatedDocuments": 1,
+            "hash": "aa997e6028d469817643abe9e8d9d5e3d1c69a52e5b0b43adb327b5d87db8573",
+            "dryRun": true
+          },
+          {
+            "key": "/Sites/demo-main-site/subsite-a/siteDB/siteAssets/users_data.txt",
+            "fileName": "users_data.txt",
+            "mappingKey": "users",
+            "estimatedDocuments": 3,
+            "hash": "5d8478d8237ed604917b75acf4a37dde20d65ccbf82ae256aec2243a74ab9713",
+            "dryRun": true
+          },
+          {
+            "key": "/Sites/demo-main-site/subsite-a/siteDB/siteAssets/events_data.txt",
+            "fileName": "events_data.txt",
+            "mappingKey": "events",
+            "estimatedDocuments": 3,
+            "hash": "c8751de5ca39cc32dc7be4afd10141b95cae11a57b5fa900c145f9fa18fe0235",
+            "dryRun": true
+          },
+          {
+            "key": "/Sites/demo-main-site/subsite-a/siteDB/siteAssets/nav_data.txt",
+            "fileName": "nav_data.txt",
+            "mappingKey": "navigation",
+            "estimatedDocuments": 3,
+            "hash": "df83d3b470534141a08a38cca6fd4be71cc7a795301b667063214ff5bc90f08b",
+            "dryRun": true
+          },
+          {
+            "key": "/Sites/demo-main-site/subsite-a/siteDB/siteAssets/site_content_data.txt",
+            "fileName": "site_content_data.txt",
+            "mappingKey": "siteContent",
+            "estimatedDocuments": 1,
+            "hash": "53537a7f58a77d96deb85c69c6300b0e9fd3948f3b3b6d8067b19703e62cc264",
+            "dryRun": true
+          },
+          {
+            "key": "/Sites/demo-main-site/subsite-a/siteDB/siteAssets/theme_data.txt",
+            "fileName": "theme_data.txt",
+            "mappingKey": "theme",
+            "estimatedDocuments": 1,
+            "hash": "c50ed470e274f478ad92758bb34ed69bfc54702e6b78c0c991a26d9d8648a50f",
+            "dryRun": true
+          },
+          {
+            "key": "/Sites/demo-main-site/subsite-a/siteUsersDb/widgets_data.txt",
+            "fileName": "widgets_data.txt",
+            "mappingKey": "widgets",
+            "estimatedDocuments": 1,
+            "hash": "670698938cc955f921da456af453999bde4270b06ada40eaa03f69d2e9139221",
+            "dryRun": true
+          },
+          {
+            "key": "/Sites/demo-main-site/subsite-a/siteDB/siteAssets/external_links_data.txt",
+            "fileName": "external_links_data.txt",
+            "mappingKey": "externalLinks",
+            "estimatedDocuments": 3,
+            "hash": "4a8bf2f893746c761dcda1ca2e956ca8b032456723f2da69e2ec1eaca85055b8",
+            "dryRun": true
+          },
+          {
+            "key": "/Sites/demo-main-site/subsite-a/siteDB/siteAssets/gantt_data.txt",
+            "fileName": "gantt_data.txt",
+            "mappingKey": "gantt",
+            "estimatedDocuments": 1,
+            "hash": "5606f476df30b4f035cc084afb6f2009502616e96796fe7cb773c4c26e055527",
+            "dryRun": true
+          }
+        ],
+        "failedKeys": [],
+        "skippedEmptyFiles": [],
+        "skippedExisting": []
+      }
+    }
+  ],
+  "imported": [
+    {
+      "siteCode": "demo-main-site",
+      "key": "/sites/demo-main-site/siteDB/siteAssets/bihs_master_config_v1.txt",
+      "fileName": "bihs_master_config_v1.txt",
+      "mappingKey": "masterConfig",
+      "estimatedDocuments": 1,
+      "hash": "ff3a8987b344824804bbcb6d7602216d464d7507c1b5ebbc8f7d3cbaa3df135f",
+      "dryRun": true
+    },
+    {
+      "siteCode": "demo-main-site",
+      "key": "/sites/demo-main-site/siteDB/siteAssets/users_data.txt",
+      "fileName": "users_data.txt",
+      "mappingKey": "users",
+      "estimatedDocuments": 3,
+      "hash": "7dd4b4f4003d40ed86e3ff3f7ae85ecb73fddf0d3752bdb3ef8827912a98647d",
+      "dryRun": true
+    },
+    {
+      "siteCode": "demo-main-site",
+      "key": "/sites/demo-main-site/siteDB/siteAssets/events_data.txt",
+      "fileName": "events_data.txt",
+      "mappingKey": "events",
+      "estimatedDocuments": 3,
+      "hash": "42b2963df2f10e1279cd9415f474b31ce3fe1507f2047cd05670cef927cdfdf0",
+      "dryRun": true
+    },
+    {
+      "siteCode": "demo-main-site",
+      "key": "/sites/demo-main-site/siteDB/siteAssets/nav_data.txt",
+      "fileName": "nav_data.txt",
+      "mappingKey": "navigation",
+      "estimatedDocuments": 3,
+      "hash": "df83d3b470534141a08a38cca6fd4be71cc7a795301b667063214ff5bc90f08b",
+      "dryRun": true
+    },
+    {
+      "siteCode": "demo-main-site",
+      "key": "/sites/demo-main-site/siteDB/siteAssets/site_content_data.txt",
+      "fileName": "site_content_data.txt",
+      "mappingKey": "siteContent",
+      "estimatedDocuments": 1,
+      "hash": "8c762be3e4908eb6f881183e7fc7fb1db91f6e4733ce43201cfcaf40e2361611",
+      "dryRun": true
+    },
+    {
+      "siteCode": "demo-main-site",
+      "key": "/sites/demo-main-site/siteDB/siteAssets/theme_data.txt",
+      "fileName": "theme_data.txt",
+      "mappingKey": "theme",
+      "estimatedDocuments": 1,
+      "hash": "fa78d50ebc01a6341abafb80ec97cef84bf321970b869058a6d1bd2b4801013f",
+      "dryRun": true
+    },
+    {
+      "siteCode": "demo-main-site",
+      "key": "/sites/demo-main-site/siteUsersDb/widgets_data.txt",
+      "fileName": "widgets_data.txt",
+      "mappingKey": "widgets",
+      "estimatedDocuments": 1,
+      "hash": "670698938cc955f921da456af453999bde4270b06ada40eaa03f69d2e9139221",
+      "dryRun": true
+    },
+    {
+      "siteCode": "demo-main-site",
+      "key": "/sites/demo-main-site/siteDB/siteAssets/external_links_data.txt",
+      "fileName": "external_links_data.txt",
+      "mappingKey": "externalLinks",
+      "estimatedDocuments": 3,
+      "hash": "d02dc1669776eeb0371957c484e9f8c7579b5416d384637888a5ab38710d9f10",
+      "dryRun": true
+    },
+    {
+      "siteCode": "demo-main-site",
+      "key": "/sites/demo-main-site/siteDB/siteAssets/gantt_data.txt",
+      "fileName": "gantt_data.txt",
+      "mappingKey": "gantt",
+      "estimatedDocuments": 1,
+      "hash": "5606f476df30b4f035cc084afb6f2009502616e96796fe7cb773c4c26e055527",
+      "dryRun": true
+    },
+    {
+      "siteCode": "Sites/demo-main-site/subsite-a",
+      "key": "/Sites/demo-main-site/subsite-a/siteDB/siteAssets/bihs_master_config_v1.txt",
+      "fileName": "bihs_master_config_v1.txt",
+      "mappingKey": "masterConfig",
+      "estimatedDocuments": 1,
+      "hash": "aa997e6028d469817643abe9e8d9d5e3d1c69a52e5b0b43adb327b5d87db8573",
+      "dryRun": true
+    },
+    {
+      "siteCode": "Sites/demo-main-site/subsite-a",
+      "key": "/Sites/demo-main-site/subsite-a/siteDB/siteAssets/users_data.txt",
+      "fileName": "users_data.txt",
+      "mappingKey": "users",
+      "estimatedDocuments": 3,
+      "hash": "5d8478d8237ed604917b75acf4a37dde20d65ccbf82ae256aec2243a74ab9713",
+      "dryRun": true
+    },
+    {
+      "siteCode": "Sites/demo-main-site/subsite-a",
+      "key": "/Sites/demo-main-site/subsite-a/siteDB/siteAssets/events_data.txt",
+      "fileName": "events_data.txt",
+      "mappingKey": "events",
+      "estimatedDocuments": 3,
+      "hash": "c8751de5ca39cc32dc7be4afd10141b95cae11a57b5fa900c145f9fa18fe0235",
+      "dryRun": true
+    },
+    {
+      "siteCode": "Sites/demo-main-site/subsite-a",
+      "key": "/Sites/demo-main-site/subsite-a/siteDB/siteAssets/nav_data.txt",
+      "fileName": "nav_data.txt",
+      "mappingKey": "navigation",
+      "estimatedDocuments": 3,
+      "hash": "df83d3b470534141a08a38cca6fd4be71cc7a795301b667063214ff5bc90f08b",
+      "dryRun": true
+    },
+    {
+      "siteCode": "Sites/demo-main-site/subsite-a",
+      "key": "/Sites/demo-main-site/subsite-a/siteDB/siteAssets/site_content_data.txt",
+      "fileName": "site_content_data.txt",
+      "mappingKey": "siteContent",
+      "estimatedDocuments": 1,
+      "hash": "53537a7f58a77d96deb85c69c6300b0e9fd3948f3b3b6d8067b19703e62cc264",
+      "dryRun": true
+    },
+    {
+      "siteCode": "Sites/demo-main-site/subsite-a",
+      "key": "/Sites/demo-main-site/subsite-a/siteDB/siteAssets/theme_data.txt",
+      "fileName": "theme_data.txt",
+      "mappingKey": "theme",
+      "estimatedDocuments": 1,
+      "hash": "c50ed470e274f478ad92758bb34ed69bfc54702e6b78c0c991a26d9d8648a50f",
+      "dryRun": true
+    },
+    {
+      "siteCode": "Sites/demo-main-site/subsite-a",
+      "key": "/Sites/demo-main-site/subsite-a/siteUsersDb/widgets_data.txt",
+      "fileName": "widgets_data.txt",
+      "mappingKey": "widgets",
+      "estimatedDocuments": 1,
+      "hash": "670698938cc955f921da456af453999bde4270b06ada40eaa03f69d2e9139221",
+      "dryRun": true
+    },
+    {
+      "siteCode": "Sites/demo-main-site/subsite-a",
+      "key": "/Sites/demo-main-site/subsite-a/siteDB/siteAssets/external_links_data.txt",
+      "fileName": "external_links_data.txt",
+      "mappingKey": "externalLinks",
+      "estimatedDocuments": 3,
+      "hash": "4a8bf2f893746c761dcda1ca2e956ca8b032456723f2da69e2ec1eaca85055b8",
+      "dryRun": true
+    },
+    {
+      "siteCode": "Sites/demo-main-site/subsite-a",
+      "key": "/Sites/demo-main-site/subsite-a/siteDB/siteAssets/gantt_data.txt",
+      "fileName": "gantt_data.txt",
+      "mappingKey": "gantt",
+      "estimatedDocuments": 1,
+      "hash": "5606f476df30b4f035cc084afb6f2009502616e96796fe7cb773c4c26e055527",
+      "dryRun": true
+    }
+  ],
+  "failedSites": [],
+  "failedKeys": [],
+  "skippedEmptyFiles": [],
+  "skippedExisting": []
+}
