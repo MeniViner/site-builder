@@ -4,9 +4,18 @@ const UNC_FORWARD_PATH_RE = /^\/\/[^\\/]+[\\/][^\\/]+/;
 const FILE_SCHEME_RE = /^file:/i;
 const MAC_ABSOLUTE_PATH_RE = /^\/(?:Users|Volumes|Applications|Library|System|private|opt|var|tmp)(?:\/|$)/i;
 const MAC_NETWORK_SCHEME_RE = /^(?:smb|afp):\/\//i;
+const WINDOWS_FILE_OPENER_SCHEME = 'sitebuilder-open';
 
 function asTrimmedText(value) {
     return String(value ?? '').trim();
+}
+
+function decodeUrlPathSegment(value) {
+    try {
+        return decodeURIComponent(String(value || ''));
+    } catch {
+        return String(value || '');
+    }
 }
 
 function encodePathSegments(path) {
@@ -14,6 +23,29 @@ function encodePathSegments(path) {
         .split('/')
         .map((segment) => encodeURIComponent(segment).replace(/%3A/gi, ':'))
         .join('/');
+}
+
+function encodeBase64Url(value) {
+    const text = String(value ?? '');
+
+    if (typeof TextEncoder !== 'undefined' && typeof btoa === 'function') {
+        const bytes = new TextEncoder().encode(text);
+        let binary = '';
+        bytes.forEach((byte) => {
+            binary += String.fromCharCode(byte);
+        });
+        return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+    }
+
+    if (typeof globalThis.Buffer !== 'undefined') {
+        return globalThis.Buffer.from(text, 'utf8')
+            .toString('base64')
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/g, '');
+    }
+
+    return '';
 }
 
 function normalizeDrivePath(path) {
@@ -57,20 +89,78 @@ function normalizeNetworkProtocolHref(value) {
 function normalizeFileHref(value) {
     const raw = asTrimmedText(value).replace(/\\/g, '/');
     const fileBody = raw.replace(/^file:\/*/i, '');
+    const decodedFileBody = decodeUrlPathSegment(fileBody);
 
-    if (/^\/?[A-Za-z]:[\\/]/.test(fileBody)) {
-        return fileHrefFromDrivePath(fileBody);
+    if (/^\/?[A-Za-z]:[\\/]/.test(decodedFileBody)) {
+        return fileHrefFromDrivePath(decodedFileBody);
     }
 
-    if (/^\/{2,}[^/]+\/[^/]+/.test(raw.replace(/^file:/i, ''))) {
-        return fileHrefFromUncPath(raw.replace(/^file:\/*/i, ''));
+    const withoutFileScheme = raw.replace(/^file:/i, '');
+    if (/^\/\/[^/]+\/[^/]+/.test(withoutFileScheme) && !withoutFileScheme.startsWith('///')) {
+        return fileHrefFromUncPath(decodeUrlPathSegment(raw.replace(/^file:\/*/i, '')));
     }
 
-    if (MAC_ABSOLUTE_PATH_RE.test(fileBody.startsWith('/') ? fileBody : `/${fileBody}`)) {
-        return fileHrefFromMacPath(fileBody.startsWith('/') ? fileBody : `/${fileBody}`);
+    if (MAC_ABSOLUTE_PATH_RE.test(decodedFileBody.startsWith('/') ? decodedFileBody : `/${decodedFileBody}`)) {
+        return fileHrefFromMacPath(decodedFileBody.startsWith('/') ? decodedFileBody : `/${decodedFileBody}`);
     }
 
     return raw;
+}
+
+function windowsNativePathFromDrivePath(path) {
+    const normalized = normalizeDrivePath(path);
+    if (!normalized) return '';
+    return normalized.replace(/\//g, '\\');
+}
+
+function windowsNativePathFromUncPath(path) {
+    const normalized = normalizeUncPath(path);
+    const [host, ...segments] = normalized.split('/').filter(Boolean);
+    if (!host || segments.length === 0) return '';
+    return `\\\\${host}\\${segments.map(decodeUrlPathSegment).join('\\')}`;
+}
+
+function windowsNativePathFromFileHref(value) {
+    const href = normalizeFileHref(value);
+    if (!FILE_SCHEME_RE.test(href)) return '';
+
+    try {
+        const url = new URL(href);
+        const pathname = decodeUrlPathSegment(url.pathname || '');
+
+        if (url.hostname) {
+            const path = pathname.replace(/^\/+/, '').replace(/\//g, '\\');
+            return path ? `\\\\${url.hostname}\\${path}` : '';
+        }
+
+        const drivePath = pathname.replace(/^\/+/, '');
+        return windowsNativePathFromDrivePath(drivePath);
+    } catch {
+        const raw = asTrimmedText(href).replace(/^file:\/*/i, '');
+        if (/^[A-Za-z]:[\\/]/.test(raw)) return windowsNativePathFromDrivePath(raw);
+        if (/^[^/\\]+[\\/][^/\\]+/.test(raw)) return windowsNativePathFromUncPath(raw);
+        return '';
+    }
+}
+
+export function getWindowsNativeFilePath(value) {
+    const raw = asTrimmedText(value);
+    if (!raw) return '';
+
+    if (FILE_SCHEME_RE.test(raw)) return windowsNativePathFromFileHref(raw);
+    if (WINDOWS_DRIVE_PATH_RE.test(raw)) return windowsNativePathFromDrivePath(raw);
+    if (UNC_BACKSLASH_PATH_RE.test(raw) || UNC_FORWARD_PATH_RE.test(raw)) {
+        return windowsNativePathFromUncPath(raw);
+    }
+
+    return '';
+}
+
+export function buildWindowsFileOpenerHref(value) {
+    const nativePath = getWindowsNativeFilePath(value);
+    if (!nativePath) return '';
+    const encodedPath = encodeBase64Url(nativePath);
+    return encodedPath ? `${WINDOWS_FILE_OPENER_SCHEME}://open?target=${encodedPath}` : '';
 }
 
 export function isLocalFilePath(value) {
@@ -110,10 +200,22 @@ export function getLinkTargetAttributes(value) {
     const href = normalizeLinkTarget(value);
     if (!href) return { href: '#' };
 
+    const windowsFileOpenerHref = buildWindowsFileOpenerHref(href);
+    if (windowsFileOpenerHref) {
+        return {
+            href: windowsFileOpenerHref,
+            'data-original-href': href,
+        };
+    }
+
+    if (isSystemLinkTarget(href)) {
+        return { href };
+    }
+
     return {
         href,
         target: '_blank',
-        ...(isSystemLinkTarget(href) ? {} : { rel: 'noopener noreferrer' }),
+        rel: 'noopener noreferrer',
     };
 }
 
@@ -123,8 +225,17 @@ export function openLinkTarget(value) {
 
     if (typeof window === 'undefined') return false;
 
+    const windowsFileOpenerHref = buildWindowsFileOpenerHref(href);
+    if (windowsFileOpenerHref) {
+        const opened = window.open(windowsFileOpenerHref, '_self');
+        if (!opened) {
+            window.location.href = windowsFileOpenerHref;
+        }
+        return true;
+    }
+
     if (isSystemLinkTarget(href)) {
-        const opened = window.open(href, '_blank');
+        const opened = window.open(href, '_self');
         if (!opened) {
             window.location.href = href;
         }

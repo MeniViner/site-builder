@@ -300,7 +300,7 @@ export default function AdminExternalLinks() {
                                     className="flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-300"
                                     wrapperClassName="mb-2 flex items-center gap-2"
                                     helpTitle="כתובת קישור"
-                                    helpDescription="אפשר להזין כתובת אתר מלאה, נתיב Windows כמו z:/public או c:/library, נתיב Mac כמו /Users/name/Documents, או קישור רשת כמו smb://server/share."
+                                    helpDescription="אפשר להזין כתובת אתר מלאה, נתיב Windows כמו z:/public או c:/library, נתיב UNC כמו \\server\share, נתיב Mac כמו /Users/name/Documents, או קישור רשת כמו smb://server/share."
                                 >
                                     <><LinkIcon size={14} className="text-gray-400 dark:text-gray-500" />כתובת URL</>
                                 </HelpLabel>
@@ -317,7 +317,7 @@ export default function AdminExternalLinks() {
                                     dir="ltr"
                                 />
                                 <p className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
-                                    נתיבי Windows ו-Mac יומרו אוטומטית ל-file:// בעת שמירה. קישורי smb:// יישמרו כקישור רשת.
+                                    נתיבי Windows ו-Mac יומרו אוטומטית ל-file:// בעת שמירה. ב-Windows, פתיחה מתוך Chrome דורשת התקנת Site Builder File Opener בתחנה.
                                 </p>
                             </div>
 

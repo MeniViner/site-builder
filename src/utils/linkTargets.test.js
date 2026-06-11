@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+    buildWindowsFileOpenerHref,
     getLinkTargetAttributes,
+    getWindowsNativeFilePath,
     isFileLinkTarget,
     isLocalFilePath,
     isSystemLinkTarget,
@@ -46,27 +48,39 @@ describe('linkTargets', () => {
         expect(normalizeLinkTarget('//fileserver/public/library')).toBe('file://fileserver/public/library');
     });
 
-    it('omits noreferrer for file links so the browser can handle the file scheme directly', () => {
+    it('builds Windows native paths from file-style targets', () => {
+        expect(getWindowsNativeFilePath('z:/public')).toBe('Z:\\public');
+        expect(getWindowsNativeFilePath('file:///C:/library/shared%20folder')).toBe('C:\\library\\shared folder');
+        expect(getWindowsNativeFilePath('file://fileserver/public/shared%20folder')).toBe('\\\\fileserver\\public\\shared folder');
+        expect(getWindowsNativeFilePath('/Users/meni/Documents')).toBe('');
+    });
+
+    it('routes Windows file links through the local protocol helper', () => {
         expect(getLinkTargetAttributes('z:/public')).toEqual({
-            href: 'file:///Z:/public',
-            target: '_blank',
+            href: buildWindowsFileOpenerHref('z:/public'),
+            'data-original-href': 'file:///Z:/public',
         });
-        expect(getLinkTargetAttributes('/Users/meni/Documents')).toEqual({
-            href: 'file:///Users/meni/Documents',
-            target: '_blank',
-        });
-        expect(getLinkTargetAttributes('smb://fileserver/public')).toEqual({
-            href: 'smb://fileserver/public',
-            target: '_blank',
+        expect(getLinkTargetAttributes('\\\\fileserver\\public\\library')).toEqual({
+            href: buildWindowsFileOpenerHref('\\\\fileserver\\public\\library'),
+            'data-original-href': 'file://fileserver/public/library',
         });
     });
 
-    it('opens file links without noopener options', () => {
+    it('keeps non-Windows system links as direct system links', () => {
+        expect(getLinkTargetAttributes('/Users/meni/Documents')).toEqual({
+            href: 'file:///Users/meni/Documents',
+        });
+        expect(getLinkTargetAttributes('smb://fileserver/public')).toEqual({
+            href: 'smb://fileserver/public',
+        });
+    });
+
+    it('opens Windows file links with the local protocol helper', () => {
         const originalOpen = window.open;
         window.open = vi.fn(() => ({}));
 
         expect(openLinkTarget('z:/public')).toBe(true);
-        expect(window.open).toHaveBeenCalledWith('file:///Z:/public', '_blank');
+        expect(window.open).toHaveBeenCalledWith(buildWindowsFileOpenerHref('z:/public'), '_self');
 
         window.open = originalOpen;
     });
