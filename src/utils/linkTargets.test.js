@@ -46,6 +46,18 @@ describe('linkTargets', () => {
         expect(normalizeLinkTarget('//fileserver/public/library')).toBe('file://fileserver/public/library');
     });
 
+    it('converts SharePoint WebDAV UNC paths to browser URLs', () => {
+        expect(normalizeLinkTarget('\\\\portal.army.idf@SSL\\DavWWWRoot\\sites\\schedule\\siteDB\\siteAssets\\folder with spaces'))
+            .toBe('https://portal.army.idf/sites/schedule/siteDB/siteAssets/folder%20with%20spaces');
+        expect(normalizeLinkTarget('//portal.army.idf@SSL/DavWWWRoot/sites/schedule/siteDB/siteAssets'))
+            .toBe('https://portal.army.idf/sites/schedule/siteDB/siteAssets');
+    });
+
+    it('repairs SharePoint WebDAV links that were previously saved as file URLs', () => {
+        expect(normalizeLinkTarget('file://portal.army.idf@SSL/DavWWWRoot/sites/schedule/siteDB/siteAssets/doc.txt'))
+            .toBe('https://portal.army.idf/sites/schedule/siteDB/siteAssets/doc.txt');
+    });
+
     it('opens file and network links directly in a new browser tab/window', () => {
         expect(getLinkTargetAttributes('z:/public')).toEqual({
             href: 'file:///Z:/public',
@@ -62,6 +74,11 @@ describe('linkTargets', () => {
         expect(getLinkTargetAttributes('smb://fileserver/public')).toEqual({
             href: 'smb://fileserver/public',
             target: '_blank',
+        });
+        expect(getLinkTargetAttributes('\\\\portal.army.idf@SSL\\DavWWWRoot\\sites\\schedule\\siteDB')).toEqual({
+            href: 'https://portal.army.idf/sites/schedule/siteDB',
+            target: '_blank',
+            rel: 'noopener noreferrer',
         });
     });
 

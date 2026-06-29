@@ -4,6 +4,7 @@ const UNC_FORWARD_PATH_RE = /^\/\/[^\\/]+[\\/][^\\/]+/;
 const FILE_SCHEME_RE = /^file:/i;
 const MAC_ABSOLUTE_PATH_RE = /^\/(?:Users|Volumes|Applications|Library|System|private|opt|var|tmp)(?:\/|$)/i;
 const MAC_NETWORK_SCHEME_RE = /^(?:smb|afp):\/\//i;
+const SHAREPOINT_WEBDAV_HOST_RE = /^([^\\/]+?)(@SSL)?$/i;
 
 function asTrimmedText(value) {
     return String(value ?? '').trim();
@@ -32,6 +33,21 @@ function normalizeDrivePath(path) {
 
 function normalizeUncPath(path) {
     return String(path || '').replace(/\\/g, '/').replace(/^\/+/, '');
+}
+
+function webHrefFromSharePointWebDavPath(path) {
+    const normalized = normalizeUncPath(path);
+    const [hostWithMode, firstSegment, ...segments] = normalized.split('/').filter(Boolean);
+    if (!hostWithMode || !firstSegment || segments.length === 0) return '';
+    if (firstSegment.toLowerCase() !== 'davwwwroot') return '';
+
+    const hostMatch = hostWithMode.match(SHAREPOINT_WEBDAV_HOST_RE);
+    if (!hostMatch) return '';
+
+    const host = hostMatch[1];
+    if (!host || !host.includes('.')) return '';
+
+    return `https://${host}/${encodePathSegments(segments.join('/'))}`;
 }
 
 function fileHrefFromDrivePath(path) {
@@ -66,6 +82,9 @@ function normalizeFileHref(value) {
     const raw = asTrimmedText(value).replace(/\\/g, '/');
     const fileBody = raw.replace(/^file:\/*/i, '');
     const decodedFileBody = decodeUrlPathSegment(fileBody);
+
+    const webDavHref = webHrefFromSharePointWebDavPath(decodedFileBody);
+    if (webDavHref) return webDavHref;
 
     if (/^\/?[A-Za-z]:[\\/]/.test(decodedFileBody)) {
         return fileHrefFromDrivePath(decodedFileBody);
@@ -102,7 +121,9 @@ export function normalizeLinkTarget(value) {
     if (MAC_NETWORK_SCHEME_RE.test(raw)) return normalizeNetworkProtocolHref(raw);
     if (MAC_ABSOLUTE_PATH_RE.test(raw)) return fileHrefFromMacPath(raw);
     if (WINDOWS_DRIVE_PATH_RE.test(raw)) return fileHrefFromDrivePath(raw);
-    if (UNC_BACKSLASH_PATH_RE.test(raw) || UNC_FORWARD_PATH_RE.test(raw)) return fileHrefFromUncPath(raw);
+    if (UNC_BACKSLASH_PATH_RE.test(raw) || UNC_FORWARD_PATH_RE.test(raw)) {
+        return webHrefFromSharePointWebDavPath(raw) || fileHrefFromUncPath(raw);
+    }
 
     return raw;
 }
