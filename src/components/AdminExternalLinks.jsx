@@ -317,7 +317,7 @@ export default function AdminExternalLinks() {
                                     dir="ltr"
                                 />
                                 <p className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
-                                    נתיבי Windows ו-Mac יומרו אוטומטית ל-file:// בעת שמירה. ב-Windows, פתיחה מתוך Chrome דורשת התקנת Site Builder File Opener בתחנה.
+                                    נתיבי Windows ו-Mac יומרו אוטומטית ל-file:// בעת שמירה, וייפתחו בחלון חדש בכרום.
                                 </p>
                             </div>
 

@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-    buildWindowsFileOpenerHref,
     getLinkTargetAttributes,
-    getWindowsNativeFilePath,
-    handleLinkTargetClick,
     isFileLinkTarget,
     isLocalFilePath,
     isSystemLinkTarget,
@@ -49,57 +46,31 @@ describe('linkTargets', () => {
         expect(normalizeLinkTarget('//fileserver/public/library')).toBe('file://fileserver/public/library');
     });
 
-    it('builds Windows native paths from file-style targets', () => {
-        expect(getWindowsNativeFilePath('z:/public')).toBe('Z:\\public');
-        expect(getWindowsNativeFilePath('file:///C:/library/shared%20folder')).toBe('C:\\library\\shared folder');
-        expect(getWindowsNativeFilePath('file://fileserver/public/shared%20folder')).toBe('\\\\fileserver\\public\\shared folder');
-        expect(getWindowsNativeFilePath('/Users/meni/Documents')).toBe('');
-    });
-
-    it('routes Windows file links through the local protocol helper', () => {
-        expect(getLinkTargetAttributes('z:/public')).toEqual(expect.objectContaining({
-            href: buildWindowsFileOpenerHref('z:/public'),
-            'data-original-href': 'file:///Z:/public',
-            onClick: expect.any(Function),
-        }));
-        expect(getLinkTargetAttributes('\\\\fileserver\\public\\library')).toEqual(expect.objectContaining({
-            href: buildWindowsFileOpenerHref('\\\\fileserver\\public\\library'),
-            'data-original-href': 'file://fileserver/public/library',
-            onClick: expect.any(Function),
-        }));
-    });
-
-    it('keeps non-Windows system links as direct system links', () => {
-        expect(getLinkTargetAttributes('/Users/meni/Documents')).toEqual(expect.objectContaining({
+    it('opens file and network links directly in a new browser tab/window', () => {
+        expect(getLinkTargetAttributes('z:/public')).toEqual({
+            href: 'file:///Z:/public',
+            target: '_blank',
+        });
+        expect(getLinkTargetAttributes('\\\\fileserver\\public\\library')).toEqual({
+            href: 'file://fileserver/public/library',
+            target: '_blank',
+        });
+        expect(getLinkTargetAttributes('/Users/meni/Documents')).toEqual({
             href: 'file:///Users/meni/Documents',
-            onClick: expect.any(Function),
-        }));
-        expect(getLinkTargetAttributes('smb://fileserver/public')).toEqual(expect.objectContaining({
+            target: '_blank',
+        });
+        expect(getLinkTargetAttributes('smb://fileserver/public')).toEqual({
             href: 'smb://fileserver/public',
-            onClick: expect.any(Function),
-        }));
+            target: '_blank',
+        });
     });
 
-    it('opens Windows file links with the local protocol helper', () => {
+    it('opens file links in a new browser tab/window', () => {
         const originalOpen = window.open;
         window.open = vi.fn(() => ({}));
 
         expect(openLinkTarget('z:/public')).toBe(true);
-        expect(window.open).toHaveBeenCalledWith(buildWindowsFileOpenerHref('z:/public'), '_blank');
-
-        window.open = originalOpen;
-    });
-
-    it('handles system link clicks explicitly so passive anchors do not swallow them', () => {
-        const originalOpen = window.open;
-        window.open = vi.fn(() => ({}));
-        const event = {
-            preventDefault: vi.fn(),
-        };
-
-        expect(handleLinkTargetClick('z:/public', event)).toBe(true);
-        expect(event.preventDefault).toHaveBeenCalled();
-        expect(window.open).toHaveBeenCalledWith(buildWindowsFileOpenerHref('z:/public'), '_blank');
+        expect(window.open).toHaveBeenCalledWith('file:///Z:/public', '_blank');
 
         window.open = originalOpen;
     });

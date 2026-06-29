@@ -1,15 +1,11 @@
 import React from 'react';
 import { ChevronLeft, Undo2 } from 'lucide-react';
 import { DynamicIcon } from './DynamicIcon';
-import { getLinkTargetAttributes, handleLinkTargetClick, openLinkTarget } from '../utils/linkTargets';
+import { getLinkTargetAttributes, openLinkTarget } from '../utils/linkTargets';
 
 export const FlipCard = ({ id, title, icon: iconName, subLinks = [], url, isFlipped, onFlip }) => {
     const handleLinkClick = (e) => {
         e.stopPropagation();
-    };
-    const handleOverlayLinkClick = (link, event) => {
-        event.stopPropagation();
-        handleLinkTargetClick(link?.url, event);
     };
 
     const handleCardClick = () => {
@@ -70,7 +66,7 @@ export const FlipCard = ({ id, title, icon: iconName, subLinks = [], url, isFlip
                                     <DynamicIcon name={link.icon} size={14} className="text-gray-700 dark:text-gray-400 group-hover/btn:text-red-400 shrink-0" />
                                     <span>{link.label}</span>
                                     {link.url ? (
-                                        <a {...attrs} className="absolute inset-0" onClick={(event) => handleOverlayLinkClick(link, event)} />
+                                        <a {...attrs} className="absolute inset-0" onClick={(e) => e.stopPropagation()} />
                                     ) : null}
                                 </button>
                             );

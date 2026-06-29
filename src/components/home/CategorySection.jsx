@@ -2,14 +2,10 @@ import { ChevronLeft, Image as ImageIcon, Undo2 } from 'lucide-react';
 import NavVisual from '../NavVisual';
 import Tooltip from '../Tooltip';
 import { panelStyle } from '../../utils/borderStyles';
-import { getLinkTargetAttributes, handleLinkTargetClick, openLinkTarget } from '../../utils/linkTargets';
+import { getLinkTargetAttributes, openLinkTarget } from '../../utils/linkTargets';
 
 export function FlipCard({ id, title, icon: iconName, iconUrl = '', subLinks = [], url, isFlipped, onFlip, borderStyle = 'standard' }) {
   const handleLinkClick = (e) => e.stopPropagation();
-  const handleOverlayLinkClick = (link, event) => {
-    event.stopPropagation();
-    handleLinkTargetClick(link?.url, event);
-  };
   const handleCardClick = () => {
     if (url) {
       openLinkTarget(url);
@@ -56,7 +52,7 @@ export function FlipCard({ id, title, icon: iconName, iconUrl = '', subLinks = [
                 <button key={idx} type="button" onClick={handleLinkClick} className="relative flex items-center gap-1.5 text-right bg-theme-elevated hover:bg-primary/10 hover:text-primary-300 px-3 py-2 rounded-lg transition-all text-sm text-theme-muted group/btn whitespace-nowrap">
                   <NavVisual item={link} size={14} className="text-theme-muted group-hover/btn:text-primary-300 shrink-0" imageClassName="h-3.5 w-3.5 object-contain shrink-0" />
                   <span>{link.label}</span>
-                  {link.url && <a {...attrs} className="absolute inset-0" onClick={(event) => handleOverlayLinkClick(link, event)} />}
+                  {link.url && <a {...attrs} className="absolute inset-0" onClick={(e) => e.stopPropagation()} />}
                 </button>
               );
             })}

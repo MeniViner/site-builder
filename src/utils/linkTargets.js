@@ -4,7 +4,6 @@ const UNC_FORWARD_PATH_RE = /^\/\/[^\\/]+[\\/][^\\/]+/;
 const FILE_SCHEME_RE = /^file:/i;
 const MAC_ABSOLUTE_PATH_RE = /^\/(?:Users|Volumes|Applications|Library|System|private|opt|var|tmp)(?:\/|$)/i;
 const MAC_NETWORK_SCHEME_RE = /^(?:smb|afp):\/\//i;
-const WINDOWS_FILE_OPENER_SCHEME = 'sitebuilder-open';
 
 function asTrimmedText(value) {
     return String(value ?? '').trim();
@@ -23,29 +22,6 @@ function encodePathSegments(path) {
         .split('/')
         .map((segment) => encodeURIComponent(segment).replace(/%3A/gi, ':'))
         .join('/');
-}
-
-function encodeBase64Url(value) {
-    const text = String(value ?? '');
-
-    if (typeof TextEncoder !== 'undefined' && typeof btoa === 'function') {
-        const bytes = new TextEncoder().encode(text);
-        let binary = '';
-        bytes.forEach((byte) => {
-            binary += String.fromCharCode(byte);
-        });
-        return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-    }
-
-    if (typeof globalThis.Buffer !== 'undefined') {
-        return globalThis.Buffer.from(text, 'utf8')
-            .toString('base64')
-            .replace(/\+/g, '-')
-            .replace(/\//g, '_')
-            .replace(/=+$/g, '');
-    }
-
-    return '';
 }
 
 function normalizeDrivePath(path) {
@@ -107,68 +83,6 @@ function normalizeFileHref(value) {
     return raw;
 }
 
-function windowsNativePathFromDrivePath(path) {
-    const normalized = normalizeDrivePath(path);
-    if (!normalized) return '';
-    return normalized.replace(/\//g, '\\');
-}
-
-function windowsNativePathFromUncPath(path) {
-    const normalized = normalizeUncPath(path);
-    const [host, ...segments] = normalized.split('/').filter(Boolean);
-    if (!host || segments.length === 0) return '';
-    return `\\\\${host}\\${segments.map(decodeUrlPathSegment).join('\\')}`;
-}
-
-function windowsNativePathFromFileHref(value) {
-    const href = normalizeFileHref(value);
-    if (!FILE_SCHEME_RE.test(href)) return '';
-
-    try {
-        const url = new URL(href);
-        const pathname = decodeUrlPathSegment(url.pathname || '');
-
-        if (url.hostname) {
-            const path = pathname.replace(/^\/+/, '').replace(/\//g, '\\');
-            return path ? `\\\\${url.hostname}\\${path}` : '';
-        }
-
-        const drivePath = pathname.replace(/^\/+/, '');
-        return windowsNativePathFromDrivePath(drivePath);
-    } catch {
-        const raw = asTrimmedText(href).replace(/^file:\/*/i, '');
-        if (/^[A-Za-z]:[\\/]/.test(raw)) return windowsNativePathFromDrivePath(raw);
-        if (/^[^/\\]+[\\/][^/\\]+/.test(raw)) return windowsNativePathFromUncPath(raw);
-        return '';
-    }
-}
-
-export function getWindowsNativeFilePath(value) {
-    const raw = asTrimmedText(value);
-    if (!raw) return '';
-
-    if (FILE_SCHEME_RE.test(raw)) return windowsNativePathFromFileHref(raw);
-    if (WINDOWS_DRIVE_PATH_RE.test(raw)) return windowsNativePathFromDrivePath(raw);
-    if (UNC_BACKSLASH_PATH_RE.test(raw) || UNC_FORWARD_PATH_RE.test(raw)) {
-        return windowsNativePathFromUncPath(raw);
-    }
-
-    return '';
-}
-
-export function buildWindowsFileOpenerHref(value) {
-    const nativePath = getWindowsNativeFilePath(value);
-    if (!nativePath) return '';
-    const encodedPath = encodeBase64Url(nativePath);
-    return encodedPath ? `${WINDOWS_FILE_OPENER_SCHEME}://open?target=${encodedPath}` : '';
-}
-
-export function getSystemLaunchHref(value) {
-    const href = normalizeLinkTarget(value);
-    if (!href || href === '#') return '';
-    return buildWindowsFileOpenerHref(href) || (isSystemLinkTarget(href) ? href : '');
-}
-
 export function isLocalFilePath(value) {
     const raw = asTrimmedText(value);
     if (!raw) return false;
@@ -206,39 +120,11 @@ export function getLinkTargetAttributes(value) {
     const href = normalizeLinkTarget(value);
     if (!href) return { href: '#' };
 
-    const systemLaunchHref = getSystemLaunchHref(href);
-    if (systemLaunchHref) {
-        return {
-            href: systemLaunchHref,
-            'data-original-href': href,
-            onClick: (event) => handleLinkTargetClick(value, event),
-        };
-    }
-
     return {
         href,
         target: '_blank',
-        rel: 'noopener noreferrer',
+        ...(isSystemLinkTarget(href) ? {} : { rel: 'noopener noreferrer' }),
     };
-}
-
-export function handleLinkTargetClick(value, event) {
-    const systemLaunchHref = getSystemLaunchHref(value);
-    if (!systemLaunchHref) return false;
-
-    if (event?.preventDefault) event.preventDefault();
-    openSystemHref(systemLaunchHref);
-    return true;
-}
-
-function openSystemHref(href) {
-    if (typeof window === 'undefined') return false;
-
-    const opened = window.open(href, '_blank');
-    if (!opened) {
-        window.location.href = href;
-    }
-    return true;
 }
 
 export function openLinkTarget(value) {
@@ -247,8 +133,13 @@ export function openLinkTarget(value) {
 
     if (typeof window === 'undefined') return false;
 
-    const systemLaunchHref = getSystemLaunchHref(href);
-    if (systemLaunchHref) return openSystemHref(systemLaunchHref);
+    if (isSystemLinkTarget(href)) {
+        const opened = window.open(href, '_blank');
+        if (!opened) {
+            window.location.href = href;
+        }
+        return true;
+    }
 
     window.open(href, '_blank', 'noopener,noreferrer');
     return true;
