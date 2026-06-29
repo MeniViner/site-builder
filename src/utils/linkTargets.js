@@ -5,6 +5,7 @@ const FILE_SCHEME_RE = /^file:/i;
 const MAC_ABSOLUTE_PATH_RE = /^\/(?:Users|Volumes|Applications|Library|System|private|opt|var|tmp)(?:\/|$)/i;
 const MAC_NETWORK_SCHEME_RE = /^(?:smb|afp):\/\//i;
 const SHAREPOINT_WEBDAV_HOST_RE = /^([^\\/]+?)(@SSL)?$/i;
+const LOCAL_FILE_BRIDGE_PATH = '/__sitebuilder-local-file';
 
 function asTrimmedText(value) {
     return String(value ?? '').trim();
@@ -141,8 +142,9 @@ export function getLinkTargetAttributes(value) {
     const href = normalizeLinkTarget(value);
     if (!href) return { href: '#' };
 
+    const browserHref = getBrowserOpenHref(href);
     return {
-        href,
+        href: browserHref,
         target: '_blank',
         ...(isSystemLinkTarget(href) ? {} : { rel: 'noopener noreferrer' }),
     };
@@ -153,15 +155,34 @@ export function openLinkTarget(value) {
     if (!href || href === '#') return false;
 
     if (typeof window === 'undefined') return false;
+    const browserHref = getBrowserOpenHref(href);
 
     if (isSystemLinkTarget(href)) {
-        const opened = window.open(href, '_blank');
+        const opened = window.open(browserHref, '_blank');
         if (!opened) {
-            window.location.href = href;
+            window.location.href = browserHref;
         }
         return true;
     }
 
-    window.open(href, '_blank', 'noopener,noreferrer');
+    window.open(browserHref, '_blank', 'noopener,noreferrer');
     return true;
+}
+
+function isLocalFileBridgeEnabled() {
+    if (typeof window === 'undefined') return false;
+    if (import.meta.env.VITE_LOCAL_FILE_BRIDGE !== 'true') return false;
+    const hostname = String(window.location?.hostname || '').toLowerCase();
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]';
+}
+
+function getLocalFileBridgeHref(href) {
+    if (!FILE_SCHEME_RE.test(href) || !isLocalFileBridgeEnabled()) return '';
+    const url = new URL(LOCAL_FILE_BRIDGE_PATH, window.location.origin);
+    url.searchParams.set('href', href);
+    return url.href;
+}
+
+function getBrowserOpenHref(href) {
+    return getLocalFileBridgeHref(href) || href;
 }

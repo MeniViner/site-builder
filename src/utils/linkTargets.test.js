@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     getLinkTargetAttributes,
     isFileLinkTarget,
@@ -9,6 +9,14 @@ import {
 } from './linkTargets';
 
 describe('linkTargets', () => {
+    beforeEach(() => {
+        vi.stubEnv('VITE_LOCAL_FILE_BRIDGE', 'false');
+    });
+
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
     it('keeps regular web links unchanged', () => {
         expect(normalizeLinkTarget('https://example.idf.il/path')).toBe('https://example.idf.il/path');
         expect(isLocalFilePath('https://example.idf.il/path')).toBe(false);
@@ -79,6 +87,15 @@ describe('linkTargets', () => {
             href: 'https://portal.army.idf/sites/schedule/siteDB',
             target: '_blank',
             rel: 'noopener noreferrer',
+        });
+    });
+
+    it('opens local file links through the dev bridge when explicitly enabled', () => {
+        vi.stubEnv('VITE_LOCAL_FILE_BRIDGE', 'true');
+
+        expect(getLinkTargetAttributes('/Users/meni/Documents')).toEqual({
+            href: 'http://localhost:3000/__sitebuilder-local-file?href=file%3A%2F%2F%2FUsers%2Fmeni%2FDocuments',
+            target: '_blank',
         });
     });
 
