@@ -111,4 +111,37 @@ describe('SiteDataRepository', () => {
     const revisions = await db.collection('site_data_revisions').find({ siteId: 'my-site' }).toArray();
     expect(revisions.map((entry) => entry.operation)).toEqual(['create', 'delete']);
   });
+
+  it('resurrects a soft-deleted document when replacing a logically missing item', async () => {
+    await repository.replaceDocument({
+      siteId: 'my-site',
+      scope: 'events',
+      entityId: 'event-1',
+      data: { title: 'Original' },
+      expectedVersion: 0,
+      actor: 'admin',
+    });
+    await repository.softDeleteDocument({
+      siteId: 'my-site',
+      scope: 'events',
+      entityId: 'event-1',
+      expectedVersion: 1,
+      actor: 'admin',
+    });
+
+    const restored = await repository.replaceDocument({
+      siteId: 'my-site',
+      scope: 'events',
+      entityId: 'event-1',
+      data: { title: 'Restored' },
+      expectedVersion: 0,
+      actor: 'restore',
+    });
+
+    expect(restored.data).toEqual({ title: 'Restored' });
+    expect(restored.version).toBe(3);
+    expect(restored.deletedAt).toBe(null);
+    const read = await repository.getDocument('my-site', 'events', 'event-1');
+    expect(read.data).toEqual({ title: 'Restored' });
+  });
 });

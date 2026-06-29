@@ -28,6 +28,23 @@ const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(value
 
 const normalizeDigits = (value: string) => value.replace(/\D/g, '');
 
+const uniqueStrings = (values: Array<string | undefined>) => {
+    const seen = new Set<string>();
+    return values
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+        .filter((value) => {
+            const key = value.toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+};
+
+const extractEmail = (value: string) => value.match(/[^\s|\\]+@[^\s|\\]+\.[^\s|\\]+/i)?.[0]?.toLowerCase() || '';
+
+const extractPersonalNumber = (value: string) => value.match(/s\d{6,8}/i)?.[0]?.toLowerCase() || '';
+
 export const normalizePersonalNumberInput = (rawValue: string) => {
     const input = String(rawValue ?? '').trim().toLowerCase();
     if (!input) {
@@ -77,6 +94,68 @@ export const normalizePersonalNumberInput = (rawValue: string) => {
     };
 };
 
+export const normalizeSharePointIdentityInput = (rawValue: string) => {
+    const input = String(rawValue ?? '').trim();
+    const lowerInput = input.toLowerCase();
+
+    if (!input) {
+        return { ok: false as const, message: 'יש להזין מספר אישי, מייל צבאי או LoginName.' };
+    }
+
+    const personalNumber = normalizePersonalNumberInput(input);
+    if (personalNumber.ok) {
+        return {
+            ok: true as const,
+            kind: input.includes('@') ? 'email' : 'personalNumber',
+            input,
+            personalNumber: personalNumber.personalNumber,
+            email: personalNumber.email,
+            loginName: '',
+            normalizedInput: personalNumber.email,
+            label: personalNumber.email,
+        };
+    }
+
+    const looksLikeLoginName = /[|\\]/.test(input) || /^[ic]:/i.test(input);
+    if (!looksLikeLoginName && input.includes('@') && isValidEmail(lowerInput)) {
+        const fromEmail = extractPersonalNumber(lowerInput);
+        return {
+            ok: true as const,
+            kind: 'email',
+            input,
+            personalNumber: fromEmail,
+            email: lowerInput,
+            loginName: '',
+            normalizedInput: lowerInput,
+            label: lowerInput,
+        };
+    }
+
+    if (/^\d+$/i.test(input) || /^s\d+$/i.test(input)) {
+        return {
+            ok: false as const,
+            message: 'מספר אישי לא תקין. יש להזין בפורמט 1234567 או s1234567.',
+        };
+    }
+
+    if (/\s/.test(input)) {
+        return { ok: false as const, message: 'LoginName לא יכול לכלול רווחים.' };
+    }
+
+    const emailFromLogin = extractEmail(input);
+    const personalFromLogin = extractPersonalNumber(input);
+    return {
+        ok: true as const,
+        kind: 'loginName',
+        input,
+        personalNumber: personalFromLogin,
+        email: emailFromLogin,
+        loginName: input,
+        normalizedInput: input,
+        label: input,
+    };
+};
+
 export const getCurrentSharePointUser = async (logs: AdminLogEntry[] = []) => {
     const endpoint = buildEndpoint('/_api/web/currentuser?$select=Id,Title,Email,LoginName,IsSiteAdmin', logs);
     const response = await spAdminFetchWithLogs({
@@ -119,24 +198,21 @@ const tryEnsureUser = async (emailOrLoginName: string, digest: string, logs: Adm
     return data?.d || {};
 };
 
-export const ensureUserByEmail = async (email: string, logs: AdminLogEntry[] = []) => {
-    const normalizedEmail = String(email || '').trim().toLowerCase();
-    if (!isValidEmail(normalizedEmail)) {
-        throw new Error('invalid-email');
-    }
-    addAdminLogEntry(logs, PREFIX, 'info', 'normalize-email', 'Normalized email', { normalizedEmail });
-
-    const digest = await getRequestDigest(logs);
-    const attempts = [normalizedEmail];
+const getEnsureUserAttempts = async (
+    normalized: ReturnType<typeof normalizeSharePointIdentityInput> & { ok: true },
+    logs: AdminLogEntry[],
+) => {
+    const attempts = [normalized.loginName, normalized.email];
 
     try {
         const currentUser = await getCurrentSharePointUser(logs);
         const currentLoginName = String(currentUser?.LoginName || '').toLowerCase();
-        if (currentLoginName.includes('|membership|')) {
-            attempts.push(`i:0#.f|membership|${normalizedEmail}`);
+        if (currentLoginName.includes('|membership|') && normalized.email) {
+            attempts.push(`i:0#.f|membership|${normalized.email}`);
         } else if (currentLoginName.includes('\\')) {
             addAdminLogEntry(logs, PREFIX, 'warn', 'ensure-user-fallback', 'Current environment appears Windows claims style', {
                 currentUserLoginName: currentUser?.LoginName,
+                requestedKind: normalized.kind,
                 note: 'Domain\\username may be required in this farm.',
             });
         }
@@ -145,6 +221,25 @@ export const ensureUserByEmail = async (email: string, logs: AdminLogEntry[] = [
             error: String((error as Error)?.message || error),
         });
     }
+
+    return uniqueStrings(attempts);
+};
+
+const ensureUserFromNormalizedIdentity = async (
+    normalized: ReturnType<typeof normalizeSharePointIdentityInput> & { ok: true },
+    logs: AdminLogEntry[],
+) => {
+    addAdminLogEntry(logs, PREFIX, 'info', 'normalize-identity', 'Normalized SharePoint identity input', {
+        kind: normalized.kind,
+        input: normalized.input,
+        normalizedInput: normalized.normalizedInput,
+        email: normalized.email,
+        loginName: normalized.loginName,
+        personalNumber: normalized.personalNumber,
+    });
+
+    const digest = await getRequestDigest(logs);
+    const attempts = await getEnsureUserAttempts(normalized, logs);
 
     let lastError: unknown = null;
     for (const attempt of attempts) {
@@ -159,6 +254,7 @@ export const ensureUserByEmail = async (email: string, logs: AdminLogEntry[] = [
                 loginName: ensured.LoginName,
                 email: ensured.Email,
                 title: ensured.Title,
+                attemptedIdentity: attempt,
             });
             return ensured;
         } catch (error) {
@@ -167,11 +263,22 @@ export const ensureUserByEmail = async (email: string, logs: AdminLogEntry[] = [
                 attempt,
                 error: String((error as Error)?.message || error),
                 status: (error as { status?: number })?.status,
+                responseBody: (error as { responseBody?: unknown })?.responseBody,
             });
         }
     }
 
     throw lastError || new Error('ensure-user-failed');
+};
+
+export const ensureUserByEmail = async (email: string, logs: AdminLogEntry[] = []) => {
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    if (!isValidEmail(normalizedEmail)) {
+        throw new Error('invalid-email');
+    }
+    const normalized = normalizeSharePointIdentityInput(normalizedEmail);
+    if (!normalized.ok) throw new Error(normalized.message);
+    return ensureUserFromNormalizedIdentity(normalized, logs);
 };
 
 export const ensureUserByPersonalNumber = async (personalNumberInput: string, logs: AdminLogEntry[] = []) => {
@@ -185,6 +292,14 @@ export const ensureUserByPersonalNumber = async (personalNumberInput: string, lo
         generatedEmail: normalized.email,
     });
     return ensureUserByEmail(normalized.email, logs);
+};
+
+export const ensureUserByIdentity = async (identityInput: string, logs: AdminLogEntry[] = []) => {
+    const normalized = normalizeSharePointIdentityInput(identityInput);
+    if (!normalized.ok) {
+        throw new Error(normalized.message);
+    }
+    return ensureUserFromNormalizedIdentity(normalized, logs);
 };
 
 const mapFetchedAdminToSiteUserRow = (admin: Record<string, unknown>, idx: number) => {
@@ -342,6 +457,33 @@ export const verifyIsSiteAdmin = async (userId: number, logs: AdminLogEntry[] = 
 export const addSiteCollectionAdminByEmail = async (email: string, logs: AdminLogEntry[] = []) => {
     try {
         const ensuredUser = await ensureUserByEmail(email, logs);
+        const userId = Number(ensuredUser?.Id || 0);
+        const before = await verifyIsSiteAdmin(userId, logs);
+        await setSiteAdminFlag(userId, true, logs);
+        const after = await verifyIsSiteAdmin(userId, logs);
+        addAdminLogEntry(logs, PREFIX, 'info', 'add-site-admin-final', 'Site Collection Admin update completed', {
+            userId,
+            isSiteAdminBefore: before?.IsSiteAdmin,
+            isSiteAdminAfter: after?.IsSiteAdmin,
+            ensuredUser,
+        });
+        if (!after?.IsSiteAdmin) {
+            throw new Error('verify-is-site-admin-failed');
+        }
+        return { ok: true, ensuredUser, before, after, logs };
+    } catch (error) {
+        return {
+            ok: false,
+            userMessage: mapSharePointErrorToHebrewMessage(error),
+            error,
+            logs,
+        };
+    }
+};
+
+export const addSiteCollectionAdminByIdentity = async (identityInput: string, logs: AdminLogEntry[] = []) => {
+    try {
+        const ensuredUser = await ensureUserByIdentity(identityInput, logs);
         const userId = Number(ensuredUser?.Id || 0);
         const before = await verifyIsSiteAdmin(userId, logs);
         await setSiteAdminFlag(userId, true, logs);

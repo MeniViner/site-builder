@@ -8,6 +8,7 @@ export const BACKUP_PACKAGE_KIND = 'bihs-backup-package';
 
 const textEncoder = new TextEncoder();
 const LEGACY_FILE_NAMES = new Set(LEGACY_MAPPINGS.map((mapping) => mapping.fileName));
+const EXPECTED_LEGACY_FILE_NAMES = LEGACY_MAPPINGS.map((mapping) => mapping.fileName);
 
 const nowIso = () => new Date().toISOString();
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -81,15 +82,163 @@ function parseFileJson(file) {
   }
 }
 
+function isNotFoundError(error) {
+  return error?.statusCode === 404 || error?.code === 'not_found';
+}
+
+function countLegacyRecords(mapping, data) {
+  if (mapping.mode === 'list') {
+    return Array.isArray(data) ? data.length : 0;
+  }
+  if (mapping.mode === 'list-with-settings') {
+    return Array.isArray(data?.[mapping.listProperty]) ? data[mapping.listProperty].length : 0;
+  }
+  if (Array.isArray(data)) return data.length;
+  if (isObject(data)) return Object.keys(data).length > 0 ? 1 : 0;
+  return data === null || data === undefined ? 0 : 1;
+}
+
+function hasLegacySettings(mapping, data) {
+  if (mapping.mode !== 'list-with-settings' || !isObject(data)) return false;
+  return Object.keys(data).some((key) => key !== mapping.listProperty);
+}
+
+function isEmptyLegacyData(mapping, data) {
+  if (mapping.mode === 'list') {
+    return !Array.isArray(data) || data.length === 0;
+  }
+  if (mapping.mode === 'list-with-settings') {
+    return countLegacyRecords(mapping, data) === 0 && !hasLegacySettings(mapping, data);
+  }
+  if (Array.isArray(data)) return data.length === 0;
+  if (isObject(data)) return Object.keys(data).length === 0;
+  return data === null || data === undefined || data === '';
+}
+
+function fallbackTextForMissingFile() {
+  return 'null';
+}
+
+function backupFileStatusFromEntry(entry = {}) {
+  if (entry.invalid) return 'invalid';
+  if (entry.missing) return 'missing';
+  if (entry.restoreStatus) return entry.restoreStatus;
+  if (entry.status) return entry.status;
+  if (entry.empty) return 'empty';
+  return 'hasData';
+}
+
+function isEntryRestorable(entry = {}) {
+  const status = backupFileStatusFromEntry(entry);
+  return entry.willRestore !== false
+    && entry.restoreAction !== 'skipped'
+    && status !== 'missing'
+    && status !== 'invalid';
+}
+
+function inferEntryFromFile(file) {
+  const mapping = LEGACY_MAPPINGS.find((item) => item.fileName === file.name);
+  const status = backupFileStatusFromEntry(file);
+  const willRestore = LEGACY_FILE_NAMES.has(file.name) && isEntryRestorable(file);
+  return {
+    fileName: file.name,
+    scope: file.scope || mapping?.scope || '',
+    entityId: file.entityId || mapping?.entityId || '',
+    mappingKey: file.mappingKey || mapping?.key || '',
+    status,
+    restoreStatus: status,
+    restoreAction: willRestore ? 'will_restore' : 'skipped',
+    willRestore,
+    empty: Boolean(file.empty) || status === 'empty',
+    missing: Boolean(file.missing) || status === 'missing',
+    invalid: Boolean(file.invalid) || status === 'invalid',
+    recordCount: Number.isFinite(Number(file.recordCount)) ? Number(file.recordCount) : 0,
+    documentCount: Number.isFinite(Number(file.documentCount)) ? Number(file.documentCount) : 0,
+    version: Number.isFinite(Number(file.version)) ? Number(file.version) : undefined,
+    hash: typeof file.hash === 'string' ? file.hash : '',
+    source: typeof file.source === 'string' ? file.source : '',
+    sizeBytes: Number(file.sizeBytes) || textEncoder.encode(file.text || '').length,
+  };
+}
+
+function restoreEntriesFromPackage(backupPackage) {
+  const files = Array.isArray(backupPackage?.files) ? backupPackage.files : [];
+  const filesByName = new Map(files.map((file) => [file.name, file]));
+  const sourceEntries = Array.isArray(backupPackage?.meta?.restoreEntries)
+    ? backupPackage.meta.restoreEntries
+    : [];
+
+  if (sourceEntries.length > 0) {
+    return sourceEntries.map((entry) => {
+      const sourceEntry = isObject(entry) ? entry : {};
+      const fileName = String(sourceEntry.fileName || sourceEntry.name || '').trim();
+      const file = filesByName.get(fileName) || {};
+      return {
+        ...inferEntryFromFile({ ...file, ...sourceEntry, name: fileName || file.name }),
+        ...cloneJson(sourceEntry),
+        fileName: fileName || file.name,
+        name: fileName || file.name,
+        sizeBytes: Number(sourceEntry.sizeBytes || file.sizeBytes || 0),
+      };
+    }).filter((entry) => entry.fileName);
+  }
+
+  return files.map(inferEntryFromFile);
+}
+
+function summarizeEntry(entry) {
+  return {
+    fileName: entry.fileName,
+    name: entry.fileName,
+    scope: entry.scope || '',
+    entityId: entry.entityId || '',
+    mappingKey: entry.mappingKey || '',
+    status: entry.status || backupFileStatusFromEntry(entry),
+    restoreStatus: entry.restoreStatus || entry.status || backupFileStatusFromEntry(entry),
+    restoreAction: entry.restoreAction || (entry.willRestore === false ? 'skipped' : 'will_restore'),
+    willRestore: entry.willRestore !== false,
+    empty: Boolean(entry.empty),
+    missing: Boolean(entry.missing),
+    invalid: Boolean(entry.invalid),
+    recordCount: Number(entry.recordCount || 0),
+    documentCount: Number(entry.documentCount || 0),
+    version: entry.version,
+    hash: entry.hash || '',
+    source: entry.source || '',
+    sizeBytes: Number(entry.sizeBytes || 0),
+  };
+}
+
+function buildRestoreIndexes(entries) {
+  const legacyObjects = {};
+  const scopes = {};
+
+  entries.forEach((entry) => {
+    const summary = summarizeEntry(entry);
+    legacyObjects[entry.fileName] = summary;
+    if (entry.scope) scopes[entry.scope] = summary;
+  });
+
+  return { legacyObjects, scopes };
+}
+
 function summarizePackage(backupPackage) {
   const files = Array.isArray(backupPackage.files) ? backupPackage.files : [];
   const fileNames = files.map((file) => file.name);
+  const restoreEntries = restoreEntriesFromPackage(backupPackage).map(summarizeEntry);
   return {
     fileCount: files.length,
     fileNames,
+    files: restoreEntries,
     totalSizeBytes: files.reduce((sum, file) => sum + (Number(file.sizeBytes) || 0), 0),
     hasMasterConfig: fileNames.includes('bihs_master_config_v1.txt'),
-    restorableFiles: fileNames.filter((fileName) => LEGACY_FILE_NAMES.has(fileName)),
+    restorableFiles: restoreEntries
+      .filter((entry) => LEGACY_FILE_NAMES.has(entry.fileName) && isEntryRestorable(entry))
+      .map((entry) => entry.fileName),
+    expectedFiles: EXPECTED_LEGACY_FILE_NAMES,
+    missingExpectedFiles: EXPECTED_LEGACY_FILE_NAMES.filter((fileName) => (
+      !restoreEntries.some((entry) => entry.fileName === fileName && entry.status !== 'missing')
+    )),
   };
 }
 
@@ -125,6 +274,7 @@ function toBackupListItem(document) {
     fileCount: Number(summary.fileCount || 0),
     totalSizeBytes: Number(data.sizeBytes || summary.totalSizeBytes || 0),
     summary,
+    files: Array.isArray(summary.files) ? summary.files : [],
     version: document.version,
     entityId: document.entityId,
   };
@@ -157,6 +307,131 @@ export class SiteBackupRepository {
     this.maxDocumentBytes = Number(options.maxDocumentBytes || MAX_BACKUP_DOCUMENT_BYTES);
   }
 
+  shouldCaptureCurrentSiteSnapshot(backupPackage) {
+    if (backupPackage?.meta?.captureStrategy === 'server-full-site') return true;
+    if (backupPackage?.meta?.fullSiteSnapshot === true) return true;
+    if (backupPackage?.meta?.importedAt) return false;
+
+    const files = Array.isArray(backupPackage?.files) ? backupPackage.files : [];
+    return backupPackage?.source === BACKUP_SOURCE
+      && files.length === 1
+      && files[0]?.name === 'bihs_master_config_v1.txt';
+  }
+
+  async buildCurrentSiteSnapshotPackage({ siteId, basePackage, createdAt, actor }) {
+    if (!this.legacyRepository) {
+      throw badRequest('legacyRepository is required to capture a full site backup snapshot.');
+    }
+
+    const requestFilesByName = new Map(
+      (Array.isArray(basePackage.files) ? basePackage.files : [])
+        .map((file) => [file.name, file]),
+    );
+    const files = [];
+    const restoreEntries = [];
+
+    for (const mapping of LEGACY_MAPPINGS) {
+      const requestFile = requestFilesByName.get(mapping.fileName);
+      let data = null;
+      let snapshot = null;
+      let source = 'mongo-live';
+      let status = 'missing';
+      let willRestore = false;
+
+      try {
+        snapshot = await this.legacyRepository.readLegacyObject(siteId, mapping.fileName);
+        data = cloneJson(snapshot.data);
+        status = isEmptyLegacyData(mapping, data) ? 'empty' : 'hasData';
+        willRestore = true;
+      } catch (error) {
+        if (!isNotFoundError(error)) throw error;
+        if (requestFile && typeof requestFile.text === 'string' && requestFile.text.trim()) {
+          data = parseFileJson(requestFile);
+          source = 'request-payload';
+          status = isEmptyLegacyData(mapping, data) ? 'empty' : 'hasData';
+          willRestore = true;
+        }
+      }
+
+      const text = willRestore
+        ? JSON.stringify(data, null, 2)
+        : fallbackTextForMissingFile(mapping);
+      const sizeBytes = textEncoder.encode(text).length;
+      const entry = {
+        fileName: mapping.fileName,
+        name: mapping.fileName,
+        scope: mapping.scope,
+        entityId: mapping.entityId || '',
+        mappingKey: mapping.key,
+        status,
+        restoreStatus: status,
+        restoreAction: willRestore ? 'will_restore' : 'skipped',
+        willRestore,
+        empty: status === 'empty',
+        missing: status === 'missing',
+        invalid: false,
+        recordCount: willRestore ? countLegacyRecords(mapping, data) : 0,
+        documentCount: snapshot?.documents?.length || 0,
+        version: snapshot?.version,
+        hash: snapshot?.hash || '',
+        source,
+        sizeBytes,
+      };
+
+      files.push({
+        name: mapping.fileName,
+        label: requestFile?.label || '',
+        targetServerRelativeUrl: requestFile?.targetServerRelativeUrl || '',
+        timeCreated: createdAt,
+        timeLastModified: createdAt,
+        text,
+        sizeBytes,
+        scope: entry.scope,
+        entityId: entry.entityId,
+        mappingKey: entry.mappingKey,
+        status: entry.status,
+        restoreStatus: entry.restoreStatus,
+        restoreAction: entry.restoreAction,
+        willRestore: entry.willRestore,
+        empty: entry.empty,
+        missing: entry.missing,
+        invalid: entry.invalid,
+        recordCount: entry.recordCount,
+        documentCount: entry.documentCount,
+        version: entry.version,
+        hash: entry.hash,
+        source: entry.source,
+      });
+      restoreEntries.push(entry);
+    }
+
+    const indexes = buildRestoreIndexes(restoreEntries);
+
+    return normalizeBackupPackage({
+      ...cloneJson(basePackage),
+      source: BACKUP_SOURCE,
+      backup: {
+        ...(isObject(basePackage.backup) ? cloneJson(basePackage.backup) : {}),
+        id: basePackage.id,
+        timeCreated: basePackage.backup?.timeCreated || createdAt,
+        timeLastModified: createdAt,
+      },
+      files,
+      exportedAt: basePackage.exportedAt || createdAt,
+      meta: {
+        ...(isObject(basePackage.meta) ? cloneJson(basePackage.meta) : {}),
+        siteId,
+        captureStrategy: 'server-full-site',
+        capturedAt: createdAt,
+        capturedBy: actor,
+        expectedLegacyFiles: EXPECTED_LEGACY_FILE_NAMES,
+        restoreEntries: restoreEntries.map(summarizeEntry),
+        legacyObjects: indexes.legacyObjects,
+        scopes: indexes.scopes,
+      },
+    }, { fallbackId: basePackage.id, createdAt });
+  }
+
   async listBackups(siteId) {
     const documents = await this.repository.listDocuments(siteId, BACKUP_SCOPE);
     return documents
@@ -178,7 +453,15 @@ export class SiteBackupRepository {
     metadata = {},
   }) {
     const createdAt = nowIso();
-    const normalizedPackage = normalizeBackupPackage(backupPackage, { createdAt });
+    const requestedPackage = normalizeBackupPackage(backupPackage, { createdAt });
+    const normalizedPackage = this.shouldCaptureCurrentSiteSnapshot(requestedPackage)
+      ? await this.buildCurrentSiteSnapshotPackage({
+          siteId,
+          basePackage: requestedPackage,
+          createdAt,
+          actor,
+        })
+      : requestedPackage;
     const backupId = normalizedPackage.id;
     const summary = summarizePackage(normalizedPackage);
     const data = {
@@ -268,7 +551,14 @@ export class SiteBackupRepository {
       });
     }
 
-    const restorableFiles = backupPackage.files.filter((file) => LEGACY_FILE_NAMES.has(file.name));
+    const restoreEntryByName = new Map(
+      restoreEntriesFromPackage(backupPackage).map((entry) => [entry.fileName, entry]),
+    );
+    const restorableFiles = backupPackage.files.filter((file) => {
+      if (!LEGACY_FILE_NAMES.has(file.name)) return false;
+      const entry = restoreEntryByName.get(file.name) || file;
+      return isEntryRestorable(entry);
+    });
     if (restorableFiles.length === 0) {
       throw badRequest('Backup package does not contain restorable Site Builder files.');
     }
@@ -297,6 +587,7 @@ export class SiteBackupRepository {
         key: result.key,
         version: result.version,
         documents: result.documents.length,
+        status: restoreEntryByName.get(file.name)?.status || file.restoreStatus || file.status || 'hasData',
       });
     }
 

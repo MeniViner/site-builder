@@ -105,6 +105,63 @@ vi.mock('../config/sharepointPaths', () => ({
     },
 }));
 
+const expectedBackupFiles = [
+    'bihs_master_config_v1.txt',
+    'events_data.txt',
+    'nav_data.txt',
+    'site_content_data.txt',
+    'theme_data.txt',
+    'widgets_data.txt',
+    'external_links_data.txt',
+    'gantt_data.txt',
+    'users_data.txt',
+];
+
+const backupFileData = {
+    'bihs_master_config_v1.txt': { schemaVersion: '1.0.0', meta: { appId: 'siteBuilder' } },
+    'events_data.txt': { displayCount: 3, displayMode: 'default', events: [{ id: 'event-1', title: 'Event One' }] },
+    'nav_data.txt': [],
+    'site_content_data.txt': { hero: { title: 'Site title' } },
+    'theme_data.txt': {},
+    'widgets_data.txt': { activeWidget: ['events'] },
+    'external_links_data.txt': [],
+    'gantt_data.txt': { items: [], categories: [] },
+    'users_data.txt': [{ id: 'admin-1', name: 'Admin One' }],
+};
+
+function recordCountForFile(fileName) {
+    const data = backupFileData[fileName];
+    if (Array.isArray(data)) return data.length;
+    if (fileName === 'events_data.txt') return data.events.length;
+    if (fileName === 'gantt_data.txt') return data.items.length;
+    if (data && typeof data === 'object') return Object.keys(data).length > 0 ? 1 : 0;
+    return 0;
+}
+
+function statusForFile(fileName) {
+    const data = backupFileData[fileName];
+    if (Array.isArray(data)) return data.length > 0 ? 'hasData' : 'empty';
+    if (data && typeof data === 'object') return Object.keys(data).length > 0 ? 'hasData' : 'empty';
+    return 'missing';
+}
+
+const fullBackupFiles = expectedBackupFiles.map((fileName) => {
+    const status = statusForFile(fileName);
+    return {
+        name: fileName,
+        text: JSON.stringify(backupFileData[fileName], null, 2),
+        status,
+        restoreStatus: status,
+        restoreAction: 'will_restore',
+        willRestore: true,
+        empty: status === 'empty',
+        missing: false,
+        invalid: false,
+        recordCount: recordCountForFile(fileName),
+        sizeBytes: JSON.stringify(backupFileData[fileName], null, 2).length,
+    };
+});
+
 const backupPackage = {
     kind: 'bihs-backup-package',
     version: '1.0.0',
@@ -117,13 +174,24 @@ const backupPackage = {
         timeCreated: '2026-06-10T10:00:00.000Z',
         timeLastModified: '2026-06-10T10:00:00.000Z',
     },
-    files: [
-        {
-            name: 'bihs_master_config_v1.txt',
-            text: JSON.stringify({ schemaVersion: '1.0.0', meta: { appId: 'siteBuilder' } }),
-        },
-    ],
-    meta: { siteId: 'alpha' },
+    files: fullBackupFiles,
+    meta: {
+        siteId: 'alpha',
+        captureStrategy: 'server-full-site',
+        expectedLegacyFiles: expectedBackupFiles,
+        restoreEntries: fullBackupFiles.map((file) => ({
+            fileName: file.name,
+            status: file.status,
+            restoreStatus: file.restoreStatus,
+            restoreAction: file.restoreAction,
+            willRestore: file.willRestore,
+            empty: file.empty,
+            missing: file.missing,
+            invalid: file.invalid,
+            recordCount: file.recordCount,
+            sizeBytes: file.sizeBytes,
+        })),
+    },
 };
 
 const listBackup = {
@@ -132,10 +200,15 @@ const listBackup = {
     serverRelativeUrl: 'mongo-backup:backup-one',
     timeCreated: '2026-06-10T10:00:00.000Z',
     timeLastModified: '2026-06-10T10:00:00.000Z',
-    fileCount: 1,
+    fileCount: expectedBackupFiles.length,
     totalSizeBytes: 128,
     version: 1,
     storageBackend: 'mongo',
+    files: fullBackupFiles.map((file) => {
+        const summary = { ...file };
+        delete summary.text;
+        return summary;
+    }),
 };
 
 function mockMongoList(backups = [listBackup]) {
@@ -153,6 +226,8 @@ describe('AdminBackupManagement', () => {
         mockMongoList();
         mocks.backendApiClient.createBackup.mockResolvedValue({ ok: true, backup: listBackup });
         mocks.backendApiClient.getBackup.mockResolvedValue({ ok: true, backup: { ...listBackup, backupPackage } });
+        mocks.backendApiClient.deleteBackup.mockResolvedValue({ ok: true, backup: { ...listBackup, deletedAt: '2026-06-10T11:00:00.000Z' } });
+        mocks.backendApiClient.restoreBackup.mockResolvedValue({ ok: true, restoredFiles: 1 });
         vi.stubGlobal('URL', {
             createObjectURL: vi.fn(() => 'blob:backup'),
             revokeObjectURL: vi.fn(),
@@ -182,6 +257,11 @@ describe('AdminBackupManagement', () => {
         await waitFor(() => expect(mocks.backendApiClient.createBackup).toHaveBeenCalled());
         expect(mocks.backendApiClient.createBackup.mock.calls[0][0]).toBe('alpha');
         expect(mocks.backendApiClient.createBackup.mock.calls[0][1].backupPackage.source).toBe('admin-backup-management');
+        expect(mocks.backendApiClient.createBackup.mock.calls[0][1].backupPackage.meta).toMatchObject({
+            captureStrategy: 'server-full-site',
+            expectedLegacyFiles: expectedBackupFiles,
+        });
+        await waitFor(() => expect(mocks.backendApiClient.listBackups).toHaveBeenCalledTimes(2));
         expect(setItemSpy).not.toHaveBeenCalled();
     });
 
@@ -205,6 +285,56 @@ describe('AdminBackupManagement', () => {
 
         await waitFor(() => expect(mocks.backendApiClient.getBackup).toHaveBeenCalledWith('alpha', 'backup-one'));
         expect(clickSpy).toHaveBeenCalled();
+    });
+
+    it('downloads Mongo backup JSON with all expected legacy entries', async () => {
+        const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+        const RealBlob = globalThis.Blob;
+        const blobPayloads = [];
+        class CapturingBlob extends RealBlob {
+            constructor(parts, options) {
+                super(parts, options);
+                blobPayloads.push(parts.join(''));
+            }
+        }
+        vi.stubGlobal('Blob', CapturingBlob);
+        render(<AdminBackupManagement />);
+        await screen.findByText('1 פריטים');
+
+        fireEvent.click(screen.getByRole('button', { name: /ייצוא גיבוי/ }));
+
+        await waitFor(() => expect(mocks.backendApiClient.getBackup).toHaveBeenCalledWith('alpha', 'backup-one'));
+        expect(clickSpy).toHaveBeenCalled();
+        const exported = JSON.parse(blobPayloads[0]);
+        expect(exported.files.map((file) => file.name)).toEqual(expectedBackupFiles);
+        expect(exported.meta.restoreEntries).toHaveLength(expectedBackupFiles.length);
+    });
+
+    it('deletes Mongo backups through the backend and refreshes the list', async () => {
+        render(<AdminBackupManagement />);
+        await screen.findByText('1 פריטים');
+
+        fireEvent.click(screen.getByRole('button', { name: /מחק/ }));
+
+        await waitFor(() => expect(mocks.backendApiClient.deleteBackup).toHaveBeenCalledWith('alpha', 'backup-one', { expectedVersion: 1 }));
+        await waitFor(() => expect(mocks.backendApiClient.listBackups).toHaveBeenCalledTimes(2));
+    });
+
+    it('restores Mongo backups through the backend and refreshes after reload', async () => {
+        render(<AdminBackupManagement />);
+        await screen.findByText('1 פריטים');
+
+        fireEvent.click(screen.getByRole('button', { name: /בחר גיבוי מלא/ }));
+        await waitFor(() => expect(mocks.backendApiClient.getBackup).toHaveBeenCalledWith('alpha', 'backup-one'));
+        expectedBackupFiles.forEach((fileName) => {
+            expect(screen.getAllByText(fileName).length).toBeGreaterThan(0);
+        });
+
+        fireEvent.click(await screen.findByRole('button', { name: /שחזור מהגיבוי הזה/ }));
+
+        await waitFor(() => expect(mocks.backendApiClient.restoreBackup).toHaveBeenCalledWith('alpha', 'backup-one'));
+        expect(mocks.reload).toHaveBeenCalled();
+        await waitFor(() => expect(mocks.backendApiClient.listBackups).toHaveBeenCalledTimes(2));
     });
 
     it('keeps localStorage backup listing for non-Mongo mock mode', async () => {

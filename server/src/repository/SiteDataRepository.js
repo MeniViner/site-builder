@@ -191,10 +191,100 @@ export class SiteDataRepository {
     const { site, collection } = await this.resolveSiteCollection(siteId);
     const _id = documentId(scope, entityId);
     const existing = await collection.findOne({ _id, siteId, scope, entityId, deletedAt: null });
+    const deletedExisting = existing ? null : await collection.findOne({ _id, siteId, scope, entityId });
     const createdAt = now();
     const hash = sha256OfCanonicalJson(data);
 
     if (!existing) {
+      if (deletedExisting?.deletedAt) {
+        if (resolvedExpectedVersion !== 0) {
+          await this.writeAuditLog({
+            siteId,
+            documentKey: _id,
+            scope,
+            entityId,
+            operation,
+            result: 'conflict',
+            actor,
+            metadata: {
+              expectedVersion: resolvedExpectedVersion,
+              actualVersion: deletedExisting.version,
+              reason: 'deleted-document',
+              ...metadata,
+            },
+          });
+          throw conflict('Version conflict: document is deleted', {
+            expectedVersion: resolvedExpectedVersion,
+            actualVersion: deletedExisting.version,
+          });
+        }
+
+        const nextVersion = deletedExisting.version + 1;
+        await this.writeRevision({
+          siteId,
+          collectionName: site.safeCollectionName,
+          documentKey: _id,
+          previousData: null,
+          nextData: data,
+          previousVersion: deletedExisting.version,
+          nextVersion,
+          operation,
+          actor,
+        });
+
+        const updateResult = await collection.updateOne(
+          { _id, siteId, scope, entityId, version: deletedExisting.version },
+          {
+            $set: {
+              data,
+              version: nextVersion,
+              hash,
+              deletedAt: null,
+              updatedAt: createdAt,
+              updatedBy: actor,
+              metadata,
+            },
+          },
+          { writeConcern: SAFE_WRITE_CONCERN },
+        );
+
+        if (updateResult.matchedCount !== 1) {
+          await this.writeAuditLog({
+            siteId,
+            documentKey: _id,
+            scope,
+            entityId,
+            operation,
+            result: 'conflict',
+            actor,
+            metadata: { expectedVersion: 0, reason: 'race-after-deleted-revision', ...metadata },
+          });
+          throw conflict('Version conflict');
+        }
+
+        await this.touchSite(siteId, actor);
+        await this.writeAuditLog({
+          siteId,
+          documentKey: _id,
+          scope,
+          entityId,
+          operation,
+          result: 'ok',
+          actor,
+          metadata: { resurrectedDeletedDocument: true, ...metadata },
+        });
+        return {
+          ...deletedExisting,
+          data,
+          version: nextVersion,
+          hash,
+          deletedAt: null,
+          updatedAt: createdAt,
+          updatedBy: actor,
+          metadata,
+        };
+      }
+
       if (resolvedExpectedVersion !== 0) {
         await this.writeAuditLog({
           siteId,

@@ -5,6 +5,9 @@ import { MemoryDb } from '../testUtils/memoryDb.js';
 import { SiteDataRepository } from '../repository/SiteDataRepository.js';
 import { LegacyCompatibilityRepository } from '../repository/LegacyCompatibilityRepository.js';
 import { SiteBackupRepository } from '../repository/SiteBackupRepository.js';
+import { LEGACY_MAPPINGS } from '../repository/legacyMappings.js';
+
+const EXPECTED_LEGACY_FILES = LEGACY_MAPPINGS.map((mapping) => mapping.fileName);
 
 function backupPackage(id, overrides = {}) {
   return {
@@ -55,6 +58,42 @@ describe('site backup routes', () => {
     });
   });
 
+  async function writeLegacy(siteId, key, data) {
+    let expectedVersion = 0;
+    try {
+      expectedVersion = (await legacyRepository.readLegacyObject(siteId, key)).version;
+    } catch (error) {
+      if (error.statusCode !== 404 && error.code !== 'not_found') throw error;
+    }
+    return legacyRepository.writeLegacyObject({
+      siteId,
+      key,
+      data,
+      expectedVersion,
+      allowEmptyOverwrite: true,
+      actor: 'test',
+    });
+  }
+
+  async function seedAllLegacyScopes(siteId = 'alpha') {
+    await writeLegacy(siteId, 'bihs_master_config_v1.txt', {
+      schemaVersion: '1.0.0',
+      meta: { appId: 'siteBuilder', seeded: true },
+    });
+    await writeLegacy(siteId, 'users_data.txt', [{ id: 'admin-1', name: 'Admin One' }]);
+    await writeLegacy(siteId, 'events_data.txt', {
+      displayCount: 5,
+      displayMode: 'default',
+      events: [{ id: 'event-1', title: 'Event One' }],
+    });
+    await writeLegacy(siteId, 'nav_data.txt', []);
+    await writeLegacy(siteId, 'site_content_data.txt', { hero: { title: 'Seeded site' } });
+    await writeLegacy(siteId, 'theme_data.txt', {});
+    await writeLegacy(siteId, 'widgets_data.txt', { activeWidget: ['events'], data: { news: [{ id: 'news-1', title: 'News One' }] } });
+    await writeLegacy(siteId, 'external_links_data.txt', []);
+    await writeLegacy(siteId, 'gantt_data.txt', { items: [{ id: 'task-1', title: 'Task One' }], categories: [] });
+  }
+
   it('requires auth for backup routes', async () => {
     await request(app)
       .get('/api/sites/alpha/backups')
@@ -79,7 +118,7 @@ describe('site backup routes', () => {
       description: 'Before edits',
       source: 'admin-backup-management',
       storageBackend: 'mongo',
-      fileCount: 1,
+      fileCount: EXPECTED_LEGACY_FILES.length,
     });
 
     const site = await repository.getSite('alpha');
@@ -96,7 +135,50 @@ describe('site backup routes', () => {
       storageBackend: 'mongo',
       source: 'admin-backup-management',
     });
-    expect(stored.data.snapshot.files[0].name).toBe('bihs_master_config_v1.txt');
+    expect(stored.data.snapshot.files.map((file) => file.name)).toEqual(EXPECTED_LEGACY_FILES);
+    expect(stored.data.snapshot.meta.restoreEntries).toHaveLength(EXPECTED_LEGACY_FILES.length);
+    expect(stored.data.snapshot.meta.restoreEntries.find((entry) => entry.fileName === 'users_data.txt')).toMatchObject({
+      status: 'missing',
+      willRestore: false,
+      restoreAction: 'skipped',
+    });
+  });
+
+  it('captures all expected legacy scopes, including explicit empty scopes, in Mongo backups', async () => {
+    await seedAllLegacyScopes('alpha');
+
+    const response = await request(app)
+      .post('/api/sites/alpha/backups')
+      .set('x-api-key', 'secret')
+      .send({ backupPackage: backupPackage('full-snapshot') })
+      .expect(201);
+
+    const files = response.body.backup.backupPackage.files;
+    const entries = response.body.backup.backupPackage.meta.restoreEntries;
+    expect(files.map((file) => file.name)).toEqual(EXPECTED_LEGACY_FILES);
+    expect(entries).toHaveLength(EXPECTED_LEGACY_FILES.length);
+    expect(entries.find((entry) => entry.fileName === 'users_data.txt')).toMatchObject({
+      status: 'hasData',
+      willRestore: true,
+      recordCount: 1,
+    });
+    expect(entries.find((entry) => entry.fileName === 'nav_data.txt')).toMatchObject({
+      status: 'empty',
+      willRestore: true,
+      recordCount: 0,
+    });
+    expect(entries.find((entry) => entry.fileName === 'theme_data.txt')).toMatchObject({
+      status: 'empty',
+      willRestore: true,
+      recordCount: 0,
+    });
+    expect(response.body.backup.summary.restorableFiles).toEqual(EXPECTED_LEGACY_FILES);
+
+    const downloaded = await request(app)
+      .get('/api/sites/alpha/backups/full-snapshot')
+      .set('x-api-key', 'secret')
+      .expect(200);
+    expect(downloaded.body.backup.backupPackage.files.map((file) => file.name)).toEqual(EXPECTED_LEGACY_FILES);
   });
 
   it('lists active backups only for the requested site and gets the full snapshot', async () => {
@@ -122,7 +204,7 @@ describe('site backup routes', () => {
       .set('x-api-key', 'secret')
       .expect(200);
     expect(full.body.backup.backupPackage.id).toBe('alpha-backup');
-    expect(full.body.backup.backupPackage.files).toHaveLength(1);
+    expect(full.body.backup.backupPackage.files).toHaveLength(EXPECTED_LEGACY_FILES.length);
   });
 
   it('soft-deletes backups', async () => {
@@ -150,20 +232,28 @@ describe('site backup routes', () => {
   });
 
   it('restores a valid backup through legacy repository writes', async () => {
+    await seedAllLegacyScopes('alpha');
     await request(app)
       .post('/api/sites/alpha/backups')
       .set('x-api-key', 'secret')
       .send({ backupPackage: backupPackage('restore-me') })
       .expect(201);
 
+    await writeLegacy('alpha', 'users_data.txt', [{ id: 'admin-2', name: 'Admin Two' }]);
+    await writeLegacy('alpha', 'events_data.txt', { displayCount: 1, events: [] });
+
     const restored = await request(app)
       .post('/api/sites/alpha/backups/restore-me/restore')
       .set('x-api-key', 'secret')
       .expect(200);
 
-    expect(restored.body.restoredFiles).toBe(1);
+    expect(restored.body.restoredFiles).toBe(EXPECTED_LEGACY_FILES.length);
     const masterConfig = await legacyRepository.readLegacyObject('alpha', 'bihs_master_config_v1.txt');
     expect(masterConfig.data).toMatchObject({ schemaVersion: '1.0.0' });
+    const users = await legacyRepository.readLegacyObject('alpha', 'users_data.txt');
+    expect(users.data).toEqual([{ id: 'admin-1', name: 'Admin One' }]);
+    const events = await legacyRepository.readLegacyObject('alpha', 'events_data.txt');
+    expect(events.data.events).toEqual([{ id: 'event-1', title: 'Event One' }]);
   });
 
   it('rejects invalid backup restore packages', async () => {

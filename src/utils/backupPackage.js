@@ -33,7 +33,7 @@ function normalizeFileEntry(file, index) {
         ? Number(source.sizeBytes)
         : calculateTextSizeBytes(text);
 
-    return {
+    const normalized = {
         name,
         label: typeof source.label === 'string' ? source.label : '',
         serverRelativeUrl: typeof source.serverRelativeUrl === 'string' ? source.serverRelativeUrl : '',
@@ -44,6 +44,38 @@ function normalizeFileEntry(file, index) {
         sizeBytes,
         text,
     };
+
+    [
+        'scope',
+        'entityId',
+        'mappingKey',
+        'status',
+        'restoreStatus',
+        'restoreAction',
+        'source',
+        'hash',
+    ].forEach((key) => {
+        if (typeof source[key] === 'string') normalized[key] = source[key];
+    });
+
+    [
+        'willRestore',
+        'empty',
+        'missing',
+        'invalid',
+    ].forEach((key) => {
+        if (typeof source[key] === 'boolean') normalized[key] = source[key];
+    });
+
+    [
+        'recordCount',
+        'documentCount',
+        'version',
+    ].forEach((key) => {
+        if (Number.isFinite(Number(source[key]))) normalized[key] = Number(source[key]);
+    });
+
+    return normalized;
 }
 
 export function createBackupPackage({
@@ -163,6 +195,21 @@ export function packageToBackupListItem(backupPackage, { idPrefix = 'backup-pack
             timeLastModified: file.timeLastModified || timeLastModified,
             sizeBytes: Number(file.sizeBytes) || calculateTextSizeBytes(file.text),
             text: file.text,
+            scope: file.scope || '',
+            entityId: file.entityId || '',
+            mappingKey: file.mappingKey || '',
+            status: file.status || '',
+            restoreStatus: file.restoreStatus || file.status || '',
+            restoreAction: file.restoreAction || '',
+            willRestore: file.willRestore,
+            empty: file.empty,
+            missing: file.missing,
+            invalid: file.invalid,
+            recordCount: file.recordCount,
+            documentCount: file.documentCount,
+            version: file.version,
+            hash: file.hash || '',
+            source: file.source || '',
         })),
         backupPackage,
         source: backupPackage?.source || 'package',

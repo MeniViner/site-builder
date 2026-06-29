@@ -163,11 +163,23 @@ export const spAdminFetchWithLogs = async ({
 
 export const mapSharePointErrorToHebrewMessage = (error: unknown) => {
     const status = Number((error as { status?: number })?.status || 0);
+    const responseBody = (error as { responseBody?: unknown })?.responseBody;
+    let responseText = '';
+    try {
+        responseText = typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody || {});
+    } catch {
+        responseText = String(responseBody || '');
+    }
+    const errorText = [
+        (error as { message?: string })?.message,
+        responseText,
+    ].filter(Boolean).join(' ');
+
     if (status === 403) {
         return 'רק מנהל אוסף אתרים קיים יכול להוסיף או להסיר מנהלי אוסף אתרים.';
     }
-    if (status === 400) {
-        return 'לא ניתן היה לזהות את המשתמש לפי המספר האישי שהוזן.';
+    if (status === 400 || status === 500 || /ensureuser|resolve|could not be found|user cannot be found|לאתר|לזהות/i.test(errorText)) {
+        return 'SharePoint לא הצליח לזהות את המשתמש לפי הערך שהוזן. נסה מספר אישי, מייל צבאי מלא או LoginName כפי שהוא מופיע ב-SharePoint.';
     }
     if (status === 404) {
         return 'לא נמצא endpoint או משתמש מתאים ב־SharePoint.';

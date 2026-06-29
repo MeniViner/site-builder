@@ -119,6 +119,23 @@ const DEV_MOCK_FILE_TARGETS = [
     },
 ].filter((entry) => entry.fileName && entry.storageKey && entry.targetServerRelativeUrl);
 
+const EXPECTED_BACKUP_FILE_NAMES = [...new Set([
+    MASTER_CONFIG_FILE_NAME,
+    ...DEV_MOCK_FILE_TARGETS.map((entry) => entry.fileName),
+].filter(Boolean))];
+
+const RESTORE_STATUS_LABELS = {
+    hasData: 'יש נתונים',
+    empty: 'ריק',
+    missing: 'חסר',
+    invalid: 'לא תקין',
+};
+
+const RESTORE_ACTION_LABELS = {
+    will_restore: 'ישוחזר',
+    skipped: 'ידולג',
+};
+
 const formatBytes = (value) => {
     const size = Number(value);
     if (!Number.isFinite(size) || size <= 0) return '0 B';
@@ -155,8 +172,13 @@ const parseBackupJson = (fileName, text) => {
 };
 
 const buildPreviewFromBackupTexts = (fileTextsByName) => {
-    if (fileTextsByName.has(MASTER_CONFIG_FILE_NAME)) {
-        const parsed = parseBackupJson(MASTER_CONFIG_FILE_NAME, fileTextsByName.get(MASTER_CONFIG_FILE_NAME));
+    const parsedByName = new Map();
+    fileTextsByName.forEach((text, fileName) => {
+        parsedByName.set(fileName, parseBackupJson(fileName, text));
+    });
+
+    if (parsedByName.has(MASTER_CONFIG_FILE_NAME)) {
+        const parsed = parsedByName.get(MASTER_CONFIG_FILE_NAME);
         return {
             source: 'master',
             config: validateAndNormalize(parsed),
@@ -165,8 +187,8 @@ const buildPreviewFromBackupTexts = (fileTextsByName) => {
 
     const getJsonForTarget = (targetUrl) => {
         const fileName = String(targetUrl || '').split('/').pop();
-        if (!fileName || !fileTextsByName.has(fileName)) return undefined;
-        return parseBackupJson(fileName, fileTextsByName.get(fileName));
+        if (!fileName || !parsedByName.has(fileName)) return undefined;
+        return parsedByName.get(fileName);
     };
 
     const legacyData = {
@@ -177,6 +199,7 @@ const buildPreviewFromBackupTexts = (fileTextsByName) => {
         widgets: getJsonForTarget(SHAREPOINT_CONFIG.widgetsFileServerRelativeUrl),
         externalLinks: getJsonForTarget(SHAREPOINT_CONFIG.externalLinksFileServerRelativeUrl),
         users: getJsonForTarget(SHAREPOINT_CONFIG.usersFileServerRelativeUrl),
+        gantt: getJsonForTarget(SHAREPOINT_CONFIG.ganttFileServerRelativeUrl),
     };
 
     const hasAnyLegacyData = Object.values(legacyData).some((value) => value !== undefined);
@@ -189,6 +212,65 @@ const buildPreviewFromBackupTexts = (fileTextsByName) => {
         config: validateAndNormalize(migrateLegacyToV1(legacyData)),
     };
 };
+
+const getRestoreStatus = (entry = {}) => {
+    if (entry.invalid) return 'invalid';
+    if (entry.missing) return 'missing';
+    if (entry.restoreStatus) return entry.restoreStatus;
+    if (entry.status) return entry.status;
+    if (entry.empty) return 'empty';
+    return 'hasData';
+};
+
+const isEntryRestorable = (entry = {}) => {
+    const status = getRestoreStatus(entry);
+    return entry.willRestore !== false
+        && entry.restoreAction !== 'skipped'
+        && status !== 'missing'
+        && status !== 'invalid';
+};
+
+const getRestoreAction = (entry = {}) => (
+    isEntryRestorable(entry) ? 'will_restore' : 'skipped'
+);
+
+const summarizeFileForRestore = (file = {}) => {
+    const fileName = file.fileName || file.name || '';
+    const status = getRestoreStatus(file);
+    return {
+        fileName,
+        name: fileName,
+        scope: file.scope || '',
+        status,
+        restoreStatus: status,
+        restoreAction: file.restoreAction || getRestoreAction(file),
+        willRestore: isEntryRestorable(file),
+        empty: Boolean(file.empty) || status === 'empty',
+        missing: Boolean(file.missing) || status === 'missing',
+        invalid: Boolean(file.invalid) || status === 'invalid',
+        recordCount: Number.isFinite(Number(file.recordCount)) ? Number(file.recordCount) : 0,
+        sizeBytes: Number.isFinite(Number(file.sizeBytes)) ? Number(file.sizeBytes) : 0,
+    };
+};
+
+const getRestoreEntriesForBackup = (backup, files = []) => {
+    const packageEntries = backup?.backupPackage?.meta?.restoreEntries;
+    if (Array.isArray(packageEntries) && packageEntries.length > 0) {
+        const fileByName = new Map(files.map((file) => [file.name || file.fileName, file]));
+        return packageEntries
+            .map((entry) => summarizeFileForRestore({
+                ...(fileByName.get(entry.fileName || entry.name) || {}),
+                ...entry,
+                name: entry.fileName || entry.name,
+            }))
+            .filter((entry) => entry.fileName);
+    }
+
+    return files.map(summarizeFileForRestore).filter((entry) => entry.fileName);
+};
+
+const getRestoreStatusLabel = (entry = {}) => RESTORE_STATUS_LABELS[getRestoreStatus(entry)] || getRestoreStatus(entry);
+const getRestoreActionLabel = (entry = {}) => RESTORE_ACTION_LABELS[getRestoreAction(entry)] || RESTORE_ACTION_LABELS.skipped;
 
 const readLocalStorageValue = (key) => {
     try {
@@ -378,6 +460,8 @@ export default function AdminBackupManagement() {
                 storageBackend: 'mongo',
                 siteId: currentSiteId,
                 mode: import.meta.env.MODE,
+                captureStrategy: 'server-full-site',
+                expectedLegacyFiles: EXPECTED_BACKUP_FILE_NAMES,
             },
         });
     };
@@ -539,10 +623,6 @@ export default function AdminBackupManagement() {
             return Array.isArray(backup.files) ? backup.files : [];
         }
 
-        if (Array.isArray(backup.files) && backup.files.length > 0) {
-            return backup.files;
-        }
-
         if (mongoBackupStore && backup?.id) {
             const response = await backendApiClient.getBackup(currentSiteId, backup.id);
             const backupPackage = normalizeImportedBackupPackage(response?.backup?.backupPackage, { masterFileName: MASTER_CONFIG_FILE_NAME });
@@ -560,6 +640,10 @@ export default function AdminBackupManagement() {
                     : item
             )));
             return files;
+        }
+
+        if (Array.isArray(backup.files) && backup.files.length > 0) {
+            return backup.files;
         }
 
         const files = await listSharePointBackupFiles(backup.serverRelativeUrl);
@@ -584,10 +668,16 @@ export default function AdminBackupManagement() {
             error: '',
             preview: null,
             fileTextsByName: new Map(),
+            restoreEntries: getRestoreEntriesForBackup(backup, files),
         });
 
         try {
-            const restorableFiles = files.filter((file) => RESTORE_TARGET_BY_FILE_NAME[file.name]);
+            const restoreEntries = getRestoreEntriesForBackup(backup, files);
+            const entryByName = new Map(restoreEntries.map((entry) => [entry.fileName, entry]));
+            const restorableFiles = files.filter((file) => (
+                RESTORE_TARGET_BY_FILE_NAME[file.name]
+                && isEntryRestorable(entryByName.get(file.name) || file)
+            ));
             if (restorableFiles.length === 0) {
                 throw new Error('לגיבוי הזה אין קבצים מוכרים לשחזור.');
             }
@@ -606,6 +696,7 @@ export default function AdminBackupManagement() {
                 error: '',
                 preview,
                 fileTextsByName,
+                restoreEntries,
             });
         } catch (previewError) {
             setRestoreModal({
@@ -615,6 +706,7 @@ export default function AdminBackupManagement() {
                 error: previewError?.message || 'יצירת תצוגת השחזור נכשלה.',
                 preview: null,
                 fileTextsByName: new Map(),
+                restoreEntries: getRestoreEntriesForBackup(backup, files),
             });
         }
     };
@@ -936,6 +1028,7 @@ export default function AdminBackupManagement() {
                     error: '',
                     preview,
                     fileTextsByName,
+                    restoreEntries: getRestoreEntriesForBackup({ ...backupItem, backupPackage: importedPackage }, backupItem.files),
                 });
                 toast.success('קובץ הגיבוי יובא ונשמר ב-Mongo.');
                 return;
@@ -956,6 +1049,7 @@ export default function AdminBackupManagement() {
                 error: '',
                 preview,
                 fileTextsByName,
+                restoreEntries: getRestoreEntriesForBackup({ ...backupItem, backupPackage: importedPackage }, backupItem.files),
             });
             toast.success('קובץ הגיבוי נטען לתצוגה מקדימה.');
         } catch (importError) {
@@ -1220,7 +1314,14 @@ export default function AdminBackupManagement() {
                                             <div className="min-w-0">
                                                 <div className="truncate text-sm font-bold text-gray-900 dark:text-white">{getBackupFileDisplayName(file.name)}</div>
                                                 <div className="mt-0.5 truncate text-[11px] text-gray-400 dark:text-gray-500" dir="ltr">{file.name || 'קובץ ללא שם'}</div>
-                                                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{formatDateTime(file.timeLastModified || file.timeCreated)}</div>
+                                                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                                    <span>{formatDateTime(file.timeLastModified || file.timeCreated)}</span>
+                                                    {(file.restoreStatus || file.status || file.missing || file.empty || file.invalid) && (
+                                                        <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] font-bold text-gray-600 dark:border-white/10 dark:bg-white/[0.06] dark:text-gray-200">
+                                                            {getRestoreStatusLabel(file)} · {getRestoreActionLabel(file)}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                             <div className="flex shrink-0 items-center gap-2">
                                                 <span className="text-xs text-gray-500 dark:text-gray-400">{formatBytes(file.sizeBytes)}</span>
@@ -1296,7 +1397,7 @@ export default function AdminBackupManagement() {
                                                     {restoreModal.preview?.source === 'master' ? 'קובץ תצורה מלא' : 'גיבוי ישן שהומר'}
                                                 </span>
                                                 <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-bold text-gray-600 dark:border-white/10 dark:bg-[#232733] dark:text-gray-200">
-                                                    {restoreModal.files.length} קבצים
+                                                    {(restoreModal.restoreEntries?.length || restoreModal.files.length)} קבצים
                                                 </span>
                                             </div>
                                         </div>
@@ -1306,10 +1407,27 @@ export default function AdminBackupManagement() {
                                     <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#232733]">
                                         <h3 className="text-lg font-black text-gray-900 dark:text-white">קבצים שישוחזרו</h3>
                                         <div className="mt-4 max-h-[560px] space-y-2 overflow-y-auto pr-1">
-                                            {[...restoreModal.fileTextsByName.keys()].map((fileName) => (
-                                                <div key={fileName} className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                                                    <div className="text-sm font-bold text-gray-900 dark:text-white">{getBackupFileDisplayName(fileName)}</div>
-                                                    <div className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400" dir="ltr">{fileName}</div>
+                                            {(restoreModal.restoreEntries?.length
+                                                ? restoreModal.restoreEntries
+                                                : [...restoreModal.fileTextsByName.keys()].map((fileName) => summarizeFileForRestore({ name: fileName }))
+                                            ).map((entry) => (
+                                                <div key={entry.fileName} className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="min-w-0">
+                                                            <div className="text-sm font-bold text-gray-900 dark:text-white">{getBackupFileDisplayName(entry.fileName)}</div>
+                                                            <div className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400" dir="ltr">{entry.fileName}</div>
+                                                        </div>
+                                                        <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+                                                            {getRestoreActionLabel(entry)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                                                        <span>{getRestoreStatusLabel(entry)}</span>
+                                                        {entry.scope && <span dir="ltr">{entry.scope}</span>}
+                                                        {Number.isFinite(Number(entry.recordCount)) && (
+                                                            <span>{Number(entry.recordCount)} רשומות</span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
