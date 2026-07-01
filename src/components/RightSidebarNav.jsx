@@ -19,7 +19,7 @@ export default function RightSidebarNav() {
     const { theme, borderTargets } = useTheme();
     const [activeLevel1, setActiveLevel1] = useState(null);
     const [expandedLevel2, setExpandedLevel2] = useState(null);
-    const [openUpwardMap, setOpenUpwardMap] = useState({});
+    const [flyoutStyleMap, setFlyoutStyleMap] = useState({});
     const sidebarRef = useRef(null);
     const triggerRefs = useRef({});
     const topLevelBorderStyle = borderTargets?.sideNav
@@ -61,13 +61,32 @@ export default function RightSidebarNav() {
         return belowThreshold || (lacksSpaceBelow && hasMoreSpaceAbove);
     };
 
+    const calculateFlyoutStyle = (itemId) => {
+        const triggerEl = triggerRefs.current[itemId];
+        if (!triggerEl) return {};
+
+        const rect = triggerEl.getBoundingClientRect();
+        const panelWidth = 320;
+        const gap = 16;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        const left = Math.max(8, rect.left - panelWidth - gap);
+        const openUpward = shouldOpenUpward(itemId);
+
+        if (openUpward) {
+            const bottom = Math.max(8, viewportHeight - rect.bottom);
+            return { position: 'fixed', left: `${left}px`, top: 'auto', bottom: `${bottom}px` };
+        }
+
+        const top = Math.max(8, rect.top);
+        return { position: 'fixed', left: `${left}px`, top: `${top}px`, bottom: 'auto' };
+    };
+
     const handleLevel1Click = (item) => {
         if (item.url || item.isDirectLink) {
             if (item.url) openLinkTarget(item.url);
             return;
         }
-        const openUpward = shouldOpenUpward(item.id);
-        setOpenUpwardMap((prev) => ({ ...prev, [item.id]: openUpward }));
+        setFlyoutStyleMap((prev) => ({ ...prev, [item.id]: calculateFlyoutStyle(item.id) }));
         setActiveLevel1((prev) => (prev === item.id ? null : item.id));
         setExpandedLevel2(null);
     };
@@ -84,26 +103,6 @@ export default function RightSidebarNav() {
         if (link.url) {
             openLinkTarget(link.url);
         }
-    };
-
-    const getFlyoutStyle = (itemId) => {
-        const triggerEl = triggerRefs.current[itemId];
-        if (!triggerEl) return {};
-
-        const rect = triggerEl.getBoundingClientRect();
-        const panelWidth = 320;
-        const gap = 16;
-        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-        const left = Math.max(8, rect.left - panelWidth - gap);
-        const openUpward = !!openUpwardMap[itemId];
-
-        if (openUpward) {
-            const bottom = Math.max(8, viewportHeight - rect.bottom);
-            return { position: 'fixed', left: `${left}px`, top: 'auto', bottom: `${bottom}px` };
-        }
-
-        const top = Math.max(8, rect.top);
-        return { position: 'fixed', left: `${left}px`, top: `${top}px`, bottom: 'auto' };
     };
 
     return (
@@ -123,7 +122,9 @@ export default function RightSidebarNav() {
                                     className="sidebar-nav-item sidebar-trigger flex flex-col items-center justify-center text-center cursor-pointer"
                                     style={panelStyle(topLevelBorderStyle, 10)}
                                 >
-                                    <NavVisual item={item} size={18} imageClassName="h-[18px] w-[18px] object-contain" />
+                                    <span className="sidebar-trigger__icon">
+                                        <NavVisual item={item} size={18} imageClassName="h-[18px] w-[18px] object-contain" />
+                                    </span>
                                     <span className="sidebar-trigger__label max-w-[64px] truncate">
                                         {item.label}
                                     </span>
@@ -136,9 +137,12 @@ export default function RightSidebarNav() {
                                 }}
                                 onClick={() => handleLevel1Click(item)}
                                 className={`gap-2 sidebar-nav-item sidebar-trigger flex flex-col items-center justify-center text-center cursor-pointer ${isOpen ? 'is-active' : ''}`}
+                                aria-expanded={isOpen}
                                 style={panelStyle(topLevelBorderStyle, 10)}
                             >
-                                <NavVisual item={item} size={18} imageClassName="h-[18px] w-[18px] object-contain" />
+                                <span className="sidebar-trigger__icon">
+                                    <NavVisual item={item} size={18} imageClassName="h-[18px] w-[18px] object-contain" />
+                                </span>
                                 <span className="sidebar-trigger__label max-w-[64px] truncate ">
                                     {item.label}
                                 </span>
@@ -148,10 +152,10 @@ export default function RightSidebarNav() {
                         {/* Level 2 Flyout — click-controlled, absolutely free over the page */}
                         {hasChildren && !isDirectLink && (
                             <div
-                                style={getFlyoutStyle(item.id)}
-                                className={`w-auto min-w-[300px] bg-theme-card backdrop-blur-md shadow-2xl rounded-l-xl z-[10000] border border-theme-subtle p-4 transition-all duration-300 ${isOpen
-                                        ? 'opacity-100 visible pointer-events-auto'
-                                        : 'opacity-0 invisible pointer-events-none'
+                                style={flyoutStyleMap[item.id] || {}}
+                                className={`w-auto min-w-[300px] origin-right rounded-l-xl border border-theme-subtle bg-theme-card p-4 shadow-2xl backdrop-blur-md z-[10000] transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.2,0,0,1)] ${isOpen
+                                        ? 'translate-x-0 scale-100 opacity-100 visible pointer-events-auto'
+                                        : 'translate-x-3 scale-[0.98] opacity-0 invisible pointer-events-none'
                                     }`}
                             >
                                 {/* Panel Header */}
@@ -175,10 +179,11 @@ export default function RightSidebarNav() {
                                             <div key={child.id}>
                                                 <button
                                                     onClick={() => handleLevel2Click(child)}
-                                                    className="sidebar-nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-right transition-all hover:bg-theme-card-hover group/l2"
+                                                    className="sidebar-nav-item group/l2 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-right transition-[background-color,transform] duration-200 ease-[cubic-bezier(0.2,0,0,1)] hover:-translate-x-1 hover:bg-theme-card-hover active:scale-[0.96]"
+                                                    aria-expanded={hasSubLinks ? isExpanded : undefined}
                                                 >
                                                     <div
-                                                        className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition ${isExpanded
+                                                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-[background-color,color,transform] duration-200 ease-[cubic-bezier(0.2,0,0,1)] group-hover/l2:-translate-x-0.5 ${isExpanded
                                                                 ? 'bg-primary/15 text-primary'
                                                                 : 'bg-theme-elevated text-theme-muted group-hover/l2:text-primary group-hover/l2:bg-primary/10'
                                                             }`}
@@ -186,7 +191,7 @@ export default function RightSidebarNav() {
                                                         <NavVisual item={child} size={14} imageClassName="h-3.5 w-3.5 object-contain" />
                                                     </div>
                                                     <span
-                                                        className={`flex-1 text-sm font-medium transition whitespace-nowrap ${isExpanded
+                                                        className={`flex-1 whitespace-nowrap text-sm font-medium transition-colors duration-200 ${isExpanded
                                                                 ? 'text-theme'
                                                                 : 'text-theme-muted group-hover/l2:text-theme'
                                                             }`}
@@ -211,15 +216,15 @@ export default function RightSidebarNav() {
                                                             <button
                                                                 key={idx}
                                                                 onClick={() => handleLevel3Click(link)}
-                                                                className="sidebar-nav-item w-full flex items-center gap-2 pr-4 pl-3 py-2 text-right transition-all hover:bg-theme-card-hover rounded-md group/l3"
+                                                                className="sidebar-nav-item group/l3 flex w-full items-center gap-2 rounded-md py-2 pr-4 pl-3 text-right transition-[background-color,transform] duration-200 ease-[cubic-bezier(0.2,0,0,1)] hover:-translate-x-1 hover:bg-theme-card-hover active:scale-[0.96]"
                                                             >
                                                                 <NavVisual
                                                                     item={link}
                                                                     size={13}
-                                                                    className="text-theme-muted/80 group-hover/l3:text-primary transition shrink-0"
+                                                                    className="shrink-0 text-theme-muted/80 transition-colors duration-200 group-hover/l3:text-primary"
                                                                     imageClassName="h-[13px] w-[13px] object-contain shrink-0"
                                                                 />
-                                                                <span className="text-[13px] text-theme-muted group-hover/l3:text-theme transition flex-1 whitespace-nowrap">
+                                                                <span className="flex-1 whitespace-nowrap text-[13px] text-theme-muted transition-colors duration-200 group-hover/l3:text-theme">
                                                                     {link.label}
                                                                 </span>
                                                                 {link.url && (

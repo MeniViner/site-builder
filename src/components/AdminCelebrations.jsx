@@ -3,6 +3,7 @@ import { AlertTriangle, CalendarDays, Check, PartyPopper, Pencil, Plus, Trash2, 
 import { useWidget } from '../context/WidgetContext';
 import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
 import { AdminPageHelpButton, HelpTooltipButton } from './AdminHelp';
+import DismissibleNotice from './DismissibleNotice';
 
 const panelCls = 'bg-themeBg-card bg-white dark:bg-[#232733] text-themeText-primary text-gray-900 dark:text-white border border-gray-200 dark:border-white/10';
 const inputCls = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20 dark:border-white/10 dark:bg-[#1a1d24] dark:text-white';
@@ -90,10 +91,12 @@ export default function AdminCelebrations() {
             </div>
 
             {saveMessage?.type === 'error' && (
-                <div className="mb-6 flex items-center gap-3 rounded-xl border border-red-500 bg-red-50 p-4 text-red-700 dark:bg-red-900/30 dark:text-red-200">
-                    <AlertTriangle size={18} className="shrink-0" />
-                    <span>{saveMessage.text}</span>
-                </div>
+                <DismissibleNotice dismissKey={saveMessage.text} className="mb-6 rounded-xl border border-red-500 bg-red-50 p-4 text-red-700 dark:bg-red-900/30 dark:text-red-200">
+                    <div className="flex items-center gap-3">
+                        <AlertTriangle size={18} className="shrink-0" />
+                        <span>{saveMessage.text}</span>
+                    </div>
+                </DismissibleNotice>
             )}
 
             <div className="mb-6 flex items-center justify-between rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[#232733] px-4 py-2.5">

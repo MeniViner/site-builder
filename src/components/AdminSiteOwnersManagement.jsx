@@ -22,6 +22,7 @@ import {
   syncSiteCollectionAdminsToTxtAdmins,
 } from '../services/txtAdminsService';
 import { isAdminManagementVerboseLogsEnabled, mergeSharePointOwnersLogsToAdminLogs } from '../services/adminManagementLogger';
+import DismissibleNotice from './DismissibleNotice';
 
 function toNiceTime(dateValue) {
   if (!dateValue) return '—';
@@ -707,10 +708,12 @@ export default function AdminSiteOwnersManagement() {
             </div>
 
             {(actionError || actionMessage) && (
-              <div className={`mt-4 flex items-start gap-2 rounded-lg border p-3 text-sm ${actionError ? 'border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-500/30 dark:bg-primary-500/10 dark:text-primary-200' : 'border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-500/30 dark:bg-primary-500/10 dark:text-primary-200'}`}>
-                {actionError ? <AlertTriangle className="mt-0.5 shrink-0" size={16} /> : <CheckCircle2 className="mt-0.5 shrink-0" size={16} />}
-                <span>{actionError || actionMessage}</span>
-              </div>
+              <DismissibleNotice dismissKey={actionError || actionMessage} className={`mt-4 rounded-lg border p-3 text-sm ${actionError ? 'border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-500/30 dark:bg-primary-500/10 dark:text-primary-200' : 'border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-500/30 dark:bg-primary-500/10 dark:text-primary-200'}`}>
+                <div className="flex items-start gap-2">
+                  {actionError ? <AlertTriangle className="mt-0.5 shrink-0" size={16} /> : <CheckCircle2 className="mt-0.5 shrink-0" size={16} />}
+                  <span>{actionError || actionMessage}</span>
+                </div>
+              </DismissibleNotice>
             )}
 
             <div className="mt-6 flex gap-3">

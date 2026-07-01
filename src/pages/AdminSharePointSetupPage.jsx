@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { resolveCurrentSharePointWebUrl } from '../utils/resolveCurrentSharePointWebUrl';
 import { useAuth } from '../context/AuthContext';
 import { spBootstrapLog } from '../utils/spAppLog';
+import { DEFAULT_GANTT_DATA } from '../utils/ganttData';
+import DismissibleNotice from '../components/DismissibleNotice';
 
 const ODATA_ACCEPT = 'application/json;odata=verbose';
 const ODATA_CONTENT = 'application/json;odata=verbose';
@@ -494,7 +496,7 @@ export default function AdminSharePointSetupPage() {
       await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/site_content_data.txt`, JSON.stringify({}, null, 2), digest);
       await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/theme_data.txt`, JSON.stringify({}, null, 2), digest);
       await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/external_links_data.txt`, JSON.stringify([], null, 2), digest);
-      await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/gantt_data.txt`, JSON.stringify({ enabled: false, buttonLabel: 'גאנט עבודה', pageTitle: 'גאנט עבודה', description: '', groupBy: 'category', defaultView: 'month', showLegend: true, showToday: true, categories: [], items: [] }, null, 2), digest);
+      await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/gantt_data.txt`, JSON.stringify(DEFAULT_GANTT_DATA, null, 2), digest);
       await ensureTextFileIfMissing(webUrl, `${cfg.usersDbRoot}/widgets_data.txt`, JSON.stringify({}, null, 2), digest);
       await refreshSetupStatus();
 
@@ -590,11 +592,11 @@ export default function AdminSharePointSetupPage() {
             )}
           </div>
           {errorInfo && (
-            <div className="bg-red-100 border border-red-300 text-red-900 rounded-md p-3 text-sm">
+            <DismissibleNotice dismissKey={`${errorInfo.title}:${errorInfo.step}:${errorInfo.reason}`} className="rounded-md border border-red-300 bg-red-100 p-3 text-sm text-red-900">
               <div className="font-semibold">{errorInfo.title}</div>
               <div>שלב שנכשל: {errorInfo.step}</div>
               <div>סיבה: {errorInfo.reason}</div>
-            </div>
+            </DismissibleNotice>
           )}
         </div>
 

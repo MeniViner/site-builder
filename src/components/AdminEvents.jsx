@@ -22,6 +22,7 @@ import {
 } from '../utils/smartText';
 import SmartTextRenderer from './SmartTextRenderer';
 import SmartTextEditor from './SmartTextEditor';
+import DismissibleNotice from './DismissibleNotice';
 
 const STATUS_OPTIONS = [
     { value: 'gray', label: 'אפור (כלל משתמשי חרום)', hex: '#6B7280' },
@@ -494,10 +495,12 @@ export default function AdminEvents({ onClose, inHub = false }) {
                 </div>
 
                 {error && (
-                    <div className="p-4 bg-red-500/10 border border-red-500/40 rounded-lg flex items-center gap-3 text-red-500">
-                        <AlertTriangle className="shrink-0" />
-                        <span>{error}</span>
-                    </div>
+                    <DismissibleNotice dismissKey={error} className="rounded-lg border border-red-500/40 bg-red-500/10 p-4 text-red-500">
+                        <div className="flex items-center gap-3">
+                            <AlertTriangle className="shrink-0" />
+                            <span>{error}</span>
+                        </div>
+                    </DismissibleNotice>
                 )}
 
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-theme-card px-4 py-2.5 rounded-lg border border-theme-subtle">

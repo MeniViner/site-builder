@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     AlertTriangle,
+    ChevronDown,
     CheckCircle2,
     Copy,
     Download,
@@ -11,6 +12,7 @@ import {
     Search,
     Shield,
     ShieldCheck,
+    SlidersHorizontal,
     Trash2,
     User,
     UserPlus,
@@ -33,6 +35,8 @@ import {
 import { normalizeAdminRecord } from '../services/adminSourcesSyncService';
 import { addAdminLogEntry, mapSharePointErrorToHebrewMessage } from '../services/adminManagementLogger';
 import { addTxtAdminFromSharePointUser, listTxtAdmins, syncSiteCollectionAdminsToTxtAdmins } from '../services/txtAdminsService';
+import DismissibleNotice from './DismissibleNotice';
+import Tooltip from './Tooltip';
 
 const defaultPermissionSource = {
     loading: false,
@@ -45,13 +49,17 @@ const defaultPermissionSource = {
 
 const FILTERS = [
     { key: 'all', label: 'All' },
-    { key: 'owners', label: 'Site Owners' },
-    { key: 'site-admins', label: 'Site Collection Admins' },
-    { key: 'current', label: 'Current SharePoint Managers' },
+    { key: 'owners', label: 'Owners' },
+    { key: 'site-admins', label: 'SCA' },
+    { key: 'current', label: 'Current' },
     { key: 'groups', label: 'Groups' },
-    { key: 'system', label: 'System Accounts' },
-    { key: 'warnings', label: 'Errors/Warnings' },
+    { key: 'system', label: 'System' },
+    { key: 'warnings', label: 'Warnings' },
 ];
+
+const PRIMARY_FILTER_KEYS = ['all', 'current', 'site-admins', 'owners'];
+const PRIMARY_FILTERS = FILTERS.filter((item) => PRIMARY_FILTER_KEYS.includes(item.key));
+const ADVANCED_FILTERS = FILTERS.filter((item) => !PRIMARY_FILTER_KEYS.includes(item.key));
 
 const TARGET_OPTIONS = [
     { value: 'site-admin', label: 'Site Collection Admin', description: 'הוספה למנהלי אוסף אתרים' },
@@ -144,6 +152,10 @@ const downloadTextFile = (fileName, text) => {
 
 const getSharePointPersonLabel = (row, fallback = 'משתמש') =>
     String(row?.Title || row?.Email || row?.LoginName || row?.name || row?.email || row?.loginName || fallback).trim();
+
+const getContactLabel = (row) => [row.personalNumber, row.email].filter(Boolean).join(' · ') || '-';
+
+const getSourceRoleLabel = (row) => [row.sources?.join(' + '), row.roles?.join(' + ')].filter(Boolean).join(' · ') || '-';
 
 const getRawId = (row) => {
     const raw = row?.Id ?? row?.id ?? '';
@@ -343,7 +355,7 @@ function TypeBadge({ type }) {
     const meta = TYPE_META[type] || TYPE_META.user;
     const Icon = meta.icon;
     return (
-        <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold ${meta.className}`}>
+        <span className={`inline-flex h-8 max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-xs font-bold leading-none ${meta.className}`}>
             <Icon size={13} />
             {meta.label}
         </span>
@@ -354,13 +366,19 @@ function StatusBadges({ statuses }) {
     if (!statuses?.length) {
         return <span className="text-slate-400">-</span>;
     }
+    const [primaryStatus, ...extraStatuses] = statuses;
+    const fullLabel = statuses.map((status) => status.label).join(' | ');
+
     return (
-        <div className="flex flex-wrap gap-1.5">
-            {statuses.map((status) => (
-                <span key={`${status.tone}-${status.label}`} className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${STATUS_CLASSES[status.tone] || STATUS_CLASSES.neutral}`}>
-                    {status.label}
+        <div className="flex min-w-0 items-center gap-1.5 overflow-hidden" title={fullLabel}>
+            <span className={`inline-flex h-7 min-w-0 max-w-[155px] shrink items-center rounded-full border px-2 text-[11px] font-bold leading-none ${STATUS_CLASSES[primaryStatus.tone] || STATUS_CLASSES.neutral}`}>
+                <span className="truncate">{primaryStatus.label}</span>
+            </span>
+            {extraStatuses.length > 0 && (
+                <span className="inline-flex h-7 shrink-0 items-center rounded-full border border-slate-200 bg-white px-2 text-[11px] font-black leading-none text-slate-500 tabular-nums dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                    +{extraStatuses.length}
                 </span>
-            ))}
+            )}
         </div>
     );
 }
@@ -377,6 +395,7 @@ export default function AdminAdminsSync() {
     const [error, setError] = useState('');
     const [filter, setFilter] = useState('all');
     const [searchTerm, setSearchTerm] = useState('');
+    const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
     const [addModalOpen, setAddModalOpen] = useState(false);
     const [logsModalOpen, setLogsModalOpen] = useState(false);
     const [addTarget, setAddTarget] = useState('site-admin');
@@ -625,6 +644,8 @@ export default function AdminAdminsSync() {
     );
 
     const normalizedAddIdentity = useMemo(() => normalizeSharePointIdentityInput(addIdentity), [addIdentity]);
+    const activeAdvancedFilter = ADVANCED_FILTERS.find((item) => item.key === filter);
+    const syncStatusKey = `${loading ? 'loading' : 'ready'}:${isSynced ? 'synced' : 'missing'}:${missingFromSite.length}`;
 
     const resetAddModal = () => {
         setAddIdentity('');
@@ -978,13 +999,13 @@ export default function AdminAdminsSync() {
             || actionBusyKey === `remove-owner-${row.idsBySource?.owners}`;
         const disableUserWrite = actionBusy || row.type !== 'user';
         return (
-            <div className="flex min-w-[260px] flex-wrap gap-1.5">
+            <div className="flex w-full flex-nowrap items-center gap-1.5 overflow-hidden">
                 {row.sourceKeys.includes('site-admins') && row.idsBySource?.['site-admins'] ? (
                     <button
                         type="button"
                         onClick={() => handleRemoveSiteCollectionAdmin(row)}
                         disabled={actionBusy}
-                        className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-bold text-red-700 transition hover:bg-red-100 disabled:cursor-wait disabled:opacity-60 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200 dark:hover:bg-red-500/20"
+                        className="inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-red-200 bg-red-50 px-2 text-[11px] font-bold text-red-700 transition-transform hover:bg-red-100 active:scale-[0.96] disabled:cursor-wait disabled:opacity-60 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200 dark:hover:bg-red-500/20"
                     >
                         {isBusy ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
                         הסר SCA
@@ -994,10 +1015,10 @@ export default function AdminAdminsSync() {
                         type="button"
                         onClick={() => handleAddRowToSiteAdmins(row)}
                         disabled={disableUserWrite}
-                        className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                        className="inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 text-[11px] font-bold text-slate-700 transition-transform hover:border-primary/40 hover:text-primary active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
                     >
                         <Shield size={13} />
-                        הוסף SCA
+                        SCA
                     </button>
                 )}
 
@@ -1006,7 +1027,7 @@ export default function AdminAdminsSync() {
                         type="button"
                         onClick={() => handleRemoveOwner(row)}
                         disabled={actionBusy}
-                        className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-bold text-red-700 transition hover:bg-red-100 disabled:cursor-wait disabled:opacity-60 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200 dark:hover:bg-red-500/20"
+                        className="inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-red-200 bg-red-50 px-2 text-[11px] font-bold text-red-700 transition-transform hover:bg-red-100 active:scale-[0.96] disabled:cursor-wait disabled:opacity-60 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200 dark:hover:bg-red-500/20"
                     >
                         {isBusy ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
                         הסר בעלים
@@ -1016,10 +1037,10 @@ export default function AdminAdminsSync() {
                         type="button"
                         onClick={() => handleAddRowToOwners(row)}
                         disabled={disableUserWrite}
-                        className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                        className="inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 text-[11px] font-bold text-slate-700 transition-transform hover:border-primary/40 hover:text-primary active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
                     >
                         <Users size={13} />
-                        הוסף בעלים
+                        בעלים
                     </button>
                 )}
 
@@ -1028,10 +1049,10 @@ export default function AdminAdminsSync() {
                         type="button"
                         onClick={() => handleSyncRowToTxt(row)}
                         disabled={actionBusy}
-                        className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 transition hover:border-primary/40 hover:text-primary disabled:cursor-wait disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                        className="inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 text-[11px] font-bold text-slate-700 transition-transform hover:border-primary/40 hover:text-primary active:scale-[0.96] disabled:cursor-wait disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
                     >
                         <FileText size={13} />
-                        הוסף לקובץ
+                        קובץ
                     </button>
                 )}
             </div>
@@ -1039,7 +1060,7 @@ export default function AdminAdminsSync() {
     };
 
     return (
-        <div dir="rtl" className="min-h-full bg-slate-100/70 px-4 py-5 font-heebo text-slate-900 dark:bg-[#0f172a] dark:text-slate-100 sm:px-6">
+        <div dir="rtl" className="min-h-full bg-slate-100/70 px-4 py-5 font-heebo text-slate-900 antialiased dark:bg-[#0f172a] dark:text-slate-100 sm:px-6">
             <div className="mx-auto flex max-w-7xl flex-col gap-4">
                 <section className="rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-white/10 dark:bg-[#171b24] sm:px-5">
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -1049,8 +1070,8 @@ export default function AdminAdminsSync() {
                                     <ShieldCheck size={20} />
                                 </div>
                                 <div>
-                                    <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">סנכרון מנהלי SharePoint</h1>
-                                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                                    <h1 className="text-balance text-2xl font-black tracking-tight text-slate-900 dark:text-white">סנכרון מנהלי SharePoint</h1>
+                                    <p className="mt-1 max-w-3xl text-pretty text-sm text-slate-500 dark:text-slate-400">
                                         טבלת ניהול אחת למנהלי אוסף אתרים, בעלי האתר, קבוצות, חשבונות מערכת ומנהלי האתר הנוכחיים.
                                     </p>
                                 </div>
@@ -1065,65 +1086,86 @@ export default function AdminAdminsSync() {
                             </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={handleOpenAddModal}
-                                disabled={loading || actionBusy}
-                                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white transition hover:brightness-110 disabled:cursor-wait disabled:opacity-70"
-                            >
-                                <UserPlus size={16} />
-                                הוסף מנהל
-                            </button>
-                            <button
-                                type="button"
-                                onClick={loadAdmins}
-                                disabled={loading || actionBusy}
-                                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-primary/40 hover:text-primary disabled:cursor-wait disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
-                            >
-                                {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-                                רענון
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleSync}
-                                disabled={loading || actionBusy}
-                                className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-wait disabled:opacity-70 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-100"
-                            >
-                                {syncing ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                                אשר סנכרון
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setLogsModalOpen(true)}
-                                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
-                            >
-                                <Eye size={16} />
-                                View logs
-                            </button>
+                        <div className="flex w-full flex-wrap items-center gap-2 xl:w-auto xl:max-w-[520px] xl:justify-end xl:shrink-0">
+                            <Tooltip text="הוסף מנהל" position="bottom" wrapperClassName="shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={handleOpenAddModal}
+                                    disabled={loading || actionBusy}
+                                    className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-primary px-4 text-sm font-bold text-white transition-[filter,transform] hover:brightness-110 active:scale-[0.96] disabled:cursor-wait disabled:opacity-70"
+                                    aria-label="הוסף מנהל"
+                                >
+                                    <UserPlus size={16} />
+                                    הוסף מנהל
+                                </button>
+                            </Tooltip>
+                            <Tooltip text="רענון נתונים" position="bottom" wrapperClassName="shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={loadAdmins}
+                                    disabled={loading || actionBusy}
+                                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition-[border-color,color,transform] hover:border-primary/40 hover:text-primary active:scale-[0.96] disabled:cursor-wait disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                                    aria-label="רענון נתונים"
+                                >
+                                    {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                                </button>
+                            </Tooltip>
+                            <Tooltip text="סנכרן פערים" position="bottom" wrapperClassName="shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={handleSync}
+                                    disabled={loading || actionBusy}
+                                    className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-emerald-300 bg-emerald-50 px-4 text-sm font-bold text-emerald-700 transition-[background-color,transform] hover:bg-emerald-100 active:scale-[0.96] disabled:cursor-wait disabled:opacity-70 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-100"
+                                    aria-label="סנכרן פערים"
+                                >
+                                    {syncing ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                                    סנכרן פערים
+                                </button>
+                            </Tooltip>
+                            <Tooltip text="פתיחת לוגים" position="bottom" wrapperClassName="shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setLogsModalOpen(true)}
+                                    className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition-[border-color,color,transform] hover:border-primary/40 hover:text-primary active:scale-[0.96] dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                                    aria-label="פתיחת לוגים"
+                                >
+                                    <Eye size={16} />
+                                    Logs
+                                </button>
+                            </Tooltip>
                         </div>
                     </div>
                 </section>
 
                 {(message || error) && (
-                    <div className={`rounded-xl border px-4 py-3 shadow-sm ${
-                        error
-                            ? 'border-red-300 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-950/30 dark:text-red-100'
-                            : 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-950/30 dark:text-emerald-100'
-                    }`}>
-                        <div className="flex items-start gap-2">
+                    <DismissibleNotice
+                        dismissKey={`${error ? 'error' : 'message'}:${error || message}`}
+                        onDismiss={() => {
+                            setMessage('');
+                            setError('');
+                        }}
+                        className={`rounded-xl border px-4 py-3 shadow-sm ${
+                            error
+                                ? 'border-red-300 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-950/30 dark:text-red-100'
+                                : 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-950/30 dark:text-emerald-100'
+                        }`}
+                    >
+                        <div className="flex min-w-0 items-start gap-2">
                             {error ? <AlertTriangle className="mt-0.5 shrink-0" size={18} /> : <CheckCircle2 className="mt-0.5 shrink-0" size={18} />}
                             <span className="text-sm font-semibold">{error || message}</span>
                         </div>
-                    </div>
+                    </DismissibleNotice>
                 )}
 
-                <section className={`rounded-xl border px-4 py-3 shadow-sm ${
-                    isSynced
-                        ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-950/30 dark:text-emerald-100'
-                        : 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-100'
-                }`}>
-                    <div className="flex items-start gap-2">
+                <DismissibleNotice
+                    dismissKey={syncStatusKey}
+                    className={`rounded-xl border px-4 py-3 shadow-sm ${
+                        isSynced
+                            ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-950/30 dark:text-emerald-100'
+                            : 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-100'
+                    }`}
+                >
+                    <div className="flex min-w-0 items-start gap-2">
                         {isSynced ? <CheckCircle2 className="mt-0.5 shrink-0" size={18} /> : <AlertTriangle className="mt-0.5 shrink-0" size={18} />}
                         <div className="text-sm font-semibold">
                             {loading
@@ -1133,60 +1175,126 @@ export default function AdminAdminsSync() {
                                     : `נמצאו ${missingFromSite.length} מנהלי אוסף אתרים שאינם מופיעים ברשימת המנהלים הנוכחית.`}
                         </div>
                     </div>
-                </section>
+                </DismissibleNotice>
 
                 <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-[#171b24]">
                     <div className="border-b border-slate-200 px-4 py-3 dark:border-white/10">
                         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                            <div className="flex flex-wrap gap-2">
-                                {FILTERS.map((item) => {
-                                    const active = filter === item.key;
-                                    const count = filterCounts[item.key] || 0;
-                                    return (
-                                        <button
-                                            key={item.key}
-                                            type="button"
-                                            onClick={() => setFilter(item.key)}
-                                            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-black transition ${
-                                                active
-                                                    ? 'border-primary bg-primary text-white shadow-sm shadow-primary/20'
-                                                    : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-slate-200'
-                                            }`}
-                                        >
-                                            {item.label}
-                                            <span className={`rounded-full px-2 py-0.5 text-[10px] ${active ? 'bg-white/20 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>
-                                                {count}
-                                            </span>
-                                        </button>
-                                    );
-                                })}
+                            <div className="flex min-w-0 flex-nowrap items-center gap-2">
+                                <div className="inline-flex min-w-0 max-w-full flex-1 items-center gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)] dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" role="tablist" aria-label="סינון מנהלים">
+                                    {PRIMARY_FILTERS.map((item) => {
+                                        const active = filter === item.key;
+                                        const count = filterCounts[item.key] || 0;
+                                        return (
+                                            <button
+                                                key={item.key}
+                                                type="button"
+                                                onClick={() => {
+                                                    setFilter(item.key);
+                                                    setAdvancedFiltersOpen(false);
+                                                }}
+                                                className={`inline-flex h-9 max-w-[138px] shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 text-xs font-black transition-transform active:scale-[0.96] ${
+                                                    active
+                                                        ? 'bg-primary text-white shadow-sm shadow-primary/20'
+                                                        : 'text-slate-700 hover:bg-white hover:text-primary dark:text-slate-200 dark:hover:bg-white/10'
+                                                }`}
+                                                aria-pressed={active}
+                                            >
+                                                <span className="truncate">{item.label}</span>
+                                                <span className={`inline-flex min-w-6 justify-center rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${active ? 'bg-white/20 text-white' : 'bg-white text-slate-500 shadow-sm dark:bg-slate-950/40 dark:text-slate-300'}`}>
+                                                    {count}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setAdvancedFiltersOpen((prev) => !prev)}
+                                    className={`inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3 text-xs font-black transition-transform active:scale-[0.96] ${
+                                        activeAdvancedFilter
+                                            ? 'border-primary/40 bg-primary/10 text-primary shadow-sm shadow-primary/10 dark:border-primary/50 dark:bg-primary/15 dark:text-primary-200'
+                                            : 'border-slate-200 bg-white text-slate-700 hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-slate-200'
+                                    }`}
+                                    aria-expanded={advancedFiltersOpen}
+                                >
+                                    <SlidersHorizontal size={15} />
+                                    <span>{activeAdvancedFilter ? activeAdvancedFilter.label : 'מסננים נוספים'}</span>
+                                    {activeAdvancedFilter && (
+                                        <span className="inline-flex min-w-6 justify-center rounded-full bg-white px-1.5 py-0.5 text-[10px] text-slate-600 tabular-nums dark:bg-slate-950/40 dark:text-slate-200">
+                                            {filterCounts[activeAdvancedFilter.key] || 0}
+                                        </span>
+                                    )}
+                                    <ChevronDown size={14} className={`transition-transform ${advancedFiltersOpen ? 'rotate-180' : ''}`} />
+                                </button>
                             </div>
 
-                            <label className="relative block min-w-0 xl:w-72">
+                            <label className="relative block min-w-0 xl:w-80">
                                 <Search className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                 <input
                                     type="search"
                                     value={searchTerm}
                                     onChange={(event) => setSearchTerm(event.target.value)}
                                     placeholder="חיפוש לפי שם, מייל, LoginName או מקור"
-                                    className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pr-9 pl-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/15 dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-white/10"
+                                    className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pr-9 pl-3 text-sm outline-none transition-colors placeholder:text-slate-400 focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/15 dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-white/10"
                                 />
                             </label>
                         </div>
+
+                        {advancedFiltersOpen && (
+                            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 dark:border-white/10">
+                                {ADVANCED_FILTERS.map((item) => {
+                                    const active = filter === item.key;
+                                    const count = filterCounts[item.key] || 0;
+                                    return (
+                                        <button
+                                            key={item.key}
+                                            type="button"
+                                            onClick={() => {
+                                                setFilter(item.key);
+                                                setAdvancedFiltersOpen(false);
+                                            }}
+                                            className={`inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg border px-3 text-xs font-black transition-transform active:scale-[0.96] ${
+                                                active
+                                                    ? 'border-primary bg-primary text-white shadow-sm shadow-primary/20'
+                                                    : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-slate-200'
+                                            }`}
+                                            aria-pressed={active}
+                                        >
+                                            {item.label}
+                                            <span className={`rounded-full px-2 py-0.5 text-[10px] tabular-nums ${active ? 'bg-white/20 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>
+                                                {count}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
 
                     <div className="overflow-auto">
-                        <table className="w-full min-w-[1180px] text-sm">
+                        <table className="w-full min-w-[1080px] table-fixed text-[13px]">
+                            <colgroup>
+                                <col style={{ width: '6%' }} />
+                                <col style={{ width: '12%' }} />
+                                <col style={{ width: '14%' }} />
+                                <col style={{ width: '12%' }} />
+                                <col style={{ width: '15%' }} />
+                                <col style={{ width: '10%' }} />
+                                <col style={{ width: '12%' }} />
+                                <col style={{ width: '19%' }} />
+                            </colgroup>
                             <thead>
                                 <tr className="border-b border-slate-200 bg-slate-50 text-xs font-black uppercase tracking-wide text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-                                    <th className="px-4 py-3 text-right">Type</th>
-                                    <th className="px-4 py-3 text-right">Display name</th>
-                                    <th className="px-4 py-3 text-right">Personal number / email</th>
-                                    <th className="px-4 py-3 text-right">Login name</th>
-                                    <th className="px-4 py-3 text-right">Source / Role</th>
-                                    <th className="px-4 py-3 text-right">Status</th>
-                                    <th className="px-4 py-3 text-right">Last synced / checked</th>
-                                    <th className="px-4 py-3 text-right">Actions</th>
+                                    <th className="whitespace-nowrap px-3 py-3 text-right">Type</th>
+                                    <th className="whitespace-nowrap px-3 py-3 text-right">Display name</th>
+                                    <th className="whitespace-nowrap px-3 py-3 text-right">Personal number / email</th>
+                                    <th className="whitespace-nowrap px-3 py-3 text-right">Login name</th>
+                                    <th className="whitespace-nowrap px-3 py-3 text-right">Source / Role</th>
+                                    <th className="whitespace-nowrap px-3 py-3 text-right">Status</th>
+                                    <th className="whitespace-nowrap px-3 py-3 text-right">Last synced / checked</th>
+                                    <th className="whitespace-nowrap px-3 py-3 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200 dark:divide-white/10">
@@ -1206,38 +1314,46 @@ export default function AdminAdminsSync() {
                                         </td>
                                     </tr>
                                 ) : visibleRows.map((row) => (
-                                    <tr key={row.key} className="align-top transition hover:bg-primary/5 dark:hover:bg-primary/10">
-                                        <td className="px-4 py-3">
+                                    <tr key={row.key} className="h-16 align-middle transition-colors hover:bg-primary/5 dark:hover:bg-primary/10">
+                                        <td className="px-3 py-2 align-middle">
                                             <TypeBadge type={row.type} />
                                         </td>
-                                        <td className="px-4 py-3">
-                                            <div className="font-bold text-slate-900 dark:text-white">{row.displayName || '-'}</div>
-                                            {row.duplicateCount > 1 && (
-                                                <div className="mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                                                    מוזג מ-{row.duplicateCount} מקורות/רשומות
-                                                </div>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300" dir="ltr">
-                                            <div>{row.personalNumber || '-'}</div>
-                                            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{row.email || '-'}</div>
-                                        </td>
-                                        <td className="max-w-[280px] px-4 py-3 text-slate-600 dark:text-slate-300" dir="ltr">
-                                            <div className="whitespace-normal break-words text-left">{row.loginName || '-'}</div>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <div className="space-y-1">
-                                                <div className="text-xs font-bold text-slate-700 dark:text-slate-200">{row.sources.join(' + ') || '-'}</div>
-                                                <div className="text-xs text-slate-500 dark:text-slate-400">{row.roles.join(' + ') || '-'}</div>
+                                        <td className="px-3 py-2 align-middle">
+                                            <div className="flex min-w-0 items-center gap-2">
+                                                <span className="min-w-0 flex-1 truncate font-bold text-slate-900 dark:text-white" title={row.displayName || '-'}>
+                                                    {row.displayName || '-'}
+                                                </span>
+                                                {row.duplicateCount > 1 && (
+                                                    <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-500 tabular-nums dark:bg-white/5 dark:text-slate-300" title={`מוזג מ-${row.duplicateCount} מקורות/רשומות`}>
+                                                        x{row.duplicateCount}
+                                                    </span>
+                                                )}
                                             </div>
                                         </td>
-                                        <td className="px-4 py-3">
+                                        <td className="px-3 py-2 align-middle text-slate-600 dark:text-slate-300" dir="ltr">
+                                            <div className="truncate text-left tabular-nums" title={getContactLabel(row)}>
+                                                {getContactLabel(row)}
+                                            </div>
+                                        </td>
+                                        <td className="px-3 py-2 align-middle text-slate-600 dark:text-slate-300" dir="ltr">
+                                            <div className="truncate text-left" title={row.loginName || '-'}>
+                                                {row.loginName || '-'}
+                                            </div>
+                                        </td>
+                                        <td className="px-3 py-2 align-middle">
+                                            <div className="truncate text-xs font-bold text-slate-700 dark:text-slate-200" title={getSourceRoleLabel(row)}>
+                                                {getSourceRoleLabel(row)}
+                                            </div>
+                                        </td>
+                                        <td className="px-3 py-2 align-middle">
                                             <StatusBadges statuses={row.status} />
                                         </td>
-                                        <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400" dir="ltr">
-                                            {formatDateTime(row.lastChecked)}
+                                        <td className="px-3 py-2 align-middle text-xs text-slate-500 tabular-nums dark:text-slate-400" dir="ltr">
+                                            <div className="truncate text-left" title={formatDateTime(row.lastChecked)}>
+                                                {formatDateTime(row.lastChecked)}
+                                            </div>
                                         </td>
-                                        <td className="px-4 py-3">
+                                        <td className="px-3 py-2 align-middle">
                                             {renderActions(row)}
                                         </td>
                                     </tr>

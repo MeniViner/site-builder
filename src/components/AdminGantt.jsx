@@ -16,6 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useGantt } from '../context/GanttContext';
 import {
+    DEFAULT_GANTT_DATA,
     GANTT_COLOR_OPTIONS,
     GANTT_DESIGN_PRESETS,
     GANTT_STATUS_OPTIONS,
@@ -33,6 +34,7 @@ import {
 } from '../utils/ganttData';
 import { confirmToast } from '../utils/confirmToast';
 import GanttChart from './GanttChart';
+import DismissibleNotice from './DismissibleNotice';
 
 const TABS = [
     { id: 'basic', label: 'הגדרות בסיס' },
@@ -354,9 +356,9 @@ function TaskModal({ modal, categories, onClose, onSubmit, onChange }) {
 
                 <form onSubmit={onSubmit} className="min-h-0 overflow-y-auto p-6">
                     {modal.error && (
-                        <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+                        <DismissibleNotice dismissKey={modal.error} className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
                             {modal.error}
-                        </div>
+                        </DismissibleNotice>
                     )}
 
                     <datalist id="gantt-category-options">
@@ -821,6 +823,46 @@ export default function AdminGantt() {
         toast.info('הגאנט נטען מחדש');
     };
 
+    const loadDefaultSampleData = async () => {
+        if (draft.items.length > 0) {
+            const confirmed = await confirmToast({
+                title: 'טעינת נתוני דוגמה',
+                message: 'הפעולה תחליף את המשימות והתחומים הקיימים בנתוני הדוגמה. להמשיך?',
+                confirmText: 'טען דוגמאות',
+                cancelText: 'ביטול',
+                type: 'warning',
+            });
+            if (!confirmed) return;
+        }
+
+        updateDraft((prev) => {
+            const sample = normalizeGanttData(DEFAULT_GANTT_DATA);
+            return {
+                ...sample,
+                enabled: prev.enabled,
+                buttonLabel: prev.buttonLabel || sample.buttonLabel,
+                pageTitle: prev.pageTitle || sample.pageTitle,
+                description: prev.description || sample.description,
+                groupBy: prev.groupBy || sample.groupBy,
+                defaultView: prev.defaultView || sample.defaultView,
+                showLegend: prev.showLegend,
+                showToday: prev.showToday,
+                settings: {
+                    ...sample.settings,
+                    ...(prev.settings || {}),
+                    design: normalizeGanttDesignSettings(prev.settings?.design || sample.settings?.design),
+                },
+                categories: sample.categories,
+                items: sample.items,
+            };
+        });
+        setTaskSearch('');
+        setTaskStatusFilter('all');
+        setTaskCategoryFilter('all');
+        setTaskSort('date');
+        toast.success('נתוני הדוגמה נטענו לגאנט');
+    };
+
     const autoSaveLabel = (() => {
         if (saving || autoSaveState === 'saving') return 'שומר אוטומטית...';
         if (autoSaveState === 'error') return 'שגיאה בשמירה אוטומטית';
@@ -1070,14 +1112,24 @@ export default function AdminGantt() {
                     <h2 className="text-2xl font-black text-gray-900 dark:text-white">משימות הגאנט</h2>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{draft.items.length} משימות, {visibleTasks.length} מוצגות לפי הסינון הנוכחי.</p>
                 </div>
-                <button
-                    type="button"
-                    onClick={openAddTask}
-                    className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 font-bold text-white transition hover:brightness-110"
-                >
-                    <Plus size={16} />
-                    הוסף משימה
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={loadDefaultSampleData}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-primary/25 bg-white px-4 py-3 font-bold text-primary transition hover:border-primary/50 hover:bg-primary/5 dark:border-primary/30 dark:bg-white/5 dark:hover:bg-primary/10"
+                    >
+                        <Copy size={16} />
+                        טען נתוני דוגמה
+                    </button>
+                    <button
+                        type="button"
+                        onClick={openAddTask}
+                        className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 font-bold text-white transition hover:brightness-110"
+                    >
+                        <Plus size={16} />
+                        הוסף משימה
+                    </button>
+                </div>
             </div>
 
             <div className="border-b border-gray-200 bg-gray-50/70 p-4 dark:border-white/10 dark:bg-[#1b1f2a]/70">
@@ -1114,7 +1166,25 @@ export default function AdminGantt() {
 
             {draft.items.length === 0 ? (
                 <div className="m-6 rounded-2xl border border-dashed border-gray-300 p-10 text-center text-gray-500 dark:border-white/20 dark:text-gray-400">
-                    עדיין אין משימות. אפשר להוסיף משימה ראשונה כדי להתחיל לבנות את הגאנט.
+                    <p className="text-base font-bold">עדיין אין משימות. אפשר להוסיף משימה ראשונה או לטעון סט דוגמאות מוכן.</p>
+                    <div className="mt-5 flex flex-wrap justify-center gap-2">
+                        <button
+                            type="button"
+                            onClick={loadDefaultSampleData}
+                            className="inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 font-bold text-white transition hover:brightness-110"
+                        >
+                            <Copy size={16} />
+                            טען נתוני דוגמה
+                        </button>
+                        <button
+                            type="button"
+                            onClick={openAddTask}
+                            className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-5 py-3 font-bold text-gray-700 transition hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-gray-200"
+                        >
+                            <Plus size={16} />
+                            הוסף משימה
+                        </button>
+                    </div>
                 </div>
             ) : visibleTasks.length === 0 ? (
                 <div className="m-6 rounded-2xl border border-dashed border-gray-300 p-10 text-center text-gray-500 dark:border-white/20 dark:text-gray-400">
@@ -1555,9 +1625,9 @@ export default function AdminGantt() {
             </div>
 
             {error && (
-                <div className="mx-6 mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800 shadow-sm dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200 sm:mx-10">
+                <DismissibleNotice dismissKey={error} className="mx-6 mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800 shadow-sm dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200 sm:mx-10">
                     {error}
-                </div>
+                </DismissibleNotice>
             )}
 
             <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">

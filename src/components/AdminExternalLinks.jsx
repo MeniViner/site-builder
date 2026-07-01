@@ -13,6 +13,7 @@ import { toast } from 'react-toastify';
 import IconPickerModal from './IconPickerModal';
 import { DynamicIcon } from './DynamicIcon';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
+import DismissibleNotice from './DismissibleNotice';
 
 function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -169,10 +170,12 @@ export default function AdminExternalLinks() {
             </div>
 
             {error && (
-                <div className="mb-6 p-4 bg-primary-50 dark:bg-primary-900/50 border border-primary-300 dark:border-primary-500 rounded-lg flex items-center gap-3">
-                    <AlertTriangle className="text-primary-400 shrink-0" />
-                    <span className="text-primary-700 dark:text-primary-200">{error}</span>
-                </div>
+                <DismissibleNotice dismissKey={error} className="mb-6 rounded-lg border border-primary-300 bg-primary-50 p-4 dark:border-primary-500 dark:bg-primary-900/50">
+                    <div className="flex items-center gap-3">
+                        <AlertTriangle className="shrink-0 text-primary-400" />
+                        <span className="text-primary-700 dark:text-primary-200">{error}</span>
+                    </div>
+                </DismissibleNotice>
             )}
 
             {links.length === 0 ? (

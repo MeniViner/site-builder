@@ -3,6 +3,7 @@ import { useWidget } from '../context/WidgetContext';
 import { Rss, Plus, Trash2, Pencil, X, Check } from 'lucide-react';
 import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
+import DismissibleNotice from './DismissibleNotice';
 
 const inputCls = 'w-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition';
 const labelCls = 'block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide';
@@ -74,9 +75,9 @@ export default function AdminNews() {
             </div>
 
             {saveMessage?.type === 'error' && (
-                <div className="mb-6 p-4 rounded-lg flex items-center gap-3 bg-red-50 dark:bg-red-900/50 border border-red-500">
+                <DismissibleNotice dismissKey={saveMessage.text} className="mb-6 rounded-lg border border-red-500 bg-red-50 p-4 dark:bg-red-900/50">
                     <span className="text-red-700 dark:text-red-200">{saveMessage.text}</span>
-                </div>
+                </DismissibleNotice>
             )}
 
             {/* Toolbar */}

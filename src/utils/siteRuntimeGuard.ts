@@ -3,6 +3,12 @@ type RuntimeLocation = Pick<Location, 'origin' | 'pathname' | 'hostname' | 'prot
 type RuntimeEnv = {
   VITE_SP_HOST?: string;
   VITE_SP_SITE_CODE?: string;
+  VITE_SP_ALLOWED_SITE_ROOT?: string;
+  allowedSiteRoot?: string;
+  sharePointSiteUrl?: string;
+  siteRoot?: string;
+  finalAppUrl?: string;
+  targetSiteUrl?: string;
   DEV?: boolean;
   MODE?: string;
 };
@@ -49,6 +55,26 @@ export function buildExpectedSharePointSiteRoot(host: string, siteCode: string):
   return normalizeUrlForSiteCheck(`https://${normalizedHost}/sites/${normalizedSiteCode}/`);
 }
 
+function expectedSharePointRoots(env: RuntimeEnv): string[] {
+  const configuredRoots = [
+    env?.allowedSiteRoot,
+    env?.sharePointSiteUrl,
+    env?.siteRoot,
+    env?.targetSiteUrl,
+    env?.VITE_SP_ALLOWED_SITE_ROOT,
+  ]
+    .map((value) => normalizeUrlForSiteCheck(String(value ?? '')))
+    .filter(Boolean);
+
+  const buildTimeRoot = buildExpectedSharePointSiteRoot(
+    String(env?.VITE_SP_HOST ?? ''),
+    String(env?.VITE_SP_SITE_CODE ?? '')
+  );
+
+  if (configuredRoots.length > 0) return Array.from(new Set(configuredRoots));
+  return buildTimeRoot ? [buildTimeRoot] : [];
+}
+
 export function isLocalDevelopmentLocation(location: RuntimeLocation): boolean {
   const hostname = String(location?.hostname ?? '').trim().replace(/^\[|\]$/g, '').toLowerCase();
   const protocol = String(location?.protocol ?? '').trim().toLowerCase();
@@ -65,16 +91,12 @@ export function isAllowedSharePointRuntimeLocation(
   location: RuntimeLocation,
   env: RuntimeEnv
 ): boolean {
-  const expectedHost = String(env?.VITE_SP_HOST ?? '').trim();
-  const expectedSiteCode = String(env?.VITE_SP_SITE_CODE ?? '').trim();
-
-  if (!expectedHost || !expectedSiteCode) return true;
   if (env?.DEV === true || String(env?.MODE ?? '').toLowerCase() === 'development') return true;
   if (isLocalDevelopmentLocation(location)) return true;
 
-  const expectedRoot = buildExpectedSharePointSiteRoot(expectedHost, expectedSiteCode);
-  if (!expectedRoot) return true;
+  const expectedRoots = expectedSharePointRoots(env);
+  if (expectedRoots.length === 0) return true;
 
   const currentUrl = normalizeUrlForSiteCheck(`${location.origin}${location.pathname}`);
-  return Boolean(currentUrl && currentUrl.startsWith(expectedRoot));
+  return Boolean(currentUrl && expectedRoots.some((expectedRoot) => currentUrl.startsWith(expectedRoot)));
 }

@@ -22,6 +22,7 @@ import { uploadImage } from '../utils/sharepointUtils';
 import { resolveSiteImageUrl } from '../utils/assetUrl';
 import { confirmToast } from '../utils/confirmToast';
 import { spLog } from '../utils/spAppLog';
+import DismissibleNotice from './DismissibleNotice';
 import Tooltip from './Tooltip';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import OrgChartFlow from './OrgChartFlow';
@@ -2575,28 +2576,42 @@ export default function AdminOrgChart() {
                 {/* <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{TABS.find((tab) => tab.id === activeTab)?.description}</p> */}
             </div>
 
-            {error && <div className="mx-6 mt-6 flex items-center gap-3 rounded-2xl border border-primary-500/40 bg-primary-50 p-4 shadow-sm dark:bg-primary-900/20 sm:mx-10"><AlertTriangle className="shrink-0 text-primary" /><span className="text-sm font-medium text-primary-800 dark:text-primary-200">{error}</span></div>}
+            {error && (
+                <DismissibleNotice dismissKey={error} className="mx-6 mt-6 rounded-2xl border border-primary-500/40 bg-primary-50 p-4 text-primary-800 shadow-sm dark:bg-primary-900/20 dark:text-primary-200 sm:mx-10">
+                    <div className="flex items-center gap-3">
+                        <AlertTriangle className="shrink-0 text-primary" />
+                        <span className="text-sm font-medium">{error}</span>
+                    </div>
+                </DismissibleNotice>
+            )}
             {saveMessage && (
-                <div className={`mx-6 mt-6 flex items-center gap-3 rounded-2xl border p-4 shadow-sm sm:mx-10 ${
+                <DismissibleNotice
+                    dismissKey={`${saveMessage.type}:${saveMessage.text}`}
+                    className={`mx-6 mt-6 rounded-2xl border p-4 shadow-sm sm:mx-10 ${
                     saveMessage.type === 'success'
                         ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-500/20 dark:bg-emerald-900/25'
                         : 'border-red-300 bg-red-50 dark:border-red-500/20 dark:bg-red-900/30'
-                }`}>
-                    {saveMessage.type === 'success' ? (
-                        <CheckCircle2 className="shrink-0 text-emerald-600 dark:text-emerald-300" />
-                    ) : (
-                        <AlertTriangle className="shrink-0 text-red-500" />
-                    )}
-                    <span className={`text-sm ${saveMessage.type === 'success' ? 'text-emerald-800 dark:text-emerald-200' : 'text-red-700 dark:text-red-200'}`}>
-                        {saveMessage.text}
-                    </span>
-                </div>
+                }`}
+                >
+                    <div className="flex items-center gap-3">
+                        {saveMessage.type === 'success' ? (
+                            <CheckCircle2 className="shrink-0 text-emerald-600 dark:text-emerald-300" />
+                        ) : (
+                            <AlertTriangle className="shrink-0 text-red-500" />
+                        )}
+                        <span className={`text-sm ${saveMessage.type === 'success' ? 'text-emerald-800 dark:text-emerald-200' : 'text-red-700 dark:text-red-200'}`}>
+                            {saveMessage.text}
+                        </span>
+                    </div>
+                </DismissibleNotice>
             )}
             {importError && !saveMessage && (
-                <div className="mx-6 mt-6 flex items-center gap-3 rounded-2xl border border-red-300 bg-red-50 p-4 shadow-sm dark:border-red-500/20 dark:bg-red-900/30 sm:mx-10">
-                    <AlertTriangle className="shrink-0 text-red-500" />
-                    <span className="text-sm text-red-700 dark:text-red-200">{importError}</span>
-                </div>
+                <DismissibleNotice dismissKey={importError} className="mx-6 mt-6 rounded-2xl border border-red-300 bg-red-50 p-4 shadow-sm dark:border-red-500/20 dark:bg-red-900/30 sm:mx-10">
+                    <div className="flex items-center gap-3">
+                        <AlertTriangle className="shrink-0 text-red-500" />
+                        <span className="text-sm text-red-700 dark:text-red-200">{importError}</span>
+                    </div>
+                </DismissibleNotice>
             )}
 
             <div className="flex-1 overflow-hidden p-4 sm:p-6 lg:p-8 space-y-8 lg:space-y-0 lg:flex lg:flex-row-reverse lg:items-start lg:gap-6 2xl:gap-8">

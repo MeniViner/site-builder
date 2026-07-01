@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import AIService from '../services/AIService';
 import { parseJsonFromModel } from '../utils/aiJson';
 import { getSafeAiRuntimeConfig } from '../config/ai.config';
+import DismissibleNotice from './DismissibleNotice';
 
 export default function AdminAIActionCard({
     title = 'עוזר AI',
@@ -207,13 +208,13 @@ export default function AdminAIActionCard({
             </div>
 
             {!isEnabled && (
-                <div className="mt-4 rounded-xl border border-amber-300/40 bg-amber-100/60 px-3 py-2 text-sm text-amber-900">
+                <DismissibleNotice dismissKey={`ai-disabled:${runtimeConfig.apiBase}`} className="mt-4 rounded-xl border border-amber-300/40 bg-amber-100/60 px-3 py-2 text-sm text-amber-900">
                     <div className="font-bold">AI כבוי כרגע</div>
                     <div className="mt-1">
                         כדי להפעיל: הגדר `VITE_ALPHA_AI_ENABLED=true` וודא ש-`VITE_ALPHA_AI_API_BASE` תקין.
                     </div>
                     <div className="mt-1 text-xs">apiBase: {runtimeConfig.apiBase}</div>
-                </div>
+                </DismissibleNotice>
             )}
 
             <div className="mt-4 space-y-3">
@@ -281,13 +282,13 @@ export default function AdminAIActionCard({
                 </div>
 
                 {parseError && (
-                    <div className="rounded-xl border border-red-300/40 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">
+                    <DismissibleNotice dismissKey={parseError} className="rounded-xl border border-red-300/40 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">
                         <div className="inline-flex items-center gap-2 font-bold">
                             <AlertTriangle size={14} />
                             שגיאה בתגובה
                         </div>
                         <div className="mt-1">{parseError}</div>
-                    </div>
+                    </DismissibleNotice>
                 )}
 
                 {rawOutput && (

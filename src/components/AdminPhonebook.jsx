@@ -5,6 +5,7 @@ import Tooltip from './Tooltip';
 import { useConfig } from '../context/ConfigProvider';
 import { spLog } from '../utils/spAppLog';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
+import DismissibleNotice from './DismissibleNotice';
 
 const inputCls = 'w-full bg-theme-elevated border border-theme-subtle rounded-lg px-4 py-2.5 text-sm text-theme placeholder-theme-muted focus:outline-none focus:ring-2 focus:ring-violet-500/40 transition';
 const labelCls = 'block text-xs font-semibold text-theme-muted mb-1.5 uppercase tracking-wide';
@@ -122,10 +123,12 @@ export default function AdminPhonebook() {
                 </div>
 
                 {(saveMessage?.type === 'error' || error) && (
-                    <div className="p-4 rounded-lg flex items-center gap-3 bg-red-500/10 border border-red-500/40 text-red-500">
-                        <AlertTriangle size={16} className="shrink-0" />
-                        <span>{saveMessage?.text || error}</span>
-                    </div>
+                    <DismissibleNotice dismissKey={saveMessage?.text || error} className="rounded-lg border border-red-500/40 bg-red-500/10 p-4 text-red-500">
+                        <div className="flex items-center gap-3">
+                            <AlertTriangle size={16} className="shrink-0" />
+                            <span>{saveMessage?.text || error}</span>
+                        </div>
+                    </DismissibleNotice>
                 )}
 
                 {editingId !== null && (

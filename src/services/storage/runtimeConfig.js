@@ -1,9 +1,11 @@
 const RUNTIME_CONFIG_FILENAMES = ['sitebuilder-runtime-config.json', 'runtime-config.json'];
+const DEPLOYMENT_METADATA_FILENAMES = ['sitebuilder-deployment.json'];
 
 let runtimeConfigPromise = null;
 let runtimeConfigLoaded = false;
 let runtimeConfigSource = null;
 let lastResolvedConfig = null;
+let deploymentMetadataSource = null;
 let lastConsoleMessage = null;
 
 function asString(value) {
@@ -24,8 +26,29 @@ function normalizeCandidate(candidate = {}) {
   const backendApiUrl = asString(candidate.backendApiUrl || candidate.backendUrl || candidate.apiUrl || candidate.API_URL);
   const siteId = asString(candidate.siteId || candidate.site || candidate.siteCode);
   const apiKey = asString(candidate.apiKey || candidate.siteKey || candidate.key);
+  const releaseVersion = asString(candidate.releaseVersion || candidate.siteBuilderVersion || candidate.appVersion || candidate.version);
+  const releaseId = asString(candidate.releaseId);
+  const deployedAt = asString(candidate.deployedAt);
+  const allowedSiteRoot = asString(candidate.allowedSiteRoot || candidate.sharePointSiteUrl || candidate.siteRoot || candidate.targetSiteUrl);
+  const sharePointSiteUrl = asString(candidate.sharePointSiteUrl || candidate.targetSiteUrl || candidate.allowedSiteRoot || candidate.siteRoot);
+  const finalAppUrl = asString(candidate.finalAppUrl || candidate.appUrl);
+  const targetDistPath = asString(candidate.targetDistPath || candidate.distPath);
+  const deploymentGeneratedBy = asString(candidate.deploymentGeneratedBy || candidate.generatedBy);
 
-  if (!storageBackend && !backendApiUrl && !siteId && !apiKey) {
+  if (
+    !storageBackend &&
+    !backendApiUrl &&
+    !siteId &&
+    !apiKey &&
+    !releaseVersion &&
+    !releaseId &&
+    !deployedAt &&
+    !allowedSiteRoot &&
+    !sharePointSiteUrl &&
+    !finalAppUrl &&
+    !targetDistPath &&
+    !deploymentGeneratedBy
+  ) {
     return null;
   }
 
@@ -34,7 +57,25 @@ function normalizeCandidate(candidate = {}) {
     backendApiUrl,
     siteId,
     apiKey,
+    releaseVersion,
+    releaseId,
+    deployedAt,
+    allowedSiteRoot,
+    sharePointSiteUrl,
+    finalAppUrl,
+    targetDistPath,
+    deploymentGeneratedBy,
   };
+}
+
+function mergeRuntimeConfigs(base = {}, overlay = {}) {
+  const merged = { ...(base || {}) };
+  Object.entries(overlay || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      merged[key] = value;
+    }
+  });
+  return merged;
 }
 
 function loadEmbeddedRuntimeConfig() {
@@ -68,6 +109,17 @@ async function loadRuntimeConfigFile(url) {
   }
 }
 
+async function loadDeploymentMetadata(baseUrl) {
+  for (const fileName of DEPLOYMENT_METADATA_FILENAMES) {
+    const candidateUrl = new URL(fileName, baseUrl).toString();
+    const loaded = await loadRuntimeConfigFile(candidateUrl);
+    if (loaded) {
+      return { ...loaded, source: `deployment:${fileName}` };
+    }
+  }
+  return null;
+}
+
 async function resolveRuntimeConfig() {
   if (typeof window === 'undefined') {
     runtimeConfigLoaded = true;
@@ -77,34 +129,36 @@ async function resolveRuntimeConfig() {
     return lastResolvedConfig;
   }
 
-  const embedded = loadEmbeddedRuntimeConfig();
-  if (embedded) {
-    runtimeConfigLoaded = true;
-    runtimeConfigSource = embedded.source;
-    lastResolvedConfig = embedded.config;
-    lastConsoleMessage = `Loaded runtime config from ${embedded.source}.`;
-    console.info(`[site-builder-runtime-config] ${lastConsoleMessage}`);
-    return lastResolvedConfig;
-  }
-
   const baseUrl = new URL('./', window.location.href);
-  for (const fileName of RUNTIME_CONFIG_FILENAMES) {
-    const candidateUrl = new URL(fileName, baseUrl).toString();
-    const loaded = await loadRuntimeConfigFile(candidateUrl);
-    if (loaded) {
-      runtimeConfigLoaded = true;
-      runtimeConfigSource = loaded.source;
-      lastResolvedConfig = loaded.config;
-      lastConsoleMessage = `Loaded runtime config from file: ${fileName}`;
-      console.info(`[site-builder-runtime-config] ${lastConsoleMessage}`);
-      return lastResolvedConfig;
+  const embedded = loadEmbeddedRuntimeConfig();
+  let resolved = null;
+  if (embedded) {
+    resolved = embedded;
+  } else {
+    for (const fileName of RUNTIME_CONFIG_FILENAMES) {
+      const candidateUrl = new URL(fileName, baseUrl).toString();
+      const loaded = await loadRuntimeConfigFile(candidateUrl);
+      if (loaded) {
+        resolved = {
+          ...loaded,
+          source: `fetch:${fileName}`,
+        };
+        break;
+      }
     }
   }
 
+  const deployment = await loadDeploymentMetadata(baseUrl);
+  deploymentMetadataSource = deployment?.source || null;
+
   runtimeConfigLoaded = true;
-  runtimeConfigSource = 'vite-env';
-  lastResolvedConfig = {};
-  lastConsoleMessage = 'No runtime config file found. Using build-time Vite env values.';
+  runtimeConfigSource = resolved?.source || 'vite-env';
+  lastResolvedConfig = mergeRuntimeConfigs(resolved?.config || {}, deployment?.config || {});
+  lastConsoleMessage = resolved
+    ? `Loaded runtime config from ${resolved.source}${deployment ? ` and deployment metadata from ${deployment.source}.` : '.'}`
+    : deployment
+      ? `Loaded deployment metadata from ${deployment.source}. Using build-time Vite env values for missing runtime settings.`
+      : 'No runtime config file found. Using build-time Vite env values.';
   console.info(`[site-builder-runtime-config] ${lastConsoleMessage}`);
   return lastResolvedConfig;
 }
@@ -122,6 +176,7 @@ export function clearRuntimeConfigForTests() {
   runtimeConfigLoaded = false;
   runtimeConfigSource = null;
   lastResolvedConfig = null;
+  deploymentMetadataSource = null;
   lastConsoleMessage = null;
 }
 
@@ -130,6 +185,7 @@ export function setRuntimeConfigForTests(config = {}) {
   runtimeConfigLoaded = true;
   runtimeConfigSource = 'test';
   lastResolvedConfig = normalizeCandidate(config) || {};
+  deploymentMetadataSource = null;
   lastConsoleMessage = 'Runtime config was forced for tests.';
 }
 
@@ -148,6 +204,7 @@ export async function loadRuntimeConfig() {
 export function getRuntimeLog() {
   return {
     source: runtimeConfigSource,
+    deploymentSource: deploymentMetadataSource,
     message: lastConsoleMessage,
     loaded: runtimeConfigLoaded,
   };
@@ -164,6 +221,22 @@ export function getRuntimeValue(key, fallback = '') {
       return config.siteId || '';
     case 'apiKey':
       return config.apiKey || '';
+    case 'releaseVersion':
+    case 'siteBuilderVersion':
+    case 'appVersion':
+      return config.releaseVersion || '';
+    case 'releaseId':
+      return config.releaseId || '';
+    case 'deployedAt':
+      return config.deployedAt || '';
+    case 'allowedSiteRoot':
+      return config.allowedSiteRoot || '';
+    case 'sharePointSiteUrl':
+      return config.sharePointSiteUrl || '';
+    case 'finalAppUrl':
+      return config.finalAppUrl || '';
+    case 'targetDistPath':
+      return config.targetDistPath || '';
     default:
       return fallback;
   }

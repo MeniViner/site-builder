@@ -16,6 +16,7 @@ import { DEFAULT_OVERLAY_IMAGE, normalizeOverlayImageConfig } from '../utils/ove
 import { confirmToast } from '../utils/confirmToast';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import { toast } from 'react-toastify';
+import DismissibleNotice from './DismissibleNotice';
 import AdminAIActionCard from './AdminAIActionCard';
 import AdminAIHelp from './AdminAIHelp';
 import AIService from '../services/AIService';
@@ -695,17 +696,21 @@ export default function AdminSiteContent() {
             </div>
 
             {error && (
-                <div className="mx-6 sm:mx-10 mt-6 p-4 bg-primary-50 dark:bg-primary-900/20 border border-primary-500/50 rounded-xl flex items-center gap-3 shadow-sm">
-                    <AlertTriangle className="text-primary-500 shrink-0" />
-                    <span className="text-sm font-medium text-primary-800 dark:text-primary-200">{error}</span>
-                </div>
+                <DismissibleNotice dismissKey={error} className="mx-6 mt-6 rounded-xl border border-primary-500/50 bg-primary-50 p-4 text-primary-800 shadow-sm dark:bg-primary-900/20 dark:text-primary-200 sm:mx-10">
+                    <div className="flex items-center gap-3">
+                        <AlertTriangle className="shrink-0 text-primary-500" />
+                        <span className="text-sm font-medium">{error}</span>
+                    </div>
+                </DismissibleNotice>
             )}
 
             {saveMessage?.type === 'error' && (
-                <div className="mx-6 sm:mx-10 mt-6 p-4 rounded-xl flex items-center gap-3 bg-red-50 dark:bg-red-900/50 border border-red-300 dark:border-red-500 shadow-sm">
-                    <AlertTriangle className="text-red-500 shrink-0" />
-                    <span className="text-red-700 dark:text-red-200">{saveMessage.text}</span>
-                </div>
+                <DismissibleNotice dismissKey={saveMessage.text} className="mx-6 mt-6 rounded-xl border border-red-300 bg-red-50 p-4 text-red-700 shadow-sm dark:border-red-500 dark:bg-red-900/50 dark:text-red-200 sm:mx-10">
+                    <div className="flex items-center gap-3">
+                        <AlertTriangle className="shrink-0 text-red-500" />
+                        <span>{saveMessage.text}</span>
+                    </div>
+                </DismissibleNotice>
             )}
 
             <div className="flex-1 overflow-hidden p-4 sm:p-6 lg:p-8 space-y-8 lg:space-y-0 lg:flex lg:flex-row-reverse lg:items-start lg:gap-6 2xl:gap-8">

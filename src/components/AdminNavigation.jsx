@@ -14,6 +14,7 @@ import { confirmToast } from '../utils/confirmToast';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import { uploadImage } from '../utils/sharepointUtils';
 import NavVisual from './NavVisual';
+import DismissibleNotice from './DismissibleNotice';
 import { normalizeLinkTarget } from '../utils/linkTargets';
 
 function createNodeId(prefix) {
@@ -596,10 +597,12 @@ export default function AdminNavigation() {
 
                 {/* ERROR BANNER */}
                 {error && (
-                    <div className="mx-6 my-4 p-3 bg-primary-50 dark:bg-primary-900/30 border border-primary-500/50 rounded-lg flex items-center gap-3 shrink-0">
-                        <AlertTriangle size={18} className="text-primary-400" />
-                        <span className="text-primary-700 dark:text-primary-200 text-sm">{error}</span>
-                    </div>
+                    <DismissibleNotice dismissKey={error} className="mx-6 my-4 shrink-0 rounded-lg border border-primary-500/50 bg-primary-50 p-3 dark:bg-primary-900/30">
+                        <div className="flex items-center gap-3">
+                            <AlertTriangle size={18} className="text-primary-400" />
+                            <span className="text-sm text-primary-700 dark:text-primary-200">{error}</span>
+                        </div>
+                    </DismissibleNotice>
                 )}
 
                 {/* Properties Panel (if not root) */}
@@ -639,7 +642,7 @@ export default function AdminNavigation() {
                                     className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider"
                                     wrapperClassName="flex items-center gap-2"
                                     helpTitle="אייקון"
-                                    helpDescription="האייקון הקטן שמופיע ליד הפריט ועוזר לזהות אותו במהירות."
+                                    helpDescription="האייקון הקטן שמופיע ליד הפריט ועוזר לזהות אותו במהירות. אפשר לבחור אייקון מתוך ספריית האייקונים או להעלות תמונה מותאמת אישית."
                                 >
                                     אייקון או תמונה
                                 </HelpLabel>
@@ -691,12 +694,12 @@ export default function AdminNavigation() {
                                         </button>
                                     </Tooltip>
                                 </div>
-                                <p className="text-[11px] leading-snug text-gray-500 dark:text-gray-400">
+                                {/* <p className="text-[11px] leading-snug text-gray-500 dark:text-gray-400">
                                     בכל רגע נתון פעיל רק סוג אחד: או אייקון או תמונה.
-                                </p>
-                                <p className="text-[11px] leading-snug text-amber-700 dark:text-amber-300">
+                                </p> */}
+                                {/* <p className="text-[11px] leading-snug text-amber-700 dark:text-amber-300">
                                     מומלץ להעלות סמלים או לוגואים בלבד, ולא תמונות רגילות.
-                                </p>
+                                </p> */}
                             </div>
                             <div className="space-y-1.5">
                                 <HelpLabel

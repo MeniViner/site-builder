@@ -5,6 +5,7 @@ import { useConfig } from '../context/ConfigProvider';
 import { DEFAULT_WIDGET_SETTINGS } from '../utils/widgetDisplay';
 import { spLog } from '../utils/spAppLog';
 import { HelpLabel, HelpTooltipButton } from './AdminHelp';
+import DismissibleNotice from './DismissibleNotice';
 
 const inputCls = 'mt-1.5 w-full rounded-lg border border-theme-subtle bg-theme-elevated px-3 py-1.5 text-sm text-theme outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/20';
 
@@ -126,10 +127,12 @@ export default function WidgetDisplaySettingsPanel({ widgetId, widgetKey }) {
             </div>
 
             {error && (
-                <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-500">
-                    <AlertTriangle size={14} className="shrink-0" />
-                    <span>{error}</span>
-                </div>
+                <DismissibleNotice dismissKey={error} className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-500">
+                    <div className="flex items-center gap-2">
+                        <AlertTriangle size={14} className="shrink-0" />
+                        <span>{error}</span>
+                    </div>
+                </DismissibleNotice>
             )}
 
             <div className={`grid grid-cols-1 ${supportsItemsPerView ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4`}>

@@ -14,7 +14,7 @@ import { ExternalLinksProvider } from './context/ExternalLinksContext'
 import { ConfigProvider } from './context/ConfigProvider'
 import { OrgChartProvider } from './context/OrgChartContext'
 import { GanttProvider } from './context/GanttContext'
-import { getRuntimeLog, loadRuntimeConfig } from './services/storage/runtimeConfig'
+import { getRuntimeConfig, getRuntimeLog, loadRuntimeConfig } from './services/storage/runtimeConfig'
 import {
   buildExpectedSharePointSiteRoot,
   isAllowedSharePointRuntimeLocation,
@@ -31,6 +31,7 @@ const currentRuntimeLocation = typeof window === 'undefined'
 
 const renderApp = async () => {
   await loadRuntimeConfig();
+  const runtimeConfig = getRuntimeConfig() || {};
   const runtimeLog = getRuntimeLog();
   if (runtimeLog.loaded) {
     console.info(`[site-builder] Runtime config source: ${runtimeLog.source}`);
@@ -38,7 +39,15 @@ const renderApp = async () => {
 
   const runtimeAllowed = typeof window === 'undefined'
     ? true
-    : isAllowedSharePointRuntimeLocation(window.location, import.meta.env)
+    : isAllowedSharePointRuntimeLocation(window.location, {
+      ...import.meta.env,
+      allowedSiteRoot: runtimeConfig.allowedSiteRoot,
+      sharePointSiteUrl: runtimeConfig.sharePointSiteUrl,
+      siteRoot: runtimeConfig.siteRoot,
+      finalAppUrl: runtimeConfig.finalAppUrl,
+      targetSiteUrl: runtimeConfig.targetSiteUrl,
+    })
+  const expectedRuntimeSiteRoot = runtimeConfig.allowedSiteRoot || runtimeConfig.sharePointSiteUrl || expectedSiteRoot
 
   const root = document.getElementById('root')
   if (!root) {
@@ -74,7 +83,7 @@ const renderApp = async () => {
       ) : (
         <UnauthorizedSiteBlocker
           currentLocation={currentRuntimeLocation}
-          expectedSiteRoot={expectedSiteRoot}
+          expectedSiteRoot={expectedRuntimeSiteRoot}
           showDetails={import.meta.env.DEV === true}
         />
       )}

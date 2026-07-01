@@ -1,4 +1,9 @@
+import { getRuntimeValue } from '../services/storage/runtimeConfig';
+
 export const APP_VERSION = import.meta.env.VITE_APP_VERSION || '0.1.14';
+
+export const getAppVersion = () =>
+    getRuntimeValue('releaseVersion') || getRuntimeValue('appVersion') || APP_VERSION;
 
 export const ALPHA_TEAM_CONFIG = {
     nameHe: import.meta.env.VITE_ALPHA_TEAM_NAME_HE || 'צוות אלפא',

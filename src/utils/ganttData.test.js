@@ -13,6 +13,35 @@ import {
 } from './ganttData';
 
 describe('gantt data normalization', () => {
+    it('ships default sample data with both rich and compact gantt tasks', () => {
+        const normalized = normalizeGanttData(DEFAULT_GANTT_DATA);
+        const compactTask = normalized.items.find((item) => item.id === 'gantt-demo-weekly-update');
+        const richTask = normalized.items.find((item) => item.id === 'gantt-demo-build');
+
+        expect(normalized.enabled).toBe(false);
+        expect(normalized.categories.map((category) => category.name)).toEqual(expect.arrayContaining([
+            'תכנון',
+            'פיתוח',
+            'כללי',
+        ]));
+        expect(normalized.items.length).toBeGreaterThanOrEqual(8);
+        expect(richTask).toEqual(expect.objectContaining({
+            owner: 'צוות פיתוח',
+            category: 'פיתוח',
+            dependsOn: ['gantt-demo-discovery', 'gantt-demo-content'],
+        }));
+        expect(richTask.milestones).toHaveLength(2);
+        expect(compactTask).toEqual(expect.objectContaining({
+            owner: '',
+            category: 'כללי',
+            status: 'planned',
+            color: GANTT_COLOR_OPTIONS[5],
+            details: '',
+            dependsOn: [],
+            milestones: [],
+        }));
+    });
+
     it('keeps legacy gantt data safe when newer optional fields are missing', () => {
         const normalized = normalizeGanttData({
             enabled: true,

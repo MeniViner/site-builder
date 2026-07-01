@@ -34,7 +34,7 @@ import { useWidget } from '../context/WidgetContext';
 import { useTheme } from '../context/ThemeContext';
 import { UI_FEATURES } from '../config/uiFeatures.config';
 import { resolveSiteImageUrl } from '../utils/assetUrl';
-import { ALPHA_TEAM_CONFIG, APP_VERSION } from '../config/alphaTeam.config';
+import { ALPHA_TEAM_CONFIG, getAppVersion } from '../config/alphaTeam.config';
 
 const ADMIN_SECTION_STORAGE_KEY = 'siteBuilder.adminHub.openSections.v1';
 const ADMIN_LAST_PATH_STORAGE_KEY = 'siteBuilder.adminHub.lastPath.v1';
@@ -161,6 +161,7 @@ export default function AdminHub() {
     const lastJumpKeyRef = useRef(null);
     const { widgetConfig } = useWidget();
     const { effectiveMode, toggleAdminMode } = useTheme();
+    const appVersion = getAppVersion();
 
     const activeWidgets = Array.isArray(widgetConfig?.activeWidgets) && widgetConfig.activeWidgets.length > 0
         ? widgetConfig.activeWidgets.slice(0, 3)
@@ -516,17 +517,17 @@ export default function AdminHub() {
                         isSidebarOpen={isSidebarOpen}
                     />
 
-                    {isSidebarOpen ? (
-                        <div className="text-center text-[11px] font-medium tracking-wide text-gray-500 dark:text-gray-400">
-                            siteBuilder {APP_VERSION}
-                        </div>
-                    ) : (
-                        <Tooltip text={`siteBuilder ${APP_VERSION}`}>
-                            <div className="w-full text-center text-[10px] font-medium text-gray-500 dark:text-gray-400">
-                                {APP_VERSION}
-                            </div>
-                        </Tooltip>
-                    )}
+	                    {isSidebarOpen ? (
+	                        <div className="text-center text-[11px] font-medium tracking-wide text-gray-500 dark:text-gray-400">
+	                            siteBuilder {appVersion}
+	                        </div>
+	                    ) : (
+	                        <Tooltip text={`siteBuilder ${appVersion}`}>
+	                            <div className="w-full text-center text-[10px] font-medium text-gray-500 dark:text-gray-400">
+	                                {appVersion}
+	                            </div>
+	                        </Tooltip>
+	                    )}
                 </div>
             </div>
 

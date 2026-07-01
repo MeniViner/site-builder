@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { parseCliArgs, resolveConfig, writeEnvProduction } from './sp-env.js';
+import { DEFAULT_GANTT_DATA } from '../src/utils/ganttData.js';
 
 const cli = parseCliArgs();
 const envPath = cli.env ? path.resolve(process.cwd(), String(cli.env)) : path.resolve(process.cwd(), '.env.production');
@@ -40,7 +41,7 @@ const defaultFiles = [
   { key: 'theme', content: JSON.stringify({}, null, 2) },
   { key: 'widgets', content: JSON.stringify({}, null, 2) },
   { key: 'externalLinks', content: JSON.stringify([], null, 2) },
-  { key: 'gantt', content: JSON.stringify({ enabled: false, buttonLabel: 'גאנט עבודה', pageTitle: 'גאנט עבודה', description: '', groupBy: 'category', defaultView: 'month', showLegend: true, showToday: true, categories: [], items: [] }, null, 2) },
+  { key: 'gantt', content: JSON.stringify(DEFAULT_GANTT_DATA, null, 2) },
 ];
 
 const checkLibrary = (title, rel) => {

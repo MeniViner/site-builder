@@ -97,7 +97,7 @@ export default function GanttPage() {
             ) : !gantt.enabled ? (
                 <RestrictedState />
             ) : (
-                <main className="public-gantt-page box-border flex min-h-[calc(100dvh-88px)] w-full max-w-none flex-col px-3 py-3 sm:px-5 lg:px-8">
+                <main className="public-gantt-page box-border w-full max-w-none px-3 py-3 sm:px-5 lg:px-8">
                     <div className="public-gantt-breadcrumb mb-3 flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-black text-theme-muted">
                         <span>{hero.siteName || hero.title || 'האתר'}</span>
                         <span className="text-theme-muted/60">|</span>
@@ -108,11 +108,12 @@ export default function GanttPage() {
                             </span>
                         )}
                     </div>
-                    <div className="public-gantt-card min-h-0 w-full max-w-none flex-1 overflow-hidden">
+                    <div className="public-gantt-card w-full max-w-none overflow-visible">
                         <GanttChart
                             data={gantt}
                             layoutVariant="public"
-                            viewportHeight="clamp(560px, calc(100dvh - 180px), 920px)"
+                            viewportHeight="calc(100dvh - 180px)"
+                            fitHeightToContent
                             className="public-gantt-chart w-full max-w-none"
                         />
                     </div>

@@ -27,6 +27,26 @@ describe('site runtime guard', () => {
     )).toBe(false);
   });
 
+  it('allows the runtime metadata site root when the build env belongs to another site', () => {
+    expect(isAllowedSharePointRuntimeLocation(
+      runtimeLocation('https://portal.army.idf/sites/runtime-target/siteDB/dist/index.html#/admin'),
+      {
+        VITE_SP_HOST: 'portal.army.idf',
+        VITE_SP_SITE_CODE: 'template-build',
+        allowedSiteRoot: 'https://portal.army.idf/sites/runtime-target',
+      }
+    )).toBe(true);
+  });
+
+  it('blocks a copied site when runtime metadata points to a different site root', () => {
+    expect(isAllowedSharePointRuntimeLocation(
+      runtimeLocation('https://portal.army.idf/sites/copied/siteDB/dist/index.html#/admin'),
+      {
+        allowedSiteRoot: 'https://portal.army.idf/sites/runtime-target',
+      }
+    )).toBe(false);
+  });
+
   it('blocks the right site path on the wrong host', () => {
     expect(isAllowedSharePointRuntimeLocation(
       runtimeLocation('https://other.host/sites/schedule/siteDB/dist/index.html'),

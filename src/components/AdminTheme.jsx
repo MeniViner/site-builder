@@ -14,6 +14,7 @@ import Tooltip from './Tooltip';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import AIService from '../services/AIService';
 import { parseJsonFromModel } from '../utils/aiJson';
+import DismissibleNotice from './DismissibleNotice';
 import { getSafeAiRuntimeConfig } from '../config/ai.config';
 import { UI_FEATURES } from '../config/uiFeatures.config';
 
@@ -972,10 +973,12 @@ export default function AdminTheme() {
             </div>
 
             {error && (
-                <div className="mx-6 sm:mx-10 mt-6 p-4 bg-primary-50 dark:bg-primary-900/20 border border-primary-500/50 rounded-xl flex items-center gap-3 shadow-sm">
-                    <AlertTriangle className="text-primary-500 shrink-0" />
-                    <span className="text-sm font-medium text-primary-800 dark:text-primary-200">{error}</span>
-                </div>
+                <DismissibleNotice dismissKey={error} className="mx-6 mt-6 rounded-xl border border-primary-500/50 bg-primary-50 p-4 text-primary-800 shadow-sm dark:bg-primary-900/20 dark:text-primary-200 sm:mx-10">
+                    <div className="flex items-center gap-3">
+                        <AlertTriangle className="shrink-0 text-primary-500" />
+                        <span className="text-sm font-medium">{error}</span>
+                    </div>
+                </DismissibleNotice>
             )}
 
             <div className="flex-1 overflow-hidden p-4 sm:p-6 lg:p-8 space-y-8 lg:space-y-0 lg:grid lg:grid-cols-[0.92fr_1.08fr] lg:items-start lg:gap-6 2xl:gap-8">
@@ -1008,7 +1011,7 @@ export default function AdminTheme() {
                             {showAiUi && (
                                 <>
                                     {!aiEnabled && (
-                                        <div className="mb-5 rounded-2xl border border-amber-300/40 bg-amber-100/70 px-4 py-3 text-amber-900 shadow-sm dark:bg-amber-900/20 dark:text-amber-100">
+                                        <DismissibleNotice dismissKey={`ai-disabled:${AI_THEME_RUNTIME_CONFIG.apiBase}`} className="mb-5 rounded-2xl border border-amber-300/40 bg-amber-100/70 px-4 py-3 text-amber-900 shadow-sm dark:bg-amber-900/20 dark:text-amber-100">
                                             <div className="flex items-start gap-2">
                                                 <AlertTriangle size={16} className="mt-0.5 shrink-0" />
                                                 <div>
@@ -1017,7 +1020,7 @@ export default function AdminTheme() {
                                                     <div className="text-[11px] mt-1 opacity-80">apiBase: {AI_THEME_RUNTIME_CONFIG.apiBase}</div>
                                                 </div>
                                             </div>
-                                        </div>
+                                        </DismissibleNotice>
                                     )}
 
                                     <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-white to-primary/5 p-4 sm:p-5 dark:from-primary/15 dark:via-[#1a1f2b] dark:to-[#141924]">
@@ -1306,10 +1309,10 @@ export default function AdminTheme() {
                             {showAiUi && (
                                 <>
                                     {aiErrorMessage && (
-                                        <div className="mt-5 rounded-xl border border-red-300/40 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+                                        <DismissibleNotice dismissKey={aiErrorMessage} className="mt-5 rounded-xl border border-red-300/40 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
                                             <div className="font-bold mb-1">שגיאה בתגובת AI</div>
                                             <div>{aiErrorMessage}</div>
-                                        </div>
+                                        </DismissibleNotice>
                                     )}
 
                                     {aiSuggestedTheme && (

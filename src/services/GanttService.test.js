@@ -19,15 +19,19 @@ describe('GanttService', () => {
         vi.unstubAllEnvs();
     });
 
-    it('falls back to default disabled gantt data when local mock data is missing', async () => {
+    it('falls back to default disabled sample gantt data when local mock data is missing', async () => {
         const service = new GanttService(mockConfig);
 
         const loaded = await service.getGantt();
 
         expect(loaded.enabled).toBe(false);
-        expect(loaded.items).toEqual([]);
+        expect(loaded.items.length).toBe(DEFAULT_GANTT_DATA.items.length);
+        expect(loaded.items.some((item) => item.id === 'gantt-demo-weekly-update')).toBe(true);
         expect(JSON.parse(localStorage.getItem(mockConfig.ganttMockStorageKey))).toEqual(expect.objectContaining({
             enabled: DEFAULT_GANTT_DATA.enabled,
+            items: expect.arrayContaining([
+                expect.objectContaining({ id: 'gantt-demo-weekly-update' }),
+            ]),
         }));
     });
 
@@ -68,6 +72,7 @@ describe('GanttService', () => {
         const loaded = await service.getGantt();
 
         expect(loaded.enabled).toBe(false);
+        expect(loaded.items.length).toBe(DEFAULT_GANTT_DATA.items.length);
         expect(() => JSON.parse(localStorage.getItem(mockConfig.ganttMockStorageKey))).not.toThrow();
     });
 
@@ -98,6 +103,6 @@ describe('GanttService', () => {
 
         expect(globalThis.fetch).toHaveBeenCalled();
         expect(loaded.enabled).toBe(false);
-        expect(loaded.items).toEqual([]);
+        expect(loaded.items.length).toBe(DEFAULT_GANTT_DATA.items.length);
     });
 });

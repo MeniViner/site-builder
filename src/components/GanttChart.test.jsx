@@ -1,6 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildGanttTimelineModel } from '../utils/ganttTimeline';
 import GanttChart from './GanttChart';
 
@@ -212,6 +212,76 @@ describe('GanttChart', () => {
         expect(container.querySelector('[data-gantt-view-mode]')?.getAttribute('dir')).toBe('rtl');
     });
 
+    it('collapses and expands grouped categories', () => {
+        render(<GanttChart viewportHeight="520px" data={baseData} />);
+
+        const collapseButton = screen.getByRole('button', { name: 'צמצם קטגוריה בדיקות' });
+        expect(collapseButton.getAttribute('aria-expanded')).toBe('true');
+
+        fireEvent.click(collapseButton);
+
+        expect(screen.queryByText('משימת אלפא')).toBeNull();
+        expect(screen.queryByText('משימת בטא')).toBeNull();
+        const expandButton = screen.getByRole('button', { name: 'הרחב קטגוריה בדיקות' });
+        expect(expandButton.getAttribute('aria-expanded')).toBe('false');
+
+        fireEvent.click(expandButton);
+
+        expect(screen.getByText('משימת אלפא')).toBeTruthy();
+        expect(screen.getByText('משימת בטא')).toBeTruthy();
+    });
+
+    it('opens the legend from the toolbar help button instead of rendering it as a fixed row', () => {
+        const { container } = render(<GanttChart viewportHeight="520px" data={baseData} />);
+
+        expect(container.querySelector('[data-gantt-legend-help]')).toBeNull();
+
+        const legendButton = screen.getByRole('button', { name: 'מקרא' });
+        expect(legendButton.getAttribute('aria-expanded')).toBe('false');
+
+        fireEvent.click(legendButton);
+
+        const legendDialog = screen.getByRole('dialog', { name: 'עזרה לקריאת הגאנט' });
+        expect(legendDialog).toBeTruthy();
+        expect(legendButton.getAttribute('aria-expanded')).toBe('true');
+        expect(legendDialog.textContent).toContain('מתוכנן');
+        expect(legendDialog.textContent).toContain('אבן דרך');
+
+        fireEvent.click(screen.getByRole('button', { name: 'סגור עזרה לקריאת הגאנט' }));
+
+        expect(container.querySelector('[data-gantt-legend-help]')).toBeNull();
+    });
+
+    it('renders a visible today label above the timeline ticks', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-01-15T12:00:00'));
+        try {
+            const { container } = render(<GanttChart viewportHeight="520px" data={baseData} />);
+            const todayLabel = container.querySelector('[data-gantt-today-label="header"]');
+
+            expect(todayLabel).toBeTruthy();
+            expect(todayLabel?.textContent).toContain('היום');
+            expect(Number(todayLabel?.getAttribute('data-gantt-x'))).toBeGreaterThan(0);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('opens milestone details on click', () => {
+        const { container } = render(<GanttChart viewportHeight="520px" data={baseData} />);
+        const milestone = container.querySelector('[data-gantt-milestone="ms-alpha"]');
+
+        fireEvent.click(milestone);
+
+        const popover = container.querySelector('[data-gantt-milestone-popover="ms-alpha"]');
+        expect(popover).toBeTruthy();
+        expect(popover?.textContent).toContain('מסירה');
+        expect(popover?.textContent).toContain('משימת אלפא');
+
+        fireEvent.click(screen.getByRole('button', { name: 'סגור פרטי אבן דרך' }));
+        expect(container.querySelector('[data-gantt-milestone-popover="ms-alpha"]')).toBeNull();
+    });
+
     it('keeps clean-card constrained by default but full width in public layout', () => {
         const cleanCardData = {
             ...baseData,
@@ -250,7 +320,7 @@ describe('GanttChart', () => {
 
         const { container: publicContainer } = render(
             <GanttChart
-                viewportHeight="clamp(560px, calc(100dvh - 180px), 920px)"
+                viewportHeight="calc(100dvh - 180px)"
                 layoutVariant="public"
                 data={cleanCardData}
             />
@@ -259,6 +329,25 @@ describe('GanttChart', () => {
         expect(publicShell?.getAttribute('data-gantt-layout-variant')).toBe('public');
         expect(publicShell?.className).toContain('max-w-none');
         expect(publicShell?.className).not.toContain('max-w-7xl');
-        expect(publicShell?.getAttribute('data-gantt-viewport-height')).toBe('clamp(560px, calc(100dvh - 180px), 920px)');
+        expect(publicShell?.getAttribute('data-gantt-viewport-height')).toBe('calc(100dvh - 180px)');
+    });
+
+    it('can shrink the public chart height to its rendered rows without the outer shadow', () => {
+        const { container } = render(
+            <GanttChart
+                viewportHeight="calc(100dvh - 180px)"
+                layoutVariant="public"
+                fitHeightToContent
+                data={baseData}
+            />
+        );
+        const publicShell = container.querySelector('[data-gantt-view-mode]');
+        const style = publicShell?.getAttribute('style') || '';
+
+        expect(publicShell?.getAttribute('data-gantt-fit-height-to-content')).toBe('true');
+        expect(publicShell?.className).toContain('shadow-none');
+        expect(style).toContain('max-height: calc(100dvh - 180px)');
+        expect(style).not.toMatch(/(^|;)\s*height:/);
+        expect(style).not.toContain('560px');
     });
 });

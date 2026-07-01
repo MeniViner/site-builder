@@ -45,6 +45,7 @@ import {
 import ConfigService from '../services/ConfigService';
 import { useConfig } from '../context/ConfigProvider';
 import BackupSiteLivePreview from './BackupSiteLivePreview';
+import DismissibleNotice from './DismissibleNotice';
 import backendApiClient from '../services/storage/backendApiClient';
 import { getSiteId, isMongoStorageBackend, isSharePointReadonlyBackend } from '../services/storage/storageBackend';
 
@@ -1156,10 +1157,12 @@ export default function AdminBackupManagement() {
                 </section>
 
                 {error && (
-                    <div className="flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
-                        <AlertTriangle className="mt-0.5 shrink-0" size={18} />
-                        <span>{error}</span>
-                    </div>
+                    <DismissibleNotice dismissKey={error} className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+                        <div className="flex items-start gap-3">
+                            <AlertTriangle className="mt-0.5 shrink-0" size={18} />
+                            <span>{error}</span>
+                        </div>
+                    </DismissibleNotice>
                 )}
 
                 <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -1381,12 +1384,12 @@ export default function AdminBackupManagement() {
                                     בודק קבצי גיבוי ומכין תצוגה מקדימה...
                                 </div>
                             ) : restoreModal.error ? (
-                                <div className="rounded-2xl border border-red-300 bg-red-50 p-4 text-sm text-red-800 dark:border-red-500/30 dark:bg-red-950/30 dark:text-red-100">
+                                <DismissibleNotice dismissKey={restoreModal.error} className="rounded-2xl border border-red-300 bg-red-50 p-4 text-sm text-red-800 dark:border-red-500/30 dark:bg-red-950/30 dark:text-red-100">
                                     <div className="flex items-start gap-2">
                                         <AlertTriangle className="mt-0.5 shrink-0" size={18} />
                                         <span>{restoreModal.error}</span>
                                     </div>
-                                </div>
+                                </DismissibleNotice>
                             ) : (
                                 <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
                                     <div className="min-w-0 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/[0.04]">

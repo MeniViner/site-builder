@@ -24,7 +24,7 @@ import { normalizeBorderStyle, panelStyle } from './utils/borderStyles';
 import { normalizeOverlayImageConfig } from './utils/overlayImageConfig';
 import { resolveSiteImageUrl } from './utils/assetUrl';
 import { openLinkTarget } from './utils/linkTargets';
-import { ALPHA_TEAM_CONFIG, APP_VERSION, getAlphaTeamLinks } from './config/alphaTeam.config';
+import { ALPHA_TEAM_CONFIG, getAlphaTeamLinks, getAppVersion } from './config/alphaTeam.config';
 import OrgChartPage from './pages/OrgChartPage';
 import AdminSharePointSetupPage from './pages/AdminSharePointSetupPage';
 import GanttPage from './pages/GanttPage';
@@ -135,6 +135,7 @@ export function Home({ isPreview = false }) {
   const alphaTeamLinks = getAlphaTeamLinks();
   const alphaTeamEmailLink = alphaTeamLinks.find((link) => link.key === 'email');
   const alphaTeamEmail = ALPHA_TEAM_CONFIG.email?.trim?.() || ALPHA_TEAM_CONFIG.nameEn;
+  const appVersion = getAppVersion();
   const heroGlassBlur = 10 + (heroGlassStrength * 0.36);
   const heroGlassBackgroundAlpha = 0.04 + (heroGlassStrength * 0.0018);
   const heroGlassBorderAlpha = 0.12 + (heroGlassStrength * 0.0013);
@@ -257,7 +258,7 @@ export function Home({ isPreview = false }) {
         {!externalLinksFixed && renderExternalLinks()}
 
         <div className="relative z-10 border-t border-theme-subtle py-4 sm:py-5 px-3 text-center bg-theme-bg-base flex flex-col sm:flex-row items-center justify-center gap-2 min-h-[118px] sm:min-h-[104px]">
-          <p className="text-xs text-theme-muted text-gray-900 dark:text-gray-100 truncate leading-tight"> מתנ"ה - siteBuilder {APP_VERSION}©</p>
+          <p className="text-xs text-theme-muted text-gray-900 dark:text-gray-100 truncate leading-tight"> מתנ"ה - siteBuilder {appVersion}©</p>
 
           {/* Alpha Team Watermark */}
           <div

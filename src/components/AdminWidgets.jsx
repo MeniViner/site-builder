@@ -9,6 +9,7 @@ import { useWidget } from '../context/WidgetContext';
 import WidgetLivePreview from './WidgetLivePreview';
 import { AdminPageHelpButton, HelpTooltipButton } from './AdminHelp';
 import { DEFAULT_ACTIVE_WIDGETS } from '../utils/widgetDisplay';
+import DismissibleNotice from './DismissibleNotice';
 
 const AVAILABLE_WIDGETS = [
   { id: 'events', label: 'לוח אירועים', description: 'הצגת אירועים קרובים עם ניהול מלא דרך ממשק האירועים.', icon: Calendar },
@@ -83,10 +84,12 @@ export default function AdminWidgets() {
 
       {error && (
         <div className="px-8 pt-4">
-          <div className="mb-4 flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/10 p-4">
-            <AlertTriangle className="shrink-0 text-primary" />
-            <span className="text-gray-800 dark:text-gray-100">{error}</span>
-          </div>
+          <DismissibleNotice dismissKey={error} className="mb-4 rounded-lg border border-primary/30 bg-primary/10 p-4">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="shrink-0 text-primary" />
+              <span className="text-gray-800 dark:text-gray-100">{error}</span>
+            </div>
+          </DismissibleNotice>
         </div>
       )}
 
