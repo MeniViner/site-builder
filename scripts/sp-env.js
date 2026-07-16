@@ -15,6 +15,8 @@ const DEFAULTS = {
   imagesFolder: 'images',
   widgetsDbTarget: 'users',
   autoDeploy: 'false',
+  storageBackend: 'txt',
+  backendApiUrl: '',
 };
 
 export function parseCliArgs(argv = process.argv.slice(2)) {
@@ -89,59 +91,73 @@ const extractLibraryTitle = (value, fallback) => {
   return segments[segments.length - 1] || fallback;
 };
 
-export function resolveConfig({ envFilePath = path.resolve(process.cwd(), '.env.production'), cli = {} } = {}) {
+export function resolveConfig({ envFilePath = path.resolve(process.cwd(), '.env.production'), cli = {}, environment = process.env } = {}) {
   const envFromFile = loadEnvFile(envFilePath);
 
-  const host = pick(cli.host, process.env.VITE_SP_HOST || envFromFile.VITE_SP_HOST, DEFAULTS.host);
+  const host = pick(cli.host, environment.VITE_SP_HOST || envFromFile.VITE_SP_HOST, DEFAULTS.host);
   const siteCode = pick(
     cli.site || cli['site-code'],
-    process.env.VITE_SP_SITE_CODE || envFromFile.VITE_SP_SITE_CODE,
+    environment.VITE_SP_SITE_CODE || envFromFile.VITE_SP_SITE_CODE,
     DEFAULTS.siteCode,
   );
   const siteDbFolder = extractLibraryTitle(pick(
     cli['site-db'],
-    process.env.VITE_SP_SITE_DB_FOLDER || envFromFile.VITE_SP_SITE_DB_FOLDER,
+    environment.VITE_SP_SITE_DB_FOLDER || envFromFile.VITE_SP_SITE_DB_FOLDER,
     DEFAULTS.siteDbFolder,
   ), DEFAULTS.siteDbFolder);
   const usersDbFolder = extractLibraryTitle(pick(
     cli['users-db'],
-    process.env.VITE_SP_USERS_DB_FOLDER || envFromFile.VITE_SP_USERS_DB_FOLDER,
+    environment.VITE_SP_USERS_DB_FOLDER || envFromFile.VITE_SP_USERS_DB_FOLDER,
     DEFAULTS.usersDbFolder,
   ), DEFAULTS.usersDbFolder);
   const siteAssetsFolder = pick(
     cli['site-assets'],
-    process.env.VITE_SP_SITE_ASSETS_FOLDER || envFromFile.VITE_SP_SITE_ASSETS_FOLDER,
+    environment.VITE_SP_SITE_ASSETS_FOLDER || envFromFile.VITE_SP_SITE_ASSETS_FOLDER,
     DEFAULTS.siteAssetsFolder,
   );
   const imagesFolder = pick(
     cli.images,
-    process.env.VITE_SP_IMAGES_FOLDER || envFromFile.VITE_SP_IMAGES_FOLDER,
+    environment.VITE_SP_IMAGES_FOLDER || envFromFile.VITE_SP_IMAGES_FOLDER,
     DEFAULTS.imagesFolder,
   );
   const widgetsDbTarget = pick(
     cli['widgets-db-target'],
-    process.env.VITE_SP_WIDGETS_DB_TARGET || envFromFile.VITE_SP_WIDGETS_DB_TARGET,
+    environment.VITE_SP_WIDGETS_DB_TARGET || envFromFile.VITE_SP_WIDGETS_DB_TARGET,
     DEFAULTS.widgetsDbTarget,
   ).toLowerCase() === 'site' ? 'site' : 'users';
 
   const autoDeploy = pick(
     cli['auto-deploy'],
-    process.env.VITE_AUTO_DEPLOY || envFromFile.VITE_AUTO_DEPLOY,
+    environment.VITE_AUTO_DEPLOY || envFromFile.VITE_AUTO_DEPLOY,
     DEFAULTS.autoDeploy,
   );
+  const explicitStorageBackend = String(
+    cli['storage-backend'] || cli.storageBackend
+    || environment.VITE_STORAGE_BACKEND || envFromFile.VITE_STORAGE_BACKEND
+    || '',
+  ).trim();
+  const storageBackend = explicitStorageBackend || DEFAULTS.storageBackend;
+  if (!['txt', 'mongo'].includes(storageBackend)) {
+    throw new Error(`Invalid VITE_STORAGE_BACKEND "${storageBackend}". Expected txt or mongo.`);
+  }
+  const backendApiUrl = pick(
+    cli['backend-url'] || cli.backendUrl || cli['api-url'],
+    environment.VITE_BACKEND_API_URL || envFromFile.VITE_BACKEND_API_URL,
+    DEFAULTS.backendApiUrl,
+  ).replace(/\/+$/g, '');
   const bootstrapLibrary = normalizePathSegment(pick(
     cli['bootstrap-library'],
-    process.env.VITE_SP_BOOTSTRAP_LIBRARY || envFromFile.VITE_SP_BOOTSTRAP_LIBRARY,
+    environment.VITE_SP_BOOTSTRAP_LIBRARY || envFromFile.VITE_SP_BOOTSTRAP_LIBRARY,
     DEFAULTS.bootstrapLibrary,
   ), DEFAULTS.bootstrapLibrary);
   const bootstrapFolder = normalizePathSegment(pick(
     cli['bootstrap-folder'],
-    process.env.VITE_SP_BOOTSTRAP_FOLDER || envFromFile.VITE_SP_BOOTSTRAP_FOLDER,
+    environment.VITE_SP_BOOTSTRAP_FOLDER || envFromFile.VITE_SP_BOOTSTRAP_FOLDER,
     DEFAULTS.bootstrapFolder,
   ), DEFAULTS.bootstrapFolder);
   const bootstrapSetupLogs = pick(
     cli['bootstrap-setup-logs'],
-    process.env.VITE_SP_BOOTSTRAP_SETUP_LOGS || envFromFile.VITE_SP_BOOTSTRAP_SETUP_LOGS,
+    environment.VITE_SP_BOOTSTRAP_SETUP_LOGS || envFromFile.VITE_SP_BOOTSTRAP_SETUP_LOGS,
     DEFAULTS.bootstrapSetupLogs,
   );
 
@@ -155,13 +171,18 @@ export function resolveConfig({ envFilePath = path.resolve(process.cwd(), '.env.
   const distRel = `${siteDbRel}/dist`;
   const siteApiRootRel = pick(
     cli['api-root'],
-    process.env.VITE_SP_SITE_API_ROOT || envFromFile.VITE_SP_SITE_API_ROOT,
+    environment.VITE_SP_SITE_API_ROOT || envFromFile.VITE_SP_SITE_API_ROOT,
     siteRootRel,
   );
   const siteBaseUrl = pick(
     cli['site-base-url'],
-    process.env.VITE_SITE_BASE_URL || envFromFile.VITE_SITE_BASE_URL,
+    environment.VITE_SITE_BASE_URL || envFromFile.VITE_SITE_BASE_URL,
     `https://${host}${distRel}`,
+  );
+  const siteId = pick(
+    cli['site-id'] || cli.siteId,
+    environment.VITE_SITE_ID || envFromFile.VITE_SITE_ID,
+    siteCode,
   );
 
   const fileMap = {
@@ -194,6 +215,10 @@ export function resolveConfig({ envFilePath = path.resolve(process.cwd(), '.env.
     imagesFolder,
     widgetsDbTarget,
     autoDeploy,
+    storageBackend,
+    storageBackendSource: explicitStorageBackend ? 'production-environment' : 'safe-production-default',
+    backendApiUrl,
+    siteId,
     bootstrapLibrary,
     bootstrapFolder,
     bootstrapSetupLogs,
@@ -226,6 +251,9 @@ export function writeEnvProduction(config, outputPath = path.resolve(process.cwd
     `VITE_SP_WIDGETS_DB_TARGET=${config.widgetsDbTarget}`,
     `VITE_SP_SITE_API_ROOT=${config.siteApiRootRel}`,
     `VITE_SITE_BASE_URL=${config.siteBaseUrl}`,
+    `VITE_STORAGE_BACKEND=${config.storageBackend || 'txt'}`,
+    `VITE_BACKEND_API_URL=${config.backendApiUrl || ''}`,
+    `VITE_SITE_ID=${config.siteId || config.siteCode}`,
     '',
     '# Logging (מרוכז)',
     'VITE_SP_VERBOSE_LOG=false',
@@ -241,7 +269,7 @@ export function writeEnvProduction(config, outputPath = path.resolve(process.cwd
     'VITE_ALPHA_AI_DEBUG=false',
     '',
     'VITE_AUTO_DEPLOY=true',
-    'VITE_AUTO_DEPLOY_STRICT=false',
+    'VITE_AUTO_DEPLOY_STRICT=true',
     '',
   ];
 

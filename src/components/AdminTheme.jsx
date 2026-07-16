@@ -73,7 +73,7 @@ const BORDER_TARGET_OPTIONS = [
 const REGULAR_LINK_LAYOUTS = [
     { value: 'sidebar-right', label: 'כפתורי צד ', description: 'סרגל ניווט צדדי קבוע בצד ימין', icon: PanelRight },
     { value: 'grid', label: 'כרטיסיות מתהפכות', description: 'כרטיסי Flip בתצוגת גריד', icon: LayoutGrid },
-    // { value: 'compact', label: 'Compact List', description: 'רשימה מינימליסטית עם שורות פשוטות', icon: List },
+    { value: 'compact', label: 'רשימה קומפקטית', description: 'רשימה מינימליסטית עם שורות פשוטות', icon: List },
     { value: 'hq', label: 'תצוגת מרכז פיקוד', description: 'עיצוב מרכז פיקוד מינימליסטי', icon: List },
 ];
 
@@ -393,7 +393,7 @@ function buildThemeAiPrompt({ instruction, contextSnapshot }) {
         '  "displayMode": "dark|light|user-toggle",',
         '  "borderStyle": "standard|square|cyber|armor|shield|blade",',
         '  "widgetHeight": "full|high|medium|low",',
-        '  "regularLinksLayout": "sidebar-right|grid|hq",',
+        '  "regularLinksLayout": "sidebar-right|grid|compact|hq",',
         '  "externalLinksLayout": "cards|minimal|floating",',
         '  "useTintedBackground": true/false,',
         '  "tintedBackgroundStrength": 0-100,',

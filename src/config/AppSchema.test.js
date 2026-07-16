@@ -27,4 +27,32 @@ describe('migrateLegacyToV1', () => {
         expect(migrated.externalLinks.items).toEqual([]);
         expect(migrated.access.adminUsers).toEqual([]);
     });
+
+    it('preserves legacy navigation target aliases and folder/link intent', () => {
+        const migrated = migrateLegacyToV1({
+            nav: [
+                {
+                    id: 'network-root',
+                    title: 'Network root',
+                    type: 'directory',
+                    folderPath: '\\\\fileserver\\public',
+                    children: [
+                        { id: 'handbook', label: 'Handbook', href: 'smb://fileserver/public/handbook' },
+                    ],
+                },
+            ],
+        });
+
+        expect(migrated.navigation.items[0]).toMatchObject({
+            id: 'network-root',
+            label: 'Network root',
+            kind: 'folder',
+            url: '\\\\fileserver\\public',
+        });
+        expect(migrated.navigation.items[0].children[0]).toMatchObject({
+            id: 'handbook',
+            kind: 'link',
+            url: 'smb://fileserver/public/handbook',
+        });
+    });
 });

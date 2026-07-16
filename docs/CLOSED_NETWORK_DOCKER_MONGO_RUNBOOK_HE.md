@@ -250,7 +250,7 @@ CORS_ORIGINS=http://site-builder-dev01:5173,http://localhost:5173,http://127.0.0
 VITE_STORAGE_BACKEND=mongo
 VITE_BACKEND_API_URL=http://localhost:3001
 VITE_SITE_ID=local-dev-site
-VITE_SITE_BUILDER_API_KEY=dev-local-api-key
+VITE_SITE_BUILDER_DEV_API_KEY=dev-local-api-key
 VITE_AUTO_DEPLOY=false
 ```
 
@@ -260,13 +260,13 @@ VITE_AUTO_DEPLOY=false
 VITE_STORAGE_BACKEND=mongo
 VITE_BACKEND_API_URL=http://site-builder-dev01:3001
 VITE_SITE_ID=local-dev-site
-VITE_SITE_BUILDER_API_KEY=dev-local-api-key
+VITE_SITE_BUILDER_DEV_API_KEY=dev-local-api-key
 VITE_AUTO_DEPLOY=false
 ```
 
 חשוב:
 
-- `VITE_SITE_BUILDER_API_KEY` חייב להיות זהה ל-`ADMIN_API_KEY`.
+- `VITE_SITE_BUILDER_DEV_API_KEY` חייב להיות זהה ל-`ADMIN_API_KEY` ומותר רק ב-development מקומי.
 - `VITE_AUTO_DEPLOY` חייב להיות `false`.
 - אין לשים כאן כתובת SharePoint.
 - אין לשים כאן כתובת Mongo production.
@@ -506,7 +506,7 @@ ADMIN_API_KEY=dev-local-api-key
 ```
 
 ```env
-VITE_SITE_BUILDER_API_KEY=dev-local-api-key
+VITE_SITE_BUILDER_DEV_API_KEY=dev-local-api-key
 ```
 
 הערכים חייבים להיות זהים.
@@ -792,7 +792,7 @@ site_builder_test
 - [ ] `.env.local`, `server/.env.local`, `server/.env.test` נוצרו.
 - [ ] `VITE_BACKEND_API_URL` מצביע ל-backend הנכון.
 - [ ] `CORS_ORIGINS` כולל את כתובת ה-Frontend.
-- [ ] `ADMIN_API_KEY` ו-`VITE_SITE_BUILDER_API_KEY` זהים.
+- [ ] `ADMIN_API_KEY` ו-`VITE_SITE_BUILDER_DEV_API_KEY` זהים בסביבת development בלבד.
 - [ ] `VITE_AUTO_DEPLOY=false`.
 - [ ] `npm run dev:mongo:check` מחזיר PASS.
 - [ ] `curl http://localhost:3001/api/healthz` מחזיר `ok: true`.
@@ -845,7 +845,7 @@ ADMIN_API_KEY=...
 ```env
 VITE_STORAGE_BACKEND=mongo
 VITE_BACKEND_API_URL=http://...
-VITE_SITE_BUILDER_API_KEY=...
+VITE_SITE_BUILDER_DEV_API_KEY=...
 ```
 
 בדפדפן, אם יש CORS:
@@ -862,7 +862,7 @@ CORS_ORIGINS=http://...
 
 ```text
 server/.env.local -> ADMIN_API_KEY
-.env.local -> VITE_SITE_BUILDER_API_KEY
+.env.local -> VITE_SITE_BUILDER_DEV_API_KEY
 ```
 
 ### אסור להמשיך אם
@@ -873,4 +873,3 @@ server/.env.local -> ADMIN_API_KEY
 - אחד מקבצי TXT ריק בלי הסבר.
 - `VITE_AUTO_DEPLOY` לא `false`.
 - env מצביע על production.
-

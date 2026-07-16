@@ -6,6 +6,7 @@ import {
     ExternalLink,
     Loader2,
     Plus,
+    Repeat2,
     RotateCcw,
     Search,
     Trash2,
@@ -19,17 +20,23 @@ import {
     DEFAULT_GANTT_DATA,
     GANTT_COLOR_OPTIONS,
     GANTT_DESIGN_PRESETS,
+    GANTT_RECURRENCE_FREQUENCY_OPTIONS,
+    GANTT_RECURRENCE_MONTHLY_MODE_OPTIONS,
     GANTT_STATUS_OPTIONS,
     GANTT_VIEW_OPTIONS,
+    GANTT_WEEKDAY_OPTIONS,
     applyGanttDesignPreset,
     cloneGanttData,
     computeGanttProgress,
     computeGanttTimeStatus,
     createGanttTask,
+    describeGanttRecurrence,
     isValidGanttColor,
     normalizeGanttDesignSettings,
     normalizeGanttMilestones,
     normalizeGanttData,
+    normalizeGanttRecurrence,
+    normalizeGanttRecurrenceForm,
     normalizeGanttTask,
 } from '../utils/ganttData';
 import { confirmToast } from '../utils/confirmToast';
@@ -227,6 +234,43 @@ function ProgressMeter({ value }) {
     );
 }
 
+function WeekdaySelector({ value, onChange }) {
+    const selected = new Set(Array.isArray(value) ? value.map(Number) : []);
+    const toggleDay = (day) => {
+        const next = new Set(selected);
+        if (next.has(day) && next.size > 1) {
+            next.delete(day);
+        } else {
+            next.add(day);
+        }
+        onChange([...next].sort((a, b) => a - b));
+    };
+
+    return (
+        <div className="grid grid-cols-7 gap-1.5" role="group" aria-label="בחירת ימי חזרה">
+            {GANTT_WEEKDAY_OPTIONS.map((day) => {
+                const isSelected = selected.has(day.value);
+                return (
+                    <button
+                        key={day.value}
+                        type="button"
+                        onClick={() => toggleDay(day.value)}
+                        className={`inline-flex h-10 items-center justify-center rounded-xl border text-xs font-black transition ${
+                            isSelected
+                                ? 'border-primary bg-primary text-white shadow-sm'
+                                : 'border-gray-200 bg-white text-gray-600 hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-gray-300'
+                        }`}
+                        aria-pressed={isSelected}
+                        title={day.label}
+                    >
+                        {day.shortLabel}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
 function ToggleSwitch({ checked, onChange, label }) {
     return (
         <button
@@ -297,7 +341,11 @@ function TaskModal({ modal, categories, onClose, onSubmit, onChange }) {
     const form = modal?.form;
     if (!form) return null;
     const milestones = normalizeGanttMilestones(form.milestones);
+    const recurrence = normalizeGanttRecurrenceForm(form.recurrence, form);
     const updateMilestones = (nextMilestones) => onChange({ milestones: normalizeGanttMilestones(nextMilestones) });
+    const updateRecurrence = (patch) => {
+        onChange({ recurrence: normalizeGanttRecurrenceForm({ ...recurrence, ...patch }, form) });
+    };
     const createMilestoneId = (nextOrder) => {
         const baseId = String(form.id || 'gantt-task').replace(/[^a-zA-Z0-9_-]/g, '-');
         let suffix = nextOrder;
@@ -435,6 +483,97 @@ function TaskModal({ modal, categories, onClose, onSubmit, onChange }) {
                             />
                         </label>
                     </div>
+
+                    <section className="mt-5 rounded-2xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#202532]">
+                        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <h3 className="text-lg font-black text-gray-900 dark:text-white">מופע חוזר</h3>
+                                <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">המשימה המקורית משמשת כתבנית, והמופעים נוצרים אוטומטית לפי הכלל.</p>
+                            </div>
+                            <ToggleSwitch
+                                checked={recurrence.enabled}
+                                onChange={(enabled) => updateRecurrence({ enabled })}
+                                label={recurrence.enabled ? 'מופע חוזר פעיל' : 'חד פעמי'}
+                            />
+                        </div>
+
+                        {recurrence.enabled ? (
+                            <div className="grid gap-3 lg:grid-cols-2">
+                                <label className={compactCardCls}>
+                                    <span className={labelCls}>תדירות</span>
+                                    <select className={inputCls} value={recurrence.frequency} onChange={(event) => updateRecurrence({ frequency: event.target.value })}>
+                                        {GANTT_RECURRENCE_FREQUENCY_OPTIONS.map((option) => (
+                                            <option key={option.value} value={option.value}>{option.label}</option>
+                                        ))}
+                                    </select>
+                                </label>
+                                <label className={compactCardCls}>
+                                    <span className={labelCls}>כל כמה {recurrence.frequency === 'monthly' ? 'חודשים' : 'שבועות'}</span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="24"
+                                        className={inputCls}
+                                        value={recurrence.interval}
+                                        onChange={(event) => updateRecurrence({ interval: event.target.value })}
+                                    />
+                                </label>
+
+                                {recurrence.frequency === 'monthly' && (
+                                    <label className={compactCardCls}>
+                                        <span className={labelCls}>שיטת חודש</span>
+                                        <select className={inputCls} value={recurrence.monthlyMode} onChange={(event) => updateRecurrence({ monthlyMode: event.target.value })}>
+                                            {GANTT_RECURRENCE_MONTHLY_MODE_OPTIONS.map((option) => (
+                                                <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                )}
+
+                                {recurrence.frequency === 'monthly' && recurrence.monthlyMode === 'dayOfMonth' ? (
+                                    <label className={compactCardCls}>
+                                        <span className={labelCls}>יום בחודש</span>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="31"
+                                            className={inputCls}
+                                            value={recurrence.dayOfMonth}
+                                            onChange={(event) => updateRecurrence({ dayOfMonth: event.target.value })}
+                                        />
+                                    </label>
+                                ) : (
+                                    <div className={`${compactCardCls} ${recurrence.frequency === 'monthly' ? '' : 'lg:col-span-2'}`}>
+                                        <span className={labelCls}>ימים בשבוע</span>
+                                        <WeekdaySelector value={recurrence.weekdays} onChange={(weekdays) => updateRecurrence({ weekdays })} />
+                                    </div>
+                                )}
+
+                                <label className={compactCardCls}>
+                                    <span className={labelCls}>חוזר עד תאריך</span>
+                                    <input type="date" className={inputCls} value={recurrence.until} onChange={(event) => updateRecurrence({ until: event.target.value })} />
+                                </label>
+                                <label className={compactCardCls}>
+                                    <span className={labelCls}>מקסימום מופעים לייצוא</span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="500"
+                                        className={inputCls}
+                                        value={recurrence.maxOccurrences}
+                                        onChange={(event) => updateRecurrence({ maxOccurrences: event.target.value })}
+                                    />
+                                </label>
+                                <div className="rounded-2xl border border-primary/20 bg-primary/[0.05] p-3 text-sm font-bold leading-6 text-primary dark:bg-primary/[0.1] lg:col-span-2">
+                                    {describeGanttRecurrence(recurrence, form)}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="rounded-xl border border-dashed border-gray-300 p-5 text-center text-sm text-gray-500 dark:border-white/20 dark:text-gray-400">
+                                המשימה תופיע פעם אחת בלבד לפי תאריכי ההתחלה והסיום.
+                            </div>
+                        )}
+                    </section>
 
                     <section className="mt-5 rounded-2xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#202532]">
                         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -682,6 +821,10 @@ export default function AdminGantt() {
         const milestones = Array.isArray(task.milestones) ? task.milestones : [];
         const invalidMilestone = milestones.find((milestone) => !String(milestone.title || '').trim() || !milestone.date);
         if (invalidMilestone) return 'כל אבן דרך חייבת לכלול שם ותאריך.';
+        const recurrence = normalizeGanttRecurrence(task.recurrence, task);
+        if (recurrence.enabled && recurrence.until && Date.parse(`${recurrence.until}T00:00:00`) < Date.parse(`${task.startDate}T00:00:00`)) {
+            return 'תאריך הסיום של המופע החוזר לא יכול להיות לפני תאריך ההתחלה.';
+        }
         return '';
     };
 
@@ -1223,10 +1366,11 @@ export default function AdminGantt() {
                                             <div className="flex items-center gap-2">
                                                 <span className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-gray-200 dark:ring-white/10" style={{ backgroundColor: task.color }} title={task.color} />
                                                 {task.milestones.length > 0 && <Diamond size={14} className="shrink-0 text-primary" title={`${task.milestones.length} אבני דרך`} />}
+                                                {task.recurrence?.enabled && <Repeat2 size={14} className="shrink-0 text-primary" title={describeGanttRecurrence(task.recurrence, task)} />}
                                                 <div className="min-w-0">
                                                     <div className="truncate font-black text-gray-900 dark:text-white" title={task.title}>{task.title}</div>
                                                     <div className="truncate text-xs text-gray-500 dark:text-gray-400" title={task.details || ''}>
-                                                        {task.milestones.length > 0 ? `${task.milestones.length} אבני דרך` : (task.details || '')}
+                                                        {task.recurrence?.enabled ? describeGanttRecurrence(task.recurrence, task) : (task.milestones.length > 0 ? `${task.milestones.length} אבני דרך` : (task.details || ''))}
                                                     </div>
                                                 </div>
                                             </div>
@@ -1275,6 +1419,7 @@ export default function AdminGantt() {
                                         <div className="flex min-w-0 items-center gap-2">
                                             <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-gray-200 dark:ring-white/10" style={{ backgroundColor: task.color }} />
                                             {task.milestones.length > 0 && <Diamond size={14} className="shrink-0 text-primary" title={`${task.milestones.length} אבני דרך`} />}
+                                            {task.recurrence?.enabled && <Repeat2 size={14} className="shrink-0 text-primary" title={describeGanttRecurrence(task.recurrence, task)} />}
                                             <h3 className="truncate text-base font-black text-gray-900 dark:text-white">{task.title}</h3>
                                         </div>
                                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -1289,6 +1434,12 @@ export default function AdminGantt() {
                                         {task.category}
                                     </GanttPill>
                                     <TaskBadges task={task} />
+                                    {task.recurrence?.enabled && (
+                                        <GanttPill className="border-primary/20 bg-primary/10 text-primary">
+                                            <Repeat2 size={12} />
+                                            חוזר
+                                        </GanttPill>
+                                    )}
                                 </div>
                                 <div className="mt-4">
                                             <ProgressMeter value={computeGanttProgress(task)} />

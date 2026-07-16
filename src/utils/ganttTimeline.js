@@ -228,11 +228,15 @@ export function buildGanttTimelineModel({
     groupBy = 'category',
     categories = [],
     periodOffset = 0,
+    timelineRange = null,
 }) {
     if (!Array.isArray(items) || items.length === 0) return null;
     const safeViewMode = GANTT_TIMELINE_VIEW_CONFIG[viewMode] ? viewMode : 'month';
     const config = GANTT_TIMELINE_VIEW_CONFIG[safeViewMode];
-    const range = resolveGanttTimelineRange(items, safeViewMode, todayString, periodOffset);
+    const hasFixedRange = Number.isFinite(timelineRange?.start) && Number.isFinite(timelineRange?.end);
+    const range = hasFixedRange
+        ? { start: timelineRange.start, end: timelineRange.end }
+        : resolveGanttTimelineRange(items, safeViewMode, todayString, periodOffset);
     const totalDays = diffGanttDays(range.start, range.end) + 1;
     const availableTimelineMin = compact
         ? config.minWidth

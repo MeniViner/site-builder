@@ -1,12 +1,18 @@
 // src/config/sharepoint.config.js
 import { SHAREPOINT_PATHS } from './sharepointPaths';
+import { isLocalDevStorageBackend } from '../services/storage/storageBackend';
 
 const isDevMode = import.meta.env.MODE === 'development';
 const isForcedMock = import.meta.env.VITE_USE_MOCK === 'true';
 const isEnvMockAdminBypassEnabled = import.meta.env.VITE_ALLOW_MOCK_ADMIN_BYPASS === 'true';
 
 export const SHAREPOINT_CONFIG = {
+    // Authentication can stay mocked during development, independently of the
+    // selected persistence backend.
     useMock: isDevMode || isForcedMock,
+    // localStorage is a development transport only for an explicitly selected
+    // TXT frontend. Mongo development must never read or migrate localStorage.
+    useMockStorage: isLocalDevStorageBackend(),
     // Development must always keep admin mode available.
     allowMockAdminBypass: isDevMode || isEnvMockAdminBypassEnabled,
 

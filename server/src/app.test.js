@@ -32,6 +32,33 @@ describe('site-builder API', () => {
     await request(app).get('/api/sites').expect(401);
   });
 
+  it('returns a version-zero legacy envelope for a new site and accepts its first save', async () => {
+    const missing = await request(app)
+      .get('/api/sites/new-site/legacy-object?key=bihs_master_config_v1.txt')
+      .set('x-api-key', 'secret')
+      .expect(200);
+
+    expect(missing.body).toMatchObject({
+      ok: true,
+      key: 'bihs_master_config_v1.txt',
+      data: null,
+      version: 0,
+      missing: true,
+    });
+
+    const firstSave = await request(app)
+      .put('/api/sites/new-site/legacy-object')
+      .set('x-api-key', 'secret')
+      .send({
+        key: 'bihs_master_config_v1.txt',
+        data: { schemaVersion: '1.0.0', navigation: { items: [] } },
+        expectedVersion: 0,
+      })
+      .expect(200);
+
+    expect(firstSave.body).toMatchObject({ ok: true, version: 1, missing: false });
+  });
+
   it('creates a site and reads/writes data', async () => {
     await request(app)
       .post('/api/sites')

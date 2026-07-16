@@ -267,9 +267,44 @@ describe('GanttChart', () => {
         }
     });
 
+    it('renders recurring task occurrences inside the current timeline range', () => {
+        const { container } = render(
+            <GanttChart
+                viewportHeight="520px"
+                data={{
+                    ...baseData,
+                    items: [
+                        {
+                            id: 'weekly-briefing',
+                            title: 'עדכון חוזר',
+                            category: 'בדיקות',
+                            status: 'planned',
+                            startDate: '2026-01-05',
+                            endDate: '2026-01-05',
+                            color: '#2563eb',
+                            recurrence: {
+                                enabled: true,
+                                frequency: 'weekly',
+                                weekdays: [1],
+                                until: '2026-01-31',
+                            },
+                        },
+                    ],
+                }}
+            />
+        );
+
+        const occurrenceBars = container.querySelectorAll('[data-gantt-task-bar^="weekly-briefing__occ_"]');
+        expect(occurrenceBars).toHaveLength(4);
+        expect(container.textContent).toContain('חוזר');
+    });
+
     it('opens milestone details on click', () => {
         const { container } = render(<GanttChart viewportHeight="520px" data={baseData} />);
         const milestone = container.querySelector('[data-gantt-milestone="ms-alpha"]');
+        const scrollBody = container.querySelector('[data-gantt-scroll-body]');
+
+        expect(scrollBody?.getAttribute('data-gantt-milestone-popover-open')).toBe('false');
 
         fireEvent.click(milestone);
 
@@ -277,9 +312,13 @@ describe('GanttChart', () => {
         expect(popover).toBeTruthy();
         expect(popover?.textContent).toContain('מסירה');
         expect(popover?.textContent).toContain('משימת אלפא');
+        expect(popover?.className).toContain('z-[120]');
+        expect(scrollBody?.getAttribute('data-gantt-milestone-popover-open')).toBe('true');
+        expect(scrollBody?.getAttribute('style')).toContain('padding-bottom: 190px');
 
         fireEvent.click(screen.getByRole('button', { name: 'סגור פרטי אבן דרך' }));
         expect(container.querySelector('[data-gantt-milestone-popover="ms-alpha"]')).toBeNull();
+        expect(scrollBody?.getAttribute('data-gantt-milestone-popover-open')).toBe('false');
     });
 
     it('keeps clean-card constrained by default but full width in public layout', () => {

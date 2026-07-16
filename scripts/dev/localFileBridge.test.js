@@ -8,6 +8,7 @@ import {
   fileHrefFromUserPath,
   filePathFromHref,
   formatBytes,
+  getDefaultOpenCommand,
   readDirectoryModel,
   renderDirectoryPage,
   searchDirectoryModel,
@@ -61,6 +62,29 @@ describe('local file bridge path helpers', () => {
 
     expect(fileHrefFromUserPath(href, dir)).toBe(href)
   })
+
+  it('builds native default-app open commands per operating system', () => {
+    expect(getDefaultOpenCommand('/tmp/report file.docx', 'darwin')).toEqual({
+      command: 'open',
+      args: ['/tmp/report file.docx'],
+      options: { detached: true, stdio: 'ignore' },
+    })
+    expect(getDefaultOpenCommand('C:\\Temp\\report file.xlsx', 'win32')).toEqual({
+      command: 'cmd',
+      args: ['/c', 'start', '', 'C:\\Temp\\report file.xlsx'],
+      options: { detached: true, stdio: 'ignore', windowsHide: true },
+    })
+    expect(getDefaultOpenCommand('\\\\server\\share\\report file.xlsx', 'win32')).toEqual({
+      command: 'cmd',
+      args: ['/c', 'start', '', '\\\\server\\share\\report file.xlsx'],
+      options: { detached: true, stdio: 'ignore', windowsHide: true },
+    })
+    expect(getDefaultOpenCommand('/tmp/report file.pdf', 'linux')).toEqual({
+      command: 'xdg-open',
+      args: ['/tmp/report file.pdf'],
+      options: { detached: true, stdio: 'ignore' },
+    })
+  })
 })
 
 describe('local file bridge directory rendering', () => {
@@ -76,21 +100,36 @@ describe('local file bridge directory rendering', () => {
 
     const html = renderDirectoryPage(model)
     expect(html).toContain('data-file-shell')
-    expect(html).toContain('data-view="grid"')
-    expect(html).toContain('מנהל קבצים בתיקיות הרשת')
+    expect(html).toContain('data-view="list"')
+    expect(html).toContain(`<h1 dir="auto">${path.basename(dir)}</h1>`)
+    expect(html).toContain('סייר הקבצים · תיקיות רשת')
+    expect(html).toContain('font-family: "Segoe UI", Arial, sans-serif')
+    expect(html).toContain('--color-primary-hex: #0067c0')
+    expect(html).toContain('color-scheme: light')
+    expect(html).not.toContain('fonts.googleapis.com')
     expect(html).toContain('data-action="search-toggle"')
     expect(html).toContain('data-search-input')
     expect(html).toContain('data-search-results')
     expect(html).toContain('data-action="back"')
     expect(html).toContain('data-view-button="grid"')
-    expect(html).toContain('data-view-button="grid" aria-pressed="true"')
+    expect(html).toContain('data-view-button="list" aria-pressed="true"')
     expect(html).toContain('<nav class="toolbar"')
+    expect(html).toContain('<aside class="navigation-pane"')
+    expect(html).toContain('גישה מהירה')
+    expect(html).toContain('<section class="explorer-workspace"')
+    expect(html).toContain('<div class="content-heading">')
+    expect(html).toContain('<footer class="status-bar">')
+    expect(html).toContain('class="icon folder-icon"')
+    expect(html).toContain('fill="#FFD35A"')
+    expect(html).toContain('.file-shell[data-view="grid"] .entry-type {\n      display: none;')
     expect(html).toContain('<form class="path-form"')
     expect(html).toContain(`value="${dir}`)
     expect(html).toContain('folder b')
     expect(html).toContain('alpha.txt')
     expect(html).toContain('target="_blank" rel="noopener"')
     expect(html).toContain('data-open-file="true"')
+    expect(html).toContain('data-open-native="true"')
+    expect(html).toContain('פתח באפליקציה')
   })
 
   it('formats byte sizes for the list view', () => {

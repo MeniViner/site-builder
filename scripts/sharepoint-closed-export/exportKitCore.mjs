@@ -586,6 +586,11 @@ export async function createClosedSharePointExportArtifact({
     warnings,
     errors,
     safeForMongoDryRun,
+    activation: {
+      performed: false,
+      storageBackendChanged: false,
+      note: 'This export is a data-only artifact and never activates Mongo.',
+    },
   };
 
   const legacyObjects = {
@@ -699,6 +704,11 @@ export async function createClosedSharePointBatchExportArtifact({
     warnings,
     errors,
     safeForMongoDryRun,
+    activation: {
+      performed: false,
+      storageBackendChanged: false,
+      note: 'This batch export is data-only and never activates Mongo.',
+    },
   };
 
   const reportMd = buildBatchReportMarkdown(manifest);

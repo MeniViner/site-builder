@@ -106,7 +106,7 @@ Frontend local env:
 VITE_STORAGE_BACKEND=mongo
 VITE_BACKEND_API_URL=http://localhost:3001
 VITE_SITE_ID=local-dev-site
-VITE_SITE_BUILDER_API_KEY=dev-local-api-key
+VITE_SITE_BUILDER_DEV_API_KEY=dev-local-api-key
 VITE_AUTO_DEPLOY=false
 ```
 

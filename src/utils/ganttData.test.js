@@ -7,9 +7,13 @@ import {
     applyGanttDesignPreset,
     computeGanttProgress,
     computeGanttTimeStatus,
+    describeGanttRecurrence,
+    expandGanttRecurringTasks,
+    getGanttRecurringOccurrenceDates,
     normalizeGanttData,
     normalizeGanttDesignSettings,
     normalizeGanttMilestones,
+    normalizeGanttRecurrence,
 } from './ganttData';
 
 describe('gantt data normalization', () => {
@@ -151,6 +155,133 @@ describe('gantt data normalization', () => {
 
         expect(normalized.settings.unrelatedFutureSetting).toBe(true);
         expect(normalized.settings.design.presetId).toBe('classic-beige');
+    });
+
+    it('keeps enabled recurrence settings and omits disabled recurrence from saved tasks', () => {
+        const normalized = normalizeGanttData({
+            items: [
+                {
+                    id: 'weekly',
+                    title: 'מפגש שבועי',
+                    startDate: '2026-01-05',
+                    endDate: '2026-01-05',
+                    recurrence: {
+                        enabled: true,
+                        frequency: 'weekly',
+                        weekdays: [1],
+                        interval: 1,
+                        until: '2026-02-01',
+                    },
+                },
+                {
+                    id: 'disabled',
+                    title: 'חד פעמי',
+                    startDate: '2026-01-06',
+                    endDate: '2026-01-06',
+                    recurrence: { enabled: false, frequency: 'weekly', weekdays: [2] },
+                },
+            ],
+        });
+
+        expect(normalized.items[0].recurrence).toEqual(expect.objectContaining({
+            enabled: true,
+            frequency: 'weekly',
+            weekdays: [1],
+            until: '2026-02-01',
+        }));
+        expect(normalized.items[1].recurrence).toBeUndefined();
+    });
+});
+
+describe('gantt recurrence', () => {
+    it('describes and expands a weekly Monday task', () => {
+        const task = normalizeGanttData({
+            items: [{
+                id: 'weekly-monday',
+                title: 'עדכון שבועי',
+                startDate: '2026-01-05',
+                endDate: '2026-01-05',
+                recurrence: { enabled: true, frequency: 'weekly', weekdays: [1], interval: 1, until: '2026-01-31' },
+            }],
+        }).items[0];
+
+        expect(describeGanttRecurrence(task.recurrence, task)).toContain('שבוע');
+        expect(getGanttRecurringOccurrenceDates(task, { rangeStart: '2026-01-01', rangeEnd: '2026-01-31' })).toEqual([
+            '2026-01-05',
+            '2026-01-12',
+            '2026-01-19',
+            '2026-01-26',
+        ]);
+    });
+
+    it('expands monthly weekday recurrence for every selected weekday in the month', () => {
+        const task = normalizeGanttData({
+            items: [{
+                id: 'monthly-monday',
+                title: 'בקרה חודשית',
+                startDate: '2026-01-05',
+                endDate: '2026-01-05',
+                recurrence: {
+                    enabled: true,
+                    frequency: 'monthly',
+                    monthlyMode: 'weekdays',
+                    weekdays: [1],
+                    until: '2026-02-28',
+                },
+            }],
+        }).items[0];
+
+        expect(getGanttRecurringOccurrenceDates(task, { rangeStart: '2026-02-01', rangeEnd: '2026-02-28' })).toEqual([
+            '2026-02-02',
+            '2026-02-09',
+            '2026-02-16',
+            '2026-02-23',
+        ]);
+    });
+
+    it('keeps monthly day-of-month recurrence usable at month end', () => {
+        const recurrence = normalizeGanttRecurrence({
+            enabled: true,
+            frequency: 'monthly',
+            monthlyMode: 'dayOfMonth',
+            dayOfMonth: 31,
+            until: '2026-03-31',
+        }, { startDate: '2026-01-31' });
+        const task = {
+            id: 'month-end',
+            title: 'סגירת חודש',
+            startDate: '2026-01-31',
+            endDate: '2026-01-31',
+            recurrence,
+            milestones: [],
+        };
+
+        expect(getGanttRecurringOccurrenceDates(task, { rangeStart: '2026-01-01', rangeEnd: '2026-03-31' })).toEqual([
+            '2026-01-31',
+            '2026-02-28',
+            '2026-03-31',
+        ]);
+    });
+
+    it('creates shifted occurrence tasks with shifted milestones', () => {
+        const [occurrence] = expandGanttRecurringTasks([
+            {
+                id: 'weekly-review',
+                title: 'סקירה',
+                startDate: '2026-01-05',
+                endDate: '2026-01-06',
+                recurrence: { enabled: true, frequency: 'weekly', weekdays: [1], until: '2026-01-12' },
+                milestones: [{ id: 'done', title: 'סיום', date: '2026-01-06', order: 1 }],
+            },
+        ], { rangeStart: '2026-01-12', rangeEnd: '2026-01-12' });
+
+        expect(occurrence).toEqual(expect.objectContaining({
+            id: 'weekly-review__occ_2026-01-12',
+            startDate: '2026-01-12',
+            endDate: '2026-01-13',
+            isRecurringOccurrence: true,
+        }));
+        expect(occurrence.milestones[0]).toEqual(expect.objectContaining({ date: '2026-01-13' }));
     });
 });
 

@@ -24,6 +24,8 @@ import { normalizeBorderStyle, panelStyle } from './utils/borderStyles';
 import { normalizeOverlayImageConfig } from './utils/overlayImageConfig';
 import { resolveSiteImageUrl } from './utils/assetUrl';
 import { openLinkTarget } from './utils/linkTargets';
+import { getNavigationNodeModel } from './utils/navigationModel';
+import { canAccessAdminUi } from './utils/adminAccess';
 import { ALPHA_TEAM_CONFIG, getAlphaTeamLinks, getAppVersion } from './config/alphaTeam.config';
 import OrgChartPage from './pages/OrgChartPage';
 import AdminSharePointSetupPage from './pages/AdminSharePointSetupPage';
@@ -49,6 +51,7 @@ export function Home({ isPreview = false }) {
   const { orgChart } = useOrgChart();
   const { gantt } = useGantt();
   const [widgetTitle, setWidgetTitle] = useState(() => getWidgetTitle('events'));
+  const canOpenAdmin = canAccessAdminUi({ isAdmin, loading: authLoading, isPreview });
 
   const hero = siteContent?.hero || { title: '', subtitle: '', description: '', backgroundImages: [] };
   const commander = siteContent?.commander || { image: '', sectionTitle: '', roleLabel: '', messages: [] };
@@ -79,7 +82,7 @@ export function Home({ isPreview = false }) {
   const extLinksBorderStyle = borderTargets?.extLinks ? borderStyle : 'standard';
   const utilityLinks = [
     ...(orgChart?.enabled ? [{ id: 'org-chart', label: orgChart.pageTitle || 'עץ מבנה', to: '/org-chart' }] : []),
-    ...(gantt?.enabled ? [{ id: 'gantt', label: gantt.buttonLabel || gantt.pageTitle || 'גאנט עבודה', to: '/gantt' }] : []),
+    ...(gantt?.enabled ? [{ id: 'gantt', label: 'גאנט עבודה', to: '/gantt' }] : []),
   ];
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -98,8 +101,9 @@ export function Home({ isPreview = false }) {
   }, [backgrounds.length]);
 
   const handleNavTo = (cat) => {
-    if ((cat.isDirectLink && cat.url) || cat.url) {
-      openLinkTarget(cat.url);
+    const model = getNavigationNodeModel(cat);
+    if (!model.canExplore && model.canOpen) {
+      openLinkTarget(model.url);
       return;
     }
     const el = document.getElementById(cat.id);
@@ -122,7 +126,7 @@ export function Home({ isPreview = false }) {
     ));
   };
 
-  const filteredCats = navItems.filter((c) => c.children && c.children.length > 0 && !c.isDirectLink && !c.url);
+  const visibleCategories = navItems;
 
   const renderExternalLinks = () => {
     if (!externalLinks || externalLinks.length === 0) return null;
@@ -181,7 +185,7 @@ export function Home({ isPreview = false }) {
           showNavCategories={showNavCategories}
           onNavTo={handleNavTo}
           onOpenAdmin={onOpenAdmin}
-          canOpenAdmin={isAdmin && !authLoading}
+          canOpenAdmin={canOpenAdmin}
           topNavBorderStyle={topNavBorderStyle}
           searchBorderStyle={searchBorderStyle}
           effectiveMode={effectiveMode}
@@ -241,7 +245,7 @@ export function Home({ isPreview = false }) {
           <div className="relative z-10 w-full mt-[10vh] pb-24 px-6 lg:px-12 flex flex-col gap-16 bg-theme-bg-base/90 backdrop-blur-xl border-t border-theme-strong pt-16">
             {loading ? (
               <div className="w-full h-64 flex items-center justify-center text-theme-muted">טוען קטגוריות...</div>
-            ) : filteredCats.map((cat) => (
+            ) : visibleCategories.map((cat) => (
               <CategorySection
                 key={cat.id}
                 cat={cat}
@@ -350,8 +354,9 @@ export function Home({ isPreview = false }) {
 
 function AdminRoute() {
   const { isAdmin, loading } = useAuth();
+  const canAccessAdmin = canAccessAdminUi({ isAdmin, loading });
 
-  if (loading) {
+  if (loading && !canAccessAdmin) {
     return (
       <div dir="rtl" className="min-h-screen w-full flex items-center justify-center bg-[#0c0d12] text-white font-heebo">
         טוען הרשאות...
@@ -359,7 +364,7 @@ function AdminRoute() {
     );
   }
 
-  if (!isAdmin) {
+  if (!canAccessAdmin) {
     return <Navigate to="/" replace />;
   }
 

@@ -12,6 +12,13 @@ describe('SiteDataRepository', () => {
     await repository.initIndexes();
   });
 
+  it('does not provision an empty site as a side effect of a read', async () => {
+    await expect(repository.listDocuments('mistyped-site', 'settings')).rejects.toMatchObject({
+      code: 'not_found',
+    });
+    expect(await repository.listSites()).toEqual([]);
+  });
+
   it('creates and reads a document', async () => {
     const created = await repository.replaceDocument({
       siteId: 'my-site',

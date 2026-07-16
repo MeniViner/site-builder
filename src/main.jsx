@@ -2,19 +2,9 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { HashRouter } from 'react-router-dom'
 import './index.css'
-import App from './App.jsx'
 import UnauthorizedSiteBlocker from './components/UnauthorizedSiteBlocker'
-import { AuthProvider } from './context/AuthContext'
-import { NavigationProvider } from './context/NavigationContext'
-import { EventsProvider } from './context/EventsContext'
-import { SiteContentProvider } from './context/SiteContentContext'
-import { ThemeProvider } from './context/ThemeContext'
-import { WidgetProvider } from './context/WidgetContext'
-import { ExternalLinksProvider } from './context/ExternalLinksContext'
-import { ConfigProvider } from './context/ConfigProvider'
-import { OrgChartProvider } from './context/OrgChartContext'
-import { GanttProvider } from './context/GanttContext'
 import { getRuntimeConfig, getRuntimeLog, loadRuntimeConfig } from './services/storage/runtimeConfig'
+import { getStorageDiagnostics, initializeStorageDescriptor } from './services/storage/storageBackend'
 import {
   buildExpectedSharePointSiteRoot,
   isAllowedSharePointRuntimeLocation,
@@ -31,11 +21,42 @@ const currentRuntimeLocation = typeof window === 'undefined'
 
 const renderApp = async () => {
   await loadRuntimeConfig();
+  initializeStorageDescriptor();
   const runtimeConfig = getRuntimeConfig() || {};
   const runtimeLog = getRuntimeLog();
+  const storageDiagnostics = getStorageDiagnostics();
   if (runtimeLog.loaded) {
     console.info(`[site-builder] Runtime config source: ${runtimeLog.source}`);
   }
+  console.info('[site-builder] Storage descriptor:', storageDiagnostics);
+
+  // Storage-dependent modules are intentionally imported only after the
+  // immutable runtime descriptor has been resolved.
+  const [
+    { default: App },
+    { AuthProvider },
+    { NavigationProvider },
+    { EventsProvider },
+    { SiteContentProvider },
+    { ThemeProvider },
+    { WidgetProvider },
+    { ExternalLinksProvider },
+    { ConfigProvider },
+    { OrgChartProvider },
+    { GanttProvider },
+  ] = await Promise.all([
+    import('./App.jsx'),
+    import('./context/AuthContext'),
+    import('./context/NavigationContext'),
+    import('./context/EventsContext'),
+    import('./context/SiteContentContext'),
+    import('./context/ThemeContext'),
+    import('./context/WidgetContext'),
+    import('./context/ExternalLinksContext'),
+    import('./context/ConfigProvider'),
+    import('./context/OrgChartContext'),
+    import('./context/GanttContext'),
+  ]);
 
   const runtimeAllowed = typeof window === 'undefined'
     ? true
@@ -93,4 +114,28 @@ const renderApp = async () => {
 
 renderApp().catch((error) => {
   console.error('[site-builder] Failed to bootstrap frontend runtime config:', error)
+  const runtimeDiagnostics = getRuntimeLog()
+  if (typeof window !== 'undefined') {
+    Object.defineProperty(window, '__SITE_BUILDER_RUNTIME_DIAGNOSTICS__', {
+      configurable: true,
+      enumerable: false,
+      writable: false,
+      value: runtimeDiagnostics,
+    })
+  }
+
+  const root = document.getElementById('root')
+  if (!root) return
+  const safeCode = String(error?.code || 'bootstrap_failed').replace(/[^a-zA-Z0-9_-]/g, '')
+  createRoot(root).render(
+    <div className="min-h-screen w-full flex items-center justify-center bg-[#0c0d12] px-6 text-white">
+      <div className="max-w-xl rounded-xl border border-red-400/40 bg-red-500/10 p-6 text-center shadow-2xl">
+        <h1 className="text-xl font-black">אתחול שכבת הנתונים נכשל</h1>
+        <p className="mt-3 text-sm text-red-100">
+          הגדרת האחסון אינה תקינה. האתר נחסם כדי למנוע קריאה או כתיבה למסד נתונים שגוי.
+        </p>
+        <p className="mt-3 font-mono text-xs text-red-200">{safeCode}</p>
+      </div>
+    </div>,
+  )
 })

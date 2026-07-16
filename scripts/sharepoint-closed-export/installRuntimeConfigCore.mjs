@@ -27,10 +27,12 @@ function normalizeRuntimeConfigFileName(value, fallback) {
 }
 
 export function resolveRuntimeConfigPlan({ config, cli = {} } = {}) {
+  if (String(cli['api-key'] || cli.apiKey || '').trim()) {
+    throw new Error('Runtime config must not contain API keys. Use server-side/session authentication.');
+  }
   const rawSite = cli.site || cli['site-code'] || config?.siteCode || '';
-  const storageBackend = String(cli['storage-backend'] || cli.storageBackend || 'mongo').trim().toLowerCase();
-  const backendApiUrl = String(cli['backend-url'] || cli.backendUrl || cli['api-url'] || '').trim();
-  const apiKey = String(cli['api-key'] || cli.apiKey || '').trim();
+  const storageBackend = String(cli['storage-backend'] || cli.storageBackend || config?.storageBackend || 'txt').trim();
+  const backendApiUrl = String(cli['backend-url'] || cli.backendUrl || cli['api-url'] || config?.backendApiUrl || '').trim();
   const siteId = String(cli['site-id'] || cli.siteId || rawSite || '').trim();
   const filename = normalizeRuntimeConfigFileName(
     cli['runtime-config-file'] || cli.runtimeConfigFile || 'sitebuilder-runtime-config.json',
@@ -42,17 +44,20 @@ export function resolveRuntimeConfigPlan({ config, cli = {} } = {}) {
   const runtimeConfigUrl = config.host
     ? `https://${String(config.host).replace(/^https?:\/\//i, '').replace(/\/+$/, '')}${runtimeConfigRel}`
     : runtimeConfigRel;
+  const sharePointSiteUrl = config.host
+    ? `https://${String(config.host).replace(/^https?:\/\//i, '').replace(/\/+$/, '')}${normalizeServerRelative(config.siteRootRel || `/sites/${rawSite}`)}`
+    : normalizeServerRelative(config.siteRootRel || `/sites/${rawSite}`);
 
   return {
     siteCode: String(rawSite).replace(/^\/+|\/+$/g, ''),
     siteId,
     storageBackend,
     backendApiUrl,
-    apiKey,
     filename,
     distRel,
     runtimeConfigRel,
     runtimeConfigUrl,
+    sharePointSiteUrl,
   };
 }
 
@@ -60,14 +65,11 @@ export function assertSafeRuntimeConfigPlan(plan) {
   if (!plan?.runtimeConfigRel || !plan.runtimeConfigRel.startsWith('/')) {
     throw new Error('Invalid runtime config plan: missing runtimeConfigRel');
   }
-  if (plan.storageBackend !== 'mongo') {
-    throw new Error(`Unsupported storageBackend ${plan.storageBackend}. Expected mongo for runtime helper install.`);
+  if (!['txt', 'mongo'].includes(plan.storageBackend)) {
+    throw new Error(`Unsupported storageBackend ${plan.storageBackend}. Expected txt or mongo.`);
   }
-  if (!plan.backendApiUrl) {
+  if (plan.storageBackend === 'mongo' && !plan.backendApiUrl) {
     throw new Error('backendApiUrl is required for runtime config.');
-  }
-  if (!plan.apiKey) {
-    throw new Error('apiKey is required for runtime config (VITE_SITE_BUILDER_API_KEY).');
   }
   if (!plan.siteId) {
     throw new Error('siteId is required for runtime config.');
@@ -79,13 +81,16 @@ export function assertSafeRuntimeConfigPlan(plan) {
 }
 
 export function buildRuntimeConfigPayload(plan) {
-  return {
-    storageBackend: 'mongo',
-    backendApiUrl: plan.backendApiUrl,
+  const payload = {
+    schemaVersion: 1,
+    storageBackend: plan.storageBackend,
     siteId: plan.siteId,
-    apiKey: plan.apiKey,
-    notes: 'development temporary config. Remove for production.',
+    generatedBy: 'site-builder-runtime-installer',
+    allowedSiteRoot: plan.sharePointSiteUrl,
+    sharePointSiteUrl: plan.sharePointSiteUrl,
   };
+  if (plan.storageBackend === 'mongo') payload.backendApiUrl = plan.backendApiUrl.replace(/\/+$/g, '');
+  return payload;
 }
 
 export function buildRuntimeConfigWrites(plan) {

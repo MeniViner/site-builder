@@ -1,10 +1,10 @@
 // deploy.js
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 import { parseCliArgs, resolveConfig } from './scripts/sp-env.js';
+import { writeDeploymentArtifacts } from './scripts/deploymentArtifacts.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,8 +15,7 @@ const config = resolveConfig({ envFilePath: envPath, cli });
 
 const force = cli.force === true || String(cli.force || '').toLowerCase() === 'true';
 const dryRun = cli['dry-run'] === true || String(cli['dry-run'] || '').toLowerCase() === 'true';
-const disableCleanFirst = cli['no-clean-first'] === true || String(cli['clean-first'] || '').toLowerCase() === 'false';
-const cleanFirst = !disableCleanFirst;
+const cleanFirst = cli['clean-first'] === true || String(cli['clean-first'] || '').toLowerCase() === 'true';
 const autoDeployEnabled = String(config.autoDeploy || '').toLowerCase() === 'true';
 if (!force && !autoDeployEnabled) {
   console.log(`[deploy] Skipping deploy (VITE_AUTO_DEPLOY is not true). Use --force to override.`);
@@ -37,7 +36,8 @@ console.log(`${logPrefix} Mode: ${deployMode}`);
 console.log(`${logPrefix} Source: ${buildDir}`);
 console.log(`${logPrefix} Target: ${targetDir}`);
 console.log(`${logPrefix} TargetRel: ${targetRel}`);
-console.log(`${logPrefix} Clean-first mode: ${cleanFirst ? 'enabled' : 'disabled'}`);
+console.log(`${logPrefix} Storage backend: ${config.storageBackend} (${config.storageBackendSource})`);
+console.log(`${logPrefix} Clean-first mode: disabled (runtime selectors and unrelated target data are preserved)`);
 if (dryRun) {
   console.log(`${logPrefix} Dry-run mode: robocopy will not run.`);
 }
@@ -62,34 +62,39 @@ try {
   if (!fs.existsSync(buildDir)) {
     throw new Error(`Build directory does not exist: ${buildDir}`);
   }
+  if (cleanFirst) {
+    throw new Error('--clean-first is disabled because purging dist can remove deployment selectors or unrelated target data.');
+  }
+
+  const artifacts = writeDeploymentArtifacts(buildDir, config);
+  console.log(`${logPrefix} Generated authoritative ${artifacts.runtimeConfig.storageBackend} runtime selector and deployment metadata.`);
+
+  if (deployMode === 'final' && config.storageBackend === 'txt') {
+    const missingTxtFiles = Object.values(config.fileMap).filter((serverRelativePath) => !fs.existsSync(config.toWebDav(serverRelativePath)));
+    if (missingTxtFiles.length > 0) {
+      throw new Error(`TXT backend is not ready; ${missingTxtFiles.length} required TXT file(s) are missing. Run site:init first.`);
+    }
+  }
+  if (config.storageBackend === 'mongo') {
+    if (!config.backendApiUrl || !config.siteId) {
+      throw new Error('Mongo deploy requires VITE_BACKEND_API_URL and VITE_SITE_ID.');
+    }
+    const healthUrl = `${config.backendApiUrl.replace(/\/+$/g, '')}/api/sites/${encodeURIComponent(config.siteId)}`;
+    const response = await fetch(healthUrl, { headers: { Accept: 'application/json' } });
+    if (!response.ok) {
+      throw new Error(`Mongo target readiness failed (${response.status}) at ${healthUrl}.`);
+    }
+  }
 
   if (dryRun) {
-    if (cleanFirst) {
-    console.log(`${logPrefix} Would purge target folder first: "${targetDir}"`);
-    }
     console.log(`${logPrefix} Would copy "${buildDir}" => "${targetDir}"`);
     process.exit(0);
   }
 
   fs.mkdirSync(targetDir, { recursive: true });
 
-  let emptyDir = null;
-
-  try {
-    if (cleanFirst) {
-      emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-deploy-empty-'));
-      // Purge destination first so we don't need temporary extra quota during copy.
-      const purgeCommand = `robocopy "${emptyDir}" "${targetDir}" /MIR /R:2 /W:2 /NFL /NDL /NJH /NJS /NP`;
-      runRobocopy(purgeCommand, 'purge-target');
-    }
-
-    const copyCommand = `robocopy "${buildDir}" "${targetDir}" /E /R:3 /W:5`;
-    runRobocopy(copyCommand, 'copy-build');
-  } finally {
-    if (emptyDir && fs.existsSync(emptyDir)) {
-      fs.rmSync(emptyDir, { recursive: true, force: true });
-    }
-  }
+  const copyCommand = `robocopy "${buildDir}" "${targetDir}" /E /R:3 /W:5`;
+  runRobocopy(copyCommand, 'copy-build');
 
   console.log(`${logPrefix} Deployment completed.`);
 } catch (error) {

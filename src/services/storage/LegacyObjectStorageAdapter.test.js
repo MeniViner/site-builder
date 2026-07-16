@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import backendApiClient, { BackendStorageError } from './backendApiClient';
 import { LegacyObjectStorageAdapter, toUserFacingStorageError } from './LegacyObjectStorageAdapter';
+import { clearStorageDescriptorForTests } from './storageBackend';
+import { clearRuntimeConfigForTests, setRuntimeConfigForTests } from './runtimeConfig';
 
 describe('LegacyObjectStorageAdapter', () => {
     afterEach(() => {
+        clearStorageDescriptorForTests();
+        clearRuntimeConfigForTests();
         vi.unstubAllEnvs();
         vi.unstubAllGlobals();
     });
@@ -37,9 +41,40 @@ describe('LegacyObjectStorageAdapter', () => {
         expect(client.writeLegacyObject).not.toHaveBeenCalled();
     });
 
+    it('does not let a read race ahead of an in-flight write', async () => {
+        let releaseWrite;
+        const writeGate = new Promise((resolve) => { releaseWrite = resolve; });
+        const client = {
+            readLegacyObject: vi.fn().mockResolvedValue({ data: { title: 'Saved' }, version: 1 }),
+            writeLegacyObject: vi.fn(async (_siteId, payload) => {
+                await writeGate;
+                return { data: payload.data, version: 1 };
+            }),
+        };
+        const adapter = new LegacyObjectStorageAdapter({ key: 'site_content_data.txt', siteId: 'alpha', client });
+
+        const save = adapter.save({ title: 'Saved' });
+        const load = adapter.load();
+        await Promise.resolve();
+        expect(client.readLegacyObject).not.toHaveBeenCalled();
+
+        releaseWrite();
+        await Promise.all([save, load]);
+        expect(client.readLegacyObject).toHaveBeenCalledTimes(1);
+    });
+
     it('shows conflict responses clearly', () => {
         const error = new BackendStorageError('Version conflict', { status: 409, code: 'conflict' });
         expect(toUserFacingStorageError(error).message).toContain('הנתונים השתנו');
+    });
+
+    it('rejects a JSON response that is missing the legacy-object envelope', async () => {
+        const adapter = new LegacyObjectStorageAdapter({
+            key: 'site_content_data.txt',
+            siteId: 'alpha',
+            client: { readLegacyObject: vi.fn().mockResolvedValue({ ok: true }) },
+        });
+        await expect(adapter.load()).rejects.toMatchObject({ code: 'invalid_backend_response' });
     });
 
     it('fails closed when Mongo frontend mode is missing VITE_BACKEND_API_URL', async () => {
@@ -54,10 +89,10 @@ describe('LegacyObjectStorageAdapter', () => {
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    it('calls Mongo backup endpoints with API key auth', async () => {
+    it('allows the explicit development-only API key for local Mongo tools', async () => {
         vi.stubEnv('VITE_STORAGE_BACKEND', 'mongo');
         vi.stubEnv('VITE_BACKEND_API_URL', 'http://127.0.0.1:3001');
-        vi.stubEnv('VITE_SITE_BUILDER_API_KEY', 'secret');
+        vi.stubEnv('VITE_SITE_BUILDER_DEV_API_KEY', 'secret');
         const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ ok: true, backups: [] }), {
             status: 200,
             headers: { 'content-type': 'application/json' },
@@ -88,5 +123,21 @@ describe('LegacyObjectStorageAdapter', () => {
             method: 'POST',
             body: JSON.stringify({ allowSiteIdMismatch: false }),
         }));
+    });
+
+    it('rejects an HTML API fallback even when it returns HTTP 200', async () => {
+        setRuntimeConfigForTests({
+            storageBackend: 'mongo',
+            backendApiUrl: 'http://127.0.0.1:3001',
+            siteId: 'alpha',
+        });
+        vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('<!DOCTYPE html><html>fallback</html>', {
+            status: 200,
+            headers: { 'content-type': 'text/html' },
+        }))));
+
+        await expect(backendApiClient.listBackups('alpha')).rejects.toMatchObject({
+            code: 'invalid_backend_response',
+        });
     });
 });

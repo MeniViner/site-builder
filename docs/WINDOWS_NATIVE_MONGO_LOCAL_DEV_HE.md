@@ -125,7 +125,7 @@ LEGACY_SHAREPOINT_READONLY_FALLBACK=false
 VITE_STORAGE_BACKEND=mongo
 VITE_BACKEND_API_URL=http://127.0.0.1:3001
 VITE_SITE_ID=local-dev-site
-VITE_SITE_BUILDER_API_KEY=dev-local-api-key
+VITE_SITE_BUILDER_DEV_API_KEY=dev-local-api-key
 VITE_AUTO_DEPLOY=false
 ```
 
@@ -158,7 +158,7 @@ Invoke-RestMethod -Headers @{ "X-API-Key" = "dev-local-api-key" } "http://127.0.
 אם frontend רץ מתוך SharePoint dist במקום localhost:
 
 ```powershell
-npm run sharepoint:install-runtime-config -- --site <siteCode> --backend-url http://127.0.0.1:3001 --api-key dev-local-api-key
+npm run sharepoint:install-runtime-config -- --site <siteCode> --backend-url http://127.0.0.1:3001
 ```
 
 > זה רק מעדכן runtime config של ה-dsit ואין שינוי בנתוני SharePoint.

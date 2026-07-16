@@ -22,6 +22,26 @@ export const GANTT_VIEW_OPTIONS = [
     { value: 'quarter', label: 'רבעון' },
 ];
 
+export const GANTT_RECURRENCE_FREQUENCY_OPTIONS = [
+    { value: 'weekly', label: 'שבועי' },
+    { value: 'monthly', label: 'חודשי' },
+];
+
+export const GANTT_RECURRENCE_MONTHLY_MODE_OPTIONS = [
+    { value: 'weekdays', label: 'לפי ימים בשבוע' },
+    { value: 'dayOfMonth', label: 'לפי יום בחודש' },
+];
+
+export const GANTT_WEEKDAY_OPTIONS = [
+    { value: 0, label: 'ראשון', shortLabel: 'א׳' },
+    { value: 1, label: 'שני', shortLabel: 'ב׳' },
+    { value: 2, label: 'שלישי', shortLabel: 'ג׳' },
+    { value: 3, label: 'רביעי', shortLabel: 'ד׳' },
+    { value: 4, label: 'חמישי', shortLabel: 'ה׳' },
+    { value: 5, label: 'שישי', shortLabel: 'ו׳' },
+    { value: 6, label: 'שבת', shortLabel: 'ש׳' },
+];
+
 export const GANTT_COLOR_OPTIONS = [
     '#2563eb',
     '#0891b2',
@@ -292,6 +312,9 @@ export const GANTT_DESIGN_PRESETS = [
 const VALID_GROUP_BY = new Set(['category', 'owner', 'status', 'none']);
 const VALID_STATUS = new Set(GANTT_STATUS_OPTIONS.map((option) => option.value));
 const VALID_VIEW = new Set(GANTT_VIEW_OPTIONS.map((option) => option.value));
+const VALID_RECURRENCE_FREQUENCY = new Set(GANTT_RECURRENCE_FREQUENCY_OPTIONS.map((option) => option.value));
+const VALID_RECURRENCE_MONTHLY_MODE = new Set(GANTT_RECURRENCE_MONTHLY_MODE_OPTIONS.map((option) => option.value));
+const VALID_WEEKDAY = new Set(GANTT_WEEKDAY_OPTIONS.map((option) => option.value));
 const VALID_DESIGN_PRESET = new Set(GANTT_DESIGN_PRESETS.map((preset) => preset.id));
 const VALID_LAYOUT_MODE = new Set(['fullWidth', 'centered']);
 const VALID_CHART_WIDTH_MODE = new Set(['full', 'contained']);
@@ -417,6 +440,65 @@ const toDayTimestamp = (value) => {
 
 const dayDiff = (startMs, endMs) => Math.round((endMs - startMs) / (24 * 60 * 60 * 1000));
 
+const addDaysToTimestamp = (timestamp, days) => timestamp + days * 24 * 60 * 60 * 1000;
+
+const toUtcDateString = (timestamp) => new Date(timestamp).toISOString().slice(0, 10);
+
+const getWeekdayFromDateString = (value) => {
+    const parsed = toDayTimestamp(value);
+    if (!Number.isFinite(parsed)) return 0;
+    return new Date(parsed).getUTCDay();
+};
+
+const normalizeInteger = (value, fallback, min, max) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.min(max, Math.max(min, Math.round(parsed)));
+};
+
+function normalizeWeekdays(values, fallbackWeekday = 0) {
+    const source = Array.isArray(values) ? values : [];
+    const normalized = [...new Set(source
+        .map((value) => Number(value))
+        .filter((value) => VALID_WEEKDAY.has(value)))]
+        .sort((a, b) => a - b);
+    return normalized.length > 0 ? normalized : [fallbackWeekday];
+}
+
+function getDayOfMonth(value) {
+    const parsed = toDayTimestamp(value);
+    if (!Number.isFinite(parsed)) return 1;
+    return new Date(parsed).getUTCDate();
+}
+
+function daysInUtcMonth(year, monthIndex) {
+    return new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+}
+
+function getUtcMonthStart(timestamp) {
+    const date = new Date(timestamp);
+    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
+}
+
+function addUtcMonths(timestamp, monthOffset) {
+    const date = new Date(timestamp);
+    const targetMonth = date.getUTCMonth() + monthOffset;
+    const targetYear = date.getUTCFullYear() + Math.floor(targetMonth / 12);
+    const normalizedMonth = ((targetMonth % 12) + 12) % 12;
+    return Date.UTC(targetYear, normalizedMonth, 1);
+}
+
+function diffUtcMonths(startMonthTimestamp, endMonthTimestamp) {
+    const start = new Date(startMonthTimestamp);
+    const end = new Date(endMonthTimestamp);
+    return (end.getUTCFullYear() - start.getUTCFullYear()) * 12 + (end.getUTCMonth() - start.getUTCMonth());
+}
+
+function startOfUtcWeek(timestamp) {
+    const dayStart = Date.UTC(new Date(timestamp).getUTCFullYear(), new Date(timestamp).getUTCMonth(), new Date(timestamp).getUTCDate());
+    return addDaysToTimestamp(dayStart, -new Date(dayStart).getUTCDay());
+}
+
 export const createGanttTask = (overrides = {}) => {
     const today = todayDateString();
     return normalizeGanttTask({
@@ -441,6 +523,230 @@ export function parseDateValue(value) {
     const date = new Date(`${raw}T00:00:00`);
     if (Number.isNaN(date.getTime())) return null;
     return raw;
+}
+
+export function normalizeGanttRecurrence(recurrenceLike, taskLike = {}) {
+    const source = isObject(recurrenceLike) ? recurrenceLike : {};
+    const hasExplicitConfig = Boolean(
+        source.enabled === true
+        || VALID_RECURRENCE_FREQUENCY.has(source.frequency)
+        || Array.isArray(source.weekdays)
+        || source.until
+    );
+    const enabled = source.enabled === true || (source.enabled !== false && hasExplicitConfig);
+    if (!enabled) return { enabled: false };
+
+    const startDate = parseDateValue(taskLike.startDate) || todayDateString();
+    const fallbackWeekday = getWeekdayFromDateString(startDate);
+    const frequency = normalizeChoice(source.frequency, VALID_RECURRENCE_FREQUENCY, 'weekly');
+    const monthlyMode = normalizeChoice(source.monthlyMode || source.monthMode, VALID_RECURRENCE_MONTHLY_MODE, 'weekdays');
+    const recurrence = {
+        enabled: true,
+        frequency,
+        interval: normalizeInteger(source.interval, 1, 1, 24),
+        weekdays: normalizeWeekdays(source.weekdays, fallbackWeekday),
+        until: parseDateValue(source.until) || '',
+        maxOccurrences: normalizeInteger(source.maxOccurrences, 60, 1, 500),
+    };
+
+    if (frequency === 'monthly') {
+        recurrence.monthlyMode = monthlyMode;
+        recurrence.dayOfMonth = normalizeInteger(source.dayOfMonth, getDayOfMonth(startDate), 1, 31);
+    }
+
+    return recurrence;
+}
+
+export function normalizeGanttRecurrenceForm(recurrenceLike, taskLike = {}) {
+    const source = isObject(recurrenceLike) ? recurrenceLike : {};
+    const defaults = normalizeGanttRecurrence({ enabled: true, frequency: 'weekly' }, taskLike);
+    const normalized = normalizeGanttRecurrence({ ...defaults, ...source, enabled: true }, taskLike);
+    return {
+        ...defaults,
+        ...normalized,
+        enabled: source.enabled === true,
+    };
+}
+
+export function describeGanttRecurrence(recurrenceLike, taskLike = {}) {
+    const recurrence = normalizeGanttRecurrence(recurrenceLike, taskLike);
+    if (!recurrence.enabled) return 'חד פעמי';
+
+    const dayLabels = recurrence.weekdays
+        .map((weekday) => GANTT_WEEKDAY_OPTIONS.find((option) => option.value === weekday)?.label)
+        .filter(Boolean)
+        .join(', ');
+    const intervalText = recurrence.interval === 1 ? '' : `כל ${recurrence.interval} `;
+    const untilText = recurrence.until ? ` עד ${recurrence.until}` : '';
+
+    if (recurrence.frequency === 'monthly') {
+        if (recurrence.monthlyMode === 'dayOfMonth') {
+            return `${intervalText || 'כל '}חודש ביום ${recurrence.dayOfMonth}${untilText}`;
+        }
+        return `${intervalText || 'כל '}חודש בימים ${dayLabels}${untilText}`;
+    }
+
+    return `${intervalText || 'כל '}שבוע בימים ${dayLabels}${untilText}`;
+}
+
+function shouldIncludeOccurrence(occurrenceStart, occurrenceEnd, rangeStart, rangeEnd) {
+    if (Number.isFinite(rangeStart) && occurrenceEnd < rangeStart) return false;
+    if (Number.isFinite(rangeEnd) && occurrenceStart > rangeEnd) return false;
+    return true;
+}
+
+function buildWeeklyOccurrenceDates(taskLike, recurrence, options) {
+    const startMs = toDayTimestamp(taskLike.startDate);
+    const endMs = toDayTimestamp(taskLike.endDate) || startMs;
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return [];
+
+    const taskDurationDays = Math.max(0, dayDiff(startMs, endMs));
+    const rangeStart = Number.isFinite(options.rangeStart) ? options.rangeStart : startMs;
+    const untilMs = toDayTimestamp(recurrence.until);
+    const hardEnd = Math.min(
+        Number.isFinite(options.rangeEnd) ? options.rangeEnd : Number.POSITIVE_INFINITY,
+        Number.isFinite(untilMs) ? untilMs : Number.POSITIVE_INFINITY
+    );
+    const searchStart = Math.max(startMs, addDaysToTimestamp(rangeStart, -taskDurationDays));
+    const fallbackEnd = Number.isFinite(hardEnd)
+        ? hardEnd
+        : addDaysToTimestamp(startMs, recurrence.maxOccurrences * recurrence.interval * 8 + 366);
+    const anchorWeekStart = startOfUtcWeek(startMs);
+    const dates = [];
+    let cursor = Date.UTC(new Date(searchStart).getUTCFullYear(), new Date(searchStart).getUTCMonth(), new Date(searchStart).getUTCDate());
+    let safety = 0;
+
+    while (cursor <= fallbackEnd && dates.length < recurrence.maxOccurrences && safety < 50000) {
+        const occurrenceEnd = addDaysToTimestamp(cursor, taskDurationDays);
+        const weekOffset = Math.floor(dayDiff(anchorWeekStart, startOfUtcWeek(cursor)) / 7);
+        const isMatchingWeek = weekOffset >= 0 && weekOffset % recurrence.interval === 0;
+        if (
+            cursor >= startMs
+            && isMatchingWeek
+            && recurrence.weekdays.includes(new Date(cursor).getUTCDay())
+            && shouldIncludeOccurrence(cursor, occurrenceEnd, options.rangeStart, options.rangeEnd)
+        ) {
+            dates.push(toUtcDateString(cursor));
+        }
+        cursor = addDaysToTimestamp(cursor, 1);
+        safety += 1;
+    }
+
+    return dates;
+}
+
+function buildMonthlyOccurrenceDates(taskLike, recurrence, options) {
+    const startMs = toDayTimestamp(taskLike.startDate);
+    const endMs = toDayTimestamp(taskLike.endDate) || startMs;
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return [];
+
+    const taskDurationDays = Math.max(0, dayDiff(startMs, endMs));
+    const rangeStart = Number.isFinite(options.rangeStart) ? options.rangeStart : startMs;
+    const untilMs = toDayTimestamp(recurrence.until);
+    const hardEnd = Math.min(
+        Number.isFinite(options.rangeEnd) ? options.rangeEnd : Number.POSITIVE_INFINITY,
+        Number.isFinite(untilMs) ? untilMs : Number.POSITIVE_INFINITY
+    );
+    const searchStart = Math.max(startMs, addDaysToTimestamp(rangeStart, -taskDurationDays));
+    const fallbackEnd = Number.isFinite(hardEnd)
+        ? hardEnd
+        : addUtcMonths(startMs, recurrence.maxOccurrences * Math.max(1, recurrence.interval));
+    const anchorMonth = getUtcMonthStart(startMs);
+    let cursorMonth = getUtcMonthStart(searchStart);
+    const dates = [];
+    let safety = 0;
+
+    while (cursorMonth <= fallbackEnd && dates.length < recurrence.maxOccurrences && safety < 1200) {
+        const monthOffset = diffUtcMonths(anchorMonth, cursorMonth);
+        if (monthOffset >= 0 && monthOffset % recurrence.interval === 0) {
+            const cursorDate = new Date(cursorMonth);
+            const year = cursorDate.getUTCFullYear();
+            const month = cursorDate.getUTCMonth();
+            const daysInMonth = daysInUtcMonth(year, month);
+            const candidates = [];
+
+            if (recurrence.monthlyMode === 'dayOfMonth') {
+                candidates.push(Date.UTC(year, month, Math.min(recurrence.dayOfMonth, daysInMonth)));
+            } else {
+                for (let day = 1; day <= daysInMonth; day += 1) {
+                    const candidate = Date.UTC(year, month, day);
+                    if (recurrence.weekdays.includes(new Date(candidate).getUTCDay())) {
+                        candidates.push(candidate);
+                    }
+                }
+            }
+
+            candidates.forEach((candidate) => {
+                const occurrenceEnd = addDaysToTimestamp(candidate, taskDurationDays);
+                if (
+                    dates.length < recurrence.maxOccurrences
+                    && candidate >= startMs
+                    && shouldIncludeOccurrence(candidate, occurrenceEnd, options.rangeStart, options.rangeEnd)
+                ) {
+                    dates.push(toUtcDateString(candidate));
+                }
+            });
+        }
+
+        cursorMonth = addUtcMonths(cursorMonth, 1);
+        safety += 1;
+    }
+
+    return dates.sort((a, b) => a.localeCompare(b));
+}
+
+export function getGanttRecurringOccurrenceDates(taskLike, options = {}) {
+    const recurrence = normalizeGanttRecurrence(taskLike?.recurrence, taskLike);
+    if (!recurrence.enabled) return [];
+    const normalizedOptions = {
+        rangeStart: toDayTimestamp(options.rangeStart) ?? (Number.isFinite(options.rangeStart) ? options.rangeStart : null),
+        rangeEnd: toDayTimestamp(options.rangeEnd) ?? (Number.isFinite(options.rangeEnd) ? options.rangeEnd : null),
+    };
+    return recurrence.frequency === 'monthly'
+        ? buildMonthlyOccurrenceDates(taskLike, recurrence, normalizedOptions)
+        : buildWeeklyOccurrenceDates(taskLike, recurrence, normalizedOptions);
+}
+
+function createRecurringTaskOccurrence(task, startDate, occurrenceIndex) {
+    const originalStart = toDayTimestamp(task.startDate);
+    const originalEnd = toDayTimestamp(task.endDate) || originalStart;
+    const nextStart = toDayTimestamp(startDate);
+    const durationDays = Math.max(0, dayDiff(originalStart, originalEnd));
+    const shiftDays = dayDiff(originalStart, nextStart);
+    const occurrenceTask = {
+        ...task,
+        id: `${task.id}__occ_${startDate}`,
+        startDate,
+        endDate: toUtcDateString(addDaysToTimestamp(nextStart, durationDays)),
+        milestones: normalizeGanttMilestones((task.milestones || []).map((milestone) => {
+            const milestoneMs = toDayTimestamp(milestone.date);
+            return Number.isFinite(milestoneMs)
+                ? { ...milestone, date: toUtcDateString(addDaysToTimestamp(milestoneMs, shiftDays)) }
+                : milestone;
+        })),
+        isRecurringOccurrence: true,
+        recurrenceMeta: {
+            sourceTaskId: task.id,
+            occurrenceIndex: occurrenceIndex + 1,
+            occurrenceDate: startDate,
+            ruleLabel: describeGanttRecurrence(task.recurrence, task),
+        },
+    };
+
+    return {
+        ...occurrenceTask,
+        progress: computeGanttProgress(occurrenceTask),
+    };
+}
+
+export function expandGanttRecurringTasks(items, options = {}) {
+    if (!Array.isArray(items)) return [];
+    return items.flatMap((task) => {
+        const recurrence = normalizeGanttRecurrence(task?.recurrence, task);
+        if (!recurrence.enabled) return [task];
+        return getGanttRecurringOccurrenceDates(task, options)
+            .map((date, index) => createRecurringTaskOccurrence(task, date, index));
+    });
 }
 
 export function computeGanttProgress(taskLike, today = new Date()) {
@@ -540,6 +846,10 @@ export function normalizeGanttTask(taskLike, index = 0) {
             : [],
         milestones,
     };
+    const recurrence = normalizeGanttRecurrence(source.recurrence, normalizedTask);
+    if (recurrence.enabled) {
+        normalizedTask.recurrence = recurrence;
+    }
 
     return {
         ...normalizedTask,

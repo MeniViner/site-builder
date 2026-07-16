@@ -13,6 +13,23 @@ describe('LegacyCompatibilityRepository', () => {
     legacyRepository = new LegacyCompatibilityRepository(repository);
   });
 
+  it('returns an explicit version-zero envelope when an API read allows a missing object', async () => {
+    const read = await legacyRepository.readLegacyObject('new-site', 'bihs_master_config_v1.txt', {
+      allowMissing: true,
+    });
+
+    expect(read).toMatchObject({
+      key: 'bihs_master_config_v1.txt',
+      data: null,
+      version: 0,
+      hash: null,
+      documents: [],
+      missing: true,
+    });
+    await expect(legacyRepository.readLegacyObject('new-site', 'bihs_master_config_v1.txt'))
+      .rejects.toMatchObject({ statusCode: 404 });
+  });
+
   it('saves a migrated singleton after reading the returned version', async () => {
     await legacyRepository.writeLegacyObject({
       siteId: 'alpha',

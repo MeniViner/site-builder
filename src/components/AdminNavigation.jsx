@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useNavigation } from '../context/NavigationContext';
@@ -16,13 +16,7 @@ import { uploadImage } from '../utils/sharepointUtils';
 import NavVisual from './NavVisual';
 import DismissibleNotice from './DismissibleNotice';
 import { normalizeLinkTarget } from '../utils/linkTargets';
-
-function createNodeId(prefix) {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-        return crypto.randomUUID();
-    }
-    return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
+import { createNavigationNodeId } from '../utils/navigationModel';
 
 function asText(value, fallback = '') {
     if (typeof value !== 'string') return fallback;
@@ -33,7 +27,7 @@ function asText(value, fallback = '') {
 function normalizeAiLink(link, index, parentId) {
     const label = asText(link?.label || link?.title, `לינק ${index + 1}`);
     return {
-        id: asText(link?.id, createNodeId(`link_${parentId}_${index}`)),
+        id: asText(link?.id, createNavigationNodeId(`link_${parentId}_${index}`)),
         label,
         icon: asText(link?.icon, 'Link'),
         iconUrl: asText(link?.iconUrl || link?.imageUrl || link?.image, ''),
@@ -48,7 +42,7 @@ function normalizeAiSubCategory(subcategory, index, categoryId) {
         : (Array.isArray(subcategory?.children) ? subcategory.children : []);
 
     return {
-        id: asText(subcategory?.id, createNodeId(`sub_${categoryId}_${index}`)),
+        id: asText(subcategory?.id, createNavigationNodeId(`sub_${categoryId}_${index}`)),
         title,
         label: title,
         icon: asText(subcategory?.icon, 'FileText'),
@@ -61,7 +55,7 @@ function normalizeAiSubCategory(subcategory, index, categoryId) {
 function normalizeAiNavigationTree(payload) {
     const source = Array.isArray(payload?.navItems) ? payload.navItems : [];
     const normalized = source.map((category, index) => {
-        const categoryId = asText(category?.id, createNodeId(`cat_${index}`));
+        const categoryId = asText(category?.id, createNavigationNodeId(`cat_${index}`));
         const children = Array.isArray(category?.children) ? category.children : [];
 
         return {
@@ -92,34 +86,11 @@ function moveArrayItem(source, fromIndex, toIndex) {
 export default function AdminNavigation() {
     const navigate = useNavigate();
     const MAX_TOP_LEVEL_NAV_ITEMS = 12;
-    const { navItems: initialNavItems, loading, error, saveNavigation } = useNavigation();
+    const { navItems, loading, error, saveNavigation, saving, dirty, retrySave } = useNavigation();
     const { effectiveMode } = useTheme();
-    const [navItems, setNavItems] = useState(initialNavItems || []);
-    const [isSaving, setIsSaving] = useState(false);
-    const lastSavedRef = useRef(null);
     const iconImageInputRef = useRef(null);
     const [imageUploadTargetPath, setImageUploadTargetPath] = useState(null);
     const [uploadingIconPathKey, setUploadingIconPathKey] = useState('');
-
-    useEffect(() => {
-        if (initialNavItems?.length !== undefined) {
-            setNavItems(initialNavItems);
-            lastSavedRef.current = JSON.stringify(initialNavItems);
-        }
-    }, [initialNavItems]);
-
-    useEffect(() => {
-        const current = JSON.stringify(navItems);
-        if (lastSavedRef.current === null || current === lastSavedRef.current) return;
-        const t = setTimeout(async () => {
-            setIsSaving(true);
-            const success = await saveNavigation(navItems);
-            setIsSaving(false);
-            if (success) lastSavedRef.current = current;
-            else toast.error('שגיאה בשמירת נתוני הניווט.');
-        }, 1200);
-        return () => clearTimeout(t);
-    }, [navItems]);
 
     // Icon Picker State
     const [iconPicker, setIconPicker] = useState({ isOpen: false, targetPath: null, currentIcon: '', defaultSearchTerm: '' });
@@ -143,7 +114,7 @@ export default function AdminNavigation() {
 
     const reorderItems = (sourcePath, draggedId, targetId) => {
         if (!draggedId || !targetId || draggedId === targetId) return;
-        setNavItems((prev) => {
+        saveNavigation((prev) => {
             const copy = JSON.parse(JSON.stringify(prev));
 
             if (sourcePath.length === 0) {
@@ -198,7 +169,7 @@ export default function AdminNavigation() {
     };
 
     const updateNodeFields = (path, fields) => {
-        setNavItems(prev => {
+        saveNavigation(prev => {
             const copy = JSON.parse(JSON.stringify(prev));
             const assignFields = (node) => {
                 if (!node) return;
@@ -275,26 +246,29 @@ export default function AdminNavigation() {
                 toast.warning(`לא ניתן להוסיף יותר מ-${MAX_TOP_LEVEL_NAV_ITEMS} קטגוריות ראשיות.`);
                 return;
             }
-            const id = `cat_${Date.now()}`;
-            setNavItems([...navItems, { id, label: 'קטגוריה חדשה', icon: 'Folder', url: '', children: [] }]);
+            const id = createNavigationNodeId('cat');
+            saveNavigation((prev) => [
+                ...prev,
+                { id, kind: 'folder', label: 'קטגוריה חדשה', icon: 'Folder', url: '', children: [] },
+            ]);
         } else if (selectedPath.length === 1) {
-            setNavItems(prev => {
+            saveNavigation(prev => {
                 const copy = JSON.parse(JSON.stringify(prev));
                 const cat = copy.find(c => c.id === selectedPath[0]);
                 if (cat) {
                     if (!cat.children) cat.children = [];
-                    cat.children.push({ id: `sub_${Date.now()}`, title: 'תת-קטגוריה חדשה', icon: 'FileText', url: '', subLinks: [] });
+                    cat.children.push({ id: createNavigationNodeId('sub'), kind: 'folder', title: 'תת-קטגוריה חדשה', icon: 'FileText', url: '', subLinks: [] });
                 }
                 return copy;
             });
         } else if (selectedPath.length === 2) {
-            setNavItems(prev => {
+            saveNavigation(prev => {
                 const copy = JSON.parse(JSON.stringify(prev));
                 const cat = copy.find(c => c.id === selectedPath[0]);
                 const sub = cat?.children?.find(c => c.id === selectedPath[1]);
                 if (sub) {
                     if (!sub.subLinks) sub.subLinks = [];
-                    sub.subLinks.push({ id: `link_${Date.now()}`, label: 'לינק חדש', icon: 'Link', url: '' });
+                    sub.subLinks.push({ id: createNavigationNodeId('link'), kind: 'link', label: 'לינק חדש', icon: 'Link', url: '' });
                 }
                 return copy;
             });
@@ -312,7 +286,7 @@ export default function AdminNavigation() {
         }).then((confirmed) => {
             if (!confirmed) return;
 
-            setNavItems(prev => {
+            saveNavigation(prev => {
                 const copy = JSON.parse(JSON.stringify(prev));
                 if (path.length === 1) {
                     return copy.filter(c => c.id !== path[0]);
@@ -376,7 +350,7 @@ export default function AdminNavigation() {
             return;
         }
         const expanded = new Set(['root', ...normalized.map((item) => item.id)]);
-        setNavItems(normalized);
+        saveNavigation(normalized);
         setExpandedNodes(expanded);
         setSelectedPath([]);
         toast.success('הצעת AI הוחלה על מבנה הניווט');
@@ -539,7 +513,8 @@ export default function AdminNavigation() {
                             <span>סה"כ לינקים פעילים: <strong>{navigationStats.activeLinks}</strong></span>
                         </p>
                     </div>
-                    {isSaving && <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">שומר...</span>}
+                    {saving && <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">שומר...</span>}
+                    {!saving && dirty && !error && <span className="text-xs text-amber-600 dark:text-amber-300">ממתין לשמירה...</span>}
                 </div>
             </div>
 
@@ -600,7 +575,16 @@ export default function AdminNavigation() {
                     <DismissibleNotice dismissKey={error} className="mx-6 my-4 shrink-0 rounded-lg border border-primary-500/50 bg-primary-50 p-3 dark:bg-primary-900/30">
                         <div className="flex items-center gap-3">
                             <AlertTriangle size={18} className="text-primary-400" />
-                            <span className="text-sm text-primary-700 dark:text-primary-200">{error}</span>
+                            <span className="flex-1 text-sm text-primary-700 dark:text-primary-200">{error}</span>
+                            {dirty && (
+                                <button
+                                    type="button"
+                                    onClick={() => retrySave()}
+                                    className="min-h-10 rounded-lg bg-primary-600 px-3 text-xs font-bold text-white transition-[background-color,transform] hover:bg-primary-500 active:scale-[0.96]"
+                                >
+                                    נסה שוב
+                                </button>
+                            )}
                         </div>
                     </DismissibleNotice>
                 )}

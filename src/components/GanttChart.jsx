@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleHelp, Diamond, Flag, OctagonAlert, PauseCircle, Search, X, XCircle } from 'lucide-react';
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleHelp, Diamond, Flag, OctagonAlert, PauseCircle, Repeat2, Search, X, XCircle } from 'lucide-react';
 import {
     GANTT_STATUS_OPTIONS,
     GANTT_VIEW_OPTIONS,
     computeGanttProgress,
     computeGanttTimeStatus,
+    expandGanttRecurringTasks,
     normalizeGanttData,
 } from '../utils/ganttData';
-import { buildGanttTimelineModel } from '../utils/ganttTimeline';
+import { buildGanttTimelineModel, resolveGanttTimelineRange } from '../utils/ganttTimeline';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ROW_HEIGHT = 50;
@@ -17,6 +18,7 @@ const COMPACT_TASK_COLUMN_WIDTH = 188;
 const MILESTONE_HIT_AREA = 40;
 const MILESTONE_POPOVER_MIN_WIDTH = 220;
 const MILESTONE_POPOVER_MAX_WIDTH = 260;
+const MILESTONE_POPOVER_SCROLL_SPACE = 190;
 
 const DENSITY_CONFIG = {
     compact: { rowHeight: 42, groupRowHeight: 30, toolbarPadding: 'p-2', barHeightClass: 'h-5', taskTextClass: 'text-xs', markerSize: 12, legendPadding: 'px-3 py-2' },
@@ -496,9 +498,20 @@ export default function GanttChart({
         });
     }, [categoryFilter, gantt.items, searchTerm, statusFilter]);
 
+    const timelineRange = useMemo(() => {
+        return resolveGanttTimelineRange(filteredItems, viewMode, todayString, periodOffset);
+    }, [filteredItems, periodOffset, todayString, viewMode]);
+
+    const displayItems = useMemo(() => (
+        expandGanttRecurringTasks(filteredItems, {
+            rangeStart: timelineRange.start,
+            rangeEnd: timelineRange.end,
+        })
+    ), [filteredItems, timelineRange.end, timelineRange.start]);
+
     const model = useMemo(() => {
         return buildGanttTimelineModel({
-            items: filteredItems,
+            items: displayItems,
             viewMode,
             compact,
             viewportWidth,
@@ -508,8 +521,9 @@ export default function GanttChart({
             groupBy: gantt.groupBy,
             categories,
             periodOffset,
+            timelineRange,
         });
-    }, [categories, compact, filteredItems, gantt.groupBy, gantt.showToday, periodOffset, taskColumnWidth, todayString, viewMode, viewportWidth]);
+    }, [categories, compact, displayItems, gantt.groupBy, gantt.showToday, periodOffset, taskColumnWidth, timelineRange, todayString, viewMode, viewportWidth]);
 
     if (gantt.items.length === 0) {
         return (
@@ -521,7 +535,7 @@ export default function GanttChart({
         );
     }
 
-    if (filteredItems.length === 0) {
+    if (filteredItems.length === 0 || displayItems.length === 0) {
         return (
             <section dir="rtl" className={`${presentation.widthClass} flex min-w-0 flex-col overflow-hidden ${presentation.shellClass} ${className}`} style={cardStyle}>
                 {!compact && showToolbar && (
@@ -559,6 +573,7 @@ export default function GanttChart({
     const todayLabelRight = showToday
         ? clampNumber(model.todayOffset - 27, 6, Math.max(6, model.width - 60))
         : 0;
+    const isMilestonePopoverOpen = Boolean(selectedMilestone);
 
     return (
         <section
@@ -599,7 +614,12 @@ export default function GanttChart({
                 />
             )}
 
-            <div className={`min-h-0 overflow-auto overscroll-contain custom-scrollbar [scrollbar-gutter:stable] ${fitHeightToContent ? 'flex-[1_1_auto]' : 'flex-1'}`}>
+            <div
+                data-gantt-scroll-body
+                data-gantt-milestone-popover-open={isMilestonePopoverOpen ? 'true' : 'false'}
+                className={`min-h-0 overflow-auto overscroll-contain custom-scrollbar [scrollbar-gutter:stable] ${fitHeightToContent ? 'flex-[1_1_auto]' : 'flex-1'}`}
+                style={isMilestonePopoverOpen ? { paddingBottom: MILESTONE_POPOVER_SCROLL_SPACE } : undefined}
+            >
                 <div className="grid min-w-full" style={{ gridTemplateColumns: `${taskColumnWidth}px ${model.width}px` }}>
                     <div className="sticky right-0 top-0 z-40 flex items-center border-l border-theme-subtle bg-theme-card px-4 py-3 text-sm font-black shadow-sm" style={presentation.headerStyle}>
                         משימה
@@ -726,6 +746,15 @@ export default function GanttChart({
                                                             {milestones.length}
                                                         </span>
                                                     )}
+                                                    {item.isRecurringOccurrence && (
+                                                        <span
+                                                            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-theme-subtle px-1.5 py-0.5"
+                                                            title={item.recurrenceMeta?.ruleLabel || 'מופע חוזר'}
+                                                        >
+                                                            <Repeat2 size={10} style={{ color: presentation.accentColor }} />
+                                                            חוזר
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -798,7 +827,7 @@ export default function GanttChart({
                                                         data-gantt-milestone={milestone.id}
                                                         data-gantt-x={markerRight}
                                                         aria-expanded={isSelected}
-                                                        className={`absolute top-1/2 z-[4] flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full outline-none transition-transform hover:scale-[1.06] active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-primary/40 ${isSelected ? 'scale-[1.08] ring-2 ring-primary/30' : ''}`}
+                                                        className={`absolute top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full outline-none transition-transform hover:scale-[1.06] active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-primary/40 ${isSelected ? 'z-[110] scale-[1.08] ring-2 ring-primary/30' : 'z-[4]'}`}
                                                         style={{ right: hitAreaRight }}
                                                         title={milestoneTitle}
                                                         aria-label={milestoneTitle.replace(/\n/g, ', ')}
@@ -835,7 +864,7 @@ export default function GanttChart({
                                                         role="dialog"
                                                         aria-label={`פרטי אבן דרך ${milestone.title}`}
                                                         data-gantt-milestone-popover={milestone.id}
-                                                        className="absolute top-[calc(50%+18px)] z-[60] rounded-2xl border border-theme-subtle bg-theme-card p-3 text-right text-xs text-theme shadow-[0_18px_40px_rgba(15,23,42,0.18)]"
+                                                        className="absolute top-[calc(50%+18px)] z-[120] rounded-2xl border border-theme-subtle bg-theme-card p-3 text-right text-xs text-theme shadow-[0_18px_40px_rgba(15,23,42,0.18)]"
                                                         style={{ right: popoverRight, width: popoverWidth }}
                                                     >
                                                         <div className="flex items-start justify-between gap-3">

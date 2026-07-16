@@ -82,11 +82,11 @@ cp server/.env.test.example server/.env.test
 - `VITE_STORAGE_BACKEND=mongo`
 - `VITE_BACKEND_API_URL=http://127.0.0.1:3001` (אם frontend מרוחק – כתובת השרת בפועל)
 - `VITE_SITE_ID=local-dev-site`
-- `VITE_SITE_BUILDER_API_KEY=dev-local-api-key`
+- `VITE_SITE_BUILDER_DEV_API_KEY=dev-local-api-key` (development מקומי בלבד)
 - `VITE_AUTO_DEPLOY=false`
 
 > אם ה־frontend פועל מ־SharePoint dist במחשב אחר: אין אפשרות להשתמש `localhost`; צריך להכניס את כתובת ה־API של המחשב המארח ולהפעיל runtime config דרך:
-> `npm run sharepoint:install-runtime-config -- --site <siteCode> --backend-url http://<hostname>:3001 --api-key dev-local-api-key`
+> runtime config ציבורי אינו מקבל API key. עבור build מתארח יש להשתמש ב-session/SSO או gateway מאומת.
 
 ## בדיקת בטיחות מקדימה
 

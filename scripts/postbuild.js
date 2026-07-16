@@ -1,8 +1,8 @@
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawnSync } from 'child_process';
-import { parseCliArgs, resolveConfig } from './sp-env.js';
+import { loadEnvFile, parseCliArgs, resolveConfig } from './sp-env.js';
+import { writeDeploymentArtifacts } from './deploymentArtifacts.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,14 +11,14 @@ const distRoot = path.resolve(projectRoot, 'dist');
 
 const cli = parseCliArgs();
 const envPath = cli.env ? path.resolve(process.cwd(), String(cli.env)) : path.resolve(projectRoot, '.env.production');
+const envFromFile = loadEnvFile(envPath);
 const config = resolveConfig({ envFilePath: envPath, cli });
-const strictDeploy = String(process.env.VITE_AUTO_DEPLOY_STRICT || config.envFromFile?.VITE_AUTO_DEPLOY_STRICT || '').toLowerCase() === 'true';
-
-const autoDeployEnabled = String(config.autoDeploy || '').toLowerCase() === 'true';
-if (!autoDeployEnabled) {
-  console.log('[postbuild] VITE_AUTO_DEPLOY is not true. Skipping SharePoint init/deploy.');
-  process.exit(0);
-}
+const postbuildDeployOptIn = String(
+  process.env.SITE_BUILDER_POSTBUILD_DEPLOY
+  || envFromFile.SITE_BUILDER_POSTBUILD_DEPLOY
+  || '',
+).trim().toLowerCase() === 'true';
+const autoDeployEnabled = postbuildDeployOptIn && String(config.autoDeploy || '').toLowerCase() === 'true';
 
 const printStd = (value) => {
   if (value && String(value).trim().length > 0) {
@@ -36,36 +36,9 @@ const runNodeCommand = (scriptPath, args = []) => {
   return result;
 };
 
-const collectDistFiles = (rootDir) => {
-  const files = [];
-  const walk = (dir) => {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(fullPath);
-        continue;
-      }
-      const rel = path.relative(rootDir, fullPath).split(path.sep).join('/');
-      files.push(rel);
-    }
-  };
-  walk(rootDir);
-  return files.sort();
-};
-
 const writeDeployManifest = () => {
-  if (!fs.existsSync(distRoot)) {
-    throw new Error(`dist directory not found: ${distRoot}`);
-  }
-  const files = collectDistFiles(distRoot);
-  if (!files.includes('sharepoint-deploy-manifest.json')) {
-    files.push('sharepoint-deploy-manifest.json');
-  }
-  files.sort();
-  const manifestPath = path.join(distRoot, 'sharepoint-deploy-manifest.json');
-  fs.writeFileSync(manifestPath, `${JSON.stringify(files, null, 2)}\n`, 'utf8');
-  console.log(`[postbuild] generated manifest: ${manifestPath} (${files.length} files)`);
+  const artifacts = writeDeploymentArtifacts(distRoot, config);
+  console.log(`[postbuild] generated explicit ${artifacts.runtimeConfig.storageBackend} runtime selector and object manifest (${artifacts.manifest.files.length} files)`);
 };
 
 const parseCheckResult = (stdout) => {
@@ -82,6 +55,11 @@ const parseCheckResult = (stdout) => {
 
 try {
   writeDeployManifest();
+
+  if (!autoDeployEnabled) {
+    console.log('[postbuild] Runtime selector and manifest were generated; SharePoint deploy was skipped. Set SITE_BUILDER_POSTBUILD_DEPLOY=true plus VITE_AUTO_DEPLOY=true for an explicit postbuild deploy.');
+    process.exit(0);
+  }
 
   const initScript = path.resolve(projectRoot, 'scripts/init-sharepoint-site.js');
   const deployScript = path.resolve(projectRoot, 'deploy.js');
@@ -133,10 +111,6 @@ try {
   console.log(`[postbuild] Setup URL: ${setupUrl}`);
   process.exit(0);
 } catch (error) {
-  if (strictDeploy) {
-    console.error(`[postbuild] Failed (strict mode): ${error.message}`);
-    process.exit(1);
-  }
-  console.warn(`[postbuild] Warning: bootstrap/final flow failed but strict mode is off. ${error.message}`);
-  process.exit(0);
+  console.error(`[postbuild] Failed: ${error.message}`);
+  process.exit(1);
 }

@@ -2,6 +2,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import process from 'process'
+import { spawn } from 'child_process'
 import { fileURLToPath, pathToFileURL } from 'url'
 
 export const LOCAL_FILE_BRIDGE_PATH = '/__sitebuilder-local-file'
@@ -35,7 +36,7 @@ export const contentTypes = {
   '.zip': 'application/zip',
 }
 
-const viewStorageKey = 'sitebuilder.localFileBridge.view.v2'
+const viewStorageKey = 'sitebuilder.localFileBridge.view.v4'
 const SEARCH_MAX_DEPTH = 8
 const SEARCH_RESULT_LIMIT = 80
 const SEARCH_VISIT_LIMIT = 2500
@@ -160,6 +161,45 @@ export function bridgeHrefFromFileHref(fileHref) {
 
 export function bridgeHrefFromPath(filePath, platform = process.platform) {
   return bridgeHrefFromFileHref(fileHrefFromPath(filePath, platform))
+}
+
+export function getDefaultOpenCommand(filePath, platform = process.platform) {
+  const value = String(filePath || '').trim()
+  if (!value) return null
+
+  if (platform === 'darwin') {
+    return { command: 'open', args: [value], options: { detached: true, stdio: 'ignore' } }
+  }
+
+  if (platform === 'win32') {
+    return {
+      command: 'cmd',
+      args: ['/c', 'start', '', value],
+      options: { detached: true, stdio: 'ignore', windowsHide: true },
+    }
+  }
+
+  return { command: 'xdg-open', args: [value], options: { detached: true, stdio: 'ignore' } }
+}
+
+export function openPathInDefaultApplication(filePath, platform = process.platform) {
+  const openCommand = getDefaultOpenCommand(filePath, platform)
+  if (!openCommand) throw new Error('Missing file path')
+
+  const child = spawn(openCommand.command, openCommand.args, openCommand.options)
+  child.unref()
+  return openCommand
+}
+
+function isAuthorizedNativeOpenRequest(req) {
+  return req.method === 'POST' && req.headers['x-sitebuilder-local-open'] === '1'
+}
+
+function sendJson(res, statusCode, payload) {
+  res.statusCode = statusCode
+  res.setHeader('Cache-Control', 'no-store')
+  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+  res.end(JSON.stringify(payload))
 }
 
 function getFileKind(ext, isDirectory) {
@@ -424,13 +464,19 @@ function renderIcon(name) {
     copy: `<svg ${shared}><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`,
     document: `<svg ${shared}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>`,
     file: `<svg ${shared}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>`,
-    folder: `<svg ${shared}><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>`,
+    computer: `<svg ${shared}><rect x="3" y="4" width="18" height="13" rx="1.5"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>`,
+    desktop: `<svg ${shared}><rect x="3" y="4" width="18" height="13" rx="1.5"/><path d="M7 20h10"/></svg>`,
+    download: `<svg ${shared}><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>`,
+    folder: `<svg aria-hidden="true" class="icon folder-icon" viewBox="0 0 48 48"><path fill="#D99A00" d="M3.5 11.2A4.2 4.2 0 0 1 7.7 7h11.1l4.7 4.7h16.8a4.2 4.2 0 0 1 4.2 4.2v21.2a4.2 4.2 0 0 1-4.2 4.2H7.7a4.2 4.2 0 0 1-4.2-4.2Z"/><path fill="#FFD35A" d="M3.5 16.5h41v20.6a4.2 4.2 0 0 1-4.2 4.2H7.7a4.2 4.2 0 0 1-4.2-4.2Z"/><path fill="#FFE58B" d="M7.7 17.8h32.6c1 0 1.8.8 1.8 1.8v1.2H5.9v-1.2c0-1 .8-1.8 1.8-1.8Z"/></svg>`,
     grid: `<svg ${shared}><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>`,
+    home: `<svg ${shared}><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>`,
     image: `<svg ${shared}><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>`,
     list: `<svg ${shared}><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>`,
+    openApp: `<svg ${shared}><path d="M15 3h6v6"/><path d="m10 14 11-11"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>`,
     pdf: `<svg ${shared}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 17v-4h1.5a1.5 1.5 0 0 1 0 3H8"/><path d="M13 13v4h1a2 2 0 0 0 0-4Z"/><path d="M18 13h-2v4"/><path d="M16 15h2"/></svg>`,
     presentation: `<svg ${shared}><path d="M2 3h20"/><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/><path d="m7 21 5-5 5 5"/></svg>`,
     refresh: `<svg ${shared}><path d="M21 12a9 9 0 0 0-9-9 9.8 9.8 0 0 0-6.7 2.7L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.8 9.8 0 0 0 6.7-2.7L21 16"/><path d="M16 16h5v5"/></svg>`,
+    network: `<svg ${shared}><rect x="8" y="3" width="8" height="6" rx="1"/><rect x="2" y="15" width="8" height="6" rx="1"/><rect x="14" y="15" width="8" height="6" rx="1"/><path d="M12 9v3M6 15v-3h12v3"/></svg>`,
     search: `<svg ${shared}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`,
     sheet: `<svg ${shared}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/><path d="M11 9v12"/></svg>`,
     text: `<svg ${shared}><path d="M17 6.1H3"/><path d="M21 12.1H3"/><path d="M15.1 18H3"/></svg>`,
@@ -439,6 +485,57 @@ function renderIcon(name) {
   }
 
   return icons[name] || icons.file
+}
+
+function isSameOrChildPath(candidatePath, currentPath, platform = process.platform) {
+  const pathApi = toPathApi(platform)
+  const relative = pathApi.relative(pathApi.resolve(candidatePath), pathApi.resolve(currentPath))
+  return relative === '' || (!relative.startsWith('..') && !pathApi.isAbsolute(relative))
+}
+
+function renderNavigationPane(currentPath, platform = process.platform) {
+  const pathApi = toPathApi(platform)
+  const homePath = os.homedir()
+  const parsed = pathApi.parse(pathApi.resolve(currentPath))
+  const candidates = [
+    { icon: 'home', label: 'בית', targetPath: homePath },
+    { icon: 'desktop', label: 'שולחן העבודה', targetPath: pathApi.join(homePath, 'Desktop') },
+    { icon: 'document', label: 'מסמכים', targetPath: pathApi.join(homePath, 'Documents') },
+    { icon: 'download', label: 'הורדות', targetPath: pathApi.join(homePath, 'Downloads') },
+  ].filter((item, index, items) => item.targetPath && fs.existsSync(item.targetPath)
+    && items.findIndex((candidate) => candidate.targetPath === item.targetPath) === index)
+  const activePath = candidates
+    .filter((item) => isSameOrChildPath(item.targetPath, currentPath, platform))
+    .sort((a, b) => b.targetPath.length - a.targetPath.length)[0]?.targetPath
+
+  const quickLinks = candidates.map((item) => {
+    const isActive = item.targetPath === activePath
+    return `<a class="navigation-link${isActive ? ' is-active' : ''}" href="${htmlEscape(bridgeHrefFromPath(item.targetPath, platform))}" title="${htmlEscape(item.targetPath)}"${isActive ? ' aria-current="location"' : ''}>
+      <span class="navigation-icon">${renderIcon(item.icon)}</span>
+      <span class="navigation-label">${htmlEscape(item.label)}</span>
+    </a>`
+  }).join('\n')
+
+  const rootPath = parsed.root || currentPath
+  const rootLabel = platform === 'win32' ? (parsed.root || 'מחשב זה') : 'מערכת הקבצים'
+
+  return `<aside class="navigation-pane" aria-label="ניווט בתיקיות">
+    <div class="navigation-section">
+      <p class="navigation-heading">גישה מהירה</p>
+      ${quickLinks}
+    </div>
+    <div class="navigation-section">
+      <p class="navigation-heading">מיקומים</p>
+      <a class="navigation-link" href="${htmlEscape(bridgeHrefFromPath(rootPath, platform))}" title="${htmlEscape(rootPath)}">
+        <span class="navigation-icon navigation-icon-computer">${renderIcon('computer')}</span>
+        <span class="navigation-label">${htmlEscape(rootLabel)}</span>
+      </a>
+      <span class="navigation-link is-current-location${activePath ? '' : ' is-active'}" title="${htmlEscape(currentPath)}">
+        <span class="navigation-icon">${renderIcon('network')}</span>
+        <span class="navigation-label">המיקום הנוכחי</span>
+      </span>
+    </div>
+  </aside>`
 }
 
 function renderBreadcrumbs(breadcrumbs) {
@@ -457,14 +554,23 @@ function renderEntry(entry) {
   const disabledClass = entry.isReadable ? '' : ' is-unreadable'
   const dateAttr = entry.modifiedIso ? ` datetime="${htmlEscape(entry.modifiedIso)}"` : ''
   const errorTitle = entry.readError ? ` title="${htmlEscape(entry.readError)}"` : ''
+  const nativeAction = !entry.isDirectory && entry.isReadable
+    ? `<button class="entry-action" type="button" data-open-native="true" data-path="${title}" title="פתח באפליקציה" aria-label="פתח את ${htmlEscape(entry.name)} באפליקציית ברירת המחדל">${renderIcon('openApp')}</button>`
+    : ''
 
-  return `<a class="entry kind-${htmlEscape(entry.kind)}${disabledClass}" href="${href}"${targetAttrs} data-entry-kind="${htmlEscape(entry.kind)}" title="${title}">
-    <span class="entry-icon">${renderIcon(entry.kind)}</span>
-    <span class="entry-name" dir="auto">${htmlEscape(entry.name)}</span>
-    <span class="entry-type"${errorTitle}>${htmlEscape(entry.label)}</span>
-    <span class="entry-size">${htmlEscape(entry.sizeLabel || '')}</span>
-    <time class="entry-date"${dateAttr}>${htmlEscape(entry.modifiedLabel)}</time>
-  </a>`
+  return `<article class="entry kind-${htmlEscape(entry.kind)}${disabledClass}" role="listitem" data-entry-kind="${htmlEscape(entry.kind)}" title="${title}">
+    <a class="entry-main" href="${href}"${targetAttrs}>
+      <span class="entry-icon">
+        ${renderIcon(entry.kind)}
+        ${entry.isDirectory ? '' : `<span class="entry-extension">${htmlEscape(entry.label)}</span>`}
+      </span>
+      <span class="entry-name" dir="auto">${htmlEscape(entry.name)}</span>
+      <span class="entry-type"${errorTitle}>${htmlEscape(entry.label)}</span>
+      <span class="entry-size">${htmlEscape(entry.sizeLabel || '')}</span>
+      <time class="entry-date"${dateAttr}>${htmlEscape(entry.modifiedLabel)}</time>
+    </a>
+    ${nativeAction}
+  </article>`
 }
 
 function renderEmptyState() {
@@ -479,7 +585,7 @@ function renderDirectoryEntries(entries) {
   if (!entries.length) return renderEmptyState()
 
   return `<div class="entries" role="list">
-    <div class="entry entry-head" aria-hidden="true">
+    <div class="entry-head" aria-hidden="true">
       <span></span>
       <span>שם</span>
       <span>סוג</span>
@@ -492,25 +598,23 @@ function renderDirectoryEntries(entries) {
 
 function renderBridgeStyles() {
   return `<style>
-    @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800;900&display=swap');
-
     :root {
-      --color-primary-h: 188;
-      --color-primary-s: 87%;
-      --color-primary-l: 36%;
+      --color-primary-h: 208;
+      --color-primary-s: 100%;
+      --color-primary-l: 38%;
       --color-primary: var(--color-primary-h) var(--color-primary-s) var(--color-primary-l);
-      --color-primary-hex: #0891b2;
-      --color-bg-base: #0c0d12;
-      --color-bg-card: #1a1c23;
-      --color-bg-card-hover: #20232c;
-      --color-bg-elevated: #252830;
-      --color-bg-chrome: rgba(18, 19, 26, 0.9);
-      --color-border-subtle: rgba(255, 255, 255, 0.06);
-      --color-border-strong: rgba(255, 255, 255, 0.12);
-      --color-text-primary: #f0f1f4;
-      --color-text-muted: #9ca3af;
-      --shadow-border: 0 0 0 1px rgba(255, 255, 255, 0.08);
-      color-scheme: dark;
+      --color-primary-hex: #0067c0;
+      --color-bg-base: #f3f3f3;
+      --color-bg-card: #ffffff;
+      --color-bg-card-hover: #e5f3ff;
+      --color-bg-elevated: #f7f7f7;
+      --color-bg-chrome: #f9f9f9;
+      --color-border-subtle: rgba(0, 0, 0, 0.08);
+      --color-border-strong: rgba(0, 0, 0, 0.16);
+      --color-text-primary: #1b1b1b;
+      --color-text-muted: #5f6368;
+      --shadow-border: 0 0 0 1px rgba(0, 0, 0, 0.08);
+      color-scheme: light;
     }
 
     :root.light {
@@ -534,6 +638,8 @@ function renderBridgeStyles() {
 
     html {
       min-height: 100%;
+      max-width: 100%;
+      overflow-x: hidden;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
@@ -543,7 +649,8 @@ function renderBridgeStyles() {
       margin: 0;
       background: var(--color-bg-base);
       color: var(--color-text-primary);
-      font-family: Heebo, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: "Segoe UI", Arial, sans-serif;
+      overflow-x: hidden;
     }
 
     button,
@@ -582,7 +689,12 @@ function renderBridgeStyles() {
       align-items: center;
       gap: 14px;
       min-width: 0;
+      max-width: 100%;
       text-align: right;
+    }
+
+    .title-cluster > div {
+      min-width: 0;
     }
 
     .brand-mark,
@@ -614,6 +726,7 @@ function renderBridgeStyles() {
       font-weight: 900;
       letter-spacing: 0;
       line-height: 1.05;
+      overflow-wrap: anywhere;
       text-wrap: balance;
     }
 
@@ -1034,33 +1147,66 @@ function renderBridgeStyles() {
     }
 
     .entry {
-      display: grid;
-      grid-template-columns: 44px minmax(0, 1fr) minmax(74px, 120px) minmax(72px, 110px) minmax(112px, 150px);
-      align-items: center;
-      gap: 10px;
-      min-height: 54px;
       border-radius: 8px;
-      padding: 7px 12px;
       background: var(--color-bg-card);
       color: var(--color-text-primary);
       box-shadow: var(--shadow-border);
+      overflow: hidden;
+      position: relative;
       transition-property: background-color, box-shadow, transform;
       transition-duration: 160ms;
       transition-timing-function: ease-out;
     }
 
-    a.entry:hover {
+    .entry::before {
+      content: "";
+      position: absolute;
+      inset-block: 8px;
+      inset-inline-start: 0;
+      width: 3px;
+      border-radius: 999px;
+      background: hsl(var(--color-primary) / 0.88);
+      opacity: 0;
+      transform: scaleY(0.36);
+      transition-property: opacity, transform;
+      transition-duration: 160ms;
+      transition-timing-function: ease-out;
+    }
+
+    .entry:hover {
       background: var(--color-bg-card-hover);
       box-shadow: 0 0 0 1px hsl(var(--color-primary) / 0.24), 0 12px 26px rgba(0, 0, 0, 0.12);
       transform: translateY(-1px);
     }
 
-    a.entry:active {
+    .entry:hover::before,
+    .entry:focus-within::before {
+      opacity: 1;
+      transform: scaleY(1);
+    }
+
+    .entry:active {
       transform: scale(0.99);
+    }
+
+    .entry-main,
+    .entry-head {
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr) minmax(74px, 120px) minmax(72px, 110px) minmax(112px, 150px);
+      align-items: center;
+      gap: 10px;
+      min-height: 54px;
+      padding: 7px 54px 7px 12px;
+    }
+
+    .entry-main:focus-visible {
+      outline: 2px solid hsl(var(--color-primary) / 0.5);
+      outline-offset: -3px;
     }
 
     .entry-head {
       min-height: 36px;
+      padding-block: 0;
       background: transparent;
       color: var(--color-text-muted);
       box-shadow: none;
@@ -1074,9 +1220,27 @@ function renderBridgeStyles() {
       height: 38px;
       align-items: center;
       justify-content: center;
+      position: relative;
       border-radius: 8px;
       background: hsl(var(--color-primary) / 0.12);
       color: hsl(var(--color-primary) / 0.96);
+    }
+
+    .entry-extension {
+      position: absolute;
+      inset-block-end: -3px;
+      inset-inline-end: -4px;
+      min-width: 24px;
+      border-radius: 6px;
+      background: var(--color-bg-card);
+      color: var(--color-text-muted);
+      padding: 1px 4px;
+      box-shadow: var(--shadow-border);
+      font-size: 8px;
+      font-weight: 900;
+      line-height: 1.4;
+      text-align: center;
+      text-transform: uppercase;
     }
 
     .kind-file .entry-icon,
@@ -1114,6 +1278,7 @@ function renderBridgeStyles() {
       white-space: nowrap;
       font-size: 15px;
       font-weight: 900;
+      text-align: right;
     }
 
     .entry-type,
@@ -1135,13 +1300,70 @@ function renderBridgeStyles() {
       font-variant-numeric: tabular-nums;
     }
 
+    .entry-action {
+      position: absolute;
+      inset-block-start: 50%;
+      inset-inline-end: 8px;
+      z-index: 2;
+      display: inline-flex;
+      width: 40px;
+      height: 40px;
+      align-items: center;
+      justify-content: center;
+      border: 0;
+      border-radius: 8px;
+      background: hsl(var(--color-primary) / 0.12);
+      color: hsl(var(--color-primary) / 0.96);
+      cursor: pointer;
+      opacity: 0;
+      filter: blur(4px);
+      transform: translateY(-50%) scale(0.25);
+      transition-property: opacity, filter, transform, background-color, color, box-shadow;
+      transition-duration: 180ms;
+      transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+    }
+
+    .entry:hover .entry-action,
+    .entry:focus-within .entry-action {
+      opacity: 1;
+      filter: blur(0);
+      transform: translateY(-50%) scale(1);
+    }
+
+    .entry-action:hover {
+      background: hsl(var(--color-primary) / 0.95);
+      color: white;
+      box-shadow: 0 8px 18px hsl(var(--color-primary) / 0.22);
+    }
+
+    .entry-action:active {
+      transform: translateY(-50%) scale(0.96);
+    }
+
+    .entry-action:focus-visible {
+      outline: 2px solid hsl(var(--color-primary) / 0.5);
+      outline-offset: 2px;
+      opacity: 1;
+      filter: blur(0);
+      transform: translateY(-50%) scale(1);
+    }
+
+    .entry-action.is-busy {
+      cursor: wait;
+      opacity: 0.7;
+    }
+
+    .entry-action:disabled {
+      pointer-events: none;
+    }
+
     .is-unreadable {
       opacity: 0.58;
     }
 
     .file-shell[data-view="grid"] .entries {
-      grid-template-columns: repeat(auto-fill, minmax(188px, 1fr));
-      gap: 14px;
+      grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+      gap: 12px;
     }
 
     .file-shell[data-view="grid"] .entry-head {
@@ -1149,16 +1371,33 @@ function renderBridgeStyles() {
     }
 
     .file-shell[data-view="grid"] .entry {
+      min-height: 176px;
+    }
+
+    .file-shell[data-view="grid"] .entry::before {
+      inset: 0 10px auto;
+      width: auto;
+      height: 3px;
+      transform: scaleX(0.28);
+    }
+
+    .file-shell[data-view="grid"] .entry:hover::before,
+    .file-shell[data-view="grid"] .entry:focus-within::before {
+      transform: scaleX(1);
+    }
+
+    .file-shell[data-view="grid"] .entry-main {
       grid-template-columns: 1fr;
       align-content: start;
-      min-height: 168px;
-      padding: 16px;
+      gap: 8px;
+      min-height: 176px;
+      padding: 15px;
     }
 
     .file-shell[data-view="grid"] .entry-icon {
-      width: 52px;
-      height: 52px;
-      margin-bottom: 4px;
+      width: 62px;
+      height: 58px;
+      margin-bottom: 2px;
     }
 
     .file-shell[data-view="grid"] .entry-name {
@@ -1170,7 +1409,32 @@ function renderBridgeStyles() {
     .file-shell[data-view="grid"] .entry-type,
     .file-shell[data-view="grid"] .entry-size,
     .file-shell[data-view="grid"] .entry-date {
+      justify-self: start;
       text-align: right;
+    }
+
+    .file-shell[data-view="grid"] .entry-type {
+      border-radius: 6px;
+      background: hsl(var(--color-primary) / 0.1);
+      color: hsl(var(--color-primary) / 0.96);
+      padding: 2px 7px;
+      box-shadow: var(--shadow-border);
+    }
+
+    .file-shell[data-view="grid"] .entry-action {
+      inset-block-start: 10px;
+      inset-inline-end: 10px;
+      opacity: 0.84;
+      filter: blur(0);
+      transform: scale(1);
+    }
+
+    .file-shell[data-view="grid"] .entry-action:active {
+      transform: scale(0.96);
+    }
+
+    .file-shell[data-view="grid"] .entry-action:focus-visible {
+      transform: scale(1);
     }
 
     .empty-state,
@@ -1251,6 +1515,14 @@ function renderBridgeStyles() {
     @media (max-width: 760px) {
       .file-shell {
         padding: 14px;
+        width: 100%;
+        max-width: 100vw;
+        overflow-x: hidden;
+      }
+
+      .app-frame {
+        max-width: 100%;
+        overflow-x: hidden;
       }
 
       .app-header,
@@ -1260,6 +1532,26 @@ function renderBridgeStyles() {
 
       .app-header {
         flex-direction: column;
+        overflow: hidden;
+      }
+
+      .title-cluster {
+        width: 100%;
+        gap: 10px;
+      }
+
+      .title-cluster > div {
+        width: min(100%, calc(100vw - 82px));
+      }
+
+      .brand-mark {
+        width: 44px;
+        height: 44px;
+      }
+
+      h1 {
+        font-size: 30px;
+        line-height: 1.12;
       }
 
       .header-meta {
@@ -1267,28 +1559,45 @@ function renderBridgeStyles() {
       }
 
       .toolbar {
-        grid-template-columns: 1fr auto;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+        padding: 8px;
       }
 
       .action-group {
+        width: 100%;
         min-width: 0;
+        justify-content: flex-end;
+        gap: 4px;
+        overflow-x: auto;
+        padding-block: 2px;
+        scrollbar-width: none;
+      }
+
+      .action-group::-webkit-scrollbar {
+        display: none;
       }
 
       .path-form {
         grid-column: 1 / -1;
-        grid-row: 2;
+        grid-row: auto;
+      }
+
+      .view-toggle {
+        justify-self: start;
       }
 
       .text-button {
         padding-inline: 12px;
       }
 
-      .entry {
+      .entry-main {
         grid-template-columns: 42px minmax(0, 1fr);
         grid-template-areas:
           "icon name"
           "icon meta";
         min-height: 66px;
+        padding-inline-end: 54px;
       }
 
       .entry-head {
@@ -1307,7 +1616,1088 @@ function renderBridgeStyles() {
       }
 
       .file-shell[data-view="grid"] .entries {
-        grid-template-columns: repeat(auto-fill, minmax(146px, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+        max-width: 100%;
+      }
+
+      .file-shell[data-view="grid"] .entry-main {
+        min-height: 164px;
+      }
+    }
+
+    /* Solid Windows File Explorer-inspired presentation. */
+    :root,
+    :root.light {
+      --color-primary-h: 208;
+      --color-primary-s: 100%;
+      --color-primary-l: 38%;
+      --color-primary: var(--color-primary-h) var(--color-primary-s) var(--color-primary-l);
+      --color-primary-hex: #0067c0;
+      --color-bg-base: #f3f3f3;
+      --color-bg-card: #ffffff;
+      --color-bg-card-hover: #e5f3ff;
+      --color-bg-elevated: #f7f7f7;
+      --color-bg-chrome: #f9f9f9;
+      --color-border-subtle: rgba(0, 0, 0, 0.08);
+      --color-border-strong: rgba(0, 0, 0, 0.16);
+      --color-text-primary: #1b1b1b;
+      --color-text-muted: #5f6368;
+      --shadow-border: 0 0 0 1px rgba(0, 0, 0, 0.08);
+      color-scheme: light;
+    }
+
+    body {
+      background: #ffffff;
+      color: var(--color-text-primary);
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 13px;
+    }
+
+    .file-shell {
+      min-height: 100vh;
+      padding: 0;
+      background: #ffffff;
+    }
+
+    .app-frame {
+      width: 100%;
+      max-width: none;
+      margin: 0;
+      background: #ffffff;
+    }
+
+    .app-header {
+      min-height: 54px;
+      margin: 0;
+      padding: 8px 14px;
+      border-bottom: 1px solid #dddddd;
+      background: #f3f3f3;
+    }
+
+    .title-cluster {
+      gap: 10px;
+    }
+
+    .brand-mark,
+    .empty-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 3px;
+      background: transparent;
+      color: #d99500;
+      box-shadow: none;
+    }
+
+    .brand-mark .icon,
+    .empty-icon .icon {
+      width: 24px;
+      height: 24px;
+    }
+
+    .eyebrow {
+      margin: 0 0 1px;
+      color: var(--color-text-muted);
+      font-size: 11px;
+      font-weight: 400;
+    }
+
+    h1 {
+      font-size: 18px;
+      font-weight: 600;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    .header-meta {
+      min-height: 32px;
+      padding-inline: 8px;
+      color: var(--color-text-muted);
+      font-size: 12px;
+      font-weight: 400;
+    }
+
+    .toolbar {
+      grid-template-columns: auto minmax(280px, 1fr) auto;
+      gap: 8px;
+      margin: 0;
+      padding: 6px 10px;
+      border-radius: 0;
+      border-bottom: 1px solid #dddddd;
+      background: #f9f9f9;
+      box-shadow: none;
+      backdrop-filter: none;
+    }
+
+    .action-group {
+      gap: 2px;
+    }
+
+    .icon-button,
+    .text-button,
+    .view-button {
+      min-width: 40px;
+      height: 40px;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      background: transparent;
+      color: #303030;
+      transition-property: background-color, border-color, color, transform;
+      transition-duration: 120ms;
+      transition-timing-function: ease-out;
+    }
+
+    .icon-button:hover,
+    .text-button:hover,
+    .view-button:hover {
+      border-color: #cce8ff;
+      background: #e5f3ff;
+      color: #1b1b1b;
+    }
+
+    .icon-button:focus-visible,
+    .text-button:focus-visible,
+    .view-button:focus-visible,
+    .path-input:focus-visible,
+    .search-input:focus-visible {
+      outline: 2px solid #0067c0;
+      outline-offset: -2px;
+    }
+
+    .text-button {
+      min-width: 64px;
+      padding-inline: 14px;
+      border-color: #d0d0d0;
+      background: #f5f5f5;
+      color: #1b1b1b;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .text-button:hover {
+      border-color: #b8d9f2;
+      background: #e5f3ff;
+    }
+
+    .search-cluster.is-open .search-toggle {
+      border-color: #99d1ff;
+      background: #d6eaff;
+      color: #005a9e;
+      box-shadow: none;
+    }
+
+    .search-drawer {
+      height: 40px;
+      opacity: 0;
+      filter: none;
+      transform: translateX(8px);
+      transition-property: opacity, transform;
+      transition-duration: 140ms;
+    }
+
+    .search-cluster.is-open .search-drawer {
+      opacity: 1;
+      filter: none;
+      transform: translateX(0);
+    }
+
+    .search-input {
+      border: 1px solid #bfbfbf;
+      border-radius: 3px;
+      background: #ffffff;
+      color: #1b1b1b;
+      font-size: 12px;
+      font-weight: 400;
+      box-shadow: none;
+    }
+
+    .search-results {
+      border: 1px solid #cfcfcf;
+      border-radius: 4px;
+      background: #ffffff;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+      filter: none;
+      transform: translateY(5px);
+      transition-property: opacity, transform;
+      transition-duration: 140ms;
+    }
+
+    .search-cluster.is-open .search-results:not([hidden]) {
+      filter: none;
+      transform: translateY(0);
+    }
+
+    .search-meta {
+      padding: 9px 10px;
+      border-bottom-color: #e5e5e5;
+      background: #f7f7f7;
+      font-size: 11px;
+      font-weight: 400;
+    }
+
+    .search-list {
+      gap: 0;
+      padding: 4px;
+    }
+
+    .search-result {
+      min-height: 48px;
+      border-radius: 3px;
+      padding: 5px 7px;
+      background: transparent;
+      opacity: 1;
+      filter: none;
+      transform: none;
+      animation: none;
+      transition-property: background-color, box-shadow;
+      transition-duration: 120ms;
+    }
+
+    .search-result:hover {
+      background: #e5f3ff;
+      box-shadow: inset 0 0 0 1px #cce8ff;
+      transform: none;
+    }
+
+    .search-result-icon {
+      border-radius: 2px;
+      background: transparent;
+      color: #d99500;
+    }
+
+    .search-result-name {
+      font-size: 13px;
+      font-weight: 400;
+    }
+
+    .search-result-path,
+    .search-result-tag,
+    .search-status,
+    .search-empty {
+      font-weight: 400;
+    }
+
+    .view-toggle {
+      gap: 1px;
+      padding: 0;
+      border-radius: 0;
+      background: transparent;
+    }
+
+    .view-button[aria-pressed="true"] {
+      border-color: #99d1ff;
+      background: #d6eaff;
+      color: #005a9e;
+      box-shadow: none;
+    }
+
+    .path-form {
+      gap: 6px;
+      border-radius: 0;
+    }
+
+    .path-input {
+      height: 38px;
+      border: 1px solid #bfbfbf;
+      border-radius: 2px;
+      background: #ffffff;
+      color: #1b1b1b;
+      padding-inline: 10px;
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 12px;
+      font-weight: 400;
+    }
+
+    .breadcrumbs {
+      min-height: 36px;
+      margin: 0;
+      padding: 2px 14px;
+      border-bottom: 1px solid #e5e5e5;
+      background: #ffffff;
+      color: var(--color-text-muted);
+      font-size: 12px;
+      font-weight: 400;
+    }
+
+    .breadcrumbs a {
+      min-height: 30px;
+      border-radius: 3px;
+      padding-inline: 7px;
+    }
+
+    .breadcrumbs a:hover {
+      background: #e5f3ff;
+      color: #1b1b1b;
+    }
+
+    .content-panel {
+      min-height: calc(100vh - 140px);
+      padding: 8px 12px 16px;
+      background: #ffffff;
+    }
+
+    .entries {
+      gap: 0;
+    }
+
+    .entry {
+      border-radius: 0;
+      border-bottom: 1px solid #ededed;
+      background: transparent;
+      box-shadow: none;
+      overflow: visible;
+      transition-property: background-color, box-shadow;
+      transition-duration: 100ms;
+    }
+
+    .entry::before {
+      content: none;
+    }
+
+    .entry:hover,
+    .entry:focus-within {
+      background: #e5f3ff;
+      box-shadow: inset 0 0 0 1px #cce8ff;
+      transform: none;
+    }
+
+    .entry:active {
+      transform: none;
+    }
+
+    .entry-main,
+    .entry-head {
+      grid-template-columns: 38px minmax(0, 1fr) minmax(74px, 120px) minmax(72px, 110px) minmax(112px, 150px);
+      gap: 8px;
+      min-height: 42px;
+      padding: 4px 48px 4px 8px;
+    }
+
+    .entry-main:focus-visible {
+      outline: 2px solid #0067c0;
+      outline-offset: -2px;
+    }
+
+    .entry-head {
+      min-height: 32px;
+      border-bottom: 1px solid #d9d9d9;
+      background: #f7f7f7;
+      color: #505050;
+      font-size: 11px;
+      font-weight: 400;
+    }
+
+    .entry-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 0;
+      background: transparent;
+      color: #d99500;
+    }
+
+    .entry-extension {
+      inset-block-end: -1px;
+      inset-inline-end: -3px;
+      min-width: 22px;
+      border-radius: 2px;
+      background: #ffffff;
+      color: #505050;
+      padding: 0 3px;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+      font-size: 7px;
+      font-weight: 600;
+    }
+
+    .kind-file .entry-icon,
+    .kind-text .entry-icon,
+    .kind-code .entry-icon {
+      background: transparent;
+      color: #6c7a89;
+    }
+
+    .kind-pdf .entry-icon {
+      background: transparent;
+      color: #c42b1c;
+    }
+
+    .kind-image .entry-icon,
+    .kind-video .entry-icon {
+      background: transparent;
+      color: #107c10;
+    }
+
+    .kind-sheet .entry-icon {
+      background: transparent;
+      color: #107c41;
+    }
+
+    .kind-presentation .entry-icon {
+      background: transparent;
+      color: #d24726;
+    }
+
+    .entry-name {
+      font-size: 13px;
+      font-weight: 400;
+    }
+
+    .entry-type,
+    .entry-size,
+    .entry-date {
+      color: #5f6368;
+      font-size: 12px;
+      font-weight: 400;
+    }
+
+    .entry-action {
+      inset-inline-end: 2px;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      background: transparent;
+      color: #303030;
+      box-shadow: none;
+      transition-property: opacity, filter, transform, background-color, border-color, color;
+      transition-duration: 140ms;
+    }
+
+    .entry-action:hover {
+      border-color: #99d1ff;
+      background: #d6eaff;
+      color: #005a9e;
+      box-shadow: none;
+    }
+
+    .entry-action:focus-visible {
+      outline-color: #0067c0;
+      outline-offset: -2px;
+    }
+
+    .file-shell[data-view="grid"] .entries {
+      grid-template-columns: repeat(auto-fill, minmax(142px, 1fr));
+      gap: 4px;
+      padding-top: 4px;
+    }
+
+    .file-shell[data-view="grid"] .entry {
+      min-height: 132px;
+      border: 1px solid transparent;
+      border-radius: 4px;
+    }
+
+    .file-shell[data-view="grid"] .entry:hover,
+    .file-shell[data-view="grid"] .entry:focus-within {
+      border-color: #99d1ff;
+      background: #e5f3ff;
+      box-shadow: none;
+    }
+
+    .file-shell[data-view="grid"] .entry-main {
+      min-height: 132px;
+      align-content: center;
+      justify-items: center;
+      gap: 7px;
+      padding: 10px;
+      text-align: center;
+    }
+
+    .file-shell[data-view="grid"] .entry-icon {
+      width: 54px;
+      height: 54px;
+      margin: 0;
+    }
+
+    .file-shell[data-view="grid"] .entry-icon .icon {
+      width: 36px;
+      height: 36px;
+    }
+
+    .file-shell[data-view="grid"] .entry-name {
+      width: 100%;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 400;
+    }
+
+    .file-shell[data-view="grid"] .entry-type,
+    .file-shell[data-view="grid"] .entry-size,
+    .file-shell[data-view="grid"] .entry-date {
+      display: none;
+    }
+
+    .file-shell[data-view="grid"] .entry-action {
+      inset-block-start: 2px;
+      inset-inline-end: 2px;
+      opacity: 0;
+      filter: blur(4px);
+      transform: scale(0.25);
+    }
+
+    .file-shell[data-view="grid"] .entry:hover .entry-action,
+    .file-shell[data-view="grid"] .entry:focus-within .entry-action {
+      opacity: 1;
+      filter: blur(0);
+      transform: scale(1);
+    }
+
+    .file-shell[data-view="grid"] .entry-action:active {
+      transform: scale(0.96);
+    }
+
+    .empty-state,
+    .error-state {
+      min-height: calc(100vh - 180px);
+      border-radius: 0;
+      background: #ffffff;
+      box-shadow: none;
+    }
+
+    .empty-state h2,
+    .error-state h1 {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .toast {
+      border: 1px solid #cfcfcf;
+      border-radius: 4px;
+      background: #ffffff;
+      color: #1b1b1b;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+      font-weight: 400;
+    }
+
+    @media (max-width: 760px) {
+      .file-shell {
+        padding: 0;
+      }
+
+      .app-header {
+        min-height: 50px;
+        padding: 7px 10px;
+      }
+
+      .app-header,
+      .title-cluster {
+        align-items: center;
+      }
+
+      .app-header {
+        flex-direction: row;
+      }
+
+      .title-cluster > div {
+        width: auto;
+      }
+
+      .brand-mark {
+        width: 32px;
+        height: 32px;
+      }
+
+      h1 {
+        font-size: 16px;
+      }
+
+      .header-meta {
+        justify-content: flex-end;
+      }
+
+      .toolbar {
+        grid-template-columns: minmax(0, 1fr) auto;
+        padding: 5px 7px;
+      }
+
+      .action-group {
+        grid-column: 1 / -1;
+        grid-row: 1;
+      }
+
+      .path-form {
+        grid-column: 1;
+        grid-row: 2;
+      }
+
+      .view-toggle {
+        grid-column: 2;
+        grid-row: 2;
+      }
+
+      .content-panel {
+        padding-inline: 6px;
+      }
+
+      .entry-main {
+        min-height: 48px;
+      }
+
+      .file-shell[data-view="grid"] .entries {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .file-shell[data-view="grid"] .entry-main {
+        min-height: 126px;
+      }
+    }
+
+    /* Windows 11 Explorer structure: compact chrome, navigation pane and dense workspace. */
+    html,
+    body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .app-frame {
+      display: flex;
+      height: 100vh;
+      min-height: 0;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .app-header {
+      min-height: 48px;
+      flex: 0 0 48px;
+      padding: 6px 14px;
+      background: #f3f3f3;
+    }
+
+    .brand-mark {
+      width: 30px;
+      height: 30px;
+    }
+
+    .brand-mark .folder-icon {
+      width: 27px;
+      height: 27px;
+    }
+
+    .eyebrow {
+      color: #646464;
+      font-size: 10px;
+    }
+
+    h1 {
+      max-width: min(60vw, 760px);
+      overflow: hidden;
+      color: #171717;
+      font-size: 15px;
+      font-weight: 600;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .header-meta {
+      display: none;
+    }
+
+    .toolbar {
+      min-height: 50px;
+      flex: 0 0 50px;
+      grid-template-columns: auto minmax(260px, 1fr) auto;
+      gap: 8px;
+      padding: 5px 10px;
+      background: #fbfbfb;
+    }
+
+    .icon-button,
+    .text-button,
+    .view-button {
+      min-width: 36px;
+      height: 36px;
+      border-radius: 4px;
+    }
+
+    .icon-button .icon,
+    .view-button .icon {
+      width: 19px;
+      height: 19px;
+      stroke-width: 1.8;
+    }
+
+    .text-button {
+      min-width: 58px;
+      padding-inline: 12px;
+    }
+
+    .path-input {
+      height: 36px;
+    }
+
+    .view-toggle {
+      padding-inline-start: 8px;
+      border-inline-start: 1px solid #dedede;
+    }
+
+    .explorer-layout {
+      display: flex;
+      min-height: 0;
+      flex: 1 1 auto;
+      direction: rtl;
+      overflow: hidden;
+      background: #ffffff;
+    }
+
+    .navigation-pane {
+      width: 220px;
+      min-width: 220px;
+      height: 100%;
+      padding: 8px 6px 12px;
+      border-inline-end: 1px solid #dedede;
+      background: #f7f7f7;
+      direction: rtl;
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+
+    .navigation-section + .navigation-section {
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid #e3e3e3;
+    }
+
+    .navigation-heading {
+      margin: 0 10px 5px;
+      color: #686868;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .navigation-link {
+      display: flex;
+      width: 100%;
+      min-height: 34px;
+      align-items: center;
+      gap: 9px;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      padding: 4px 9px;
+      color: #252525;
+      cursor: pointer;
+      font-size: 12px;
+      transition-property: background-color, border-color;
+      transition-duration: 100ms;
+      transition-timing-function: ease-out;
+    }
+
+    .navigation-link:hover {
+      border-color: #d7ebfb;
+      background: #eaf4fc;
+    }
+
+    .navigation-link.is-active {
+      border-color: #c9e6fb;
+      background: #dceefb;
+    }
+
+    .navigation-link.is-current-location {
+      margin-top: 2px;
+      cursor: default;
+    }
+
+    .navigation-icon {
+      display: inline-flex;
+      width: 22px;
+      height: 22px;
+      flex: 0 0 22px;
+      align-items: center;
+      justify-content: center;
+      color: #4b6678;
+    }
+
+    .navigation-icon .icon {
+      width: 18px;
+      height: 18px;
+      stroke-width: 1.7;
+    }
+
+    .navigation-icon .folder-icon {
+      width: 21px;
+      height: 21px;
+    }
+
+    .navigation-icon-computer {
+      color: #39769c;
+    }
+
+    .navigation-label {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .explorer-workspace {
+      display: flex;
+      min-width: 0;
+      min-height: 0;
+      flex: 1 1 auto;
+      flex-direction: column;
+      direction: rtl;
+      overflow: hidden;
+      background: #ffffff;
+    }
+
+    .breadcrumbs {
+      min-height: 40px;
+      flex: 0 0 40px;
+      padding: 3px 10px;
+      background: #ffffff;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .breadcrumbs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .breadcrumbs-location {
+      display: inline-flex;
+      width: 24px;
+      height: 24px;
+      flex: 0 0 24px;
+      align-items: center;
+      justify-content: center;
+      margin-inline-end: 2px;
+    }
+
+    .breadcrumbs-location .folder-icon {
+      width: 21px;
+      height: 21px;
+    }
+
+    .breadcrumb-separator {
+      color: #969696;
+    }
+
+    .content-panel {
+      min-height: 0;
+      flex: 1 1 auto;
+      padding: 0 10px 10px;
+      overflow: auto;
+      scrollbar-color: #c7c7c7 transparent;
+      scrollbar-width: thin;
+    }
+
+    .content-heading {
+      display: flex;
+      min-height: 34px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 5px 6px;
+      border-bottom: 1px solid #e8e8e8;
+    }
+
+    .content-heading h2 {
+      margin: 0;
+      color: #303030;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .content-heading span {
+      color: #757575;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .entries {
+      align-content: start;
+    }
+
+    .entry-main,
+    .entry-head {
+      grid-template-columns: 34px minmax(180px, 1fr) minmax(82px, 140px) minmax(68px, 100px) minmax(118px, 158px);
+      min-height: 38px;
+      gap: 6px;
+      padding: 3px 42px 3px 7px;
+    }
+
+    .entry-head {
+      position: sticky;
+      z-index: 4;
+      top: 0;
+      min-height: 30px;
+      padding-block: 3px;
+      background: #fafafa;
+    }
+
+    .entry-icon {
+      width: 29px;
+      height: 29px;
+    }
+
+    .entry-icon .folder-icon {
+      width: 28px;
+      height: 28px;
+    }
+
+    .entry-icon .icon:not(.folder-icon) {
+      width: 21px;
+      height: 21px;
+      stroke-width: 1.65;
+    }
+
+    .entry-name {
+      font-size: 12px;
+    }
+
+    .entry-type,
+    .entry-size,
+    .entry-date {
+      font-size: 11px;
+    }
+
+    .file-shell[data-view="grid"] .entries {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, 178px);
+      align-content: start;
+      justify-content: start;
+      gap: 5px;
+      padding: 7px 2px;
+    }
+
+    .file-shell[data-view="grid"] .entry-head {
+      display: none;
+    }
+
+    .file-shell[data-view="grid"] .entry {
+      min-height: 76px;
+      border-radius: 4px;
+    }
+
+    .file-shell[data-view="grid"] .entry-main {
+      display: grid;
+      min-height: 74px;
+      grid-template-columns: 50px minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr);
+      grid-template-areas: "icon name";
+      align-content: center;
+      justify-items: stretch;
+      gap: 8px;
+      padding: 7px;
+      text-align: right;
+    }
+
+    .file-shell[data-view="grid"] .entry-icon {
+      grid-area: icon;
+      width: 48px;
+      height: 48px;
+      align-self: center;
+    }
+
+    .file-shell[data-view="grid"] .entry-icon .folder-icon {
+      width: 45px;
+      height: 45px;
+    }
+
+    .file-shell[data-view="grid"] .entry-icon .icon:not(.folder-icon) {
+      width: 31px;
+      height: 31px;
+    }
+
+    .file-shell[data-view="grid"] .entry-name {
+      grid-area: name;
+      align-self: center;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .file-shell[data-view="grid"] .entry-type {
+      display: none;
+    }
+
+    .file-shell[data-view="grid"] .entry-size,
+    .file-shell[data-view="grid"] .entry-date {
+      display: none;
+    }
+
+    .status-bar {
+      display: flex;
+      min-height: 27px;
+      flex: 0 0 27px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 3px 10px;
+      border-top: 1px solid #dedede;
+      background: #f7f7f7;
+      color: #686868;
+      direction: rtl;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .status-bar span:last-child {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 900px) {
+      .navigation-pane {
+        width: 184px;
+        min-width: 184px;
+      }
+
+      .entry-main,
+      .entry-head {
+        grid-template-columns: 34px minmax(140px, 1fr) minmax(76px, 110px) minmax(64px, 84px);
+      }
+
+      .entry-date,
+      .entry-head > :last-child {
+        display: none;
+      }
+    }
+
+    @media (max-width: 700px) {
+      html,
+      body {
+        overflow: auto;
+      }
+
+      .app-frame {
+        height: auto;
+        min-height: 100vh;
+        overflow: visible;
+      }
+
+      .toolbar {
+        min-height: auto;
+        flex-basis: auto;
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+
+      .action-group {
+        grid-column: 1 / -1;
+      }
+
+      .explorer-layout {
+        min-height: calc(100vh - 180px);
+        overflow: visible;
+      }
+
+      .navigation-pane {
+        display: none;
+      }
+
+      .explorer-workspace,
+      .content-panel {
+        overflow: visible;
+      }
+
+      .status-bar span:last-child {
+        display: none;
+      }
+
+      .file-shell[data-view="grid"] .entries {
+        grid-template-columns: repeat(auto-fill, minmax(154px, 1fr));
+      }
+
+      .file-shell[data-view="grid"] .entry-main {
+        min-height: 72px;
       }
     }
   </style>`
@@ -1336,54 +2726,13 @@ function renderBridgeScript({ currentPath, parentHref }) {
         showToast.timer = window.setTimeout(() => toast.classList.remove('is-visible'), 1700);
       };
 
-      const hexToHsl = (hex) => {
-        const match = /^#?([a-f\\d]{2})([a-f\\d]{2})([a-f\\d]{2})$/i.exec(hex || '');
-        if (!match) return [188, 87, 36];
-        let r = parseInt(match[1], 16) / 255;
-        let g = parseInt(match[2], 16) / 255;
-        let b = parseInt(match[3], 16) / 255;
-        const max = Math.max(r, g, b);
-        const min = Math.min(r, g, b);
-        let h = 0;
-        let s = 0;
-        const l = (max + min) / 2;
-        if (max !== min) {
-          const d = max - min;
-          s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-          if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
-          if (max === g) h = (b - r) / d + 2;
-          if (max === b) h = (r - g) / d + 4;
-          h /= 6;
-        }
-        return [Math.round(h * 360), Math.round(s * 100), Math.round(l * 100)];
-      };
-
-      const readJson = (key) => {
-        try {
-          const raw = localStorage.getItem(key);
-          return raw ? JSON.parse(raw) : null;
-        } catch {
-          return null;
-        }
-      };
-
-      const applyStoredTheme = () => {
-        const master = readJson('bihs_master_config_v1');
-        const legacyTheme = readJson('bihs_theme_data');
-        const theme = master?.theme || legacyTheme || {};
-        const primaryColor = theme.primaryColor || '#0891b2';
-        const [h, s, l] = hexToHsl(primaryColor);
-        root.style.setProperty('--color-primary-h', String(h));
-        root.style.setProperty('--color-primary-s', s + '%');
-        root.style.setProperty('--color-primary-l', l + '%');
-        root.style.setProperty('--color-primary', h + ' ' + s + '% ' + l + '%');
-        root.style.setProperty('--color-primary-hex', primaryColor);
-
-        const storedAdmin = localStorage.getItem('bihs_admin_display_mode');
-        const storedUser = localStorage.getItem('bihs_user_display_mode');
-        const configured = theme.displayMode === 'light' || theme.displayMode === 'dark' ? theme.displayMode : '';
-        const mode = storedAdmin || storedUser || configured || 'dark';
-        root.classList.toggle('light', mode === 'light');
+      const applyExplorerTheme = () => {
+        root.classList.add('light');
+        root.style.setProperty('--color-primary-h', '208');
+        root.style.setProperty('--color-primary-s', '100%');
+        root.style.setProperty('--color-primary-l', '38%');
+        root.style.setProperty('--color-primary', '208 100% 38%');
+        root.style.setProperty('--color-primary-hex', '#0067c0');
       };
 
       const setView = (view) => {
@@ -1399,15 +2748,15 @@ function renderBridgeScript({ currentPath, parentHref }) {
         }
       };
 
-      applyStoredTheme();
+      applyExplorerTheme();
       const savedView = (() => {
         try {
           return localStorage.getItem(state.viewStorageKey);
         } catch {
-          return 'grid';
+          return 'list';
         }
       })();
-      setView(savedView === 'list' ? 'list' : 'grid');
+      setView(savedView === 'grid' ? 'grid' : 'list');
 
       document.querySelectorAll('[data-view-button]').forEach((button) => {
         button.addEventListener('click', () => setView(button.dataset.viewButton));
@@ -1545,6 +2894,43 @@ function renderBridgeScript({ currentPath, parentHref }) {
         pathForm?.requestSubmit();
       });
 
+      document.addEventListener('click', async (event) => {
+        const button = event.target?.closest?.('[data-open-native="true"]');
+        if (!button) return;
+        event.preventDefault();
+        event.stopPropagation();
+
+        const filePath = button.dataset.path || '';
+        if (!filePath) {
+          showToast('לא נמצא נתיב לפתיחה');
+          return;
+        }
+
+        button.disabled = true;
+        button.classList.add('is-busy');
+
+        try {
+          const url = new URL(state.bridgePath, window.location.origin);
+          url.searchParams.set('open', '1');
+          url.searchParams.set('path', filePath);
+          const response = await fetch(url.href, {
+            method: 'POST',
+            headers: {
+              Accept: 'application/json',
+              'X-SiteBuilder-Local-Open': '1',
+            },
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data?.error || 'לא ניתן לפתוח באפליקציה');
+          showToast('נפתח באפליקציה');
+        } catch (error) {
+          showToast(error.message || 'לא ניתן לפתוח באפליקציה');
+        } finally {
+          button.disabled = false;
+          button.classList.remove('is-busy');
+        }
+      });
+
       document.addEventListener('click', (event) => {
         const link = event.target?.closest?.('a[data-open-file="true"]');
         if (!link) return;
@@ -1583,6 +2969,7 @@ function renderBridgeScript({ currentPath, parentHref }) {
 }
 
 export function renderDirectoryPage(model) {
+  const currentFolderName = toPathApi(process.platform).basename(model.currentPath) || model.currentPath
   const parentButton = model.parentHref
     ? `<a class="icon-button" href="${htmlEscape(model.parentHref)}" title="לתיקיית האב" aria-label="לתיקיית האב">${renderIcon('up')}</a>`
     : `<span class="icon-button" aria-disabled="true" title="אין תיקיית אב" aria-label="אין תיקיית אב">${renderIcon('up')}</span>`
@@ -1596,14 +2983,14 @@ export function renderDirectoryPage(model) {
   ${renderBridgeStyles()}
 </head>
 <body>
-  <div class="file-shell" data-file-shell data-view="grid">
+  <div class="file-shell" data-file-shell data-view="list">
     <div class="app-frame">
       <header class="app-header">
         <div class="title-cluster">
           <span class="brand-mark">${renderIcon('folder')}</span>
           <div>
-            <p class="eyebrow">מתנ״ה - תיקיות רשת</p>
-            <h1>מנהל קבצים בתיקיות הרשת</h1>
+            <p class="eyebrow">סייר הקבצים · תיקיות רשת</p>
+            <h1 dir="auto">${htmlEscape(currentFolderName)}</h1>
           </div>
         </div>
         <div class="header-meta">
@@ -1632,18 +3019,32 @@ export function renderDirectoryPage(model) {
           <button class="text-button" type="submit">עבור</button>
         </form>
         <span class="view-toggle" role="group" aria-label="מצב תצוגה">
-          <button class="view-button" type="button" data-view-button="grid" aria-pressed="true" title="תצוגת קוביות" aria-label="תצוגת קוביות">${renderIcon('grid')}</button>
-          <button class="view-button" type="button" data-view-button="list" aria-pressed="false" title="תצוגת שורות" aria-label="תצוגת שורות">${renderIcon('list')}</button>
+          <button class="view-button" type="button" data-view-button="grid" aria-pressed="false" title="תצוגת קוביות" aria-label="תצוגת קוביות">${renderIcon('grid')}</button>
+          <button class="view-button" type="button" data-view-button="list" aria-pressed="true" title="תצוגת פרטים" aria-label="תצוגת פרטים">${renderIcon('list')}</button>
         </span>
       </nav>
 
-      <nav class="breadcrumbs" aria-label="נתיב תיקייה">
-        ${renderBreadcrumbs(model.breadcrumbs)}
-      </nav>
+      <div class="explorer-layout">
+        ${renderNavigationPane(model.currentPath)}
+        <section class="explorer-workspace" aria-label="תוכן התיקייה">
+          <nav class="breadcrumbs" aria-label="נתיב תיקייה">
+            <span class="breadcrumbs-location">${renderIcon('folder')}</span>
+            ${renderBreadcrumbs(model.breadcrumbs)}
+          </nav>
 
-      <main class="content-panel">
-        ${renderDirectoryEntries(model.entries)}
-      </main>
+          <main class="content-panel">
+            <div class="content-heading">
+              <h2>קבצים ותיקיות</h2>
+              <span>${htmlEscape(model.itemCount)} פריטים</span>
+            </div>
+            ${renderDirectoryEntries(model.entries)}
+          </main>
+        </section>
+      </div>
+      <footer class="status-bar">
+        <span>${htmlEscape(model.itemCount)} פריטים</span>
+        <span dir="ltr">${htmlEscape(model.currentPath)}</span>
+      </footer>
     </div>
   </div>
   <div class="toast" data-toast role="status" aria-live="polite"></div>
@@ -1666,7 +3067,7 @@ export function renderBridgeErrorPage({ statusCode = 404, title = 'לא ניתן
   ${renderBridgeStyles()}
 </head>
 <body>
-  <div class="file-shell" data-file-shell data-view="grid">
+  <div class="file-shell" data-file-shell data-view="list">
     <div class="app-frame">
       <div class="error-state">
         <div>
@@ -1691,13 +3092,49 @@ export function localFileBridgePlugin() {
   return {
     name: 'sitebuilder-local-file-bridge',
     apply: 'serve',
+    enforce: 'pre',
     configureServer(server) {
       server.middlewares.use(LOCAL_FILE_BRIDGE_PATH, (req, res) => {
         let attemptedPath = ''
+        res.setHeader('Cache-Control', 'no-store')
 
         try {
           const requestUrl = new URL(req.url || '/', 'http://localhost')
           const isSearchRequest = requestUrl.searchParams.get('search') === '1'
+          const isNativeOpenRequest = requestUrl.searchParams.get('open') === '1'
+
+          if (isNativeOpenRequest) {
+            if (!isAuthorizedNativeOpenRequest(req)) {
+              sendJson(res, 403, { error: 'Native open requests must come from the local file manager UI' })
+              return
+            }
+
+            try {
+              const pathInput = requestUrl.searchParams.get('path') || ''
+              const hrefInput = requestUrl.searchParams.get('href') || ''
+              const basePath = requestUrl.searchParams.get('base') || ''
+              const fileHref = pathInput ? fileHrefFromUserPath(pathInput, basePath) : hrefInput
+              const filePath = filePathFromHref(fileHref)
+              attemptedPath = filePath || pathInput || hrefInput
+
+              if (!filePath) {
+                sendJson(res, 400, { error: 'Unsupported file path' })
+                return
+              }
+
+              const stat = fs.statSync(filePath)
+              if (!stat.isFile() && !stat.isDirectory()) {
+                sendJson(res, 400, { error: 'Path is not a file or directory' })
+                return
+              }
+
+              openPathInDefaultApplication(filePath)
+              sendJson(res, 200, { ok: true, isDirectory: stat.isDirectory(), path: filePath })
+            } catch (error) {
+              sendJson(res, 404, { error: error.message, path: attemptedPath })
+            }
+            return
+          }
 
           if (isSearchRequest) {
             try {

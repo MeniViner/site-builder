@@ -51,7 +51,7 @@ function deepMergeReplaceArrays(baseValue, overrideValue) {
     return deepClone(overrideValue);
 }
 
-class ConfigService {
+export class ConfigService {
     constructor(adapter = configAdapter) {
         this.adapter = adapter;
     }

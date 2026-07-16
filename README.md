@@ -121,7 +121,9 @@
 - `VITE_STORAGE_BACKEND=mongo`
 - `VITE_BACKEND_API_URL=http://127.0.0.1:<SERVER_PORT>`
 - `VITE_SITE_ID=<site-id>` או `VITE_SP_SITE_CODE`
-- `VITE_SITE_BUILDER_API_KEY=<ADMIN_API_KEY>` עד להחלפתו ב-JWT/SSO אמיתי.
+- `VITE_SITE_BUILDER_DEV_API_KEY=<ADMIN_API_KEY>` מותר רק בהרצת development מקומית.
+
+ב-production אין להטמיע API key ב-Frontend או בקובץ runtime ציבורי. Mongo production חייב להיות מאחורי session/SSO או gateway מאומת.
 
 MongoDB משתמש במסד נתונים אחד לכלל האתרים:
 

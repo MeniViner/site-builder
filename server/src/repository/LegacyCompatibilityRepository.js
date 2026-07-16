@@ -35,13 +35,22 @@ export class LegacyCompatibilityRepository {
     this.repository = siteDataRepository;
   }
 
-  async readLegacyObject(siteId, key) {
+  async readLegacyObject(siteId, key, { allowMissing = false } = {}) {
     const normalizedKey = normalizeLegacyKey(key);
     const mapping = getLegacyMapping(normalizedKey);
-    const snapshot = await this.readLegacySnapshot(siteId, normalizedKey, mapping);
+    const snapshot = await this.readLegacySnapshot(siteId, normalizedKey, mapping, { allowMissing });
 
     if (!snapshot.exists) {
-      throw notFound(`Legacy object "${normalizedKey}" was not found`);
+      if (!allowMissing) throw notFound(`Legacy object "${normalizedKey}" was not found`);
+      return {
+        key: normalizedKey,
+        mapping,
+        data: null,
+        version: 0,
+        hash: null,
+        documents: [],
+        missing: true,
+      };
     }
 
     return {
@@ -51,6 +60,7 @@ export class LegacyCompatibilityRepository {
       version: snapshot.version,
       hash: snapshot.hash,
       documents: snapshot.documents,
+      missing: false,
     };
   }
 
@@ -135,6 +145,7 @@ export class LegacyCompatibilityRepository {
       version: nextManifest.version,
       hash: sha256OfCanonicalJson(data),
       documents: [...documents, nextManifest],
+      missing: false,
     };
   }
 

@@ -231,7 +231,7 @@ export function createSiteRouter({ repository, legacyRepository, backupRepositor
     try {
       const key = String(req.query.key || '').trim();
       if (!key) throw badRequest('key query parameter is required');
-      const result = await legacyRepository.readLegacyObject(req.params.siteId, key);
+      const result = await legacyRepository.readLegacyObject(req.params.siteId, key, { allowMissing: true });
       res.json({ ok: true, ...result });
     } catch (error) {
       next(error);
@@ -262,7 +262,10 @@ export function createSiteRouter({ repository, legacyRepository, backupRepositor
       const results = [];
       for (const key of body.keys) {
         try {
-          results.push({ ok: true, ...(await legacyRepository.readLegacyObject(req.params.siteId, key)) });
+          results.push({
+            ok: true,
+            ...(await legacyRepository.readLegacyObject(req.params.siteId, key, { allowMissing: true })),
+          });
         } catch (error) {
           results.push({ ok: false, key, error: error.code || 'read_failed', message: error.message });
         }

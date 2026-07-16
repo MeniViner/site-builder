@@ -1,7 +1,7 @@
 import React, { createContext, useMemo, useContext, useCallback } from 'react';
 import { useConfig } from './ConfigProvider';
 import { normalizeLinkTarget } from '../utils/linkTargets';
-import { spLog } from '../utils/spAppLog';
+import { useOptimisticBranchPersistence } from './useOptimisticBranchPersistence';
 
 const ExternalLinksContext = createContext();
 
@@ -53,49 +53,66 @@ function toV1Links(links) {
 export const ExternalLinksProvider = ({ children }) => {
     const { config, status, error, updateConfig, saveNow, reload } = useConfig();
 
+    const patchExternalLinksConfig = useCallback((prev, items) => ({
+        ...prev,
+        externalLinks: {
+            ...prev.externalLinks,
+            items,
+        },
+    }), []);
+
+    const {
+        value: persistedLinks,
+        commit,
+        flush,
+        retry,
+        saving,
+        dirty,
+        saveError,
+        saveStatus,
+    } = useOptimisticBranchPersistence({
+        sourceValue: config?.externalLinks?.items,
+        normalizeValue: toV1Links,
+        patchConfig: patchExternalLinksConfig,
+        updateConfig,
+        saveNow,
+    });
+
     const externalLinks = useMemo(
-        () => toLegacyLinks(config?.externalLinks?.items),
-        [config?.externalLinks?.items]
+        () => toLegacyLinks(persistedLinks),
+        [persistedLinks]
     );
 
-    const loading = status === 'loading' || status === 'saving';
+    const loading = status === 'loading';
 
     const fetchExternalLinks = useCallback(async () => {
         try {
             await reload();
             return true;
-        } catch (err) {
+        } catch {
             return false;
         }
     }, [reload]);
 
-    const saveExternalLinks = useCallback(
-        async (newLinks) => {
-            try {
-                const mapped = toV1Links(newLinks);
-                updateConfig((prev) => ({
-                    ...prev,
-                    externalLinks: {
-                        ...prev.externalLinks,
-                        items: mapped,
-                    },
-                }));
-                await saveNow();
-                return true;
-            } catch (err) {
-                spLog.error('ExternalLinksContext: failed to save external links.', err);
-                return false;
-            }
-        },
-        [saveNow, updateConfig]
-    );
+    const saveExternalLinks = useCallback((newLinksOrUpdater) => commit((currentItems) => {
+        const currentLinks = toLegacyLinks(currentItems);
+        const nextLinks = typeof newLinksOrUpdater === 'function'
+            ? newLinksOrUpdater(currentLinks)
+            : newLinksOrUpdater;
+        return toV1Links(nextLinks);
+    }), [commit]);
 
     return (
         <ExternalLinksContext.Provider
             value={{
                 externalLinks,
                 loading,
-                error,
+                error: saveError?.message || error,
+                saving,
+                dirty,
+                saveStatus,
+                retrySave: retry,
+                flushSave: flush,
                 saveExternalLinks,
                 fetchExternalLinks,
             }}

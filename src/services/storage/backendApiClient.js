@@ -1,5 +1,4 @@
 import { requireBackendApiBaseUrl } from './storageBackend';
-import { getRuntimeValue } from './runtimeConfig';
 
 export class BackendStorageError extends Error {
     constructor(message, { status = 0, code = 'backend_error', details = null } = {}) {
@@ -12,12 +11,10 @@ export class BackendStorageError extends Error {
     }
 }
 
-const apiKey = () => String(
-    getRuntimeValue('apiKey')
-    || import.meta.env.VITE_SITE_BUILDER_API_KEY
-    || import.meta.env.VITE_ADMIN_API_KEY
-    || ''
-).trim();
+const developmentApiKey = () => {
+    if (import.meta.env.DEV !== true) return '';
+    return String(import.meta.env.VITE_SITE_BUILDER_DEV_API_KEY || '').trim();
+};
 
 class BackendApiClient {
     async request(path, options = {}) {
@@ -34,7 +31,7 @@ class BackendApiClient {
         const headers = {
             Accept: 'application/json',
             ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-            ...(apiKey() ? { 'X-API-Key': apiKey() } : {}),
+            ...(developmentApiKey() ? { 'X-API-Key': developmentApiKey() } : {}),
             ...(options.headers || {}),
         };
 
@@ -43,6 +40,7 @@ class BackendApiClient {
             response = await fetch(url, {
                 method: options.method || 'GET',
                 credentials: 'include',
+                cache: 'no-store',
                 headers,
                 body: options.body === undefined ? undefined : JSON.stringify(options.body),
             });
@@ -59,8 +57,26 @@ class BackendApiClient {
             try {
                 payload = JSON.parse(text);
             } catch {
-                payload = { ok: response.ok, raw: text };
+                throw new BackendStorageError(
+                    response.ok
+                        ? 'Backend returned a non-JSON response.'
+                        : `Backend request failed (${response.status}) with a non-JSON response.`,
+                    {
+                        status: response.status,
+                        code: response.ok ? 'invalid_backend_response' : 'backend_error',
+                        details: {
+                            contentType: response.headers?.get?.('content-type') || '',
+                        },
+                    },
+                );
             }
+        }
+
+        if (response.ok && (payload === null || typeof payload !== 'object' || Array.isArray(payload))) {
+            throw new BackendStorageError('Backend returned an invalid JSON response envelope.', {
+                status: response.status,
+                code: 'invalid_backend_response',
+            });
         }
 
         if (!response.ok) {

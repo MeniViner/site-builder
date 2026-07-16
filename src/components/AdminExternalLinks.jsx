@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useExternalLinks } from '../context/ExternalLinksContext';
 import {
@@ -16,41 +16,21 @@ import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import DismissibleNotice from './DismissibleNotice';
 
 function generateId() {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
 export default function AdminExternalLinks() {
     const navigate = useNavigate();
-    const { externalLinks, loading, error, saveExternalLinks } = useExternalLinks();
-    const [links, setLinks] = useState([]);
-    const [isSaving, setIsSaving] = useState(false);
+    const { externalLinks, loading, error, saveExternalLinks, saving, dirty, retrySave } = useExternalLinks();
+    const links = externalLinks || [];
     const [editingLink, setEditingLink] = useState(null);
     const [confirmDeleteId, setConfirmDeleteId] = useState(null);
     const [uploadingIcon, setUploadingIcon] = useState(false);
     const [iconPickerOpen, setIconPickerOpen] = useState(false);
     const iconFileInputRef = useRef(null);
-    const lastSavedRef = useRef(null);
-
-    useEffect(() => {
-        if (externalLinks) {
-            const next = externalLinks.map(l => ({ ...l }));
-            setLinks(next);
-            lastSavedRef.current = JSON.stringify(next);
-        }
-    }, [externalLinks]);
-
-    useEffect(() => {
-        const current = JSON.stringify(links);
-        if (lastSavedRef.current === null || current === lastSavedRef.current) return;
-        const t = setTimeout(async () => {
-            setIsSaving(true);
-            const success = await saveExternalLinks(links);
-            setIsSaving(false);
-            if (success) lastSavedRef.current = current;
-            else toast.error(error || 'שגיאה בשמירה. אנא נסה שוב.');
-        }, 1200);
-        return () => clearTimeout(t);
-    }, [links]);
 
     const handleIconFileUpload = async (e) => {
         const file = e.target.files?.[0];
@@ -91,12 +71,15 @@ export default function AdminExternalLinks() {
             iconUrl: editingLink.visualType === 'image' ? (editingLink.iconUrl || '') : '',
         };
 
-        if (!updated.title || !updated.url) return;
+        if (!updated.title || !updated.url) {
+            toast.error('יש להזין כותרת וכתובת קישור לפני השמירה.');
+            return;
+        }
 
         if (editingLink.isNew) {
-            setLinks(prev => [...prev, updated]);
+            saveExternalLinks(prev => [...prev, updated]);
         } else {
-            setLinks(prev => prev.map(l => l.id === updated.id ? updated : l));
+            saveExternalLinks(prev => prev.map(l => l.id === updated.id ? updated : l));
         }
         setEditingLink(null);
     };
@@ -107,7 +90,7 @@ export default function AdminExternalLinks() {
 
     const confirmRemoveLink = () => {
         if (confirmDeleteId) {
-            setLinks(prev => prev.filter(l => l.id !== confirmDeleteId));
+            saveExternalLinks(prev => prev.filter(l => l.id !== confirmDeleteId));
             setConfirmDeleteId(null);
         }
     };
@@ -165,7 +148,8 @@ export default function AdminExternalLinks() {
                         <Plus size={18} />
                         <span>הוסף קישור</span>
                     </button>
-                    {isSaving && <span className="text-sm text-gray-500 dark:text-gray-400">שומר...</span>}
+                    {saving && <span className="text-sm text-gray-500 dark:text-gray-400">שומר...</span>}
+                    {!saving && dirty && !error && <span className="text-sm text-amber-600 dark:text-amber-300">ממתין לשמירה...</span>}
                 </div>
             </div>
 
@@ -173,7 +157,16 @@ export default function AdminExternalLinks() {
                 <DismissibleNotice dismissKey={error} className="mb-6 rounded-lg border border-primary-300 bg-primary-50 p-4 dark:border-primary-500 dark:bg-primary-900/50">
                     <div className="flex items-center gap-3">
                         <AlertTriangle className="shrink-0 text-primary-400" />
-                        <span className="text-primary-700 dark:text-primary-200">{error}</span>
+                        <span className="flex-1 text-primary-700 dark:text-primary-200">{error}</span>
+                        {dirty && (
+                            <button
+                                type="button"
+                                onClick={() => retrySave()}
+                                className="min-h-10 rounded-lg bg-primary-600 px-3 text-xs font-bold text-white transition-[background-color,transform] hover:bg-primary-500 active:scale-[0.96]"
+                            >
+                                נסה שוב
+                            </button>
+                        )}
                     </div>
                 </DismissibleNotice>
             )}
@@ -291,7 +284,7 @@ export default function AdminExternalLinks() {
                                     type="text"
                                     value={editingLink.title}
                                     onChange={(event) => setEditingLink((prev) => ({ ...prev, title: event.target.value }))}
-                                    requiprimary
+                                    required
                                     className="w-full bg-gray-50 dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-primary-500 transition text-sm"
                                     placeholder='לדוגמה: "פורטל מילואים"'
                                 />
@@ -314,7 +307,7 @@ export default function AdminExternalLinks() {
                                     onBlur={(event) => {
                                         event.currentTarget.value = normalizeLinkTarget(event.currentTarget.value);
                                     }}
-                                    requiprimary
+                                    required
                                     className="w-full bg-gray-50 dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-primary-500 transition text-sm font-mono dir-ltr text-left"
                                     placeholder="https://example.idf.il או z:/public או /Users/name/Documents"
                                     dir="ltr"

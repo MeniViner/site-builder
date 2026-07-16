@@ -132,8 +132,10 @@ export class SiteDataRepository {
     ]);
   }
 
-  async resolveSiteCollection(siteId) {
-    const site = await this.ensureSite({ siteId });
+  async resolveSiteCollection(siteId, { createIfMissing = false } = {}) {
+    const site = createIfMissing
+      ? await this.ensureSite({ siteId })
+      : await this.getSite(siteId);
     return {
       site,
       collection: this.siteCollection(site.safeCollectionName),
@@ -188,7 +190,7 @@ export class SiteDataRepository {
       throw badRequest('Suspicious empty overwrite rejected. Pass allowEmptyOverwrite=true for intentional resets.');
     }
 
-    const { site, collection } = await this.resolveSiteCollection(siteId);
+    const { site, collection } = await this.resolveSiteCollection(siteId, { createIfMissing: true });
     const _id = documentId(scope, entityId);
     const existing = await collection.findOne({ _id, siteId, scope, entityId, deletedAt: null });
     const deletedExisting = existing ? null : await collection.findOne({ _id, siteId, scope, entityId });
@@ -436,7 +438,7 @@ export class SiteDataRepository {
 
   async softDeleteDocument({ siteId, scope, entityId, expectedVersion, actor = 'system', metadata = {} }) {
     const resolvedExpectedVersion = parseExpectedVersion(expectedVersion);
-    const { site, collection } = await this.resolveSiteCollection(siteId);
+    const { site, collection } = await this.resolveSiteCollection(siteId, { createIfMissing: true });
     const _id = documentId(scope, entityId);
     const existing = await collection.findOne({ _id, siteId, scope, entityId, deletedAt: null });
     if (!existing) throw notFound(`Document "${scope}:${entityId}" was not found`);

@@ -20,7 +20,15 @@ const STATUS = {
     SAVING: 'saving',
     ERROR: 'error',
 };
+const PERSISTENCE_STATUS = Object.freeze({
+    CLEAN: 'clean',
+    DIRTY: 'dirty',
+    SAVING: 'saving',
+    SAVED: 'saved',
+    ERROR: 'error',
+});
 const MASTER_CONFIG_MOCK_KEY = import.meta.env.VITE_SP_MASTER_CONFIG_MOCK_KEY || 'bihs_master_config_v1';
+const USE_LOCAL_MOCK_STORAGE = SHAREPOINT_CONFIG.useMockStorage === true;
 const SKIP_LEGACY_MIGRATION_ONCE_KEY = 'bihs_skip_legacy_migration_once';
 const MIGRATED_DEFAULTS_REPAIR_KEY = 'bihs_migrated_defaults_repair_v1';
 const LEGACY_MOCK_STORAGE_KEYS = [
@@ -59,6 +67,13 @@ function normalizeConfigSafely(candidate) {
         spLog.error('[ConfigProvider] Failed to normalize config candidate. Falling back to defaults.', error);
         return validateAndNormalize(DEFAULT_CONFIG_V1);
     }
+}
+
+function normalizeConfigStrict(candidate) {
+    if (!isObject(candidate)) {
+        throw new Error('Configuration mutation must produce an object.');
+    }
+    return validateAndNormalize(candidate);
 }
 
 function safeReadLocalStorageRaw(key) {
@@ -168,7 +183,7 @@ function shouldRepairEmptyMigratedArray(currentItems, legacyStorageKey) {
 }
 
 function repairMigratedMockDefaults(config) {
-    if (!SHAREPOINT_CONFIG.useMock) {
+    if (!USE_LOCAL_MOCK_STORAGE) {
         return { config, repaired: false };
     }
     if (config?.meta?.migratedFromLegacy !== true) {
@@ -200,12 +215,25 @@ export const ConfigProvider = ({ children }) => {
     const [config, setConfig] = useState(() => normalizeConfigSafely(DEFAULT_CONFIG_V1));
     const [status, setStatus] = useState(STATUS.LOADING);
     const [error, setError] = useState(null);
+    const [persistence, setPersistence] = useState(() => ({
+        status: PERSISTENCE_STATUS.CLEAN,
+        revision: 0,
+        persistedRevision: 0,
+        dirty: false,
+        saving: false,
+        savedAt: null,
+        error: null,
+    }));
 
     const isMountedRef = useRef(true);
     const requestIdRef = useRef(0);
     const configRef = useRef(normalizeConfigSafely(DEFAULT_CONFIG_V1));
     const bootstrapAttemptedRef = useRef(false);
     const loadFailedRef = useRef(false);
+    const revisionRef = useRef(0);
+    const persistedRevisionRef = useRef(0);
+    const saveLoopPromiseRef = useRef(null);
+    const saveWaitersRef = useRef([]);
 
     useEffect(() => {
         configRef.current = config;
@@ -232,27 +260,27 @@ export const ConfigProvider = ({ children }) => {
 
             const masterRawBeforeLoad = safeReadLocalStorageRaw(MASTER_CONFIG_MOCK_KEY);
             const masterWasEmpty = !masterRawBeforeLoad || !masterRawBeforeLoad.trim();
-            const skipLegacyMigration = SHAREPOINT_CONFIG.useMock && consumeSkipLegacyMigrationFlag();
+            const skipLegacyMigration = USE_LOCAL_MOCK_STORAGE && consumeSkipLegacyMigrationFlag();
 
             const loadEnvelope = await ConfigService.loadConfigEnvelope();
-            resolvedConfig = normalizeConfigSafely(loadEnvelope.config);
+            resolvedConfig = normalizeConfigStrict(loadEnvelope.config);
             loadFailedRef.current = false;
             spLog.info(`[ConfigProvider] Loaded config from adapter (${loadEnvelope.source || 'unknown'}).`);
             const loadedLooksDefault = JSON.stringify(resolvedConfig) === JSON.stringify(normalizeConfigSafely(DEFAULT_CONFIG_V1));
 
-            if (SHAREPOINT_CONFIG.useMock && !skipLegacyMigration && (masterWasEmpty || loadedLooksDefault)) {
+            if (USE_LOCAL_MOCK_STORAGE && !skipLegacyMigration && (masterWasEmpty || loadedLooksDefault)) {
                 const legacySplitData = extractLegacyLocalData();
                 if (legacySplitData) {
                     spLog.info('[ConfigProvider] Executing legacy migration...');
                     const migratedConfig = await ConfigService.loadConfig(legacySplitData);
                     const savedMigrated = await ConfigService.saveConfig(migratedConfig);
-                    resolvedConfig = normalizeConfigSafely(savedMigrated ?? migratedConfig);
+                    resolvedConfig = normalizeConfigStrict(savedMigrated ?? migratedConfig);
                 }
             }
 
-            resolvedConfig = normalizeConfigSafely(resolvedConfig);
+            resolvedConfig = normalizeConfigStrict(resolvedConfig);
 
-            if (!SHAREPOINT_CONFIG.useMock && !isMongoStorageBackend() && !isSharePointReadonlyBackend() && !bootstrapAttemptedRef.current) {
+            if (!USE_LOCAL_MOCK_STORAGE && !isMongoStorageBackend() && !isSharePointReadonlyBackend() && !bootstrapAttemptedRef.current) {
                 bootstrapAttemptedRef.current = true;
                 try {
                     await ensureSharePointBootstrapFiles();
@@ -265,7 +293,7 @@ export const ConfigProvider = ({ children }) => {
             if (repairResult.repaired) {
                 try {
                     const savedRepair = await ConfigService.saveConfig(repairResult.config);
-                    resolvedConfig = normalizeConfigSafely(savedRepair ?? repairResult.config);
+                    resolvedConfig = normalizeConfigStrict(savedRepair ?? repairResult.config);
                     markMigratedDefaultsRepairRun();
                 } catch (repairError) {
                     spLog.warn('[ConfigProvider] Failed to persist migrated mock defaults repair.', repairError);
@@ -278,6 +306,17 @@ export const ConfigProvider = ({ children }) => {
             }
             configRef.current = resolvedConfig;
             setConfig(resolvedConfig);
+            revisionRef.current = 0;
+            persistedRevisionRef.current = 0;
+            setPersistence({
+                status: PERSISTENCE_STATUS.CLEAN,
+                revision: 0,
+                persistedRevision: 0,
+                dirty: false,
+                saving: false,
+                savedAt: null,
+                error: null,
+            });
             setError(null);
             return resolvedConfig;
         } catch (err) {
@@ -296,6 +335,12 @@ export const ConfigProvider = ({ children }) => {
                     setConfig(resolvedConfig);
                 }
                 setError(err?.message || 'Failed to load configuration');
+                setPersistence((prev) => ({
+                    ...prev,
+                    status: PERSISTENCE_STATUS.ERROR,
+                    saving: false,
+                    error: err?.message || 'Failed to load configuration',
+                }));
                 if (fatalLoad) {
                     setStatus(STATUS.ERROR);
                 }
@@ -321,10 +366,25 @@ export const ConfigProvider = ({ children }) => {
 
         try {
             const prevConfig = configRef.current;
+            const prevSerialized = JSON.stringify(prevConfig);
             const nextConfig = updater(prevConfig);
-            const resolvedConfig = normalizeConfigSafely(nextConfig ?? prevConfig);
+            const resolvedConfig = normalizeConfigStrict(nextConfig ?? prevConfig);
+            if (JSON.stringify(resolvedConfig) === prevSerialized) {
+                return;
+            }
+            const nextRevision = revisionRef.current + 1;
+            revisionRef.current = nextRevision;
             configRef.current = resolvedConfig;
             setConfig(resolvedConfig);
+            setPersistence((prev) => ({
+                ...prev,
+                status: PERSISTENCE_STATUS.DIRTY,
+                revision: nextRevision,
+                persistedRevision: persistedRevisionRef.current,
+                dirty: true,
+                saving: Boolean(saveLoopPromiseRef.current),
+                error: null,
+            }));
         } catch (err) {
             spLog.error('ConfigProvider.updateConfig failed:', err);
             if (isMountedRef.current) {
@@ -334,32 +394,116 @@ export const ConfigProvider = ({ children }) => {
         }
     }, []);
 
-    const saveNow = useCallback(async () => {
-        if (loadFailedRef.current) {
-            throw new Error('Cannot save because the initial data load failed. Reload after fixing the backend connection.');
-        }
-
-        if (isMountedRef.current) {
-            setStatus(STATUS.SAVING);
-            setError(null);
-        }
-
-        try {
-            const saved = await ConfigService.saveConfig(configRef.current);
-            const normalizedSaved = normalizeConfigSafely(saved);
-            if (!isMountedRef.current) return normalizedSaved;
-            configRef.current = normalizedSaved;
-            setConfig(normalizedSaved);
-            setStatus(STATUS.IDLE);
-            return normalizedSaved;
-        } catch (err) {
-            if (isMountedRef.current) {
-                setStatus(STATUS.ERROR);
-                setError(err?.message || 'Failed to save configuration');
+    const settleSaveWaiters = useCallback((persistedRevision, value, errorValue = null) => {
+        const pending = saveWaitersRef.current;
+        const remaining = [];
+        pending.forEach((waiter) => {
+            if (errorValue || waiter.revision <= persistedRevision) {
+                if (errorValue) waiter.reject(errorValue);
+                else waiter.resolve(value);
+            } else {
+                remaining.push(waiter);
             }
-            throw err;
-        }
+        });
+        saveWaitersRef.current = remaining;
     }, []);
+
+    const ensureSaveLoop = useCallback(() => {
+        if (saveLoopPromiseRef.current) return saveLoopPromiseRef.current;
+
+        const loop = (async () => {
+            while (persistedRevisionRef.current < revisionRef.current) {
+                const savingRevision = revisionRef.current;
+                const snapshot = configRef.current;
+                if (isMountedRef.current) {
+                    setStatus(STATUS.SAVING);
+                    setError(null);
+                    setPersistence((prev) => ({
+                        ...prev,
+                        status: PERSISTENCE_STATUS.SAVING,
+                        revision: revisionRef.current,
+                        persistedRevision: persistedRevisionRef.current,
+                        dirty: true,
+                        saving: true,
+                        error: null,
+                    }));
+                }
+
+                let normalizedSaved;
+                try {
+                    const saved = await ConfigService.saveConfig(snapshot);
+                    normalizedSaved = normalizeConfigStrict(saved);
+                } catch (err) {
+                    if (isMountedRef.current) {
+                        setStatus(STATUS.ERROR);
+                        setError(err?.message || 'Failed to save configuration');
+                        setPersistence((prev) => ({
+                            ...prev,
+                            status: PERSISTENCE_STATUS.ERROR,
+                            revision: revisionRef.current,
+                            persistedRevision: persistedRevisionRef.current,
+                            dirty: true,
+                            saving: false,
+                            error: err?.message || 'Failed to save configuration',
+                        }));
+                    }
+                    settleSaveWaiters(persistedRevisionRef.current, null, err);
+                    return;
+                }
+
+                persistedRevisionRef.current = savingRevision;
+                if (revisionRef.current === savingRevision) {
+                    configRef.current = normalizedSaved;
+                    if (isMountedRef.current) setConfig(normalizedSaved);
+                }
+                settleSaveWaiters(savingRevision, normalizedSaved);
+
+                if (isMountedRef.current) {
+                    const dirty = revisionRef.current > persistedRevisionRef.current;
+                    setPersistence({
+                        status: dirty ? PERSISTENCE_STATUS.SAVING : PERSISTENCE_STATUS.SAVED,
+                        revision: revisionRef.current,
+                        persistedRevision: persistedRevisionRef.current,
+                        dirty,
+                        saving: dirty,
+                        savedAt: dirty ? null : new Date().toISOString(),
+                        error: null,
+                    });
+                }
+            }
+
+            if (isMountedRef.current) setStatus(STATUS.IDLE);
+        })();
+
+        saveLoopPromiseRef.current = loop.finally(() => {
+            saveLoopPromiseRef.current = null;
+            if (
+                saveWaitersRef.current.length > 0
+                && persistedRevisionRef.current < revisionRef.current
+            ) {
+                ensureSaveLoop();
+            }
+        });
+        saveLoopPromiseRef.current.catch(() => undefined);
+        return saveLoopPromiseRef.current;
+    }, [settleSaveWaiters]);
+
+    const saveNow = useCallback(() => {
+        if (loadFailedRef.current) {
+            return Promise.reject(new Error('Cannot save because the initial data load failed. Reload after fixing the backend connection.'));
+        }
+
+        const targetRevision = revisionRef.current;
+        if (targetRevision <= persistedRevisionRef.current) {
+            return Promise.resolve(configRef.current);
+        }
+
+        const waiter = new Promise((resolve, reject) => {
+            saveWaitersRef.current.push({ revision: targetRevision, resolve, reject });
+        });
+        ensureSaveLoop();
+        return waiter;
+    }, [ensureSaveLoop]);
 
     const reload = useCallback(async () => {
         return loadConfig();
@@ -383,9 +527,9 @@ export const ConfigProvider = ({ children }) => {
         try {
             const resetConfig = validateAndNormalize(DEFAULT_CONFIG_V1);
             const savedReset = await ConfigService.saveConfig(resetConfig);
-            const normalizedReset = normalizeConfigSafely(savedReset ?? resetConfig);
+            const normalizedReset = normalizeConfigStrict(savedReset ?? resetConfig);
 
-            if (SHAREPOINT_CONFIG.useMock) {
+            if (USE_LOCAL_MOCK_STORAGE) {
                 markSkipLegacyMigrationFlag();
                 clearLegacyMockStorageKeys();
             } else if (!isMongoStorageBackend()) {
@@ -453,6 +597,8 @@ export const ConfigProvider = ({ children }) => {
                 saveNow,
                 reload,
                 factoryReset,
+                persistence,
+                retrySave: saveNow,
             }}
         >
             {children}

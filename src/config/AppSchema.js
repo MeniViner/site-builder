@@ -3,6 +3,7 @@ import { DEFAULT_BORDER_TARGETS } from '../utils/borderStyles';
 import { normalizeEventColor } from '../utils/colorValidation';
 import { normalizeSmartTextTokens } from '../utils/smartText';
 import { DEFAULT_ACTIVE_WIDGETS } from '../utils/widgetDisplay';
+import { getNavigationChildren, getNavigationKind, getNavigationUrl } from '../utils/navigationModel';
 
 const SCHEMA_VERSION = '1.0.0';
 const VALID_THEME_DISPLAY_MODES = ['dark', 'light', 'user-toggle'];
@@ -212,16 +213,16 @@ function normalizeNavigationNodes(nodes, prefix = 'nav') {
 
         const id = asId(node.id, `${prefix}-${index + 1}`);
         const label = asNonEmptyString(node.label, asNonEmptyString(node.title, id));
-        const childrenSource = Array.isArray(node.children)
-            ? node.children
-            : (Array.isArray(node.subLinks) ? node.subLinks : []);
+        const childrenSource = getNavigationChildren(node);
+        const url = getNavigationUrl(node);
 
         normalized.push({
             id,
             label,
+            kind: getNavigationKind({ ...node, url, children: childrenSource }),
             icon: asString(node.icon, ''),
             iconUrl: asString(node.iconUrl, asString(node.imageUrl, asString(node.image, ''))),
-            url: asString(node.url, ''),
+            url,
             children: normalizeNavigationNodes(childrenSource, id),
         });
     });

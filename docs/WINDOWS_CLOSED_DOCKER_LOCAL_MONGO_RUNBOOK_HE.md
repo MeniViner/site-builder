@@ -99,7 +99,7 @@ LEGACY_SHAREPOINT_READONLY_FALLBACK=false
 VITE_STORAGE_BACKEND=mongo
 VITE_BACKEND_API_URL=http://127.0.0.1:3001
 VITE_SITE_ID=local-dev-site
-VITE_SITE_BUILDER_API_KEY=dev-local-api-key
+VITE_SITE_BUILDER_DEV_API_KEY=dev-local-api-key
 VITE_AUTO_DEPLOY=false
 ```
 
@@ -145,7 +145,7 @@ Invoke-RestMethod -Headers @{ "X-API-Key" = "dev-local-api-key" } "http://127.0.
 הערה חשובה: אם ה-frontend מגיע מ-SharePoint dist, הוא נקרא כ-SharePoint HTML ובמכונה אחרת צריך קודם להוסיף runtime config ליד ה-dist כדי להצביע על כתובת ה־API המקומית:
 
 ```powershell
-npm run sharepoint:install-runtime-config -- --site <siteCode> --backend-url http://<hostname>:3001 --api-key dev-local-api-key
+npm run sharepoint:install-runtime-config -- --site <siteCode> --backend-url http://<hostname>:3001
 ```
 
 (למשל: `http://127.0.0.1:3001` אם ממשיך לעבוד מאותה מכונה).

@@ -6,6 +6,7 @@ import OrgChart3D from '../components/OrgChart3D';
 import OrgChartMailLink from '../components/OrgChartMailLink';
 import NavigationBar from '../components/home/NavigationBar';
 import { useAuth } from '../context/AuthContext';
+import { canAccessAdminUi } from '../utils/adminAccess';
 import { useConfig } from '../context/ConfigProvider';
 import { useSiteContent } from '../context/SiteContentContext';
 import { useTheme } from '../context/ThemeContext';
@@ -362,7 +363,7 @@ export default function OrgChartPage({ isPreview = false, previewData = null }) 
                     onOpenAdmin={() => {
                         if (!isPreview) navigate('/admin');
                     }}
-                    canOpenAdmin={!isPreview && isAdmin && !authLoading}
+                    canOpenAdmin={canAccessAdminUi({ isAdmin, loading: authLoading, isPreview })}
                     topNavBorderStyle={topNavBorderStyle}
                     searchBorderStyle={searchBorderStyle}
                     effectiveMode={effectiveMode}

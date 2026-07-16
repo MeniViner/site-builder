@@ -32,7 +32,7 @@ describe('runtime config core', () => {
       cli: {
         site: 'demo-site',
         'backend-url': 'http://127.0.0.1:3001',
-        'api-key': 'dev-key',
+        'storage-backend': 'mongo',
         'site-id': 'local-site',
       },
     });
@@ -40,6 +40,7 @@ describe('runtime config core', () => {
   expect(plan.runtimeConfigRel).toBe('/sites/demo-site/siteDB/dist/sitebuilder-runtime-config.json');
     expect(plan.runtimeConfigUrl).toBe('https://portal.example/sites/demo-site/siteDB/dist/sitebuilder-runtime-config.json');
     expect(buildRuntimeConfigPayload(plan).siteId).toBe('local-site');
+    expect(buildRuntimeConfigPayload(plan)).not.toHaveProperty('apiKey');
   });
 
   it('dry-runs runtime-config write without touching disk', () => {
@@ -48,7 +49,7 @@ describe('runtime config core', () => {
       cli: {
         site: 'demo-site',
         'backend-url': 'http://127.0.0.1:3001',
-        'api-key': 'dev-key',
+        'storage-backend': 'mongo',
         'site-id': 'local-site',
       },
     });
@@ -75,7 +76,7 @@ describe('runtime config core', () => {
       cli: {
         site: 'demo-site',
         'backend-url': 'http://127.0.0.1:3001',
-        'api-key': 'dev-key',
+        'storage-backend': 'mongo',
         'site-id': 'local-site',
       },
     });
@@ -90,5 +91,31 @@ describe('runtime config core', () => {
       dryRun: false,
       fsAdapter: makeFsStub({ files: [] }),
     })).toThrow('dist folder does not exist');
+  });
+
+  it('defaults to an explicit TXT selector without credentials', () => {
+    const plan = resolveRuntimeConfigPlan({ config, cli: { site: 'demo-site' } });
+    expect(plan.storageBackend).toBe('txt');
+    expect(buildRuntimeConfigPayload(plan)).toEqual(expect.objectContaining({
+      storageBackend: 'txt',
+      siteId: 'demo-site',
+    }));
+    expect(buildRuntimeConfigPayload(plan)).not.toHaveProperty('apiKey');
+    expect(buildRuntimeConfigPayload(plan)).not.toHaveProperty('backendApiUrl');
+  });
+
+  it('rejects attempts to place an API key in the static runtime config', () => {
+    expect(() => resolveRuntimeConfigPlan({
+      config,
+      cli: { site: 'demo-site', 'api-key': 'must-not-ship' },
+    })).toThrow('must not contain API keys');
+  });
+
+  it('rejects a non-lowercase storage selector', () => {
+    const plan = resolveRuntimeConfigPlan({
+      config,
+      cli: { site: 'demo-site', 'storage-backend': 'MONGO' },
+    });
+    expect(() => installRuntimeConfig({ plan, config, dryRun: true })).toThrow('Expected txt or mongo');
   });
 });

@@ -1,9 +1,11 @@
-import React from 'react';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowRight, Download, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import GanttChart from '../components/GanttChart';
 import NavigationBar from '../components/home/NavigationBar';
 import { useAuth } from '../context/AuthContext';
+import { canAccessAdminUi } from '../utils/adminAccess';
 import { useGantt } from '../context/GanttContext';
 import { useNavigation } from '../context/NavigationContext';
 import { useSiteContent } from '../context/SiteContentContext';
@@ -47,6 +49,7 @@ function RestrictedState() {
 
 export default function GanttPage() {
     const navigate = useNavigate();
+    const [isExporting, setIsExporting] = useState(false);
     const { navItems } = useNavigation();
     const { currentUser, isAdmin, loading: authLoading } = useAuth();
     const { siteContent } = useSiteContent();
@@ -70,6 +73,20 @@ export default function GanttPage() {
         navigate('/');
     };
 
+    const exportGantt = async () => {
+        if (isExporting) return;
+        setIsExporting(true);
+        try {
+            const { downloadGanttExcel } = await import('../utils/ganttExcelExport');
+            await downloadGanttExcel(gantt);
+            toast.success('קובץ האקסל של הגאנט ירד בהצלחה');
+        } catch (exportError) {
+            toast.error(exportError?.message || 'יצירת קובץ האקסל נכשלה');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     return (
         <div dir="rtl" className="min-h-screen bg-theme-bg-base text-theme font-heebo">
             <NavigationBar
@@ -79,7 +96,7 @@ export default function GanttPage() {
                 showNavCategories={false}
                 onNavTo={handleNavTo}
                 onOpenAdmin={() => navigate('/admin/gantt')}
-                canOpenAdmin={isAdmin && !authLoading}
+                canOpenAdmin={canAccessAdminUi({ isAdmin, loading: authLoading })}
                 topNavBorderStyle={topNavBorderStyle}
                 searchBorderStyle={searchBorderStyle}
                 effectiveMode={effectiveMode}
@@ -98,15 +115,28 @@ export default function GanttPage() {
                 <RestrictedState />
             ) : (
                 <main className="public-gantt-page box-border w-full max-w-none px-3 py-3 sm:px-5 lg:px-8">
-                    <div className="public-gantt-breadcrumb mb-3 flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-black text-theme-muted">
-                        <span>{hero.siteName || hero.title || 'האתר'}</span>
-                        <span className="text-theme-muted/60">|</span>
-                        <span className="text-theme">{gantt.pageTitle || 'גאנט'}</span>
-                        {gantt.description && (
-                            <span className="basis-full text-xs font-bold leading-6 text-theme-muted sm:basis-auto">
-                                {gantt.description}
-                            </span>
-                        )}
+                    <div className="mb-3 flex shrink-0 flex-wrap items-start gap-3">
+                        <div className="public-gantt-breadcrumb flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-black text-theme-muted">
+                            <span>{hero.siteName || hero.title || 'האתר'}</span>
+                            <span className="text-theme-muted/60">|</span>
+                            <span className="text-theme">{gantt.pageTitle || 'גאנט'}</span>
+                            {gantt.description && (
+                                <span className="basis-full text-xs font-bold leading-6 text-theme-muted sm:basis-auto">
+                                    {gantt.description}
+                                </span>
+                            )}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={exportGantt}
+                            disabled={isExporting}
+                            className="mr-auto inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-theme-subtle bg-theme-card px-3 text-xs font-black text-theme-muted shadow-sm transition hover:border-primary/40 hover:text-primary disabled:cursor-wait disabled:opacity-60"
+                            title="ייצוא הגאנט לאקסל"
+                            aria-label="ייצוא הגאנט לאקסל"
+                        >
+                            {isExporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                            <span className="hidden sm:inline">Excel</span>
+                        </button>
                     </div>
                     <div className="public-gantt-card w-full max-w-none overflow-visible">
                         <GanttChart

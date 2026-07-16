@@ -1,7 +1,8 @@
 import React, { createContext, useMemo, useContext, useCallback } from 'react';
 import { useConfig } from './ConfigProvider';
 import { normalizeLinkTarget } from '../utils/linkTargets';
-import { spLog } from '../utils/spAppLog';
+import { createNavigationNodeId, getNavigationChildren, getNavigationKind, getNavigationUrl } from '../utils/navigationModel';
+import { useOptimisticBranchPersistence } from './useOptimisticBranchPersistence';
 
 const NavigationContext = createContext();
 
@@ -27,46 +28,40 @@ function pickText(...values) {
     return '';
 }
 
-function createNodeId(prefix = 'nav') {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-        return crypto.randomUUID();
-    }
-    return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
 function toLegacyNavItems(items) {
     const source = Array.isArray(items) ? items : [];
 
     return source.map((l1, l1Index) => {
         const l1Id = resolveNodeId(l1?.id) || `nav_${l1Index + 1}`;
-        const l1Children = Array.isArray(l1?.children) ? l1.children : [];
+        const l1Children = getNavigationChildren(l1);
 
         return {
             id: l1Id,
             label: pickText(l1?.label, l1?.title),
+            kind: getNavigationKind(l1),
             icon: asText(l1?.icon),
             iconUrl: pickText(l1?.iconUrl, l1?.imageUrl, l1?.image),
-            url: normalizeLinkTarget(asText(l1?.url)),
+            url: normalizeLinkTarget(getNavigationUrl(l1)),
             children: l1Children.map((l2, l2Index) => {
                 const l2Id = resolveNodeId(l2?.id) || `${l1Id}_sub_${l2Index + 1}`;
-                const l2Children = Array.isArray(l2?.children)
-                    ? l2.children
-                    : (Array.isArray(l2?.subLinks) ? l2.subLinks : []);
+                const l2Children = getNavigationChildren(l2);
                 const title = pickText(l2?.title, l2?.label);
 
                 return {
                     id: l2Id,
                     title,
                     label: title,
+                    kind: getNavigationKind(l2),
                     icon: asText(l2?.icon),
                     iconUrl: pickText(l2?.iconUrl, l2?.imageUrl, l2?.image),
-                    url: normalizeLinkTarget(asText(l2?.url)),
+                    url: normalizeLinkTarget(getNavigationUrl(l2)),
                     subLinks: l2Children.map((l3, l3Index) => ({
                         id: resolveNodeId(l3?.id) || `${l2Id}_link_${l3Index + 1}`,
                         label: pickText(l3?.label, l3?.title),
+                        kind: getNavigationKind(l3),
                         icon: asText(l3?.icon),
                         iconUrl: pickText(l3?.iconUrl, l3?.imageUrl, l3?.image),
-                        url: normalizeLinkTarget(asText(l3?.url)),
+                        url: normalizeLinkTarget(getNavigationUrl(l3)),
                     })),
                 };
             }),
@@ -78,35 +73,34 @@ function toV1NavItems(legacyItems) {
     const source = Array.isArray(legacyItems) ? legacyItems : [];
 
     return source.map((l1) => {
-        const l1Id = resolveNodeId(l1?.id) || createNodeId('nav_l1');
-        const l1Children = Array.isArray(l1?.children)
-            ? l1.children
-            : (Array.isArray(l1?.subLinks) ? l1.subLinks : []);
+        const l1Id = resolveNodeId(l1?.id) || createNavigationNodeId('nav_l1');
+        const l1Children = getNavigationChildren(l1);
 
         return {
             id: l1Id,
             label: pickText(l1?.label, l1?.title),
+            kind: getNavigationKind(l1),
             icon: asText(l1?.icon),
             iconUrl: pickText(l1?.iconUrl, l1?.imageUrl, l1?.image),
-            url: normalizeLinkTarget(asText(l1?.url)),
+            url: normalizeLinkTarget(getNavigationUrl(l1)),
             children: l1Children.map((l2) => {
-                const l2Id = resolveNodeId(l2?.id) || createNodeId('nav_l2');
-                const l2Children = Array.isArray(l2?.subLinks)
-                    ? l2.subLinks
-                    : (Array.isArray(l2?.children) ? l2.children : []);
+                const l2Id = resolveNodeId(l2?.id) || createNavigationNodeId('nav_l2');
+                const l2Children = getNavigationChildren(l2);
 
                 return {
                     id: l2Id,
                     label: pickText(l2?.title, l2?.label),
+                    kind: getNavigationKind(l2),
                     icon: asText(l2?.icon),
                     iconUrl: pickText(l2?.iconUrl, l2?.imageUrl, l2?.image),
-                    url: normalizeLinkTarget(asText(l2?.url)),
+                    url: normalizeLinkTarget(getNavigationUrl(l2)),
                     children: l2Children.map((l3) => ({
-                        id: resolveNodeId(l3?.id) || createNodeId('nav_l3'),
+                        id: resolveNodeId(l3?.id) || createNavigationNodeId('nav_l3'),
                         label: pickText(l3?.label, l3?.title),
+                        kind: getNavigationKind(l3),
                         icon: asText(l3?.icon),
                         iconUrl: pickText(l3?.iconUrl, l3?.imageUrl, l3?.image),
-                        url: normalizeLinkTarget(asText(l3?.url)),
+                        url: normalizeLinkTarget(getNavigationUrl(l3)),
                         children: [],
                     })),
                 };
@@ -178,39 +172,54 @@ function updateNestedNode(nodes, parentId, childId, updater) {
 export const NavigationProvider = ({ children }) => {
     const { config, status, error, updateConfig, saveNow, reload } = useConfig();
 
+    const patchNavigationConfig = useCallback((prev, items) => ({
+        ...prev,
+        navigation: {
+            ...prev.navigation,
+            items,
+        },
+    }), []);
+
+    const {
+        value: persistedItems,
+        commit,
+        flush,
+        retry,
+        saving,
+        dirty,
+        saveError,
+        saveStatus,
+    } = useOptimisticBranchPersistence({
+        sourceValue: config?.navigation?.items,
+        normalizeValue: toV1NavItems,
+        patchConfig: patchNavigationConfig,
+        updateConfig,
+        saveNow,
+    });
+
     const navItems = useMemo(
-        () => toLegacyNavItems(config?.navigation?.items),
-        [config?.navigation?.items]
+        () => toLegacyNavItems(persistedItems),
+        [persistedItems]
     );
 
-    const loading = status === 'loading' || status === 'saving';
+    const loading = status === 'loading';
 
     const fetchNavigation = useCallback(async () => {
         try {
             await reload();
             return true;
-        } catch (err) {
+        } catch {
             return false;
         }
     }, [reload]);
 
-    const saveNavItems = useCallback(async (newNavItems) => {
-        try {
-            const nextItems = toV1NavItems(newNavItems);
-            updateConfig((prev) => ({
-                ...prev,
-                navigation: {
-                    ...prev.navigation,
-                    items: nextItems,
-                },
-            }));
-            await saveNow();
-            return true;
-        } catch (err) {
-            spLog.error('NavigationContext: failed to save navigation.', err);
-            return false;
-        }
-    }, [saveNow, updateConfig]);
+    const saveNavItems = useCallback((newNavItemsOrUpdater) => commit((currentItems) => {
+        const currentLegacyItems = toLegacyNavItems(currentItems);
+        const resolved = typeof newNavItemsOrUpdater === 'function'
+            ? newNavItemsOrUpdater(currentLegacyItems)
+            : newNavItemsOrUpdater;
+        return toV1NavItems(resolved);
+    }), [commit]);
 
     const saveNavigation = useCallback((newNavItems) => saveNavItems(newNavItems), [saveNavItems]);
 
@@ -218,26 +227,26 @@ export const NavigationProvider = ({ children }) => {
         const targetId = resolveNodeId(itemOrId);
         if (!targetId) return false;
 
-        return saveNavItems(
-            updateNodeById(navItems, targetId, (node) => ({
+        return saveNavItems((currentItems) =>
+            updateNodeById(currentItems, targetId, (node) => ({
                 ...node,
                 ...normalizeNodePatch(node, patch),
             }))
         );
-    }, [navItems, saveNavItems]);
+    }, [saveNavItems]);
 
     const updateSubItem = useCallback(async (parentOrId, childOrId, patch) => {
         const parentId = resolveNodeId(parentOrId);
         const childId = resolveNodeId(childOrId);
         if (!parentId || !childId) return false;
 
-        return saveNavItems(
-            updateNestedNode(navItems, parentId, childId, (node) => ({
+        return saveNavItems((currentItems) =>
+            updateNestedNode(currentItems, parentId, childId, (node) => ({
                 ...node,
                 ...normalizeNodePatch(node, patch),
             }))
         );
-    }, [navItems, saveNavItems]);
+    }, [saveNavItems]);
 
     const updateSubLink = useCallback(async (parentOrId, childOrId, linkOrId, patch) => {
         const parentId = resolveNodeId(parentOrId);
@@ -245,7 +254,7 @@ export const NavigationProvider = ({ children }) => {
         const linkId = resolveNodeId(linkOrId);
         if (!parentId || !childId || !linkId) return false;
 
-        const nextItems = updateNodeById(navItems, parentId, (parent) => {
+        return saveNavItems((currentItems) => updateNodeById(currentItems, parentId, (parent) => {
             const children = Array.isArray(parent?.children) ? parent.children : [];
             return {
                 ...parent,
@@ -266,17 +275,20 @@ export const NavigationProvider = ({ children }) => {
                     };
                 }),
             };
-        });
-
-        return saveNavItems(nextItems);
-    }, [navItems, saveNavItems]);
+        }));
+    }, [saveNavItems]);
 
     return (
         <NavigationContext.Provider
             value={{
                 navItems,
                 loading,
-                error,
+                error: saveError?.message || error,
+                saving,
+                dirty,
+                saveStatus,
+                retrySave: retry,
+                flushSave: flush,
                 saveNavItems,
                 saveNavigation,
                 updateNavItem,
