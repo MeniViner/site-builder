@@ -2,9 +2,15 @@ import express from 'express';
 import { createApiKeyGuard } from './auth/apiKey.js';
 import { createCorsMiddleware } from './api/cors.js';
 import { createSiteRouter } from './routes/siteRoutes.js';
-import { toErrorResponse } from './utils/errors.js';
+import { serviceUnavailable, toErrorResponse } from './utils/errors.js';
 
-export function createApp({ repository, legacyRepository, backupRepository = null, config }) {
+export function createApp({
+  repository,
+  legacyRepository,
+  backupRepository = null,
+  config,
+  readinessCheck = async () => ({ ok: true, missingCollections: [] }),
+}) {
   const app = express();
 
   app.disable('x-powered-by');
@@ -30,6 +36,21 @@ export function createApp({ repository, legacyRepository, backupRepository = nul
     adminApiKey: config.adminApiKey,
     nodeEnv: config.nodeEnv,
   }));
+
+  // Readiness is intentionally authenticated: it performs a data-plane check
+  // and must not become a public Mongo topology probe.
+  app.get('/api/readyz', async (_req, res, next) => {
+    try {
+      const readiness = await readinessCheck();
+      if (!readiness.ok) {
+        throw serviceUnavailable('Builder data plane is not ready');
+      }
+      res.json({ ok: true, service: 'site-builder-api', readiness: 'ready' });
+    } catch (error) {
+      if (error?.statusCode) return next(error);
+      return next(serviceUnavailable('Builder data plane is not ready'));
+    }
+  });
   app.use('/api', createSiteRouter({ repository, legacyRepository, backupRepository }));
 
   app.use((req, res) => {

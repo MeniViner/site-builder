@@ -15,6 +15,7 @@ export const notFound = (message = 'Not found') => new ApiError(404, 'not_found'
 export const conflict = (message = 'Conflict', details) => new ApiError(409, 'conflict', message, details);
 export const preconditionRequired = (message = 'expectedVersion or If-Match is required') =>
   new ApiError(428, 'precondition_required', message);
+export const serviceUnavailable = (message = 'Service unavailable') => new ApiError(503, 'service_unavailable', message);
 
 export function toErrorResponse(error) {
   if (error instanceof ApiError) {
@@ -37,7 +38,7 @@ export function toErrorResponse(error) {
       ok: false,
       error: {
         code: 'internal_error',
-        message: error?.message || 'Internal server error',
+        message: 'Internal server error',
       },
     },
   };

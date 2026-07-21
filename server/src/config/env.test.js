@@ -23,4 +23,18 @@ describe('server env validation', () => {
 
     expect(validateServerConfig(config)).toEqual([]);
   });
+
+  it('uses the approved direct-process port only as a configured fallback', () => {
+    const config = getServerConfig({
+      STORAGE_BACKEND: 'mongo',
+      MONGODB_URI: 'mongodb://127.0.0.1:27018/sitebuilder_site_data',
+      MONGODB_DB_NAME: 'sitebuilder_site_data',
+      SERVER_PORT: '3001',
+      SHUTDOWN_TIMEOUT_MS: '30000',
+    });
+
+    expect(config.serverPort).toBe(3001);
+    expect(config.mongodbDbName).toBe('sitebuilder_site_data');
+    expect(validateServerConfig(config)).toEqual([]);
+  });
 });

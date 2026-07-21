@@ -32,6 +32,12 @@ describe('site-builder API', () => {
     await request(app).get('/api/sites').expect(401);
   });
 
+  it('keeps liveness public and requires an API key for data-plane readiness', async () => {
+    await request(app).get('/healthz').expect(200);
+    await request(app).get('/api/readyz').expect(401);
+    await request(app).get('/api/readyz').set('x-api-key', 'secret').expect(200);
+  });
+
   it('returns a version-zero legacy envelope for a new site and accepts its first save', async () => {
     const missing = await request(app)
       .get('/api/sites/new-site/legacy-object?key=bihs_master_config_v1.txt')
