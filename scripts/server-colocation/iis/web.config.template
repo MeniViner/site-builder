@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Render __NODE_ENTRY__ during offline bundle assembly. Do not store secrets here. -->
+<configuration>
+  <system.webServer>
+    <handlers>
+      <add name="iisnode" path="__NODE_ENTRY__" verb="*" modules="iisnode" />
+    </handlers>
+    <rewrite>
+      <rules>
+        <rule name="BuilderDataApiIisnode" stopProcessing="true">
+          <match url=".*" />
+          <action type="Rewrite" url="__NODE_ENTRY__" />
+        </rule>
+      </rules>
+    </rewrite>
+    <security>
+      <requestFiltering>
+        <requestLimits maxAllowedContentLength="10485760" />
+      </requestFiltering>
+    </security>
+    <httpProtocol>
+      <customHeaders>
+        <remove name="X-Powered-By" />
+      </customHeaders>
+    </httpProtocol>
+    <iisnode loggingEnabled="false" devErrorsEnabled="false" watchedFiles="web.config;*.js" />
+  </system.webServer>
+</configuration>
