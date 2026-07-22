@@ -23,6 +23,6 @@
         <remove name="X-Powered-By" />
       </customHeaders>
     </httpProtocol>
-    <iisnode loggingEnabled="false" devErrorsEnabled="false" watchedFiles="web.config;*.js" />
+    <iisnode nodeProcessCommandLine="runtime\node.exe" loggingEnabled="false" devErrorsEnabled="false" watchedFiles="web.config;*.js" />
   </system.webServer>
 </configuration>

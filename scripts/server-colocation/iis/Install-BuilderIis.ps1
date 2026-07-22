@@ -9,7 +9,7 @@ param(
   [string]$ListenAddress = '127.0.0.1',
   [ValidateRange(1, 65535)]
   [int]$Port = 3001,
-  [string]$NodeEntry = 'dist\\server.js'
+  [string]$NodeEntry = 'app\server\index.js'
 )
 
 Set-StrictMode -Version Latest

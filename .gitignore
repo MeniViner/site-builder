@@ -25,3 +25,4 @@ server/.env.test
 *.sln
 *.sw?
 offline-artifacts/docker/*.tar
+tmp/agent-runs/

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs, safeError } from './lib/core.mjs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
 const REQUIRED_FALSE = ['HUB_DANGEROUS_ALLOW_SITE_DATA_WRITES', 'HUB_DANGEROUS_BYPASS_AUTH', 'HUB_DANGEROUS_BYPASS_SITE_SCOPE'];
 const REQUIRED_PRESENT = ['MIGRATION_SOURCE_MONGODB_URI', 'MIGRATION_TARGET_MONGODB_URI', 'MIGRATION_SOURCE_DB_NAME', 'MIGRATION_TARGET_DB_NAME'];
@@ -14,16 +16,18 @@ export function findPrecutoverBlockers(env) {
   return blockers;
 }
 
-try {
-  const args = parseArgs();
-  if (args.help) {
-    process.stdout.write('Checks environment only; never prints values. Exit 2 means a pre-cutover blocker remains.\n');
-  } else {
-    const blockers = findPrecutoverBlockers(process.env);
-    process.stdout.write(`${JSON.stringify({ ok: blockers.length === 0, blockers })}\n`);
-    if (blockers.length) process.exitCode = 2;
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+  try {
+    const args = parseArgs();
+    if (args.help) {
+      process.stdout.write('Checks environment only; never prints values. Exit 2 means a pre-cutover blocker remains.\n');
+    } else {
+      const blockers = findPrecutoverBlockers(process.env);
+      process.stdout.write(`${JSON.stringify({ ok: blockers.length === 0, blockers })}\n`);
+      if (blockers.length) process.exitCode = 2;
+    }
+  } catch (error) {
+    process.stderr.write(`Pre-cutover blocker check failed: ${safeError(error)}\n`);
+    process.exitCode = 1;
   }
-} catch (error) {
-  process.stderr.write(`Pre-cutover blocker check failed: ${safeError(error)}\n`);
-  process.exitCode = 1;
 }

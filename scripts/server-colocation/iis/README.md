@@ -8,7 +8,7 @@ The intended topology is:
 HUB process -> http://127.0.0.1:3001 -> BuilderDataApi IIS site -> iisnode named pipe -> Builder Node entry
 ```
 
-`web.config.template` must be rendered into `web.config` in the deployed Builder bundle after its `__NODE_ENTRY__` token is replaced with the compiled JavaScript entry point (normally `dist/server.js`). The Node entry must listen on `process.env.PORT || SERVER_PORT`; iisnode provides `PORT` as a named pipe.
+`web.config.template` must be rendered into `web.config` in the deployed Builder bundle after its `__NODE_ENTRY__` token is replaced with the packaged JavaScript entry point (`app/server/index.js`). The template uses the bundled `runtime\node.exe`; the Node entry must listen on `process.env.PORT || SERVER_PORT`, and iisnode provides `PORT` as a named pipe.
 
 ## Safety model
 

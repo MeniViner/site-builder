@@ -11,6 +11,7 @@ test('web.config is an iisnode-only template with no public binding or secret', 
   const template = read('web.config.template');
   assert.match(template, /modules="iisnode"/);
   assert.match(template, /__NODE_ENTRY__/);
+  assert.match(template, /nodeProcessCommandLine="runtime\\node\.exe"/);
   assert.match(template, /loggingEnabled="false"/);
   assert.doesNotMatch(template, /MONGODB_URI|ADMIN_API_KEY|JWT_SECRET|password|127\.0\.0\.1:\d+/i);
 });
@@ -25,6 +26,7 @@ test('installer is dry-run by default and fails closed for any mutation', () => 
   assert.match(script, /Get-WebGlobalModule -Name 'iisnode'/);
   assert.match(script, /managedRuntimeVersion -Value ''/);
   assert.match(script, /modifiesHub = \$false/);
+  assert.match(script, /\[string\]\$NodeEntry = 'app\\server\\index\.js'/);
 });
 
 test('rollback preserves files and Mongo and requires its own explicit confirmation', () => {
