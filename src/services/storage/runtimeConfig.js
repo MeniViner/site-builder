@@ -75,6 +75,8 @@ function normalizeCandidate(candidate = {}, { source = 'runtime config' } = {}) 
   const rawBackend = candidate.storageBackend;
   const storageBackend = sanitizeBackend(rawBackend, { allowEmpty: true });
   const backendApiUrl = asString(candidate.backendApiUrl || candidate.backendUrl || candidate.apiUrl || candidate.API_URL);
+  const fileExplorerApiUrl = asString(candidate.fileExplorerApiUrl || candidate.fileExplorerApiURL || candidate.FILE_EXPLORER_API_URL);
+  const fileExplorerBridgePath = asString(candidate.fileExplorerBridgePath || candidate.FILE_EXPLORER_BRIDGE_PATH);
   const siteId = asString(candidate.siteId || candidate.site || candidate.siteCode);
   const siteRoot = asString(candidate.siteRoot || candidate.sharePointSiteRoot);
   const releaseVersion = asString(candidate.releaseVersion || candidate.siteBuilderVersion || candidate.appVersion || candidate.version);
@@ -89,6 +91,8 @@ function normalizeCandidate(candidate = {}, { source = 'runtime config' } = {}) 
   if (
     !storageBackend
     && !backendApiUrl
+    && !fileExplorerApiUrl
+    && !fileExplorerBridgePath
     && !siteId
     && !siteRoot
     && !releaseVersion
@@ -108,6 +112,8 @@ function normalizeCandidate(candidate = {}, { source = 'runtime config' } = {}) 
   return Object.freeze({
     storageBackend,
     backendApiUrl,
+    fileExplorerApiUrl,
+    fileExplorerBridgePath,
     siteId,
     siteRoot,
     releaseVersion,
@@ -423,6 +429,8 @@ export function getRuntimeValue(key, fallback = '') {
   switch (key) {
     case 'storageBackend': return config.storageBackend || '';
     case 'backendApiUrl': return config.backendApiUrl || '';
+    case 'fileExplorerApiUrl': return config.fileExplorerApiUrl || '';
+    case 'fileExplorerBridgePath': return config.fileExplorerBridgePath || '';
     case 'siteId': return config.siteId || '';
     case 'siteRoot': return config.siteRoot || '';
     case 'releaseVersion':

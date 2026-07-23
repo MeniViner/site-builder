@@ -304,9 +304,6 @@ export default function AdminExternalLinks() {
                                     name="url"
                                     type="text"
                                     defaultValue={editingLink.url}
-                                    onBlur={(event) => {
-                                        event.currentTarget.value = normalizeLinkTarget(event.currentTarget.value);
-                                    }}
                                     required
                                     className="w-full bg-gray-50 dark:bg-[#151821] border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-3 text-gray-900 dark:text-white outline-none focus:border-primary-500 transition text-sm font-mono dir-ltr text-left"
                                     placeholder="https://example.idf.il או z:/public או /Users/name/Documents"

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import CategorySection from './CategorySection';
+import { decodeFileExplorerTarget } from '../../utils/fileExplorerTargets';
 
 vi.mock('../NavVisual', () => ({
   default: ({ item, icon }) => <span data-testid="nav-visual">{item?.label || item?.title || icon || 'icon'}</span>,
@@ -61,8 +62,9 @@ function renderCategory(cat, regularLinksLayout) {
 
 function getNavigationTarget(anchor) {
   const href = anchor.getAttribute('href');
-  if (!href?.includes('/__sitebuilder-local-file')) return href;
-  return new URL(href, window.location.origin).searchParams.get('href');
+  if (!href?.includes('/file-explorer?target=')) return href;
+  const token = new URLSearchParams(href.split('?')[1]).get('target');
+  return decodeFileExplorerTarget(token)?.canonicalPath || href;
 }
 
 describe('CategorySection navigation visibility', () => {
@@ -76,7 +78,7 @@ describe('CategorySection navigation visibility', () => {
   it.each(['grid', 'compact', 'hq'])('keeps direct network folders visible and usable in %s mode', (layout) => {
     renderCategory(directNetworkFolder, layout);
 
-    const anchors = screen.getAllByRole('link').filter((anchor) => anchor.getAttribute('href') === 'smb://fileserver/public');
+    const anchors = screen.getAllByRole('link').filter((anchor) => getNavigationTarget(anchor) === '\\\\fileserver\\public');
     expect(anchors.length).toBeGreaterThan(0);
     expect(screen.getAllByText('Direct network folder').length).toBeGreaterThan(0);
   });
@@ -90,7 +92,7 @@ describe('CategorySection navigation visibility', () => {
       .getAllByText('Nested network folder')
       .map((element) => element.closest('a'))
       .find(Boolean);
-    expect(getNavigationTarget(nestedLink)).toBe('file://fileserver/public/nested');
+    expect(getNavigationTarget(nestedLink)).toBe('\\\\fileserver\\public\\nested');
   });
 
   it('uses card click to explore a hybrid while retaining a separate open-target action', () => {
@@ -116,7 +118,7 @@ describe('CategorySection navigation visibility', () => {
 
     expect(openSpy).not.toHaveBeenCalled();
     expect(card?.firstElementChild).toHaveClass('[transform:rotateY(180deg)]');
-    expect(screen.getAllByRole('link').some((anchor) => getNavigationTarget(anchor) === 'file://fileserver/child')).toBe(true);
+    expect(screen.getAllByRole('link').some((anchor) => getNavigationTarget(anchor) === '\\\\fileserver\\child')).toBe(true);
 
     openSpy.mockRestore();
   });

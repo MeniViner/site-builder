@@ -15,7 +15,6 @@ import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import { uploadImage } from '../utils/sharepointUtils';
 import NavVisual from './NavVisual';
 import DismissibleNotice from './DismissibleNotice';
-import { normalizeLinkTarget } from '../utils/linkTargets';
 import { createNavigationNodeId } from '../utils/navigationModel';
 
 function asText(value, fallback = '') {
@@ -82,6 +81,8 @@ function moveArrayItem(source, fromIndex, toIndex) {
     copy.splice(toIndex, 0, item);
     return copy;
 }
+
+const UUID_V4_LIKE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export default function AdminNavigation() {
     const navigate = useNavigate();
@@ -237,6 +238,17 @@ export default function AdminNavigation() {
             setUploadingIconPathKey('');
             setImageUploadTargetPath(null);
         }
+    };
+
+    const isInteractiveRowTarget = (target) => {
+        if (!target || typeof target.closest !== 'function') return false;
+        return Boolean(target.closest('input, textarea, button, select, [contenteditable="true"]'));
+    };
+
+    const restoreIfUuidLeak = (candidate, fallbackValue, guardIds = []) => {
+        if (typeof candidate !== 'string' || typeof fallbackValue !== 'string') return candidate;
+        if (!UUID_V4_LIKE_RE.test(candidate)) return candidate;
+        return guardIds.includes(candidate) ? fallbackValue : candidate;
     };
 
     // Adders
@@ -616,7 +628,11 @@ export default function AdminNavigation() {
                                 <input
                                     type="text"
                                     value={currentModel.title || currentModel.label || ''}
-                                    onChange={(e) => updateNode(selectedPath, currentLevel === 1 ? 'label' : 'title', e.target.value)}
+                                    onChange={(e) => {
+                                        const field = currentLevel === 1 ? 'label' : 'title';
+                                        const nextValue = restoreIfUuidLeak(e.target.value, currentModel.title || currentModel.label || '', [currentModel.id, ...selectedPath]);
+                                        updateNode(selectedPath, field, nextValue);
+                                    }}
                                     className="w-full bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-gray-900 dark:text-white focus:outline-none focus:border-primary-500 focus:bg-gray-100 dark:focus:bg-[#1a1a1f] text-sm font-semibold transition"
                                 />
                             </div>
@@ -630,23 +646,7 @@ export default function AdminNavigation() {
                                 >
                                     אייקון או תמונה
                                 </HelpLabel>
-                                <div className="flex items-center gap-2 rounded-md border border-gray-300 dark:border-[#252528] bg-gray-50 dark:bg-[#141418] p-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => updateNodeFields(selectedPath, { iconUrl: '' })}
-                                        className={`flex-1 h-8 rounded-md text-xs font-bold transition ${!currentUsesImageVisual ? 'bg-white dark:bg-[#1b1f29] text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
-                                    >
-                                        מצב אייקון
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => triggerIconImageUpload(selectedPath)}
-                                        disabled={uploadingIconPathKey === pathKey(selectedPath)}
-                                        className={`flex-1 h-8 rounded-md text-xs font-bold transition disabled:cursor-wait disabled:opacity-70 ${currentUsesImageVisual ? 'bg-white dark:bg-[#1b1f29] text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
-                                    >
-                                        מצב תמונה
-                                    </button>
-                                </div>
+                          
                                 <div className="flex gap-2">
                                     <button
                                         type="button"
@@ -698,15 +698,17 @@ export default function AdminNavigation() {
                                 <input
                                     type="text"
                                     value={currentModel.url || ''}
-                                    onChange={(e) => updateNode(selectedPath, 'url', e.target.value)}
-                                    onBlur={(e) => updateNode(selectedPath, 'url', normalizeLinkTarget(e.target.value))}
+                                    onChange={(e) => {
+                                        const nextValue = restoreIfUuidLeak(e.target.value, currentModel.url || '', [currentModel.id, ...selectedPath]);
+                                        updateNode(selectedPath, 'url', nextValue);
+                                    }}
                                     className="w-full bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-blue-600 dark:text-blue-300 focus:outline-none focus:border-primary-500 focus:bg-gray-100 dark:focus:bg-[#1a1a1f] text-sm transition text-left dir-ltr placeholder-gray-500 dark:placeholder-[#333]"
                                     placeholder="https:// או z:/public או /Users/name/Documents"
                                     dir="ltr"
                                 />
-                                <p className="text-[11px] leading-snug text-gray-500 dark:text-gray-400">
+                                {/* <p className="text-[11px] leading-snug text-gray-500 dark:text-gray-400">
                                     נתיבי Windows ו-Mac יומרו אוטומטית ל-file:// בזמן שמירה.
-                                </p>
+                                </p> */}
                             </div>
                         </div>
                     </div>
@@ -770,6 +772,10 @@ export default function AdminNavigation() {
                                     <tr
                                         key={child.id}
                                         draggable
+                                        onDoubleClick={(event) => {
+                                            if (isInteractiveRowTarget(event.target)) return;
+                                            if (child.type === 'folder') setSelectedPath(child.nodePath);
+                                        }}
                                         onDragStart={(e) => {
                                             e.dataTransfer.effectAllowed = 'move';
                                             setDragState({ sourcePath: [...selectedPath], draggedId: child.id });
@@ -787,7 +793,6 @@ export default function AdminNavigation() {
                                         }}
                                         onDragEnd={() => setDragState(null)}
                                         className={`hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors group cursor-default ${dragState?.draggedId === child.id ? 'opacity-50' : ''}`}
-                                        onDoubleClick={() => child.type === 'folder' && setSelectedPath(child.nodePath)}
                                     >
                                         <td className="py-2.5 px-2">
                                             <div className="w-10 h-10 mx-auto rounded-xl bg-gray-50 dark:bg-[#141418] flex items-center justify-center border border-gray-300 dark:border-[#252528] group-hover:bg-gray-100 dark:group-hover:bg-[#1a1a1f] group-hover:border-gray-700 transition-colors shadow-inner">
@@ -812,7 +817,8 @@ export default function AdminNavigation() {
                                                     if (currentLevel === 0) field = 'label';
                                                     else if (currentLevel === 1) field = 'title';
                                                     else if (currentLevel === 2) field = 'label';
-                                                    updateNode(child.nodePath, field, e.target.value);
+                                                    const nextValue = restoreIfUuidLeak(e.target.value, child.title || '', [...child.nodePath, child.id]);
+                                                    updateNode(child.nodePath, field, nextValue);
                                                 }}
                                                 className="bg-transparent border border-transparent hover:border-[#333] focus:border-primary-500 focus:bg-gray-50 dark:focus:bg-[#141418] rounded-md pl-2 pr-2 py-1.5 transition w-full text-sm font-bold text-gray-700 dark:text-gray-200 outline-none hover:bg-gray-100 dark:hover:bg-black/20 focus:shadow-inner"
                                             />
@@ -855,8 +861,10 @@ export default function AdminNavigation() {
                                             <input
                                                 type="text"
                                                 value={child.url || ''}
-                                                onChange={(e) => updateNode(child.nodePath, 'url', e.target.value)}
-                                                onBlur={(e) => updateNode(child.nodePath, 'url', normalizeLinkTarget(e.target.value))}
+                                                onChange={(e) => {
+                                                    const nextValue = restoreIfUuidLeak(e.target.value, child.url || '', [...child.nodePath, child.id]);
+                                                    updateNode(child.nodePath, 'url', nextValue);
+                                                }}
                                                 className="bg-transparent border border-transparent hover:border-[#333] focus:border-primary-500 focus:bg-gray-50 dark:focus:bg-[#141418] rounded-md pl-2 pr-2 py-1.5 transition w-full text-xs text-blue-600 dark:text-blue-400 outline-none dir-ltr text-left placeholder-gray-500 dark:placeholder-[#333] hover:bg-gray-100 dark:hover:bg-black/20 focus:shadow-inner"
                                                 placeholder="https:// או z:/public או /Users/name/Documents"
                                                 dir="ltr"

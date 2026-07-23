@@ -1,111 +1,35 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-    getLinkTargetAttributes,
-    isFileLinkTarget,
-    isLocalFilePath,
-    isSystemLinkTarget,
-    normalizeLinkTarget,
-    openLinkTarget,
-} from './linkTargets';
+import { describe, expect, it, vi } from 'vitest';
+import { decodeFileExplorerTarget } from './fileExplorerTargets';
+import { getLinkTargetAttributes, isFileLinkTarget, normalizeLinkTarget, openLinkTarget } from './linkTargets';
 
-describe('linkTargets', () => {
-    beforeEach(() => {
-        vi.stubEnv('VITE_LOCAL_FILE_BRIDGE', 'false');
-    });
+function targetFromHref(href) { return decodeFileExplorerTarget(new URLSearchParams(href.split('?')[1]).get('target')); }
 
-    afterEach(() => {
-        vi.unstubAllEnvs();
-    });
-
-    it('keeps regular web links unchanged', () => {
-        expect(normalizeLinkTarget('https://example.idf.il/path')).toBe('https://example.idf.il/path');
-        expect(isLocalFilePath('https://example.idf.il/path')).toBe(false);
-    });
-
-    it('converts mapped drive paths to file links', () => {
-        expect(normalizeLinkTarget('z:/public')).toBe('file:///Z:/public');
-        expect(normalizeLinkTarget('c:\\library\\docs')).toBe('file:///C:/library/docs');
-        expect(isFileLinkTarget('z:/public')).toBe(true);
-    });
-
-    it('converts macOS absolute paths to file links', () => {
-        expect(normalizeLinkTarget('/Users/meni/Documents')).toBe('file:///Users/meni/Documents');
-        expect(normalizeLinkTarget('/Volumes/Public/Shared Folder')).toBe('file:///Volumes/Public/Shared%20Folder');
-        expect(isLocalFilePath('/Applications')).toBe(true);
-    });
-
-    it('keeps app-relative and SharePoint-relative paths unchanged', () => {
-        expect(normalizeLinkTarget('/org-chart')).toBe('/org-chart');
-        expect(normalizeLinkTarget('/sites/schedule/siteDB')).toBe('/sites/schedule/siteDB');
-    });
-
-    it('normalizes macOS network folder protocols', () => {
-        expect(normalizeLinkTarget('smb://fileserver/public/shared folder')).toBe('smb://fileserver/public/shared%20folder');
-        expect(normalizeLinkTarget('afp://fileserver/public')).toBe('afp://fileserver/public');
-        expect(isSystemLinkTarget('smb://fileserver/public')).toBe(true);
-    });
-
-    it('encodes spaces inside local folder paths', () => {
-        expect(normalizeLinkTarget('c:/library/shared folder')).toBe('file:///C:/library/shared%20folder');
-    });
-
-    it('converts UNC paths to file links', () => {
-        expect(normalizeLinkTarget('\\\\fileserver\\public\\library')).toBe('file://fileserver/public/library');
-        expect(normalizeLinkTarget('//fileserver/public/library')).toBe('file://fileserver/public/library');
-    });
-
-    it('converts SharePoint WebDAV UNC paths to browser URLs', () => {
-        expect(normalizeLinkTarget('\\\\portal.army.idf@SSL\\DavWWWRoot\\sites\\schedule\\siteDB\\siteAssets\\folder with spaces'))
-            .toBe('https://portal.army.idf/sites/schedule/siteDB/siteAssets/folder%20with%20spaces');
-        expect(normalizeLinkTarget('//portal.army.idf@SSL/DavWWWRoot/sites/schedule/siteDB/siteAssets'))
-            .toBe('https://portal.army.idf/sites/schedule/siteDB/siteAssets');
-    });
-
-    it('repairs SharePoint WebDAV links that were previously saved as file URLs', () => {
-        expect(normalizeLinkTarget('file://portal.army.idf@SSL/DavWWWRoot/sites/schedule/siteDB/siteAssets/doc.txt'))
-            .toBe('https://portal.army.idf/sites/schedule/siteDB/siteAssets/doc.txt');
-    });
-
-    it('opens file and network links directly in a new browser tab/window', () => {
-        expect(getLinkTargetAttributes('z:/public')).toEqual({
-            href: 'file:///Z:/public',
-            target: '_blank',
-        });
-        expect(getLinkTargetAttributes('\\\\fileserver\\public\\library')).toEqual({
-            href: 'file://fileserver/public/library',
-            target: '_blank',
-        });
-        expect(getLinkTargetAttributes('/Users/meni/Documents')).toEqual({
-            href: 'file:///Users/meni/Documents',
-            target: '_blank',
-        });
-        expect(getLinkTargetAttributes('smb://fileserver/public')).toEqual({
-            href: 'smb://fileserver/public',
-            target: '_blank',
-        });
-        expect(getLinkTargetAttributes('\\\\portal.army.idf@SSL\\DavWWWRoot\\sites\\schedule\\siteDB')).toEqual({
-            href: 'https://portal.army.idf/sites/schedule/siteDB',
-            target: '_blank',
-            rel: 'noopener noreferrer',
-        });
-    });
-
-    it('opens local file links through the dev bridge when explicitly enabled', () => {
-        vi.stubEnv('VITE_LOCAL_FILE_BRIDGE', 'true');
-
-        expect(getLinkTargetAttributes('/Users/meni/Documents')).toEqual({
-            href: 'http://localhost:3000/__sitebuilder-local-file?href=file%3A%2F%2F%2FUsers%2Fmeni%2FDocuments',
-            target: '_blank',
-        });
-    });
-
-    it('opens file links in a new browser tab/window', () => {
-        const originalOpen = window.open;
-        window.open = vi.fn(() => ({}));
-
-        expect(openLinkTarget('z:/public')).toBe(true);
-        expect(window.open).toHaveBeenCalledWith('file:///Z:/public', '_blank');
-
-        window.open = originalOpen;
-    });
+describe('link targets', () => {
+  it('keeps web links as web links', () => { expect(normalizeLinkTarget('https://example.test/path')).toBe('https://example.test/path'); });
+  it('keeps Site Builder and SharePoint-relative paths in their existing navigation flow', () => {
+    expect(normalizeLinkTarget('/org-chart')).toBe('/org-chart');
+    expect(normalizeLinkTarget('/sites/schedule/siteDB')).toBe('/sites/schedule/siteDB');
+  });
+  it('routes UNC, SMB, and file URLs to the internal explorer', () => {
+    for (const value of ['\\\\hrmazivfs\\Malnash\\PublicMalnash', 'smb://hrmazivfs/Malnash/PublicMalnash', 'file://hrmazivfs/Malnash/PublicMalnash']) {
+      const href = normalizeLinkTarget(value);
+      expect(href).toMatch(/^#\/file-explorer\?target=/);
+      expect(href).not.toContain('file:');
+      expect(targetFromHref(href)?.canonicalPath).toBe('\\\\hrmazivfs\\Malnash\\PublicMalnash');
+      expect(isFileLinkTarget(value)).toBe(true);
+    }
+  });
+  it('preserves WebDAV SharePoint conversion to HTTPS', () => { expect(normalizeLinkTarget('\\\\tenant.sharepoint.com@SSL\\DavWWWRoot\\sites\\Team')).toBe('https://tenant.sharepoint.com/sites/Team'); });
+  it('never passes a native file URL to window.open', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    openLinkTarget('\\\\hrmazivfs\\Malnash\\PublicMalnash');
+    expect(open).toHaveBeenCalledWith(expect.stringMatching(/^#\/file-explorer\?target=/), '_blank', 'noopener,noreferrer');
+    open.mockRestore();
+  });
+  it('never generates search-ms or browser file navigation', () => {
+    const href = normalizeLinkTarget('file://hrmazivfs/Malnash/PublicMalnash');
+    expect(href).not.toContain('search-ms:');
+    expect(href).not.toContain('file:');
+  });
+  it('uses safe anchor attributes for internal explorer links', () => { expect(getLinkTargetAttributes('C:\\Team\\Files')).toMatchObject({ href: expect.stringMatching(/^#\/file-explorer\?target=/), rel: 'noopener noreferrer', target: '_blank' }); });
 });

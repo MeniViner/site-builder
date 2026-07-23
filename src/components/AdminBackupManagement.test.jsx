@@ -332,9 +332,117 @@ describe('AdminBackupManagement', () => {
 
         fireEvent.click(await screen.findByRole('button', { name: /שחזור מהגיבוי הזה/ }));
 
-        await waitFor(() => expect(mocks.backendApiClient.restoreBackup).toHaveBeenCalledWith('alpha', 'backup-one'));
+        await waitFor(() => expect(mocks.backendApiClient.restoreBackup).toHaveBeenCalledWith('alpha', 'backup-one', expect.objectContaining({
+            expectedBackupVersion: 1,
+            selectedRestoreUnitIds: expect.arrayContaining([expect.stringMatching(/^ru-/)]),
+        })));
         expect(mocks.reload).toHaveBeenCalled();
         await waitFor(() => expect(mocks.backendApiClient.listBackups).toHaveBeenCalledTimes(2));
+    });
+
+    it('selects and deselects restore items, and supports select-all and clear-all', async () => {
+        render(<AdminBackupManagement />);
+        await screen.findByText('1 פריטים');
+
+        fireEvent.click(screen.getByRole('button', { name: /בחר גיבוי מלא/ }));
+        const eventCheckboxes = await screen.findAllByRole('checkbox');
+        expect(eventCheckboxes.length).toBeGreaterThan(0);
+
+        fireEvent.click(screen.getByRole('button', { name: /נקה בחירה/ }));
+        expect(screen.getByRole('button', { name: /שחזור מהגיבוי הזה/ })).toBeDisabled();
+        expect(await screen.findByText(/יש לבחור לפחות פריט אחד/)).toBeInTheDocument();
+        screen
+            .getAllByRole('checkbox')
+            .forEach((checkbox) => expect(checkbox).not.toBeChecked());
+
+        fireEvent.click(screen.getByRole('button', { name: /סימון הכל/ }));
+        const checkedAfterSelectAll = screen.getAllByRole('checkbox').filter((checkbox) => checkbox.disabled === false);
+        expect(checkedAfterSelectAll).toHaveLength(checkedAfterSelectAll.filter((checkbox) => checkbox.checked).length);
+        expect(screen.getByRole('button', { name: /שחזור מהגיבוי הזה/ })).not.toBeDisabled();
+    });
+
+    it('disables non-restorable restore entries and explains why', async () => {
+        const invalidRestoreEntries = backupPackage.meta.restoreEntries.map((entry) => (entry.fileName === 'users_data.txt'
+            ? {
+                ...entry,
+                restoreAction: 'skipped',
+                willRestore: false,
+                status: 'invalid',
+                invalid: true,
+            }
+            : entry));
+        const invalidBackupPackage = {
+            ...backupPackage,
+            meta: {
+                ...backupPackage.meta,
+                restoreEntries: invalidRestoreEntries,
+            },
+        };
+        mocks.backendApiClient.getBackup.mockResolvedValueOnce({ ok: true, backup: { ...listBackup, backupPackage: invalidBackupPackage } });
+
+        render(<AdminBackupManagement />);
+        await screen.findByText('1 פריטים');
+
+        fireEvent.click(screen.getByRole('button', { name: /בחר גיבוי מלא/ }));
+        const disabledCheckbox = await screen.findByRole('checkbox', { name: /גיבוי מנהלים/ });
+        expect(disabledCheckbox).toBeDisabled();
+        expect(screen.getByText(/הקובץ אינו תקין\./)).toBeInTheDocument();
+    });
+
+    it('warns when destructive selected entries are included', async () => {
+        render(<AdminBackupManagement />);
+        await screen.findByText('1 פריטים');
+
+        fireEvent.click(screen.getByRole('button', { name: /בחר גיבוי מלא/ }));
+        const restoreButton = await screen.findByRole('button', { name: /שחזור מהגיבוי הזה/ });
+        fireEvent.click(restoreButton);
+
+        await waitFor(() => expect(mocks.confirmToast).toHaveBeenCalled());
+        expect(mocks.confirmToast.mock.calls[0][0].message).toContain('אזהרה: פריטים ריקים עשויים למחוק מידע קיים במהלך השחזור.');
+    });
+
+    it('posts only selected restore-unit IDs to the restore endpoint', async () => {
+        render(<AdminBackupManagement />);
+        await screen.findByText('1 פריטים');
+
+        fireEvent.click(screen.getByRole('button', { name: /בחר גיבוי מלא/ }));
+        const navCheckbox = await screen.findByRole('checkbox', { name: /גיבוי ניווט/ });
+        fireEvent.click(navCheckbox); // disable this item
+
+        fireEvent.click(await screen.findByRole('button', { name: /שחזור מהגיבוי הזה/ }));
+        await waitFor(() => expect(mocks.backendApiClient.restoreBackup).toHaveBeenCalled());
+
+        const payload = mocks.backendApiClient.restoreBackup.mock.calls[0][2];
+        const checked = screen.getAllByRole('checkbox').filter((checkbox) => checkbox.checked).length;
+        expect(payload.selectedRestoreUnitIds).toHaveLength(checked);
+        expect(payload.selectedRestoreUnitIds.every((item) => typeof item === 'string' && item.startsWith('ru-'))).toBe(true);
+    });
+
+    it('shows selective restore result summary after success', async () => {
+        mocks.backendApiClient.restoreBackup.mockResolvedValueOnce({
+            ok: true,
+            restoreStatus: 'completed',
+            selectedRestoreUnitIds: ['ru-one-events'],
+            selectedItemCount: 1,
+            restored: [{ fileName: 'events_data.txt', restoreUnitId: 'ru-one-events-data-events-event-one-events', outcome: 'restored' }],
+            failed: [],
+            notSelectedItems: [],
+            restoredFiles: 1,
+            restoredRecordCount: 1,
+            selectedRecordCount: 1,
+        });
+
+        render(<AdminBackupManagement />);
+        await screen.findByText('1 פריטים');
+
+        fireEvent.click(screen.getByRole('button', { name: /בחר גיבוי מלא/ }));
+        fireEvent.click(await screen.findByRole('button', { name: /נקה בחירה/ }));
+        fireEvent.click(await screen.findByRole('checkbox', { name: /גיבוי אירועים/ }));
+        fireEvent.click(await screen.findByRole('button', { name: /שחזור מהגיבוי הזה/ }));
+
+        expect(await screen.findByText(/תוצאות השחזור/)).toBeInTheDocument();
+        expect(screen.getByText(/שוחזרו: 1 · נכשלים: 0/)).toBeInTheDocument();
+        expect(screen.getByText(/פריטים שנבחרו: 1/)).toBeInTheDocument();
     });
 
     it('keeps localStorage backup listing for non-Mongo mock mode', async () => {

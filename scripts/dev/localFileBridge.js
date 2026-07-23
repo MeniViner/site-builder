@@ -493,7 +493,7 @@ function isSameOrChildPath(candidatePath, currentPath, platform = process.platfo
   return relative === '' || (!relative.startsWith('..') && !pathApi.isAbsolute(relative))
 }
 
-function renderNavigationPane(currentPath, platform = process.platform) {
+function renderNavigationPane(currentPath, platform = process.platform, hrefForPath = bridgeHrefFromPath) {
   const pathApi = toPathApi(platform)
   const homePath = os.homedir()
   const parsed = pathApi.parse(pathApi.resolve(currentPath))
@@ -510,14 +510,24 @@ function renderNavigationPane(currentPath, platform = process.platform) {
 
   const quickLinks = candidates.map((item) => {
     const isActive = item.targetPath === activePath
-    return `<a class="navigation-link${isActive ? ' is-active' : ''}" href="${htmlEscape(bridgeHrefFromPath(item.targetPath, platform))}" title="${htmlEscape(item.targetPath)}"${isActive ? ' aria-current="location"' : ''}>
+    const href = hrefForPath(item.targetPath, platform)
+    if (!href) return ''
+    return `<a class="navigation-link${isActive ? ' is-active' : ''}" href="${htmlEscape(href)}" title="${htmlEscape(item.targetPath)}"${isActive ? ' aria-current="location"' : ''}>
       <span class="navigation-icon">${renderIcon(item.icon)}</span>
       <span class="navigation-label">${htmlEscape(item.label)}</span>
     </a>`
-  }).join('\n')
+  }).filter(Boolean).join('\n')
 
   const rootPath = parsed.root || currentPath
   const rootLabel = platform === 'win32' ? (parsed.root || 'מחשב זה') : 'מערכת הקבצים'
+
+  const rootHref = hrefForPath(rootPath, platform)
+  const rootLink = rootHref
+    ? `<a class="navigation-link" href="${htmlEscape(rootHref)}" title="${htmlEscape(rootPath)}">
+        <span class="navigation-icon navigation-icon-computer">${renderIcon('computer')}</span>
+        <span class="navigation-label">${htmlEscape(rootLabel)}</span>
+      </a>`
+    : ''
 
   return `<aside class="navigation-pane" aria-label="ניווט בתיקיות">
     <div class="navigation-section">
@@ -526,10 +536,7 @@ function renderNavigationPane(currentPath, platform = process.platform) {
     </div>
     <div class="navigation-section">
       <p class="navigation-heading">מיקומים</p>
-      <a class="navigation-link" href="${htmlEscape(bridgeHrefFromPath(rootPath, platform))}" title="${htmlEscape(rootPath)}">
-        <span class="navigation-icon navigation-icon-computer">${renderIcon('computer')}</span>
-        <span class="navigation-label">${htmlEscape(rootLabel)}</span>
-      </a>
+      ${rootLink}
       <span class="navigation-link is-current-location${activePath ? '' : ' is-active'}" title="${htmlEscape(currentPath)}">
         <span class="navigation-icon">${renderIcon('network')}</span>
         <span class="navigation-label">המיקום הנוכחי</span>
@@ -543,18 +550,19 @@ function renderBreadcrumbs(breadcrumbs) {
     const isLast = index === breadcrumbs.length - 1
     const content = htmlEscape(crumb.label)
     if (isLast) return `<span class="breadcrumb-current" dir="auto">${content}</span>`
+    if (!crumb.href) return `<span class="breadcrumb-current" dir="auto">${content}</span><span class="breadcrumb-separator">/</span>`
     return `<a href="${htmlEscape(crumb.href)}" dir="auto">${content}</a><span class="breadcrumb-separator">/</span>`
   }).join('')
 }
 
-function renderEntry(entry) {
+function renderEntry(entry, { allowNativeOpen = true } = {}) {
   const href = htmlEscape(entry.href)
   const title = htmlEscape(entry.fullPath)
   const targetAttrs = entry.isDirectory ? '' : ' target="_blank" rel="noopener" data-open-file="true"'
   const disabledClass = entry.isReadable ? '' : ' is-unreadable'
   const dateAttr = entry.modifiedIso ? ` datetime="${htmlEscape(entry.modifiedIso)}"` : ''
   const errorTitle = entry.readError ? ` title="${htmlEscape(entry.readError)}"` : ''
-  const nativeAction = !entry.isDirectory && entry.isReadable
+  const nativeAction = allowNativeOpen && !entry.isDirectory && entry.isReadable
     ? `<button class="entry-action" type="button" data-open-native="true" data-path="${title}" title="פתח באפליקציה" aria-label="פתח את ${htmlEscape(entry.name)} באפליקציית ברירת המחדל">${renderIcon('openApp')}</button>`
     : ''
 
@@ -581,7 +589,7 @@ function renderEmptyState() {
   </div>`
 }
 
-function renderDirectoryEntries(entries) {
+function renderDirectoryEntries(entries, options = {}) {
   if (!entries.length) return renderEmptyState()
 
   return `<div class="entries" role="list">
@@ -592,7 +600,7 @@ function renderDirectoryEntries(entries) {
       <span>גודל</span>
       <span>עודכן</span>
     </div>
-    ${entries.map(renderEntry).join('\n')}
+    ${entries.map((entry) => renderEntry(entry, options)).join('\n')}
   </div>`
 }
 
@@ -2290,6 +2298,28 @@ function renderBridgeStyles() {
       display: none;
     }
 
+    .portal-return {
+      display: none;
+      width: auto;
+      min-width: 0;
+      padding-inline: 14px;
+      border: 1px solid #c8c8c8;
+      background: #ffffff;
+      color: #242424;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .portal-return:hover {
+      border-color: var(--color-primary-hex);
+      background: #f6fbff;
+      color: var(--color-primary-hex);
+    }
+
+    .is-embedded .portal-return {
+      display: inline-flex;
+    }
+
     .toolbar {
       min-height: 50px;
       flex: 0 0 50px;
@@ -2703,8 +2733,8 @@ function renderBridgeStyles() {
   </style>`
 }
 
-function renderBridgeScript({ currentPath, parentHref }) {
-  const payload = jsonForScript({ bridgePath: LOCAL_FILE_BRIDGE_PATH, currentPath, parentHref, viewStorageKey })
+function renderBridgeScript({ currentPath, currentHref = '', parentHref, bridgePath = LOCAL_FILE_BRIDGE_PATH }) {
+  const payload = jsonForScript({ bridgePath, currentHref, currentPath, parentHref, viewStorageKey })
 
   return `<script>
     (() => {
@@ -2712,6 +2742,7 @@ function renderBridgeScript({ currentPath, parentHref }) {
       const root = document.documentElement;
       const shell = document.querySelector('[data-file-shell]');
       const toast = document.querySelector('[data-toast]');
+      const isEmbedded = window.parent !== window;
       const escapeHtml = (value) => String(value ?? '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -2749,6 +2780,7 @@ function renderBridgeScript({ currentPath, parentHref }) {
       };
 
       applyExplorerTheme();
+      if (isEmbedded) root.classList.add('is-embedded');
       const savedView = (() => {
         try {
           return localStorage.getItem(state.viewStorageKey);
@@ -2760,6 +2792,15 @@ function renderBridgeScript({ currentPath, parentHref }) {
 
       document.querySelectorAll('[data-view-button]').forEach((button) => {
         button.addEventListener('click', () => setView(button.dataset.viewButton));
+      });
+
+      document.querySelector('[data-action="portal-home"]')?.addEventListener('click', () => {
+        if (isEmbedded) {
+          window.parent.postMessage({ type: 'site-builder:navigate-home' }, '*');
+          return;
+        }
+        if (window.history.length > 1) window.history.back();
+        else window.location.href = '/';
       });
 
       const iconMarkup = {
@@ -2845,9 +2886,9 @@ function renderBridgeScript({ currentPath, parentHref }) {
         setSearchResults('<div class="search-status">מחפש...</div>');
 
         try {
-          const url = new URL(state.bridgePath, window.location.origin);
+          const url = new URL(state.currentHref || state.bridgePath, window.location.origin);
           url.searchParams.set('search', '1');
-          url.searchParams.set('path', state.currentPath);
+          if (!state.currentHref) url.searchParams.set('path', state.currentPath);
           url.searchParams.set('q', query);
           const response = await fetch(url.href, { headers: { Accept: 'application/json' }, signal: searchController.signal });
           const data = await response.json();
@@ -2968,7 +3009,7 @@ function renderBridgeScript({ currentPath, parentHref }) {
   </script>`
 }
 
-export function renderDirectoryPage(model) {
+export function renderDirectoryPage(model, { allowNativeOpen = true, bridgePath = LOCAL_FILE_BRIDGE_PATH, hrefForPath = bridgeHrefFromPath } = {}) {
   const currentFolderName = toPathApi(process.platform).basename(model.currentPath) || model.currentPath
   const parentButton = model.parentHref
     ? `<a class="icon-button" href="${htmlEscape(model.parentHref)}" title="לתיקיית האב" aria-label="לתיקיית האב">${renderIcon('up')}</a>`
@@ -2989,13 +3030,11 @@ export function renderDirectoryPage(model) {
         <div class="title-cluster">
           <span class="brand-mark">${renderIcon('folder')}</span>
           <div>
-            <p class="eyebrow">סייר הקבצים · תיקיות רשת</p>
+            <p class="eyebrow"><span lang="en">SITE BUILDER</span> · סייר הקבצים הארגוני</p>
             <h1 dir="auto">${htmlEscape(currentFolderName)}</h1>
           </div>
         </div>
-        <div class="header-meta">
-          <span>${htmlEscape(model.itemCount)} פריטים</span>
-        </div>
+        <button class="text-button portal-return" type="button" data-action="portal-home">חזרה לאתר</button>
       </header>
 
       <nav class="toolbar" aria-label="פעולות תיקייה">
@@ -3012,7 +3051,7 @@ export function renderDirectoryPage(model) {
           <button class="icon-button" type="button" data-action="refresh" title="רענון" aria-label="רענון">${renderIcon('refresh')}</button>
           <button class="icon-button" type="button" data-action="copy" title="העתק נתיב" aria-label="העתק נתיב">${renderIcon('copy')}</button>
         </span>
-        <form class="path-form" action="${LOCAL_FILE_BRIDGE_PATH}" method="get">
+        <form class="path-form" action="${htmlEscape(bridgePath)}" method="get">
           <label class="path-label" for="path-input">נתיב רשת</label>
           <input id="path-input" class="path-input" name="path" value="${htmlEscape(model.currentPath)}" autocomplete="off" spellcheck="false" />
           <input type="hidden" name="base" value="${htmlEscape(model.currentPath)}" />
@@ -3025,7 +3064,7 @@ export function renderDirectoryPage(model) {
       </nav>
 
       <div class="explorer-layout">
-        ${renderNavigationPane(model.currentPath)}
+        ${renderNavigationPane(model.currentPath, process.platform, hrefForPath)}
         <section class="explorer-workspace" aria-label="תוכן התיקייה">
           <nav class="breadcrumbs" aria-label="נתיב תיקייה">
             <span class="breadcrumbs-location">${renderIcon('folder')}</span>
@@ -3037,7 +3076,7 @@ export function renderDirectoryPage(model) {
               <h2>קבצים ותיקיות</h2>
               <span>${htmlEscape(model.itemCount)} פריטים</span>
             </div>
-            ${renderDirectoryEntries(model.entries)}
+            ${renderDirectoryEntries(model.entries, { allowNativeOpen })}
           </main>
         </section>
       </div>
@@ -3048,7 +3087,7 @@ export function renderDirectoryPage(model) {
     </div>
   </div>
   <div class="toast" data-toast role="status" aria-live="polite"></div>
-  ${renderBridgeScript({ currentPath: model.currentPath, parentHref: model.parentHref })}
+  ${renderBridgeScript({ bridgePath, currentHref: model.currentHref, currentPath: model.currentPath, parentHref: model.parentHref })}
 </body>
 </html>`
 }

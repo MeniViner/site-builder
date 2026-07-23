@@ -121,6 +121,9 @@ export function createSiteRouter({ repository, legacyRepository, backupRepositor
         siteId: req.params.siteId,
         backupId: decodeURIComponent(req.params.backupId),
         allowSiteIdMismatch: body?.allowSiteIdMismatch === true,
+        expectedBackupVersion: body?.expectedBackupVersion,
+        selectedRestoreUnitIds: body?.selectedRestoreUnitIds,
+        preRestoreBackupId: body?.preRestoreBackupId,
         actor: actorFromRequest(req),
         metadata: requestMeta(req),
       });

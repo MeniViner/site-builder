@@ -102,7 +102,9 @@ describe('local file bridge directory rendering', () => {
     expect(html).toContain('data-file-shell')
     expect(html).toContain('data-view="list"')
     expect(html).toContain(`<h1 dir="auto">${path.basename(dir)}</h1>`)
-    expect(html).toContain('סייר הקבצים · תיקיות רשת')
+    expect(html).toContain('<span lang="en">SITE BUILDER</span> · סייר הקבצים הארגוני')
+    expect(html).toContain('data-action="portal-home"')
+    expect(html).toContain("window.parent.postMessage({ type: 'site-builder:navigate-home' }, '*')")
     expect(html).toContain('font-family: "Segoe UI", Arial, sans-serif')
     expect(html).toContain('--color-primary-hex: #0067c0')
     expect(html).toContain('color-scheme: light')
@@ -130,6 +132,21 @@ describe('local file bridge directory rendering', () => {
     expect(html).toContain('data-open-file="true"')
     expect(html).toContain('data-open-native="true"')
     expect(html).toContain('פתח באפליקציה')
+  })
+
+  it('allows the production adapter to retain the UI while replacing navigation and native-open controls', () => {
+    const dir = makeTempDir()
+    fs.writeFileSync(path.join(dir, 'alpha.txt'), 'hello')
+    const model = readDirectoryModel(dir)
+    const html = renderDirectoryPage({
+      ...model,
+      currentHref: '/api/file-explorer?target=current',
+      entries: model.entries.map((entry) => ({ ...entry, href: '/api/file-explorer?target=child' })),
+      parentHref: '/api/file-explorer?target=parent',
+    }, { allowNativeOpen: false, bridgePath: '/api/file-explorer', hrefForPath: () => '/api/file-explorer?target=nav' })
+    expect(html).toContain('"bridgePath":"/api/file-explorer"')
+    expect(html).toContain('/api/file-explorer?target=child')
+    expect(html).not.toContain('class="entry-action"')
   })
 
   it('formats byte sizes for the list view', () => {

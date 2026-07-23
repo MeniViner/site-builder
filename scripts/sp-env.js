@@ -17,6 +17,7 @@ const DEFAULTS = {
   autoDeploy: 'false',
   storageBackend: 'txt',
   backendApiUrl: '',
+  fileExplorerBridgePath: '/_site-builder/file-explorer',
 };
 
 export function parseCliArgs(argv = process.argv.slice(2)) {
@@ -82,6 +83,12 @@ const normalizePathSegment = (value, fallback) => {
   return raw || fallback;
 };
 
+const normalizePortalPath = (value, fallback) => {
+  const raw = String(value ?? '').trim().replace(/\/+$/g, '');
+  if (!raw || !raw.startsWith('/') || raw.includes('//') || raw.split('/').some((segment) => segment === '.' || segment === '..')) return fallback;
+  return raw;
+};
+
 const extractLibraryTitle = (value, fallback) => {
   const raw = String(value ?? '').trim();
   if (!raw) return fallback;
@@ -145,6 +152,11 @@ export function resolveConfig({ envFilePath = path.resolve(process.cwd(), '.env.
     environment.VITE_BACKEND_API_URL || envFromFile.VITE_BACKEND_API_URL,
     DEFAULTS.backendApiUrl,
   ).replace(/\/+$/g, '');
+  const fileExplorerBridgePath = normalizePortalPath(pick(
+    cli['file-explorer-bridge-path'] || cli.fileExplorerBridgePath,
+    environment.VITE_FILE_EXPLORER_BRIDGE_PATH || envFromFile.VITE_FILE_EXPLORER_BRIDGE_PATH,
+    DEFAULTS.fileExplorerBridgePath,
+  ), DEFAULTS.fileExplorerBridgePath);
   const bootstrapLibrary = normalizePathSegment(pick(
     cli['bootstrap-library'],
     environment.VITE_SP_BOOTSTRAP_LIBRARY || envFromFile.VITE_SP_BOOTSTRAP_LIBRARY,
@@ -227,6 +239,7 @@ export function resolveConfig({ envFilePath = path.resolve(process.cwd(), '.env.
     usersDbRel,
     bootstrapBaseRel,
     bootstrapDistRel,
+    fileExplorerBridgePath,
     siteAssetsRel,
     imagesRel,
     distRel,
@@ -253,6 +266,7 @@ export function writeEnvProduction(config, outputPath = path.resolve(process.cwd
     `VITE_SITE_BASE_URL=${config.siteBaseUrl}`,
     `VITE_STORAGE_BACKEND=${config.storageBackend || 'txt'}`,
     `VITE_BACKEND_API_URL=${config.backendApiUrl || ''}`,
+    `VITE_FILE_EXPLORER_BRIDGE_PATH=${config.fileExplorerBridgePath || DEFAULTS.fileExplorerBridgePath}`,
     `VITE_SITE_ID=${config.siteId || config.siteCode}`,
     '',
     '# Logging (מרוכז)',

@@ -47,6 +47,8 @@ describe('runtimeConfig and storage descriptor', () => {
     setWindowLocation('https://portal.army.idf/sites/demo/siteDB/dist/index.html', {
       storageBackend: 'mongo',
       backendApiUrl: 'https://api.example.test',
+      fileExplorerApiUrl: 'https://explorer-api.example.test',
+      fileExplorerBridgePath: '/_site-builder/file-explorer',
       siteId: 'runtime-site',
       apiKey: 'must-not-escape',
     });
@@ -57,6 +59,8 @@ describe('runtimeConfig and storage descriptor', () => {
     expect(getRuntimeConfig()).toMatchObject({
       storageBackend: 'mongo',
       backendApiUrl: 'https://api.example.test',
+      fileExplorerApiUrl: 'https://explorer-api.example.test',
+      fileExplorerBridgePath: '/_site-builder/file-explorer',
       siteId: 'runtime-site',
     });
     expect(getRuntimeConfig()).not.toHaveProperty('apiKey');
@@ -64,6 +68,8 @@ describe('runtimeConfig and storage descriptor', () => {
     expect(getStorageBackend()).toBe('mongo');
     expect(getBackendApiBaseUrl()).toBe('https://api.example.test');
     expect(getSiteId()).toBe('runtime-site');
+    expect(getRuntimeValue('fileExplorerApiUrl')).toBe('https://explorer-api.example.test');
+    expect(getRuntimeValue('fileExplorerBridgePath')).toBe('/_site-builder/file-explorer');
     expect(JSON.stringify(getRuntimeLog())).not.toContain('must-not-escape');
   });
 

@@ -44,6 +44,7 @@ export function buildRuntimeConfigPayload(config = {}) {
     generatedBy: 'site-builder-build',
     allowedSiteRoot: sharePointSiteUrl,
     sharePointSiteUrl,
+    fileExplorerBridgePath: String(config.fileExplorerBridgePath || '/_site-builder/file-explorer').trim().replace(/\/+$/g, '') || '/_site-builder/file-explorer',
   };
   if (storageBackend === STORAGE_BACKENDS.MONGO) {
     payload.backendApiUrl = String(config.backendApiUrl || '').trim().replace(/\/+$/g, '');
@@ -63,6 +64,7 @@ export function buildDeploymentMetadataPayload(config = {}, { generatedAt = new 
     storageBackend: runtimeConfig.storageBackend,
     storageBackendSource: String(config.storageBackendSource || 'production-environment').trim(),
     backendApiUrl: runtimeConfig.backendApiUrl || '',
+    fileExplorerBridgePath: runtimeConfig.fileExplorerBridgePath,
     allowedSiteRoot: runtimeConfig.allowedSiteRoot,
     sharePointSiteUrl: runtimeConfig.sharePointSiteUrl,
   };

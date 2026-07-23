@@ -39,13 +39,13 @@ function SidebarTopLevelTrigger({ item, itemModel, isOpen, onClick, setTriggerRe
 
     const content = (
         <>
-            <span className="sidebar-trigger__icon">
+            <span className="sidebar-nav-item__icon-box">
                 <NavVisual item={item} size={18} imageClassName="h-[18px] w-[18px] object-contain" />
             </span>
             <span
                 ref={labelRef}
                 data-testid={`sidebar-trigger-label-${item.id}`}
-                className="sidebar-trigger__label max-w-[64px]"
+                className="sidebar-nav-item__label"
             >
                 {label}
             </span>
@@ -58,7 +58,7 @@ function SidebarTopLevelTrigger({ item, itemModel, isOpen, onClick, setTriggerRe
             <a
                 {...getLinkTargetAttributes(itemModel.url)}
                 title={nativeTooltip}
-                className="sidebar-nav-item sidebar-trigger flex flex-col items-center justify-center text-center cursor-pointer"
+                className={`sidebar-nav-item sidebar-nav-item--top-level ${isOpen ? 'is-active' : ''}`.trim()}
                 style={panelStyle(borderStyle, 10)}
             >
                 {content}
@@ -66,17 +66,17 @@ function SidebarTopLevelTrigger({ item, itemModel, isOpen, onClick, setTriggerRe
         );
     }
 
-    return (
-        <button
-            ref={setTriggerRef}
-            onClick={onClick}
-            title={nativeTooltip}
-            className={`gap-2 sidebar-nav-item sidebar-trigger flex flex-col items-center justify-center text-center cursor-pointer ${isOpen ? 'is-active' : ''}`}
-            aria-expanded={isOpen}
-            style={panelStyle(borderStyle, 10)}
-        >
-            {content}
-        </button>
+        return (
+            <button
+                ref={setTriggerRef}
+                onClick={onClick}
+                title={nativeTooltip}
+                className={`sidebar-nav-item sidebar-nav-item--top-level ${isOpen ? 'is-active' : ''}`.trim()}
+                aria-expanded={isOpen}
+                style={panelStyle(borderStyle, 10)}
+            >
+                {content}
+            </button>
     );
 }
 
@@ -85,13 +85,14 @@ function SidebarTopLevelTrigger({ item, itemModel, isOpen, onClick, setTriggerRe
  *
  * Level 1 opens on CLICK (useState), closes on click-outside.
  * Level 2→3 accordion uses useState for expandedLevel2.
- * No scrollbars, no overflow constraints — panels float freely.
+ * Fixed flyouts remain viewport-positioned while the trigger rail scrolls independently.
  */
 export default function RightSidebarNav() {
     const { navItems } = useNavigation();
     const { theme, borderTargets } = useTheme();
     const [activeLevel1, setActiveLevel1] = useState(null);
     const [expandedLevel2, setExpandedLevel2] = useState(null);
+    const [headerOffset, setHeaderOffset] = useState(88);
     const [flyoutStyleMap, setFlyoutStyleMap] = useState({});
     const sidebarRef = useRef(null);
     const triggerRefs = useRef({});
@@ -101,14 +102,45 @@ export default function RightSidebarNav() {
 
     // Close on click outside
     useEffect(() => {
+        const resolveHeaderOffset = () => {
+            const headerElement = document.querySelector('nav');
+            if (!headerElement) return 88;
+
+            const headerBottom = Math.round(headerElement.getBoundingClientRect().bottom);
+            if (!Number.isFinite(headerBottom) || headerBottom <= 0) return 88;
+            return headerBottom;
+        };
+
+        const updateLayoutOffsets = () => {
+            const nextHeaderOffset = resolveHeaderOffset();
+            setHeaderOffset((prev) => (prev === nextHeaderOffset ? prev : nextHeaderOffset));
+        };
+
+        const handleViewportChange = () => {
+            updateLayoutOffsets();
+            setActiveLevel1(null);
+            setExpandedLevel2(null);
+        };
+
         const handleClickOutside = (e) => {
             if (sidebarRef.current && !sidebarRef.current.contains(e.target)) {
                 setActiveLevel1(null);
                 setExpandedLevel2(null);
             }
         };
+        updateLayoutOffsets();
+        window.addEventListener('resize', handleViewportChange);
+        window.addEventListener('orientationchange', handleViewportChange);
+        window.visualViewport?.addEventListener('resize', handleViewportChange);
+        window.visualViewport?.addEventListener('scroll', handleViewportChange);
         document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+        return () => {
+            window.removeEventListener('resize', handleViewportChange);
+            window.removeEventListener('orientationchange', handleViewportChange);
+            window.visualViewport?.removeEventListener('resize', handleViewportChange);
+            window.visualViewport?.removeEventListener('scroll', handleViewportChange);
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
     }, []);
 
     const categories = navItems || [];
@@ -126,8 +158,8 @@ export default function RightSidebarNav() {
         const triggerMidY = rect.top + (rect.height / 2);
         const belowThreshold = triggerMidY > (viewportHeight * OPEN_UPWARD_FROM_VIEWPORT_RATIO);
 
-        const availableBelow = viewportHeight - rect.top;
-        const availableAbove = rect.bottom;
+        const availableBelow = viewportHeight - rect.bottom;
+        const availableAbove = rect.top;
         const lacksSpaceBelow = availableBelow < PANEL_ESTIMATED_HEIGHT;
         const hasMoreSpaceAbove = availableAbove > availableBelow;
 
@@ -174,154 +206,169 @@ export default function RightSidebarNav() {
         setExpandedLevel2((prev) => (prev === child.id ? null : child.id));
     };
 
+    const handleRailScroll = () => {
+        setActiveLevel1(null);
+        setExpandedLevel2(null);
+    };
+
     return (
-        <aside ref={sidebarRef} className="right-sidebar-nav fixed right-0 top-24 bottom-4 z-[9999] w-[84px] overflow-y-auto overflow-x-visible flex flex-col items-center gap-2 p-2">
-            {categories.map((item) => {
-                const itemModel = getNavigationNodeModel(item);
-                const hasChildren = itemModel.canExplore;
-                const isOpen = activeLevel1 === item.id;
+        <aside
+            ref={sidebarRef}
+            className="right-sidebar-nav"
+            style={{ '--right-sidebar-header-offset': `${headerOffset}px` }}
+        >
+            <div className="right-sidebar-nav__viewport">
+                <div className="right-sidebar-nav__scroll" onScroll={handleRailScroll}>
+                    <div className="right-sidebar-nav__group">
+                        {categories.map((item) => {
+                        const itemModel = getNavigationNodeModel(item);
+                        const hasChildren = itemModel.canExplore;
+                        const isOpen = activeLevel1 === item.id;
 
-                return (
-                    <div className="relative" key={item.id}>
-                        {/* Level 1 Button */}
-                        <SidebarTopLevelTrigger
-                            item={item}
-                            itemModel={itemModel}
-                            isOpen={isOpen}
-                            onClick={() => handleLevel1Click(item)}
-                            setTriggerRef={(element) => {
-                                triggerRefs.current[item.id] = element;
-                            }}
-                            borderStyle={topLevelBorderStyle}
-                        />
+                        return (
+                            <div className="relative" key={item.id}>
+                                {/* Level 1 Button */}
+                                <SidebarTopLevelTrigger
+                                    item={item}
+                                    itemModel={itemModel}
+                                    isOpen={isOpen}
+                                    onClick={() => handleLevel1Click(item)}
+                                    setTriggerRef={(element) => {
+                                        triggerRefs.current[item.id] = element;
+                                    }}
+                                    borderStyle={topLevelBorderStyle}
+                                />
 
-                        {/* Level 2 Flyout — click-controlled, absolutely free over the page */}
-                        {hasChildren && (
-                            <div
-                                data-testid={`sidebar-flyout-${item.id}`}
-                                style={flyoutStyleMap[item.id] || {}}
-                                className={`fixed w-auto min-w-[300px] origin-right rounded-l-xl border border-theme-subtle bg-theme-card p-4 shadow-2xl backdrop-blur-md z-[10000] transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.2,0,0,1)] ${isOpen
-                                        ? 'translate-x-0 scale-100 opacity-100 visible pointer-events-auto'
-                                        : 'translate-x-3 scale-[0.98] opacity-0 invisible pointer-events-none'
-                                    }`}
-                            >
-                                {/* Panel Header */}
-                                <div className="flex items-center gap-2 px-1 pb-3 mb-2 border-b border-theme-subtle">
-                                    <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center">
-                                        <NavVisual item={item} size={15} className="text-primary" imageClassName="h-[15px] w-[15px] object-contain" />
-                                    </div>
-                                    <span className="font-bold text-sm text-theme whitespace-nowrap">
-                                        {item.label}
-                                    </span>
-                                    {itemModel.canOpen && (
-                                        <a
-                                            {...getLinkTargetAttributes(itemModel.url)}
-                                            onClick={(event) => event.stopPropagation()}
-                                            className="mr-auto inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-primary/10 px-3 text-xs font-bold text-primary transition-[background-color,transform] hover:bg-primary/20 active:scale-[0.96]"
-                                        >
-                                            <ExternalLink size={12} />
-                                            פתח יעד
-                                        </a>
-                                    )}
-                                </div>
-
-                                {/* Level 2 Items (Parents) */}
-                                <div className="flex flex-col gap-0.5">
-                                    {item.children.map((child) => {
-                                        const isExpanded = expandedLevel2 === child.id;
-                                        const childModel = getNavigationNodeModel(child);
-                                        const hasSubLinks = childModel.canExplore;
-                                        const childIsLink = childModel.canOpen;
-
-                                        return (
-                                            <div key={child.id}>
-                                                <div className="flex items-center gap-1">
-                                                    <button
-                                                        onClick={() => handleLevel2Click(child)}
-                                                        className="sidebar-nav-item group/l2 flex min-h-10 flex-1 items-center gap-3 rounded-lg px-3 py-2.5 text-right transition-[background-color,transform] duration-200 ease-[cubic-bezier(0.2,0,0,1)] hover:-translate-x-1 hover:bg-theme-card-hover active:scale-[0.96]"
-                                                        aria-expanded={hasSubLinks ? isExpanded : undefined}
-                                                    >
-                                                    <div
-                                                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-[background-color,color,transform] duration-200 ease-[cubic-bezier(0.2,0,0,1)] group-hover/l2:-translate-x-0.5 ${isExpanded
-                                                                ? 'bg-primary/15 text-primary'
-                                                                : 'bg-theme-elevated text-theme-muted group-hover/l2:text-primary group-hover/l2:bg-primary/10'
-                                                            }`}
-                                                    >
-                                                        <NavVisual item={child} size={14} imageClassName="h-3.5 w-3.5 object-contain" />
-                                                    </div>
-                                                    <span
-                                                        className={`flex-1 whitespace-nowrap text-sm font-medium transition-colors duration-200 ${isExpanded
-                                                                ? 'text-theme'
-                                                                : 'text-theme-muted group-hover/l2:text-theme'
-                                                            }`}
-                                                    >
-                                                        {child.title || child.label}
-                                                    </span>
-                                                    {hasSubLinks ? (
-                                                        <ChevronDown
-                                                            size={14}
-                                                            className={`text-theme-muted/80 shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''
-                                                                }`}
-                                                        />
-                                                    ) : childIsLink ? (
-                                                        <ExternalLink size={12} className="text-theme-muted/80 shrink-0" />
-                                                    ) : null}
-                                                    </button>
-                                                    {childModel.isHybrid && (
-                                                        <Tooltip text="פתח יעד תיקייה">
-                                                            <a
-                                                                {...getLinkTargetAttributes(childModel.url)}
-                                                                onClick={(event) => event.stopPropagation()}
-                                                                className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-[background-color,transform] hover:bg-primary/20 active:scale-[0.96]"
-                                                                aria-label={`פתח יעד ${child.title || child.label}`}
-                                                            >
-                                                                <ExternalLink size={13} />
-                                                            </a>
-                                                        </Tooltip>
-                                                    )}
-                                                </div>
-
-                                                {/* Level 3 — Accordion (Grandchildren / subLinks) */}
-                                                {isExpanded && hasSubLinks && (
-                                                    <div className="mr-4 mb-1 border-r-2 border-primary/20">
-                                                        {childModel.children.map((link, idx) => {
-                                                            const linkModel = getNavigationNodeModel(link);
-                                                            const LinkElement = linkModel.canOpen ? 'a' : 'div';
-                                                            return (
-                                                            <LinkElement
-                                                                key={link.id || `${link.label || 'link'}-${idx}`}
-                                                                {...(linkModel.canOpen ? getLinkTargetAttributes(linkModel.url) : {})}
-                                                                className="sidebar-nav-item group/l3 flex min-h-10 w-full items-center gap-2 rounded-md py-2 pr-4 pl-3 text-right transition-[background-color,transform] duration-200 ease-[cubic-bezier(0.2,0,0,1)] hover:-translate-x-1 hover:bg-theme-card-hover active:scale-[0.96]"
-                                                            >
-                                                                <NavVisual
-                                                                    item={link}
-                                                                    size={13}
-                                                                    className="shrink-0 text-theme-muted/80 transition-colors duration-200 group-hover/l3:text-primary"
-                                                                    imageClassName="h-[13px] w-[13px] object-contain shrink-0"
-                                                                />
-                                                                <span className="flex-1 whitespace-nowrap text-[13px] text-theme-muted transition-colors duration-200 group-hover/l3:text-theme">
-                                                                    {link.label}
-                                                                </span>
-                                                                {linkModel.canOpen && (
-                                                                    <ExternalLink
-                                                                        size={10}
-                                                                        className="text-theme-muted/60 shrink-0"
-                                                                    />
-                                                                )}
-                                                            </LinkElement>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
+                                {/* Level 2 Flyout — click-controlled, absolutely free over the page */}
+                                {hasChildren && (
+                                    <div
+                                        data-testid={`sidebar-flyout-${item.id}`}
+                                        style={flyoutStyleMap[item.id] || {}}
+                                        className={`fixed max-h-[calc(100dvh-1rem)] w-auto min-w-[300px] overflow-y-auto origin-right rounded-l-xl border border-theme-subtle bg-theme-card p-4 shadow-2xl backdrop-blur-md z-[10000] transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.2,0,0,1)] ${isOpen
+                                                ? 'translate-x-0 scale-100 opacity-100 visible pointer-events-auto'
+                                                : 'translate-x-3 scale-[0.98] opacity-0 invisible pointer-events-none'
+                                            }`}
+                                    >
+                                        {/* Panel Header */}
+                                        <div className="flex items-center gap-2 px-1 pb-3 mb-2 border-b border-theme-subtle">
+                                            <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center">
+                                                <NavVisual item={item} size={15} className="text-primary" imageClassName="h-[15px] w-[15px] object-contain" />
                                             </div>
-                                        );
-                                    })}
-                                </div>
+                                            <span className="font-bold text-sm text-theme whitespace-nowrap">
+                                                {item.label}
+                                            </span>
+                                            {itemModel.canOpen && (
+                                                <a
+                                                    {...getLinkTargetAttributes(itemModel.url)}
+                                                    onClick={(event) => event.stopPropagation()}
+                                                    className="mr-auto inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-primary/10 px-3 text-xs font-bold text-primary transition-[background-color,transform] hover:bg-primary/20 active:scale-[0.96]"
+                                                >
+                                                    <ExternalLink size={12} />
+                                                    פתח יעד
+                                                </a>
+                                            )}
+                                        </div>
+
+                                        {/* Level 2 Items (Parents) */}
+                                        <div className="flex flex-col gap-0.5">
+                                            {item.children.map((child) => {
+                                                const isExpanded = expandedLevel2 === child.id;
+                                                const childModel = getNavigationNodeModel(child);
+                                                const hasSubLinks = childModel.canExplore;
+                                                const childIsLink = childModel.canOpen;
+
+                                                return (
+                                                    <div key={child.id}>
+                                                        <div className="flex items-center gap-1">
+                                                            <button
+                                                                onClick={() => handleLevel2Click(child)}
+                                                                className="sidebar-nav-item group/l2 flex min-h-10 flex-1 items-center gap-3 rounded-lg px-3 py-2.5 text-right transition-[background-color,transform] duration-200 ease-[cubic-bezier(0.2,0,0,1)] hover:-translate-x-1 hover:bg-theme-card-hover active:scale-[0.96]"
+                                                                aria-expanded={hasSubLinks ? isExpanded : undefined}
+                                                            >
+                                                                <div
+                                                                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-[background-color,color,transform] duration-200 ease-[cubic-bezier(0.2,0,0,1)] group-hover/l2:-translate-x-0.5 ${isExpanded
+                                                                        ? 'bg-primary/15 text-primary'
+                                                                        : 'bg-theme-elevated text-theme-muted group-hover/l2:text-primary group-hover/l2:bg-primary/10'
+                                                                        }`}
+                                                                >
+                                                                    <NavVisual item={child} size={14} imageClassName="h-3.5 w-3.5 object-contain" />
+                                                                </div>
+                                                                <span
+                                                                    className={`flex-1 whitespace-nowrap text-sm font-medium transition-colors duration-200 ${isExpanded
+                                                                        ? 'text-theme'
+                                                                        : 'text-theme-muted group-hover/l2:text-theme'
+                                                                        }`}
+                                                                >
+                                                                    {child.title || child.label}
+                                                                </span>
+                                                                {hasSubLinks ? (
+                                                                    <ChevronDown
+                                                                        size={14}
+                                                                        className={`text-theme-muted/80 shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''
+                                                                            }`}
+                                                                    />
+                                                                ) : childIsLink ? (
+                                                                    <ExternalLink size={12} className="text-theme-muted/80 shrink-0" />
+                                                                ) : null}
+                                                            </button>
+                                                            {childModel.isHybrid && (
+                                                                <Tooltip text="פתח יעד תיקייה">
+                                                                    <a
+                                                                        {...getLinkTargetAttributes(childModel.url)}
+                                                                        onClick={(event) => event.stopPropagation()}
+                                                                        className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-[background-color,transform] hover:bg-primary/20 active:scale-[0.96]"
+                                                                        aria-label={`פתח יעד ${child.title || child.label}`}
+                                                                    >
+                                                                        <ExternalLink size={13} />
+                                                                    </a>
+                                                                </Tooltip>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Level 3 — Accordion (Grandchildren / subLinks) */}
+                                                        {isExpanded && hasSubLinks && (
+                                                            <div className="mr-4 mb-1 border-r-2 border-primary/20">
+                                                                {childModel.children.map((link, idx) => {
+                                                                    const linkModel = getNavigationNodeModel(link);
+                                                                    const LinkElement = linkModel.canOpen ? 'a' : 'div';
+                                                                    return (
+                                                                        <LinkElement
+                                                                            key={link.id || `${link.label || 'link'}-${idx}`}
+                                                                            {...(linkModel.canOpen ? getLinkTargetAttributes(linkModel.url) : {})}
+                                                                            className="sidebar-nav-item group/l3 flex min-h-10 w-full items-center gap-2 rounded-md py-2 pr-4 pl-3 text-right transition-[background-color,transform] duration-200 ease-[cubic-bezier(0.2,0,0,1)] hover:-translate-x-1 hover:bg-theme-card-hover active:scale-[0.96]"
+                                                                        >
+                                                                            <NavVisual
+                                                                                item={link}
+                                                                                size={13}
+                                                                                className="shrink-0 text-theme-muted/80 transition-colors duration-200 group-hover/l3:text-primary"
+                                                                                imageClassName="h-[13px] w-[13px] object-contain shrink-0"
+                                                                            />
+                                                                            <span className="flex-1 whitespace-nowrap text-[13px] text-theme-muted transition-colors duration-200 group-hover/l3:text-theme">
+                                                                                {link.label}
+                                                                            </span>
+                                                                            {linkModel.canOpen && (
+                                                                                <ExternalLink
+                                                                                    size={10}
+                                                                                    className="text-theme-muted/60 shrink-0"
+                                                                                />
+                                                                            )}
+                                                                        </LinkElement>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                        )}
+                        );
+                        })}
                     </div>
-                );
-            })}
+                </div>
+            </div>
         </aside>
     );
 }

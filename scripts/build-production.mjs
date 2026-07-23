@@ -15,6 +15,8 @@ export function buildProductionEnvironment(config, baseEnvironment = process.env
     NODE_ENV: 'production',
     VITE_STORAGE_BACKEND: storageBackend,
     VITE_BACKEND_API_URL: String(config.backendApiUrl || ''),
+    VITE_FILE_EXPLORER_BRIDGE_PATH: String(config.fileExplorerBridgePath || '/_site-builder/file-explorer'),
+    VITE_FILE_EXPLORER_API_URL: '',
     VITE_SITE_ID: String(config.siteId || config.siteCode || ''),
     VITE_SITE_BUILDER_API_KEY: '',
     VITE_SITE_BUILDER_DEV_API_KEY: '',

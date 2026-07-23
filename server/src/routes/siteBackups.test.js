@@ -256,6 +256,248 @@ describe('site backup routes', () => {
     expect(events.data.events).toEqual([{ id: 'event-1', title: 'Event One' }]);
   });
 
+  it('restores only the selected restore units and leaves the rest untouched', async () => {
+    await seedAllLegacyScopes('alpha');
+    const createResponse = await request(app)
+      .post('/api/sites/alpha/backups')
+      .set('x-api-key', 'secret')
+      .send({ backupPackage: backupPackage('restore-selected') })
+      .expect(201);
+
+    const restoreEntries = createResponse.body.backup?.backupPackage?.meta?.restoreEntries;
+    const selectedRestoreUnitId = restoreEntries.find((entry) => entry.fileName === 'users_data.txt')?.restoreUnitId;
+    expect(selectedRestoreUnitId).toBeDefined();
+
+    await writeLegacy('alpha', 'users_data.txt', [{ id: 'admin-live', name: 'Admin Live' }]);
+    await writeLegacy('alpha', 'events_data.txt', {
+      displayCount: 2,
+      displayMode: 'compact',
+      events: [{ id: 'event-live', title: 'Live event' }],
+    });
+    await writeLegacy('alpha', 'nav_data.txt', [{ id: 'nav-live', title: 'Live navigation' }]);
+
+    const restoreResponse = await request(app)
+      .post('/api/sites/alpha/backups/restore-selected/restore')
+      .set('x-api-key', 'secret')
+      .send({ selectedRestoreUnitIds: [selectedRestoreUnitId] })
+      .expect(200);
+
+    expect(restoreResponse.body.selectedRestoreUnitIds).toEqual([selectedRestoreUnitId]);
+
+    const users = await legacyRepository.readLegacyObject('alpha', 'users_data.txt');
+    const events = await legacyRepository.readLegacyObject('alpha', 'events_data.txt');
+    const navigation = await legacyRepository.readLegacyObject('alpha', 'nav_data.txt');
+    expect(users.data).toEqual([{ id: 'admin-1', name: 'Admin One' }]);
+    expect(events.data).toMatchObject({
+      displayCount: 2,
+      displayMode: 'compact',
+      events: [{ id: 'event-live', title: 'Live event' }],
+    });
+    expect(navigation.data).toEqual([{ id: 'nav-live', title: 'Live navigation' }]);
+  });
+
+  it('restores multiple selected units from distinct scopes', async () => {
+    await seedAllLegacyScopes('alpha');
+    const createResponse = await request(app)
+      .post('/api/sites/alpha/backups')
+      .set('x-api-key', 'secret')
+      .send({ backupPackage: backupPackage('restore-multi') })
+      .expect(201);
+
+    const restoreEntries = createResponse.body.backup?.backupPackage?.meta?.restoreEntries;
+    const usersRestoreUnitId = restoreEntries.find((entry) => entry.fileName === 'users_data.txt')?.restoreUnitId;
+    const eventsRestoreUnitId = restoreEntries.find((entry) => entry.fileName === 'events_data.txt')?.restoreUnitId;
+    expect(usersRestoreUnitId).toBeDefined();
+    expect(eventsRestoreUnitId).toBeDefined();
+
+    await writeLegacy('alpha', 'events_data.txt', {
+      displayCount: 0,
+      displayMode: 'compact',
+      events: [],
+    });
+    await writeLegacy('alpha', 'site_content_data.txt', { hero: { title: 'Live content' } });
+
+    const restoreResponse = await request(app)
+      .post('/api/sites/alpha/backups/restore-multi/restore')
+      .set('x-api-key', 'secret')
+      .send({ selectedRestoreUnitIds: [usersRestoreUnitId, eventsRestoreUnitId] })
+      .expect(200);
+
+    expect(restoreResponse.body.selectedItemCount).toBe(2);
+
+    const users = await legacyRepository.readLegacyObject('alpha', 'users_data.txt');
+    const events = await legacyRepository.readLegacyObject('alpha', 'events_data.txt');
+    const siteContent = await legacyRepository.readLegacyObject('alpha', 'site_content_data.txt');
+    expect(users.data).toEqual([{ id: 'admin-1', name: 'Admin One' }]);
+    expect(events.data).toMatchObject({
+      displayCount: 5,
+      events: [{ id: 'event-1', title: 'Event One' }],
+    });
+    expect(siteContent.data).toMatchObject({ hero: { title: 'Live content' } });
+  });
+
+  it('preserves full-restore behavior when selection is omitted', async () => {
+    await seedAllLegacyScopes('alpha');
+    await request(app)
+      .post('/api/sites/alpha/backups')
+      .set('x-api-key', 'secret')
+      .send({ backupPackage: backupPackage('restore-full-compat') })
+      .expect(201);
+
+    await writeLegacy('alpha', 'users_data.txt', [{ id: 'admin-live', name: 'Live admin' }]);
+    await writeLegacy('alpha', 'theme_data.txt', { changed: true });
+
+    const restoreResponse = await request(app)
+      .post('/api/sites/alpha/backups/restore-full-compat/restore')
+      .set('x-api-key', 'secret')
+      .expect(200);
+
+    expect(restoreResponse.body.selectedRestoreUnitIds).toHaveLength(EXPECTED_LEGACY_FILES.length);
+
+    const users = await legacyRepository.readLegacyObject('alpha', 'users_data.txt');
+    const theme = await legacyRepository.readLegacyObject('alpha', 'theme_data.txt');
+    expect(users.data).toEqual([{ id: 'admin-1', name: 'Admin One' }]);
+    expect(theme.data).toEqual({});
+  });
+
+  it('rejects empty restore selection payloads', async () => {
+    await request(app)
+      .post('/api/sites/alpha/backups')
+      .set('x-api-key', 'secret')
+      .send({ backupPackage: backupPackage('restore-empty-selection') })
+      .expect(201);
+
+    const restoreResponse = await request(app)
+      .post('/api/sites/alpha/backups/restore-empty-selection/restore')
+      .set('x-api-key', 'secret')
+      .send({ selectedRestoreUnitIds: [] })
+      .expect(400);
+
+    expect(restoreResponse.body.error.message).toContain('Invalid request payload');
+  });
+
+  it('rejects duplicate selected restore-unit identifiers', async () => {
+    await request(app)
+      .post('/api/sites/alpha/backups')
+      .set('x-api-key', 'secret')
+      .send({ backupPackage: backupPackage('restore-duplicate') })
+      .expect(201);
+    const createResponse = await request(app)
+      .get('/api/sites/alpha/backups/restore-duplicate')
+      .set('x-api-key', 'secret')
+      .expect(200);
+    const restoreUnitId = createResponse.body.backup.backupPackage.meta.restoreEntries
+      .find((entry) => entry.fileName === 'users_data.txt')?.restoreUnitId;
+
+    await request(app)
+      .post('/api/sites/alpha/backups/restore-duplicate/restore')
+      .set('x-api-key', 'secret')
+      .send({ selectedRestoreUnitIds: [restoreUnitId, restoreUnitId] })
+      .expect(400);
+  });
+
+  it('rejects unknown restore-unit identifiers', async () => {
+    await request(app)
+      .post('/api/sites/alpha/backups')
+      .set('x-api-key', 'secret')
+      .send({ backupPackage: backupPackage('restore-unknown') })
+      .expect(201);
+
+    await request(app)
+      .post('/api/sites/alpha/backups/restore-unknown/restore')
+      .set('x-api-key', 'secret')
+      .send({ selectedRestoreUnitIds: ['ru-foreign-backup-users-data-scope-entity-key'] })
+      .expect(400);
+  });
+
+  it('rejects restore-unit selections from another backup', async () => {
+    await request(app)
+      .post('/api/sites/alpha/backups')
+      .set('x-api-key', 'secret')
+      .send({ backupPackage: backupPackage('restore-base-a') })
+      .expect(201);
+
+    const otherResponse = await request(app)
+      .post('/api/sites/alpha/backups')
+      .set('x-api-key', 'secret')
+      .send({ backupPackage: backupPackage('restore-base-b') })
+      .expect(201);
+
+    const foreignId = otherResponse.body.backup?.backupPackage?.meta?.restoreEntries
+      ?.find((entry) => entry.fileName === 'users_data.txt')?.restoreUnitId;
+    expect(foreignId).toBeDefined();
+
+    await request(app)
+      .post('/api/sites/alpha/backups/restore-base-a/restore')
+      .set('x-api-key', 'secret')
+      .send({ selectedRestoreUnitIds: [foreignId] })
+      .expect(400);
+  });
+
+  it('rejects non-restorable selections in restore entries', async () => {
+    await seedAllLegacyScopes('alpha');
+    await request(app)
+      .post('/api/sites/alpha/backups')
+      .set('x-api-key', 'secret')
+      .send({
+        backupPackage: backupPackage('restore-non-restorable', {
+          files: [
+            {
+              name: 'users_data.txt',
+              text: JSON.stringify([{ id: 'admin-legacy', name: 'Admin Legacy' }]),
+            },
+            {
+              name: 'events_data.txt',
+              text: JSON.stringify({ displayCount: 5, displayMode: 'default', events: [{ id: 'event-legacy', title: 'Legacy event' }] }),
+            },
+          ],
+          meta: {
+            restoreEntries: [
+              {
+                fileName: 'users_data.txt',
+                restoreUnitId: 'ru-nonrestorable-users',
+                status: 'invalid',
+                restoreStatus: 'invalid',
+                restoreAction: 'skipped',
+                willRestore: false,
+                invalid: true,
+              },
+              {
+                fileName: 'events_data.txt',
+                restoreUnitId: 'ru-restorable-events',
+                status: 'hasData',
+                restoreStatus: 'hasData',
+                restoreAction: 'will_restore',
+                willRestore: true,
+                recordCount: 1,
+              },
+            ],
+          },
+        }),
+      })
+      .expect(201);
+
+    await request(app)
+      .post('/api/sites/alpha/backups/restore-non-restorable/restore')
+      .set('x-api-key', 'secret')
+      .send({ selectedRestoreUnitIds: ['ru-nonrestorable-users'] })
+      .expect(400);
+  });
+
+  it('rejects restore requests when the preview backup version is stale', async () => {
+    await request(app)
+      .post('/api/sites/alpha/backups')
+      .set('x-api-key', 'secret')
+      .send({ backupPackage: backupPackage('restore-stale') })
+      .expect(201);
+
+    await request(app)
+      .post('/api/sites/alpha/backups/restore-stale/restore')
+      .set('x-api-key', 'secret')
+      .send({ expectedBackupVersion: 0 })
+      .expect(400);
+  });
+
   it('rejects invalid backup restore packages', async () => {
     await repository.replaceDocument({
       siteId: 'alpha',
@@ -329,5 +571,46 @@ describe('site backup routes', () => {
       'admin-backup-restore',
       'admin-backup-delete',
     ]));
+  });
+
+  it('records selected restore unit ids and outcomes in the restore audit log', async () => {
+    await seedAllLegacyScopes('alpha');
+    const createResponse = await request(app)
+      .post('/api/sites/alpha/backups')
+      .set('x-api-key', 'secret')
+      .send({ backupPackage: backupPackage('audit-selected') })
+      .expect(201);
+
+    const restoreUnitId = createResponse.body.backup?.backupPackage?.meta?.restoreEntries
+      .find((entry) => entry.fileName === 'users_data.txt')?.restoreUnitId;
+    expect(restoreUnitId).toBeDefined();
+
+    await request(app)
+      .post('/api/sites/alpha/backups/audit-selected/restore')
+      .set('x-api-key', 'secret')
+      .send({ selectedRestoreUnitIds: [restoreUnitId] })
+      .expect(200);
+
+    const auditLogs = await db.collection('site_data_audit_logs').find({
+      siteId: 'alpha',
+      operation: 'admin-backup-restore',
+    }).toArray();
+    const restoreLog = auditLogs[0];
+    expect(restoreLog).toBeTruthy();
+    expect(restoreLog.metadata.selectedRestoreUnitIds).toEqual([restoreUnitId]);
+    expect(restoreLog.metadata.selectedItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          restoreUnitId,
+          fileName: 'users_data.txt',
+          scope: 'admins',
+        }),
+      ]),
+    );
+    expect(restoreLog.metadata.perItem).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ restoreUnitId }),
+      ]),
+    );
   });
 });

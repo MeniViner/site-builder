@@ -1,0 +1,42 @@
+Site Builder file-explorer and responsive-sidebar transfer overlay
+Base source commit: 70f4c948d61689a0194319b7303619f79078d61d
+
+Included implementation and deployment files:
+.env.example
+docs/FILE_EXPLORER_WINDOWS_DEPLOYMENT_HE.md
+scripts/build-production.mjs
+scripts/deploymentArtifacts.mjs
+scripts/dev/localFileBridge.js
+scripts/sp-env.js
+scripts/windows/file-explorer-smoke.ps1
+server/.env.example
+server/.env.file-explorer.example
+server/.env.local.example
+server/index.js
+server/src/app.js
+server/src/auth/fileExplorerBrowser.js
+server/src/config/env.js
+server/src/config/fileExplorer.js
+server/src/routes/fileExplorerRoutes.js
+server/src/services/fileExplorerDiagnostics.js
+src/App.jsx
+src/components/RightSidebarNav.jsx
+src/context/AuthContext.jsx
+src/index.css
+src/pages/FileExplorerPage.jsx
+src/services/storage/runtimeConfig.js
+src/utils/fileExplorerTargets.js
+src/utils/linkTargets.js
+
+Changed verification files intentionally excluded from this code-only package:
+scripts/deploymentArtifacts.test.mjs
+scripts/dev/localFileBridge.test.js
+server/src/auth/fileExplorerBrowser.test.js
+server/src/config/env.test.js
+server/src/config/fileExplorer.test.js
+server/src/routes/fileExplorerRoutes.test.js
+src/components/RightSidebarNav.test.jsx
+src/components/home/CategorySection.test.jsx
+src/services/storage/runtimeConfig.test.mjs
+src/utils/fileExplorerTargets.test.js
+src/utils/linkTargets.test.js

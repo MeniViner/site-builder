@@ -80,8 +80,14 @@ export const backupDeleteSchema = z.object({
   expectedVersion: z.number().int().min(0).optional(),
 }).optional();
 
+const restoreUnitIdSchema = z.string().trim().min(1).max(220);
+const backupIdSchema = z.string().trim().min(1).max(160);
+
 export const backupRestoreSchema = z.object({
   allowSiteIdMismatch: z.boolean().optional(),
+  expectedBackupVersion: z.number().int().min(0).optional(),
+  preRestoreBackupId: backupIdSchema.optional(),
+  selectedRestoreUnitIds: z.array(restoreUnitIdSchema).min(1).optional(),
 }).optional();
 
 export function parseOrBadRequest(schema, value) {

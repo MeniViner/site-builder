@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import RightSidebarNav from './RightSidebarNav';
+import { decodeFileExplorerTarget } from '../utils/fileExplorerTargets';
 
 const mocks = vi.hoisted(() => ({ navItems: [] }));
 
@@ -19,8 +20,9 @@ vi.mock('./NavVisual', () => ({
 
 function getNavigationTarget(anchor) {
   const href = anchor.getAttribute('href');
-  if (!href?.includes('/__sitebuilder-local-file')) return href;
-  return new URL(href, window.location.origin).searchParams.get('href');
+  if (!href?.includes('/file-explorer?target=')) return href;
+  const token = new URLSearchParams(href.split('?')[1]).get('target');
+  return decodeFileExplorerTarget(token)?.canonicalPath || href;
 }
 
 describe('RightSidebarNav navigation model', () => {
@@ -52,19 +54,39 @@ describe('RightSidebarNav navigation model', () => {
     render(<RightSidebarNav />);
 
     expect(screen.getByRole('button', { name: /Empty root/ })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Direct root/ })).toHaveAttribute('href', 'smb://fileserver/direct');
+    expect(getNavigationTarget(screen.getByRole('link', { name: /Direct root/ }))).toBe('\\\\fileserver\\direct');
     expect(screen.getByTestId('sidebar-flyout-hybrid')).toHaveClass('fixed');
 
     fireEvent.click(screen.getByRole('button', { name: /Hybrid root/ }));
-    expect(getNavigationTarget(screen.getByRole('link', { name: 'פתח יעד' }))).toBe('file://fileserver/root');
+    expect(getNavigationTarget(screen.getByRole('link', { name: 'פתח יעד' }))).toBe('\\\\fileserver\\root');
 
     fireEvent.click(screen.getByRole('button', { name: /Hybrid child/ }));
-    expect(screen.getByRole('link', { name: 'פתח יעד Hybrid child' })).toHaveAttribute('href', 'smb://fileserver/child');
+    expect(getNavigationTarget(screen.getByRole('link', { name: 'פתח יעד Hybrid child' }))).toBe('\\\\fileserver\\child');
     const nestedLink = screen
       .getAllByText('Nested target')
       .map((element) => element.closest('a'))
       .find(Boolean);
-    expect(getNavigationTarget(nestedLink)).toBe('file://fileserver/public/nested');
+    expect(getNavigationTarget(nestedLink)).toBe('\\\\fileserver\\public\\nested');
+  });
+
+  it('uses the four-layer rail and closes a fixed flyout when its trigger list scrolls', async () => {
+    render(<RightSidebarNav />);
+
+    const rail = document.querySelector('.right-sidebar-nav');
+    const viewport = document.querySelector('.right-sidebar-nav__viewport');
+    const scroller = document.querySelector('.right-sidebar-nav__scroll');
+    const group = document.querySelector('.right-sidebar-nav__group');
+    expect(rail).toContainElement(viewport);
+    expect(viewport).toContainElement(scroller);
+    expect(scroller).toContainElement(group);
+
+    fireEvent.click(screen.getByRole('button', { name: /Hybrid root/ }));
+    expect(screen.getByTestId('sidebar-flyout-hybrid')).toHaveClass('visible');
+
+    fireEvent.scroll(scroller);
+    await waitFor(() => {
+      expect(screen.getByTestId('sidebar-flyout-hybrid')).toHaveClass('invisible');
+    });
   });
 
   it('shows the native tooltip only when a top-level label is clipped', async () => {

@@ -30,6 +30,7 @@ import { ALPHA_TEAM_CONFIG, getAlphaTeamLinks, getAppVersion } from './config/al
 import OrgChartPage from './pages/OrgChartPage';
 import AdminSharePointSetupPage from './pages/AdminSharePointSetupPage';
 import GanttPage from './pages/GanttPage';
+import FileExplorerPage from './pages/FileExplorerPage';
 import 'react-toastify/dist/ReactToastify.css';
 
 const ALPHA_TEAM_LINK_ICONS = {
@@ -195,7 +196,10 @@ export function Home({ isPreview = false }) {
           utilityLinks={utilityLinks}
         />
 
-        <main data-widget-title={widgetTitle} className="w-full relative h-[calc(100vh-80px)] min-h-[calc(100vh-80px)] max-h-[calc(100vh-80px)] flex flex-col justify-between overflow-hidden pt-4 [@media(max-height:850px)]:pt-2 lg:pt-8 xl:pt-12">
+        <main
+          data-widget-title={widgetTitle}
+          className={`home-portal-main w-full relative min-h-[calc(100vh-80px)] flex flex-col justify-between overflow-x-clip pt-4 [@media(max-height:850px)]:pt-2 lg:pt-8 xl:pt-12 ${regularLinksLayout === 'sidebar-right' ? 'site-main-with-right-sidebar' : ''}`}
+        >
           {heroGlassEffect && (
             <div
               className="pointer-events-none absolute inset-x-3 top-3 bottom-4 z-[1] rounded-[28px] border shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:inset-x-6 lg:inset-x-10 xl:inset-x-20"
@@ -397,7 +401,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/org-chart" element={<OrgChartPage />} />
-        <Route path="/gantt" element={<GanttPage />} />
+          <Route path="/gantt" element={<GanttPage />} />
+          <Route path="/file-explorer" element={<FileExplorerPage />} />
         <Route path="/admin/sharepoint-setup" element={<AdminSharePointSetupPage />} />
         <Route path="/admin/*" element={<AdminRoute />} />
         <Route path="*" element={<NotFoundPage />} />

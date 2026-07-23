@@ -27,6 +27,25 @@ function sanitizeBackupId(value = '') {
   return normalized.slice(0, 160);
 }
 
+function sanitizeRestoreUnitToken(value = '') {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function buildRestoreUnitId(entry = {}, backupId = '') {
+  const fileName = sanitizeRestoreUnitToken(entry.fileName || entry.name || '');
+  const scope = sanitizeRestoreUnitToken(entry.scope || '');
+  const entityId = sanitizeRestoreUnitToken(entry.entityId || '');
+  const mappingKey = sanitizeRestoreUnitToken(entry.mappingKey || '');
+  const normalizedBackupId = sanitizeRestoreUnitToken(backupId || '');
+  const baseParts = [normalizedBackupId || 'backup', fileName || 'file', scope || 'scope', entityId || 'entity', mappingKey || 'key'];
+  return `ru-${baseParts.join('-')}`;
+}
+
 function createBackupId(createdAt = nowIso()) {
   return `backup-${createdAt.replace(/[:.]/g, '-')}`;
 }
@@ -161,7 +180,7 @@ function inferEntryFromFile(file) {
   };
 }
 
-function restoreEntriesFromPackage(backupPackage) {
+function restoreEntriesFromPackage(backupPackage, { backupId = '' } = {}) {
   const files = Array.isArray(backupPackage?.files) ? backupPackage.files : [];
   const filesByName = new Map(files.map((file) => [file.name, file]));
   const sourceEntries = Array.isArray(backupPackage?.meta?.restoreEntries)
@@ -173,20 +192,37 @@ function restoreEntriesFromPackage(backupPackage) {
       const sourceEntry = isObject(entry) ? entry : {};
       const fileName = String(sourceEntry.fileName || sourceEntry.name || '').trim();
       const file = filesByName.get(fileName) || {};
-      return {
-        ...inferEntryFromFile({ ...file, ...sourceEntry, name: fileName || file.name }),
+      const inferredEntry = inferEntryFromFile({
+        ...file,
+        ...sourceEntry,
+        name: fileName || file.name,
+      });
+      const summarized = summarizeEntry({
+        ...inferredEntry,
         ...cloneJson(sourceEntry),
         fileName: fileName || file.name,
         name: fileName || file.name,
         sizeBytes: Number(sourceEntry.sizeBytes || file.sizeBytes || 0),
+        backupId,
+      });
+      return {
+        ...summarized,
+        ...cloneJson(sourceEntry),
       };
     }).filter((entry) => entry.fileName);
   }
 
-  return files.map(inferEntryFromFile);
+  return files.map((file) => summarizeEntry({
+    ...inferEntryFromFile(file),
+    backupId,
+    fileName: file.name,
+    name: file.name,
+    sizeBytes: Number(file.sizeBytes || 0),
+  }));
 }
 
 function summarizeEntry(entry) {
+  const backupId = String(entry.backupId || '').trim();
   return {
     fileName: entry.fileName,
     name: entry.fileName,
@@ -206,6 +242,9 @@ function summarizeEntry(entry) {
     hash: entry.hash || '',
     source: entry.source || '',
     sizeBytes: Number(entry.sizeBytes || 0),
+    restoreUnitId: typeof entry.restoreUnitId === 'string' && entry.restoreUnitId.trim()
+      ? entry.restoreUnitId
+      : buildRestoreUnitId(entry, backupId),
   };
 }
 
@@ -225,7 +264,7 @@ function buildRestoreIndexes(entries) {
 function summarizePackage(backupPackage) {
   const files = Array.isArray(backupPackage.files) ? backupPackage.files : [];
   const fileNames = files.map((file) => file.name);
-  const restoreEntries = restoreEntriesFromPackage(backupPackage).map(summarizeEntry);
+  const restoreEntries = restoreEntriesFromPackage(backupPackage, { backupId: backupPackage?.id });
   return {
     fileCount: files.length,
     fileNames,
@@ -357,7 +396,7 @@ export class SiteBackupRepository {
         ? JSON.stringify(data, null, 2)
         : fallbackTextForMissingFile(mapping);
       const sizeBytes = textEncoder.encode(text).length;
-      const entry = {
+      const entry = summarizeEntry({
         fileName: mapping.fileName,
         name: mapping.fileName,
         scope: mapping.scope,
@@ -376,7 +415,8 @@ export class SiteBackupRepository {
         hash: snapshot?.hash || '',
         source,
         sizeBytes,
-      };
+        backupId: basePackage.id,
+      });
 
       files.push({
         name: mapping.fileName,
@@ -534,6 +574,9 @@ export class SiteBackupRepository {
     siteId,
     backupId,
     allowSiteIdMismatch = false,
+    expectedBackupVersion,
+    selectedRestoreUnitIds,
+    preRestoreBackupId,
     actor = 'api',
     metadata = {},
   }) {
@@ -542,6 +585,13 @@ export class SiteBackupRepository {
     }
 
     const backup = await this.getBackup(siteId, backupId);
+    if (expectedBackupVersion !== undefined && Number(backup.version) !== Number(expectedBackupVersion)) {
+      throw badRequest('Backup was modified since preview was generated. Reload the preview and retry.', {
+        expectedBackupVersion,
+        currentBackupVersion: backup.version,
+      });
+    }
+
     const backupPackage = normalizeBackupPackage(backup.backupPackage, { fallbackId: backupId });
     const packageSiteId = String(backupPackage.meta?.siteId || backup.data?.siteId || '').trim();
     if (packageSiteId && packageSiteId !== siteId && !allowSiteIdMismatch) {
@@ -551,45 +601,183 @@ export class SiteBackupRepository {
       });
     }
 
-    const restoreEntryByName = new Map(
-      restoreEntriesFromPackage(backupPackage).map((entry) => [entry.fileName, entry]),
-    );
-    const restorableFiles = backupPackage.files.filter((file) => {
-      if (!LEGACY_FILE_NAMES.has(file.name)) return false;
-      const entry = restoreEntryByName.get(file.name) || file;
-      return isEntryRestorable(entry);
-    });
-    if (restorableFiles.length === 0) {
+    const restoreEntries = restoreEntriesFromPackage(backupPackage, { backupId });
+    const restoreEntryById = new Map();
+
+    for (const entry of restoreEntries) {
+      if (!entry.fileName) {
+        throw badRequest('Restore entries are missing file names.');
+      }
+      const restoreUnitId = String(entry.restoreUnitId || '').trim();
+      if (!restoreUnitId) {
+        throw badRequest('Restore entries are missing stable identifiers.', { fileName: entry.fileName });
+      }
+      if (restoreEntryById.has(restoreUnitId)) {
+        throw badRequest('Backup restore entries contain duplicate identifiers.', {
+          restoreUnitId,
+        });
+      }
+      restoreEntryById.set(restoreUnitId, entry);
+    }
+
+    const requestedRestoreUnitIds = selectedRestoreUnitIds === undefined
+      ? null
+      : selectedRestoreUnitIds.map((entryId) => String(entryId || '').trim()).filter(Boolean);
+    if (requestedRestoreUnitIds !== null && requestedRestoreUnitIds.length === 0) {
+      throw badRequest('Restore selection cannot be empty. Select at least one restore item.');
+    }
+
+    const duplicateSelectionIds = [];
+    const seenSelectionIds = new Set();
+    for (const restoreUnitId of requestedRestoreUnitIds || []) {
+      if (seenSelectionIds.has(restoreUnitId)) {
+        duplicateSelectionIds.push(restoreUnitId);
+      }
+      seenSelectionIds.add(restoreUnitId);
+    }
+    if (duplicateSelectionIds.length > 0) {
+      throw badRequest('Restore selection contains duplicate items.', {
+        duplicateRestoreUnitIds: duplicateSelectionIds,
+      });
+    }
+
+    const unknownSelectionIds = (requestedRestoreUnitIds || []).filter((restoreUnitId) => !restoreEntryById.has(restoreUnitId));
+    if (unknownSelectionIds.length > 0) {
+      throw badRequest('One or more selected restore units were not found in this backup.', {
+        restoreUnitIds: unknownSelectionIds,
+      });
+    }
+
+    const selectedEntries = requestedRestoreUnitIds === null
+      ? Array.from(restoreEntryById.values())
+          .filter((entry) => LEGACY_FILE_NAMES.has(entry.fileName) && isEntryRestorable(entry))
+      : requestedRestoreUnitIds.map((restoreUnitId) => {
+        const entry = restoreEntryById.get(restoreUnitId);
+        if (!isEntryRestorable(entry)) {
+          throw badRequest('One or more selected restore units are not restorable.', {
+            restoreUnitId,
+            restoreAction: entry?.restoreAction,
+            status: entry?.status,
+          });
+        }
+        return entry;
+      });
+
+    if (selectedEntries.length === 0) {
       throw badRequest('Backup package does not contain restorable Site Builder files.');
     }
 
+    const filesByName = new Map(backupPackage.files.map((file) => [file.name, file]));
+    const selectedRestoreUnitSet = new Set(selectedEntries.map((entry) => entry.restoreUnitId));
+    const filesToRestore = selectedEntries
+      .filter((entry) => LEGACY_FILE_NAMES.has(entry.fileName))
+      .map((entry) => ({
+        entry,
+        file: filesByName.get(entry.fileName),
+      }));
+
     const restored = [];
-    for (const file of restorableFiles) {
-      const data = parseFileJson(file);
-      let expectedVersion = 0;
-      try {
-        const current = await this.legacyRepository.readLegacyObject(siteId, file.name);
-        expectedVersion = current.version;
-      } catch (error) {
-        if (error.statusCode !== 404 && error.code !== 'not_found') throw error;
+    const failed = [];
+    const notSelectedEntries = restoreEntries
+      .filter((entry) => !selectedRestoreUnitSet.has(entry.restoreUnitId));
+    const notSelected = notSelectedEntries.map((entry) => ({
+      restoreUnitId: entry.restoreUnitId,
+      fileName: entry.fileName,
+      scope: entry.scope,
+      entityId: entry.entityId,
+      status: entry.status,
+      restoreAction: entry.restoreAction,
+      selected: false,
+      outcome: 'not_selected',
+      reason: 'not_selected',
+      empty: Boolean(entry.empty),
+      missing: Boolean(entry.missing),
+      invalid: Boolean(entry.invalid),
+    }));
+
+    for (const { entry, file } of filesToRestore) {
+      if (!file) {
+        failed.push({
+          restoreUnitId: entry.restoreUnitId,
+          fileName: entry.fileName,
+          scope: entry.scope,
+          entityId: entry.entityId,
+          restoreAction: entry.restoreAction,
+          status: entry.status,
+          outcome: 'failed',
+          selected: true,
+          message: 'Restore payload is missing file text.',
+        });
+        continue;
       }
-      const result = await this.legacyRepository.writeLegacyObject({
-        siteId,
-        key: file.name,
-        data,
-        expectedVersion,
-        allowEmptyOverwrite: true,
-        actor,
-        metadata: { ...metadata, backupId, restore: true },
-      });
-      restored.push({
-        fileName: file.name,
-        key: result.key,
-        version: result.version,
-        documents: result.documents.length,
-        status: restoreEntryByName.get(file.name)?.status || file.restoreStatus || file.status || 'hasData',
-      });
+
+      try {
+        const data = parseFileJson(file);
+        let expectedVersion = 0;
+        try {
+          const current = await this.legacyRepository.readLegacyObject(siteId, file.name);
+          expectedVersion = current.version;
+        } catch (error) {
+          if (error.statusCode !== 404 && error.code !== 'not_found') throw error;
+        }
+        const result = await this.legacyRepository.writeLegacyObject({
+          siteId,
+          key: file.name,
+          data,
+          expectedVersion,
+          allowEmptyOverwrite: true,
+          actor,
+          metadata: { ...metadata, backupId, restore: true },
+        });
+        restored.push({
+          restoreUnitId: entry.restoreUnitId,
+          fileName: entry.fileName,
+          scope: entry.scope,
+          entityId: entry.entityId,
+          status: entry.status,
+          restoreAction: entry.restoreAction,
+          recordCount: Number(entry.recordCount || 0),
+          key: result.key,
+          version: result.version,
+          documents: result.documents.length,
+          selected: true,
+          outcome: 'restored',
+          clearOrReplace: Boolean(entry.empty),
+        });
+      } catch (restoreError) {
+        failed.push({
+          restoreUnitId: entry.restoreUnitId,
+          fileName: entry.fileName,
+          scope: entry.scope,
+          entityId: entry.entityId,
+          restoreAction: entry.restoreAction,
+          status: entry.status,
+          recordCount: Number(entry.recordCount || 0),
+          selected: true,
+          outcome: 'failed',
+          message: restoreError?.message || 'Restore entry failed.',
+        });
+      }
     }
+
+    const restoredItemCount = restored.length;
+    const failedItemCount = failed.length;
+    const restoreStatus = failedItemCount > 0 ? (restoredItemCount > 0 ? 'partial' : 'failed') : 'completed';
+    const selectedRecordCount = selectedEntries.reduce((sum, entry) => sum + (Number(entry.recordCount) || 0), 0);
+    const clearOrReplaceActions = restored
+      .filter((entry) => entry.clearOrReplace)
+      .map((entry) => ({
+        restoreUnitId: entry.restoreUnitId,
+        fileName: entry.fileName,
+        scope: entry.scope,
+        entityId: entry.entityId,
+        status: entry.status,
+        restoreAction: entry.restoreAction,
+      }));
+
+    const selectedRestoreUnitIdsOut = requestedRestoreUnitIds === null
+      ? selectedEntries.map((entry) => entry.restoreUnitId)
+      : requestedRestoreUnitIds;
 
     await this.repository.writeAuditLog({
       siteId,
@@ -597,15 +785,95 @@ export class SiteBackupRepository {
       scope: BACKUP_SCOPE,
       entityId: backupId,
       operation: 'admin-backup-restore',
-      result: 'ok',
+      result: restoreStatus === 'completed' ? 'ok' : 'partial',
       actor,
-      metadata: { ...metadata, backupId, restoredFiles: restored.map((item) => item.fileName) },
+      metadata: {
+        ...metadata,
+        backupId,
+        restoreStatus,
+        selectedRestoreUnitIds: selectedRestoreUnitIdsOut,
+        selectedItems: selectedEntries.map((entry) => ({
+          restoreUnitId: entry.restoreUnitId,
+          fileName: entry.fileName,
+          scope: entry.scope,
+          entityId: entry.entityId,
+          status: entry.status,
+          restoreAction: entry.restoreAction,
+          recordCount: Number(entry.recordCount || 0),
+        })),
+        notSelectedItems: notSelectedEntries.map((entry) => ({
+          restoreUnitId: entry.restoreUnitId,
+          fileName: entry.fileName,
+          scope: entry.scope,
+          entityId: entry.entityId,
+          status: entry.status,
+          restoreAction: entry.restoreAction,
+        })),
+        selectedItemCount: selectedEntries.length,
+        restoredItemCount,
+        skippedItemCount: notSelected.length,
+        failedItemCount,
+        selectedRecordCount,
+        expectedBackupVersion,
+        preRestoreBackupId,
+        perItem: [
+          ...restored.map((item) => ({
+            restoreUnitId: item.restoreUnitId,
+            fileName: item.fileName,
+            scope: item.scope,
+            entityId: item.entityId,
+            recordCount: item.recordCount,
+            outcome: item.outcome,
+            status: item.status,
+            restoreAction: item.restoreAction,
+          })),
+          ...notSelected.map((item) => ({
+            restoreUnitId: item.restoreUnitId,
+            fileName: item.fileName,
+            scope: item.scope,
+            entityId: item.entityId,
+            outcome: item.outcome,
+            status: item.status,
+            restoreAction: item.restoreAction,
+            reason: item.reason,
+          })),
+          ...failed.map((item) => ({
+            restoreUnitId: item.restoreUnitId,
+            fileName: item.fileName,
+            scope: item.scope,
+            entityId: item.entityId,
+            recordCount: item.recordCount,
+            outcome: item.outcome,
+            status: item.status,
+            restoreAction: item.restoreAction,
+            message: item.message,
+          })),
+        ],
+      },
     });
 
     return {
       backup,
+      restoreStatus,
+      preRestoreBackupId,
+      selectedRestoreUnitIds: selectedRestoreUnitIdsOut,
+      selectedRestoreUnitCount: selectedRestoreUnitIdsOut.length,
+      selectedItemCount: selectedEntries.length,
+      selectedRecordCount,
+      restoredItemCount,
+      failedItemCount,
+      skippedItemCount: notSelected.length,
+      skippedRecordCount: notSelected.reduce((sum, entry) => sum + (Number(entry.recordCount) || 0), 0),
+      notSelectedItems: notSelected,
+      clearOrReplaceActions,
       restored,
-      restoredFiles: restored.length,
+      failed,
+      restoredEntries: restored,
+      restoredRecordCount: restored.reduce((sum, entry) => sum + (Number(entry.recordCount) || 0), 0),
+      restoredFiles: restoredItemCount,
+      failedFiles: failedItemCount,
+      selectedRestoreUnits: selectedRestoreUnitIdsOut,
+      notSelectedRestoreUnits: notSelected.map((entry) => entry.restoreUnitId),
     };
   }
 }

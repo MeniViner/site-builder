@@ -129,10 +129,20 @@ class BackendApiClient {
         });
     }
 
-    restoreBackup(siteId, backupId, { allowSiteIdMismatch = false } = {}) {
+    restoreBackup(siteId, backupId, {
+        allowSiteIdMismatch = false,
+        expectedBackupVersion,
+        selectedRestoreUnitIds,
+        preRestoreBackupId,
+    } = {}) {
         return this.request(`/api/sites/${encodeURIComponent(siteId)}/backups/${encodeURIComponent(backupId)}/restore`, {
             method: 'POST',
-            body: { allowSiteIdMismatch },
+            body: {
+                allowSiteIdMismatch,
+                expectedBackupVersion,
+                selectedRestoreUnitIds,
+                preRestoreBackupId,
+            },
         });
     }
 }

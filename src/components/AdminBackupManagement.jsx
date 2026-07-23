@@ -137,6 +137,31 @@ const RESTORE_ACTION_LABELS = {
     skipped: 'ידולג',
 };
 
+const DEPENDENCY_DISABLED_MESSAGE = 'פריט זה תלוי בנתון אחר שלא נבחר.';
+const NON_RESTORABLE_REASON_MAP = {
+    missing: 'הקובץ חסר בגיבוי.',
+    invalid: 'הקובץ אינו תקין.',
+    skipped: 'השחזור הושבת לפריט זה.',
+};
+
+const sanitizeRestoreUnitToken = (value = '') => String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+const buildRestoreUnitId = ({ backupId = '', fileName = '', scope = '', entityId = '', mappingKey = '' }) => {
+    const parts = [
+        sanitizeRestoreUnitToken(backupId) || 'backup',
+        sanitizeRestoreUnitToken(fileName) || 'file',
+        sanitizeRestoreUnitToken(scope) || 'scope',
+        sanitizeRestoreUnitToken(entityId) || 'entity',
+        sanitizeRestoreUnitToken(mappingKey) || 'key',
+    ];
+    return `ru-${parts.join('-')}`;
+};
+
 const formatBytes = (value) => {
     const size = Number(value);
     if (!Number.isFinite(size) || size <= 0) return '0 B';
@@ -156,6 +181,8 @@ const getBackupDisplayName = (backup) => {
     const when = formatDateTime(backup?.timeLastModified || backup?.timeCreated);
     return when && when !== '—' ? `גיבוי מלא · ${when}` : 'גיבוי מלא';
 };
+
+const getRestoreTargetId = (backup = {}) => backup?.id || backup?.backup?.id || backup?.backupId || backup?.entityId || backup?._id;
 
 const getBackupFileDisplayName = (fileName) => BACKUP_FILE_LABELS[fileName] || fileName || 'קובץ גיבוי';
 
@@ -238,6 +265,15 @@ const getRestoreAction = (entry = {}) => (
 const summarizeFileForRestore = (file = {}) => {
     const fileName = file.fileName || file.name || '';
     const status = getRestoreStatus(file);
+    const restoreUnitId = typeof file.restoreUnitId === 'string' && file.restoreUnitId.trim()
+        ? file.restoreUnitId
+        : buildRestoreUnitId({
+            fileName,
+            scope: file.scope || '',
+            entityId: file.entityId || '',
+            mappingKey: file.mappingKey || '',
+            backupId: file.backupId || '',
+        });
     return {
         fileName,
         name: fileName,
@@ -245,13 +281,38 @@ const summarizeFileForRestore = (file = {}) => {
         status,
         restoreStatus: status,
         restoreAction: file.restoreAction || getRestoreAction(file),
+        canRestore: isEntryRestorable({ ...file, status }),
         willRestore: isEntryRestorable(file),
         empty: Boolean(file.empty) || status === 'empty',
         missing: Boolean(file.missing) || status === 'missing',
         invalid: Boolean(file.invalid) || status === 'invalid',
+        entityId: file.entityId || '',
         recordCount: Number.isFinite(Number(file.recordCount)) ? Number(file.recordCount) : 0,
         sizeBytes: Number.isFinite(Number(file.sizeBytes)) ? Number(file.sizeBytes) : 0,
+        restoreUnitId,
     };
+};
+
+const getRestoreDisableReason = (entry = {}) => {
+    if (!entry || entry.canRestore) return '';
+    if (entry.restoreAction === 'skipped' && entry.restoreStatus === 'empty' && !entry.empty && !entry.missing && !entry.invalid) {
+        return 'פעולת השחזור הושבתה.';
+    }
+    if (entry.missing) return NON_RESTORABLE_REASON_MAP.missing;
+    if (entry.invalid) return NON_RESTORABLE_REASON_MAP.invalid;
+    return NON_RESTORABLE_REASON_MAP.skipped;
+};
+
+const isDestructiveRestoreEntry = (entry = {}) => entry.empty || getRestoreStatus(entry) === 'empty';
+
+const buildRestoreSelectionState = (entries = []) => {
+    const next = new Set();
+    entries.forEach((entry) => {
+        if (entry?.canRestore && entry.restoreUnitId) {
+            next.add(entry.restoreUnitId);
+        }
+    });
+    return Array.from(next);
 };
 
 const getRestoreEntriesForBackup = (backup, files = []) => {
@@ -263,12 +324,20 @@ const getRestoreEntriesForBackup = (backup, files = []) => {
                 ...(fileByName.get(entry.fileName || entry.name) || {}),
                 ...entry,
                 name: entry.fileName || entry.name,
+                backupId: backup?.id || backup?.backup?.id || backup?.backupId || '',
             }))
             .filter((entry) => entry.fileName);
     }
 
     return files.map(summarizeFileForRestore).filter((entry) => entry.fileName);
 };
+
+const buildRestoreEntriesFromBackup = (backup, files = []) => getRestoreEntriesForBackup(backup, files)
+    .map((entry) => ({
+        ...entry,
+        canRestore: isEntryRestorable(entry),
+        disableReason: getRestoreDisableReason(entry),
+    }));
 
 const getRestoreStatusLabel = (entry = {}) => RESTORE_STATUS_LABELS[getRestoreStatus(entry)] || getRestoreStatus(entry);
 const getRestoreActionLabel = (entry = {}) => RESTORE_ACTION_LABELS[getRestoreAction(entry)] || RESTORE_ACTION_LABELS.skipped;
@@ -389,6 +458,111 @@ export default function AdminBackupManagement() {
             latest,
         };
     }, [backups]);
+
+    const restoreEntries = Array.isArray(restoreModal?.restoreEntries) ? restoreModal.restoreEntries : [];
+    const selectedRestoreUnitIds = Array.isArray(restoreModal?.selectedRestoreUnitIds)
+        ? restoreModal.selectedRestoreUnitIds
+        : [];
+    const selectedRestoreUnitSet = useMemo(
+        () => new Set(selectedRestoreUnitIds),
+        [selectedRestoreUnitIds.join('|')],
+    );
+    const restoreSelectionSummary = useMemo(() => {
+        const selected = [];
+        const selectable = [];
+        const nonRestorable = [];
+        let selectedRecordCount = 0;
+        let destructiveSelected = false;
+
+        restoreEntries.forEach((entry) => {
+            const canRestore = entry.canRestore === true;
+            if (canRestore) {
+                selectable.push(entry);
+            } else {
+                nonRestorable.push(entry);
+            }
+            if (selectedRestoreUnitSet.has(entry.restoreUnitId) && canRestore) {
+                selected.push(entry);
+                selectedRecordCount += Number(entry.recordCount || 0);
+                if (isDestructiveRestoreEntry(entry)) destructiveSelected = true;
+            }
+        });
+
+        return {
+            selected,
+            selectedCount: selected.length,
+            selectableCount: selectable.length,
+            nonRestorableCount: nonRestorable.length,
+            nonRestorableItems: nonRestorable,
+            selectedRecordCount,
+            destructiveSelected,
+            allSelected: selectable.length > 0 && selectable.every((entry) => selectedRestoreUnitSet.has(entry.restoreUnitId)),
+        };
+    }, [restoreEntries, selectedRestoreUnitSet]);
+
+    const restoreResult = restoreModal?.restoreResult || null;
+
+    const groupedRestoreEntries = useMemo(() => {
+        const groups = new Map();
+        restoreEntries.forEach((entry) => {
+            const key = entry.scope || 'כללי';
+            if (!groups.has(key)) {
+                groups.set(key, []);
+            }
+            groups.get(key).push(entry);
+        });
+        return Array.from(groups.entries())
+            .map(([scope, entries]) => ({
+                scope,
+                entries: entries.sort((a, b) => a.fileName.localeCompare(b.fileName)),
+            }))
+            .sort((a, b) => a.scope.localeCompare(b.scope));
+    }, [restoreEntries]);
+
+    const updateRestoreSelection = (updater) => {
+        setRestoreModal((prev) => {
+            if (!prev) return prev;
+            const nextSet = new Set(prev.selectedRestoreUnitIds || []);
+            const selected = updater(nextSet);
+            return {
+                ...prev,
+                selectedRestoreUnitIds: selected,
+            };
+        });
+    };
+
+    const toggleRestoreUnitSelection = (restoreUnitId, selected) => {
+        const normalizedId = String(restoreUnitId || '').trim();
+        if (!normalizedId) return;
+        const entry = restoreEntries.find((item) => item.restoreUnitId === normalizedId);
+        if (!entry?.canRestore) return;
+        updateRestoreSelection((nextSet) => {
+            if (selected) {
+                nextSet.add(normalizedId);
+            } else {
+                nextSet.delete(normalizedId);
+            }
+            return Array.from(nextSet);
+        });
+    };
+
+    const selectAllRestoreEntries = () => {
+        updateRestoreSelection((nextSet) => {
+            restoreEntries.forEach((entry) => {
+                if (entry.canRestore) {
+                    nextSet.add(entry.restoreUnitId);
+                }
+            });
+            return Array.from(nextSet);
+        });
+    };
+
+    const clearRestoreSelection = () => {
+        setRestoreModal((prev) => (prev ? {
+            ...prev,
+            selectedRestoreUnitIds: [],
+        } : prev));
+    };
 
     const buildDevBackupPackage = ({ trigger = 'manual' } = {}) => {
         const exportedAt = new Date().toISOString();
@@ -662,6 +836,8 @@ export default function AdminBackupManagement() {
     };
 
     const openRestorePreview = async (backup, files) => {
+        const restoreEntries = buildRestoreEntriesFromBackup(backup, files);
+
         setRestoreModal({
             backup,
             files,
@@ -669,11 +845,12 @@ export default function AdminBackupManagement() {
             error: '',
             preview: null,
             fileTextsByName: new Map(),
-            restoreEntries: getRestoreEntriesForBackup(backup, files),
+            restoreEntries,
+            selectedRestoreUnitIds: buildRestoreSelectionState(restoreEntries),
+            restoreResult: null,
         });
 
         try {
-            const restoreEntries = getRestoreEntriesForBackup(backup, files);
             const entryByName = new Map(restoreEntries.map((entry) => [entry.fileName, entry]));
             const restorableFiles = files.filter((file) => (
                 RESTORE_TARGET_BY_FILE_NAME[file.name]
@@ -698,6 +875,8 @@ export default function AdminBackupManagement() {
                 preview,
                 fileTextsByName,
                 restoreEntries,
+                selectedRestoreUnitIds: buildRestoreSelectionState(restoreEntries),
+                restoreResult: null,
             });
         } catch (previewError) {
             setRestoreModal({
@@ -707,7 +886,9 @@ export default function AdminBackupManagement() {
                 error: previewError?.message || 'יצירת תצוגת השחזור נכשלה.',
                 preview: null,
                 fileTextsByName: new Map(),
-                restoreEntries: getRestoreEntriesForBackup(backup, files),
+                restoreEntries,
+                selectedRestoreUnitIds: buildRestoreSelectionState(restoreEntries),
+                restoreResult: null,
             });
         }
     };
@@ -866,80 +1047,188 @@ export default function AdminBackupManagement() {
     const handleRestoreSelectedBackup = async () => {
         if (!restoreModal?.preview || !restoreModal?.fileTextsByName) return;
 
+        const selectedItems = restoreSelectionSummary.selected;
+        if (selectedItems.length === 0) {
+            toast.error('יש לבחור לפחות פריט אחד לשחזור לפני ביצוע הפעולה.');
+            setRestoreModal((prev) => (prev ? {
+                ...prev,
+                error: 'יש לבחור לפחות פריט אחד לשחזור לפני ביצוע הפעולה.',
+            } : prev));
+            return;
+        }
+
+        const restoreUnitIds = selectedItems.map((entry) => entry.restoreUnitId).filter(Boolean);
+        const selectedFileNames = new Set(selectedItems.map((entry) => entry.fileName).filter(Boolean));
+        const selectedItemLabels = selectedItems.map((entry) => `• ${getBackupFileDisplayName(entry.fileName)}${entry.scope ? ` (${entry.scope})` : ''}`);
+        const confirmationMessageParts = [
+            `גיבוי: ${getBackupDisplayName(restoreModal.backup)}`,
+            `נבחרו ${selectedItems.length} פריטים (כ־${restoreSelectionSummary.selectedRecordCount} רשומות).`,
+            '',
+            'פריטים לשחזור:',
+            ...selectedItemLabels,
+            '',
+            'כל פריט שלא נבחר יישאר ללא שינוי.',
+        ];
+
+        if (restoreSelectionSummary.destructiveSelected) {
+            confirmationMessageParts.push('');
+            confirmationMessageParts.push('אזהרה: פריטים ריקים עשויים למחוק מידע קיים במהלך השחזור.');
+        }
+
         const confirmed = await confirmToast({
-            title: 'שחזור מגיבוי',
-            message: 'השחזור יחליף את נתוני האתר הנוכחיים בנתוני הגיבוי. לפני השחזור ייווצר גיבוי בטיחות של המצב הנוכחי. להמשיך?',
-            confirmText: 'שחזור מהגיבוי הזה',
+            title: 'אישור שחזור מגיבוי',
+            message: confirmationMessageParts.join('\n'),
+            confirmText: 'שחזור מהגיבוי',
             cancelText: 'ביטול',
             type: 'warning',
         });
         if (!confirmed) return;
 
+        const restoreResultSummary = {
+            status: 'completed',
+            restored: selectedItems.map((entry) => ({
+                restoreUnitId: entry.restoreUnitId,
+                fileName: entry.fileName,
+                scope: entry.scope || '',
+                entityId: entry.entityId || '',
+                status: entry.status || 'hasData',
+                restoreAction: getRestoreAction(entry),
+                recordCount: Number(entry.recordCount || 0),
+                selected: true,
+                outcome: 'restored',
+            })),
+            failed: [],
+            notSelected: restoreEntries
+                .filter((entry) => !selectedRestoreUnitSet.has(entry.restoreUnitId)),
+            selectedRestoreUnitIds: restoreUnitIds,
+            restoredFiles: selectedItems.length,
+            selectedItemCount: selectedItems.length,
+            restoredRecordCount: selectedItems.reduce((sum, entry) => sum + (Number(entry.recordCount) || 0), 0),
+        };
+
+        const restorePayload = {
+            allowSiteIdMismatch: false,
+            expectedBackupVersion: restoreModal.backup?.version,
+            selectedRestoreUnitIds: restoreUnitIds,
+        };
+
+        const restoreTargetId = getRestoreTargetId(restoreModal.backup);
+        if (!restoreTargetId) {
+            throw new Error('לגיבוי הזה חסר מזהה לשחזור.');
+        }
+
         setIsRestoring(true);
         try {
             if (mongoBackupStore) {
-                if (!restoreModal.backup?.id) {
-                    throw new Error('לגיבוי Mongo חסר מזהה לשחזור.');
-                }
-
                 const safetyPackage = buildMongoBackupPackage({ trigger: 'pre-restore' });
-                await backendApiClient.createBackup(currentSiteId, {
+                const safetyBackup = await backendApiClient.createBackup(currentSiteId, {
                     backupPackage: safetyPackage,
                     name: `pre-restore-${safetyPackage.exportedAt}`,
-                    description: `Safety backup before restoring ${restoreModal.backup.id}`,
+                    description: `Safety backup before restoring ${restoreTargetId}`,
                 });
+                const preRestoreBackupId = safetyBackup?.backup?.id || safetyBackup?.backup?.backupId || safetyBackup?.backup?.entityId;
+                if (preRestoreBackupId) {
+                    restorePayload.preRestoreBackupId = preRestoreBackupId;
+                }
 
-                await backendApiClient.restoreBackup(currentSiteId, restoreModal.backup.id);
+                const restoreResponse = await backendApiClient.restoreBackup(currentSiteId, restoreTargetId, restorePayload);
+                restoreResultSummary.status = restoreResponse?.restoreStatus || 'completed';
+                restoreResultSummary.restored = restoreResponse?.restored || [];
+                restoreResultSummary.failed = restoreResponse?.failed || [];
+                restoreResultSummary.notSelected = restoreResponse?.notSelectedItems || restoreResponse?.skipped || [];
+                restoreResultSummary.restoredRecordCount = restoreResponse?.restoredRecordCount;
+                restoreResultSummary.failedFiles = restoreResponse?.failedFiles;
+                restoreResultSummary.restoredFiles = restoreResponse?.restoredFiles;
+                restoreResultSummary.selectedRestoreUnitIds = restoreResponse?.selectedRestoreUnitIds || restoreUnitIds;
+                restoreResultSummary.preRestoreBackupId = restoreResponse?.preRestoreBackupId;
+                restoreResultSummary.selectedItemCount = restoreResponse?.selectedItemCount || selectedItems.length;
+                restoreResultSummary.skippedItemCount = restoreResponse?.skippedItemCount;
+                restoreResultSummary.clearOrReplaceActions = restoreResponse?.clearOrReplaceActions || [];
                 await reload();
                 toast.success('השחזור בוצע דרך Mongo ונתוני האתר נטענו מחדש.');
-                setRestoreModal(null);
-                await loadBackups({ preserveSelection: true });
-                return;
-            }
+            } else {
+                const selectedFileTexts = new Map(
+                    [...restoreModal.fileTextsByName.entries()].filter(([fileName]) => selectedFileNames.has(fileName)),
+                );
+                const shouldRestoreMasterConfig = selectedFileNames.has(MASTER_CONFIG_FILE_NAME);
+                const selectedConfig = restoreModal.preview?.config;
 
-            if (useLocalBackupStore) {
-                upsertDevBackupPackage(buildDevBackupPackage({ trigger: 'pre-restore' }));
+                    if (useLocalBackupStore) {
+                        upsertDevBackupPackage(buildDevBackupPackage({ trigger: 'pre-restore' }));
 
-                const normalizedConfig = validateAndNormalize(restoreModal.preview.config);
-                await ConfigService.saveConfig(normalizedConfig);
-                if (SHAREPOINT_CONFIG.useMock) {
-                    writeDevSplitFilesFromBackup(restoreModal.fileTextsByName);
+                        if (shouldRestoreMasterConfig) {
+                            const normalizedConfig = validateAndNormalize(selectedConfig);
+                            await ConfigService.saveConfig(normalizedConfig);
+                        }
+                        writeDevSplitFilesFromBackup(selectedFileTexts);
+                        restoreResultSummary.restored = [...selectedItems];
+                        restoreResultSummary.restoredFiles = selectedItems.length;
+                        restoreResultSummary.restoredRecordCount = selectedItems.reduce((sum, entry) => sum + (Number(entry.recordCount) || 0), 0);
+                        restoreResultSummary.selectedItemCount = selectedItems.length;
+                        restoreResultSummary.clearOrReplaceActions = selectedItems
+                            .filter((entry) => entry.empty)
+                            .map((entry) => ({
+                                restoreUnitId: entry.restoreUnitId,
+                                fileName: entry.fileName,
+                                scope: entry.scope,
+                                entityId: entry.entityId,
+                                status: entry.status,
+                                restoreAction: entry.restoreAction,
+                            }));
+                        await reload();
+                        toast.success('השחזור במצב פיתוח הושלם. הנתונים נטענו מחדש מהגיבוי.');
+                    } else {
+                        const safetyBackup = await createBackup({ trigger: 'pre-restore' });
+                        if (!safetyBackup?.success) {
+                            throw new Error(safetyBackup?.error || 'יצירת גיבוי בטיחות לפני שחזור נכשלה.');
+                        }
+
+                    if (shouldRestoreMasterConfig) {
+                        const normalizedConfig = validateAndNormalize(selectedConfig);
+                        await upsertSharePointTextFile({
+                            serverRelativeUrl: MASTER_CONFIG_TARGET_URL,
+                            text: JSON.stringify(normalizedConfig, null, 2),
+                            contentType: 'text/plain; charset=utf-8',
+                        });
+                    }
+
+                    const selectedWriteEntries = [...selectedFileTexts.entries()]
+                        .filter(([fileName]) => fileName !== MASTER_CONFIG_FILE_NAME && RESTORE_TARGET_BY_FILE_NAME[fileName]);
+
+                    for (const [fileName, text] of selectedWriteEntries) {
+                        parseBackupJson(fileName, text);
+                            await upsertSharePointTextFile({
+                                serverRelativeUrl: RESTORE_TARGET_BY_FILE_NAME[fileName],
+                                text,
+                                contentType: 'text/plain; charset=utf-8',
+                            });
+                        }
+
+                        restoreResultSummary.restored = [...selectedItems];
+                        restoreResultSummary.restoredFiles = selectedItems.length;
+                        restoreResultSummary.restoredRecordCount = selectedItems.reduce((sum, entry) => sum + (Number(entry.recordCount) || 0), 0);
+                        restoreResultSummary.selectedItemCount = selectedItems.length;
+                        restoreResultSummary.clearOrReplaceActions = selectedItems
+                            .filter((entry) => entry.empty)
+                            .map((entry) => ({
+                                restoreUnitId: entry.restoreUnitId,
+                                fileName: entry.fileName,
+                                scope: entry.scope,
+                                entityId: entry.entityId,
+                                status: entry.status,
+                                restoreAction: entry.restoreAction,
+                            }));
+
+                        await reload();
+                        toast.success('השחזור בוצע. מומלץ לרענן את האתר כדי לראות את כל הנתונים המשוחזרים.');
+                    }
                 }
-                await reload();
 
-                toast.success(isMongoStorageBackend() ? 'השחזור נשמר ל-Mongo ונטען מחדש.' : 'השחזור הושלם במצב פיתוח. הנתונים נטענו מחדש מהגיבוי.');
-                setRestoreModal(null);
-                await loadBackups({ preserveSelection: true });
-                return;
-            }
-
-            const safetyBackup = await createBackup({ trigger: 'pre-restore' });
-            if (!safetyBackup?.success) {
-                throw new Error(safetyBackup?.error || 'יצירת גיבוי בטיחות לפני שחזור נכשלה.');
-            }
-
-            const normalizedConfig = validateAndNormalize(restoreModal.preview.config);
-            await upsertSharePointTextFile({
-                serverRelativeUrl: MASTER_CONFIG_TARGET_URL,
-                text: JSON.stringify(normalizedConfig, null, 2),
-                contentType: 'text/plain; charset=utf-8',
-            });
-
-            const writeEntries = [...restoreModal.fileTextsByName.entries()]
-                .filter(([fileName]) => fileName !== MASTER_CONFIG_FILE_NAME && RESTORE_TARGET_BY_FILE_NAME[fileName]);
-
-            for (const [fileName, text] of writeEntries) {
-                parseBackupJson(fileName, text);
-                await upsertSharePointTextFile({
-                    serverRelativeUrl: RESTORE_TARGET_BY_FILE_NAME[fileName],
-                    text,
-                    contentType: 'text/plain; charset=utf-8',
-                });
-            }
-
-            toast.success('השחזור הושלם. מומלץ לרענן את האתר כדי לראות את כל הנתונים המשוחזרים.');
-            setRestoreModal(null);
             await loadBackups({ preserveSelection: true });
+            setRestoreModal((prev) => prev ? {
+                ...prev,
+                restoreResult: restoreResultSummary,
+            } : prev);
         } catch (restoreError) {
             toast.error(restoreError?.message || 'שחזור הגיבוי נכשל.');
             setRestoreModal((prev) => prev ? {
@@ -1015,6 +1304,7 @@ export default function AdminBackupManagement() {
                 });
                 await loadBackups({ preserveSelection: true });
                 const savedBackup = response?.backup || backupItem;
+                const previewEntries = buildRestoreEntriesFromBackup({ ...backupItem, backupPackage: importedPackage }, backupItem.files);
                 setSelectedBackupPath(savedBackup.serverRelativeUrl || backupItem.serverRelativeUrl);
                 setSelectedBackupFiles(backupItem.files);
                 setRestoreModal({
@@ -1029,7 +1319,9 @@ export default function AdminBackupManagement() {
                     error: '',
                     preview,
                     fileTextsByName,
-                    restoreEntries: getRestoreEntriesForBackup({ ...backupItem, backupPackage: importedPackage }, backupItem.files),
+                    restoreEntries: previewEntries,
+                    restoreResult: null,
+                    selectedRestoreUnitIds: buildRestoreSelectionState(previewEntries),
                 });
                 toast.success('קובץ הגיבוי יובא ונשמר ב-Mongo.');
                 return;
@@ -1043,6 +1335,7 @@ export default function AdminBackupManagement() {
                 setSelectedBackupFiles(savedBackupItem.files);
             }
 
+            const previewEntries = buildRestoreEntriesFromBackup({ ...backupItem, backupPackage: importedPackage }, backupItem.files);
             setRestoreModal({
                 backup: backupItem,
                 files: backupItem.files,
@@ -1050,7 +1343,9 @@ export default function AdminBackupManagement() {
                 error: '',
                 preview,
                 fileTextsByName,
-                restoreEntries: getRestoreEntriesForBackup({ ...backupItem, backupPackage: importedPackage }, backupItem.files),
+                restoreEntries: previewEntries,
+                restoreResult: null,
+                selectedRestoreUnitIds: buildRestoreSelectionState(previewEntries),
             });
             toast.success('קובץ הגיבוי נטען לתצוגה מקדימה.');
         } catch (importError) {
@@ -1408,32 +1703,142 @@ export default function AdminBackupManagement() {
                                     </div>
 
                                     <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#232733]">
-                                        <h3 className="text-lg font-black text-gray-900 dark:text-white">קבצים שישוחזרו</h3>
-                                        <div className="mt-4 max-h-[560px] space-y-2 overflow-y-auto pr-1">
-                                            {(restoreModal.restoreEntries?.length
-                                                ? restoreModal.restoreEntries
-                                                : [...restoreModal.fileTextsByName.keys()].map((fileName) => summarizeFileForRestore({ name: fileName }))
-                                            ).map((entry) => (
-                                                <div key={entry.fileName} className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                                                    <div className="flex items-start justify-between gap-2">
-                                                        <div className="min-w-0">
-                                                            <div className="text-sm font-bold text-gray-900 dark:text-white">{getBackupFileDisplayName(entry.fileName)}</div>
-                                                            <div className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400" dir="ltr">{entry.fileName}</div>
-                                                        </div>
-                                                        <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
-                                                            {getRestoreActionLabel(entry)}
-                                                        </span>
-                                                    </div>
-                                                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
-                                                        <span>{getRestoreStatusLabel(entry)}</span>
-                                                        {entry.scope && <span dir="ltr">{entry.scope}</span>}
-                                                        {Number.isFinite(Number(entry.recordCount)) && (
-                                                            <span>{Number(entry.recordCount)} רשומות</span>
-                                                        )}
-                                                    </div>
+                                        <h3 className="text-lg font-black text-gray-900 dark:text-white">בחירת פריטים לשחזור</h3>
+                                        <div className="mt-4 space-y-3">
+                                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                                    <span className="font-bold text-gray-700 dark:text-gray-200">
+                                                        נבחרו {restoreSelectionSummary.selectedCount} מתוך {restoreSelectionSummary.selectableCount} פריטים
+                                                    </span>
+                                                    {restoreSelectionSummary.selectedRecordCount > 0 && (
+                                                        <span className="mr-2">({restoreSelectionSummary.selectedRecordCount} רשומות)</span>
+                                                    )}
+                                                    {restoreSelectionSummary.nonRestorableCount > 0 && (
+                                                        <span className="mr-2">| לא ניתנים לבחירה: {restoreSelectionSummary.nonRestorableCount}</span>
+                                                    )}
                                                 </div>
-                                            ))}
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={selectAllRestoreEntries}
+                                                        className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-[11px] font-bold text-gray-700 transition hover:bg-gray-100 dark:border-white/10 dark:text-gray-200 dark:hover:bg-white/10"
+                                                        disabled={restoreSelectionSummary.allSelected}
+                                                    >
+                                                        סימון הכל
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={clearRestoreSelection}
+                                                        className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-[11px] font-bold text-gray-700 transition hover:bg-gray-100 dark:border-white/10 dark:text-gray-200 dark:hover:bg-white/10"
+                                                        disabled={restoreSelectionSummary.selectedCount === 0}
+                                                    >
+                                                        נקה בחירה
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {restoreSelectionSummary.destructiveSelected && (
+                                                <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+                                                    אזהרה: בחירת פריטים ריקים תחליף/ימחק נתונים קיימים באותו פריט בעת השחזור.
+                                                </div>
+                                            )}
+
+                                            {restoreSelectionSummary.selectedCount === 0 ? (
+                                                <div className="rounded-xl border border-gray-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                                                    יש לבחור לפחות פריט אחד כדי להמשיך.
+                                                </div>
+                                            ) : null}
+
+                                            <div className="max-h-[500px] space-y-2 overflow-y-auto pr-1">
+                                                {(restoreModal.restoreEntries?.length
+                                                    ? groupedRestoreEntries
+                                                    : [{ scope: 'כללי', entries: [...restoreModal.fileTextsByName.keys()].map((fileName) => summarizeFileForRestore({ name: fileName })) }]
+                                                ).map((group) => (
+                                                    <div key={group.scope} className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/[0.04]">
+                                                        <div className="border-b border-gray-200 px-3 py-2 text-xs font-bold dark:border-white/10">
+                                                            {group.scope}
+                                                        </div>
+                                                        <div className="divide-y divide-gray-200 dark:divide-white/10">
+                                                            {group.entries.map((entry) => {
+                                                                const restoreUnitId = entry.restoreUnitId;
+                                                                const isChecked = selectedRestoreUnitSet.has(restoreUnitId);
+                                                                const isDisabled = !entry.canRestore;
+                                                                const isDestructive = isDestructiveRestoreEntry(entry);
+                                                                const rowId = `restore-${restoreUnitId}`;
+                                                                return (
+                                                                    <label
+                                                                        key={restoreUnitId}
+                                                                        htmlFor={rowId}
+                                                                        className={`flex gap-2 px-3 py-2 ${isDisabled ? 'opacity-60' : ''}`}
+                                                                    >
+                                                                        <input
+                                                                            id={rowId}
+                                                                            type="checkbox"
+                                                                            className="mt-1 h-4 w-4 shrink-0 border-gray-300 text-primary focus:ring-primary disabled:cursor-not-allowed"
+                                                                            checked={isChecked}
+                                                                            disabled={isDisabled}
+                                                                            onChange={(event) => toggleRestoreUnitSelection(restoreUnitId, event.target.checked)}
+                                                                        />
+                                                                        <div className="min-w-0">
+                                                                            <div className="text-sm font-bold text-gray-900 dark:text-white">{getBackupFileDisplayName(entry.fileName)}</div>
+                                                                            <div className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400" dir="ltr">{entry.fileName}</div>
+                                                                            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                                                                                <span>{getRestoreStatusLabel(entry)}</span>
+                                                                                <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+                                                                                    {getRestoreActionLabel(entry)}
+                                                                                </span>
+                                                                                {entry.scope && (
+                                                                                    <span className="rounded-full border border-gray-200 bg-white px-2 py-0.5 dark:border-white/10 dark:bg-[#1b1f2a]">
+                                                                                        {entry.scope}
+                                                                                    </span>
+                                                                                )}
+                                                                                {Number.isFinite(Number(entry.recordCount)) && (
+                                                                                    <span>{Number(entry.recordCount)} רשומות</span>
+                                                                                )}
+                                                                                {isDestructive && (
+                                                                                    <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                                                                                        הרסני
+                                                                                    </span>
+                                                                                )}
+                                                                                {entry.disableReason && (
+                                                                                    <span className="mt-0.5 text-red-600 dark:text-red-300">({entry.disableReason})</span>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    </label>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
+
+                                        {restoreResult ? (
+                                            <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-3 dark:border-primary/30 dark:bg-primary/10">
+                                                <div className="text-sm font-black text-gray-900 dark:text-white">תוצאות השחזור</div>
+                                                <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                                    סטטוס: <span className="font-bold text-gray-800 dark:text-gray-100">{restoreResult.status || 'completed'}</span>
+                                                </div>
+                                                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                    שוחזרו: {restoreResult.restored?.length || restoreResult.restoredFiles || 0} · נכשלים: {restoreResult.failed?.length || restoreResult.failedFiles || 0}
+                                                </div>
+                                                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                    פריטים שנבחרו: {(restoreResult.selectedRestoreUnitIds || []).length}
+                                                    {restoreResult.selectedRecordCount ? ` · ${restoreResult.selectedRecordCount} רשומות` : ''}
+                                                </div>
+                                                {restoreResult.notSelected?.length ? (
+                                                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                        לא נבחרו לשחזור בכוונה: {restoreResult.notSelected.length}
+                                                    </div>
+                                                ) : null}
+                                                {restoreResult.preRestoreBackupId ? (
+                                                    <div className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">
+                                                        גיבוי בטיחות: {restoreResult.preRestoreBackupId}
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                        ) : null}
                                     </div>
                                 </div>
                             )}
@@ -1443,14 +1848,14 @@ export default function AdminBackupManagement() {
                             <div className="text-xs text-gray-500 dark:text-gray-400">
                                 {mongoBackupStore
                                     ? 'לפני שחזור יישמר גיבוי בטיחות ב-Mongo של מצב האתר הנוכחי.'
-                                    : (useLocalBackupStore
+                                : (useLocalBackupStore
                                         ? 'לפני שחזור יישמר גיבוי בטיחות מקומי של מצב הפיתוח הנוכחי.'
                                         : 'לפני שחזור ייווצר גיבוי בטיחות של המצב הנוכחי.')}
                             </div>
                             <button
                                 type="button"
                                 onClick={handleRestoreSelectedBackup}
-                                disabled={isRestoring || restoreModal.loading || Boolean(restoreModal.error) || !restoreModal.preview}
+                                disabled={isRestoring || restoreModal.loading || Boolean(restoreModal.error) || !restoreModal.preview || restoreSelectionSummary.selectedCount === 0}
                                 className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-black text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 {isRestoring ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
