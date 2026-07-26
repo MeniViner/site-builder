@@ -102,7 +102,7 @@ describe('local file bridge directory rendering', () => {
     expect(html).toContain('data-file-shell')
     expect(html).toContain('data-view="grid"')
     expect(html).toContain(`<h1 dir="auto">${path.basename(dir)}</h1>`)
-    expect(html).toContain('<span lang="en">SITE BUILDER</span> · סייר הקבצים הארגוני')
+    expect(html).toContain('מתנ״ה | סייר קבצים הארגוני')
     expect(html).toContain('data-action="portal-home"')
     expect(html).toContain("window.parent.postMessage({ type: 'site-builder:navigate-home' }, '*')")
     expect(html).toContain('font-family: "Segoe UI", Arial, sans-serif')

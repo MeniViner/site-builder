@@ -727,6 +727,14 @@ function renderBridgeStyles() {
       letter-spacing: 0;
     }
 
+    .brand-title {
+      margin: 0 0 3px;
+      color: hsl(var(--color-primary) / 0.95);
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 0.2px;
+    }
+
     h1 {
       margin: 0;
       color: var(--color-text-primary);
@@ -3030,7 +3038,7 @@ export function renderDirectoryPage(model, { allowNativeOpen = true, bridgePath 
         <div class="title-cluster">
           <span class="brand-mark">${renderIcon('folder')}</span>
           <div>
-            <p class="eyebrow"><span lang="en">SITE BUILDER</span> · סייר הקבצים הארגוני</p>
+            <p class="brand-title">מתנ״ה | סייר קבצים הארגוני</p>
             <h1 dir="auto">${htmlEscape(currentFolderName)}</h1>
           </div>
         </div>
@@ -3052,8 +3060,7 @@ export function renderDirectoryPage(model, { allowNativeOpen = true, bridgePath 
           <button class="icon-button" type="button" data-action="copy" title="העתק נתיב" aria-label="העתק נתיב">${renderIcon('copy')}</button>
         </span>
         <form class="path-form" action="${htmlEscape(bridgePath)}" method="get">
-          <label class="path-label" for="path-input">נתיב רשת</label>
-          <input id="path-input" class="path-input" name="path" value="${htmlEscape(model.currentPath)}" autocomplete="off" spellcheck="false" />
+          <input id="path-input" class="path-input" name="path" value="${htmlEscape(model.currentPath)}" autocomplete="off" spellcheck="false" aria-label="נתיב" />
           <input type="hidden" name="base" value="${htmlEscape(model.currentPath)}" />
           <button class="text-button" type="submit">עבור</button>
         </form>
