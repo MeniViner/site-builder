@@ -100,7 +100,7 @@ describe('local file bridge directory rendering', () => {
 
     const html = renderDirectoryPage(model)
     expect(html).toContain('data-file-shell')
-    expect(html).toContain('data-view="list"')
+    expect(html).toContain('data-view="grid"')
     expect(html).toContain(`<h1 dir="auto">${path.basename(dir)}</h1>`)
     expect(html).toContain('<span lang="en">SITE BUILDER</span> · סייר הקבצים הארגוני')
     expect(html).toContain('data-action="portal-home"')
@@ -114,7 +114,7 @@ describe('local file bridge directory rendering', () => {
     expect(html).toContain('data-search-results')
     expect(html).toContain('data-action="back"')
     expect(html).toContain('data-view-button="grid"')
-    expect(html).toContain('data-view-button="list" aria-pressed="true"')
+    expect(html).toContain('data-view-button="grid" aria-pressed="true"')
     expect(html).toContain('<nav class="toolbar"')
     expect(html).toContain('<aside class="navigation-pane"')
     expect(html).toContain('גישה מהירה')

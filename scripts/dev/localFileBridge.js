@@ -2785,10 +2785,10 @@ function renderBridgeScript({ currentPath, currentHref = '', parentHref, bridgeP
         try {
           return localStorage.getItem(state.viewStorageKey);
         } catch {
-          return 'list';
+          return 'grid';
         }
       })();
-      setView(savedView === 'grid' ? 'grid' : 'list');
+      setView(savedView === 'list' ? 'list' : 'grid');
 
       document.querySelectorAll('[data-view-button]').forEach((button) => {
         button.addEventListener('click', () => setView(button.dataset.viewButton));
@@ -3024,7 +3024,7 @@ export function renderDirectoryPage(model, { allowNativeOpen = true, bridgePath 
   ${renderBridgeStyles()}
 </head>
 <body>
-  <div class="file-shell" data-file-shell data-view="list">
+  <div class="file-shell" data-file-shell data-view="grid">
     <div class="app-frame">
       <header class="app-header">
         <div class="title-cluster">
@@ -3058,8 +3058,8 @@ export function renderDirectoryPage(model, { allowNativeOpen = true, bridgePath 
           <button class="text-button" type="submit">עבור</button>
         </form>
         <span class="view-toggle" role="group" aria-label="מצב תצוגה">
-          <button class="view-button" type="button" data-view-button="grid" aria-pressed="false" title="תצוגת קוביות" aria-label="תצוגת קוביות">${renderIcon('grid')}</button>
-          <button class="view-button" type="button" data-view-button="list" aria-pressed="true" title="תצוגת פרטים" aria-label="תצוגת פרטים">${renderIcon('list')}</button>
+          <button class="view-button" type="button" data-view-button="grid" aria-pressed="true" title="תצוגת קוביות" aria-label="תצוגת קוביות">${renderIcon('grid')}</button>
+          <button class="view-button" type="button" data-view-button="list" aria-pressed="false" title="תצוגת פרטים" aria-label="תצוגת פרטים">${renderIcon('list')}</button>
         </span>
       </nav>
 
@@ -3106,7 +3106,7 @@ export function renderBridgeErrorPage({ statusCode = 404, title = 'לא ניתן
   ${renderBridgeStyles()}
 </head>
 <body>
-  <div class="file-shell" data-file-shell data-view="list">
+  <div class="file-shell" data-file-shell data-view="grid">
     <div class="app-frame">
       <div class="error-state">
         <div>
