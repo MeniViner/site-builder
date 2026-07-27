@@ -1,3 +1,8 @@
 cd /Users/meni/dev/site-builder
 
-7zz a "${PWD##*/}-source-$(date +%Y%m%d-%H%M).7z" . -t7z -mx=9 -m0=lzma2 -ms=on -mmt=on -xr'!.git' -xr'!node_modules' -xr'!.env*' -xr'!.idea' -xr'!.vscode' -xr'!.DS_Store' -xr'!__MACOSX' -xr'!test' -xr'!tests' -xr'!__tests__' -xr'!fixtures' -xr'!*.test.*' -xr'!*.spec.*' -xr'!docs' -xr'!documentation' -xr'!dist' -xr'!build' -xr'!out' -xr'!coverage' -xr'!.cache' -xr'!.vite' -xr'!.turbo' -xr'!offline-artifacts' -xr'!*.log' -xr'!*.map' -xr'!*.zip' -xr'!*.7z' -xr'!*.rar' -xr'!*.tar' -xr'!*.gz'
+archive="${PWD##*/}-source-$(date +%Y%m%d-%H%M).7z"
+
+7zz a "$archive" . -t7z -mx=9 -m0=lzma2 -ms=on -mmt=on -xr'!.git' -xr'!node_modules' -xr'!.env*' -xr'!.idea' -xr'!.vscode' -xr'!.DS_Store' -xr'!__MACOSX' -xr'!test' -xr'!tests' -xr'!__tests__' -xr'!fixtures' -xr'!*.test.*' -xr'!*.spec.*' -xr'!docs' -xr'!documentation' -xr'!dist' -xr'!build' -xr'!out' -xr'!coverage' -xr'!.cache' -xr'!.vite' -xr'!.turbo' -xr'!offline-artifacts' -xr'!*.log' -xr'!*.map' -xr'!*.zip' -xr'!*.7z' -xr'!*.rar' -xr'!*.tar' -xr'!*.gz'
+
+# Real .env files remain excluded. Add back only tracked configuration examples.
+git ls-files -z -- '.env*.example' '**/.env*.example' | xargs -0 7zz a "$archive"
