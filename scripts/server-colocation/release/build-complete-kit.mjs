@@ -1,20 +1,23 @@
 #!/usr/bin/env node
 /**
- * Offline release assembler for the Windows Server transition package.
- * Inputs are deliberately local files: this script never downloads packages,
- * runs npm, or invokes a TypeScript build.
+ * Release assembler for the Windows Server transition package.
+ * Windows runtime/tool inputs are deliberately local files. JavaScript runtime
+ * dependencies are installed into clean staging directories with the committed
+ * production lockfile; the script never copies source-repository node_modules
+ * or invokes a TypeScript build.
  */
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { createRequire } from 'node:module';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
 const SOURCE_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../..');
-const requireFromSource = createRequire(path.join(SOURCE_ROOT, 'package.json'));
+const RUNTIME_DEPENDENCIES_SOURCE = path.join(
+  SOURCE_ROOT,
+  'scripts/server-colocation/release/runtime-dependencies',
+);
 const WINDOWS_TOOLS = ['bsondump.exe', 'mongodump.exe', 'mongoexport.exe', 'mongofiles.exe', 'mongoimport.exe', 'mongorestore.exe', 'mongostat.exe', 'mongotop.exe'];
-const APP_PACKAGES = ['cors', 'dotenv', 'express', 'mongodb', 'zod'];
 const MAC_MAGIC = new Set(['cffaedfe', 'cefaedfe', 'feedfacf', 'feedface', 'cafebabe', 'bebafeca']);
 
 function argsOf(argv) {
@@ -41,6 +44,7 @@ async function exists(target) { try { await fs.access(target); return true; } ca
 async function sha256(file) { const input = await fs.readFile(file); return createHash('sha256').update(input).digest('hex'); }
 async function mkdir(target) { await fs.mkdir(target, { recursive: true }); }
 async function copy(source, target) { await mkdir(path.dirname(target)); await fs.copyFile(source, target); }
+async function readJson(target) { return JSON.parse(await fs.readFile(target, 'utf8')); }
 
 function isForbiddenPath(relativePath) {
   const segments = relativePath.split(path.sep);
@@ -56,22 +60,90 @@ async function copyTree(source, destination, filter = () => true) {
   });
 }
 
-async function copyProductionPackages(destination) {
-  const visited = new Set();
-  async function visit(packageName) {
-    if (visited.has(packageName)) return;
-    visited.add(packageName);
-    let packageJsonPath;
-    try { packageJsonPath = requireFromSource.resolve(`${packageName}/package.json`); } catch { return; }
-    const packageDir = path.dirname(packageJsonPath);
-    const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
-    const relative = packageName.startsWith('@') ? packageName.split('/').join(path.sep) : packageName;
-    await copyTree(packageDir, path.join(destination, relative), (entry, rel) => !isForbiddenPath(rel));
-    const nested = { ...(packageJson.dependencies || {}), ...(packageJson.optionalDependencies || {}) };
-    await Promise.all(Object.keys(nested).map(visit));
+async function pruneForbiddenTree(root, current = root) {
+  for (const entry of await fs.readdir(current, { withFileTypes: true })) {
+    const absolute = path.join(current, entry.name);
+    const relative = path.relative(root, absolute);
+    if (isForbiddenPath(relative)) {
+      await fs.rm(absolute, { recursive: true, force: true });
+    } else if (entry.isDirectory()) {
+      await pruneForbiddenTree(root, absolute);
+    }
   }
-  for (const packageName of APP_PACKAGES) await visit(packageName);
-  return [...visited].sort();
+}
+
+function satisfiesCaret(version, range) {
+  const versionParts = String(version).split('.').map(Number);
+  const match = String(range).match(/^\^(\d+)\.(\d+)\.(\d+)$/u);
+  if (!match || versionParts.length !== 3 || versionParts.some((part) => !Number.isInteger(part))) return false;
+  const minimum = match.slice(1).map(Number);
+  if (versionParts[0] !== minimum[0]) return false;
+  for (let index = 0; index < 3; index += 1) {
+    if (versionParts[index] > minimum[index]) return true;
+    if (versionParts[index] < minimum[index]) return false;
+  }
+  return true;
+}
+
+async function installProductionDependencies(destination) {
+  await mkdir(destination);
+  await copy(
+    path.join(RUNTIME_DEPENDENCIES_SOURCE, 'package.json'),
+    path.join(destination, 'package.json'),
+  );
+  await copy(
+    path.join(RUNTIME_DEPENDENCIES_SOURCE, 'package-lock.json'),
+    path.join(destination, 'package-lock.json'),
+  );
+  await run(
+    'npm',
+    ['ci', '--omit=dev', '--omit=optional', '--ignore-scripts', '--no-audit', '--no-fund'],
+    {
+      cwd: destination,
+      env: { ...process.env, npm_config_update_notifier: 'false' },
+    },
+  );
+
+  const lock = await readJson(path.join(destination, 'package-lock.json'));
+  const mongodbPackage = await readJson(path.join(destination, 'node_modules/mongodb/package.json'));
+  const bsonPackage = await readJson(path.join(destination, 'node_modules/bson/package.json'));
+  const lockedMongo = lock.packages?.['node_modules/mongodb'];
+  const lockedBson = lock.packages?.['node_modules/bson'];
+  const bsonRequirement = mongodbPackage.dependencies?.bson;
+
+  if (
+    !lockedMongo
+    || !lockedBson
+    || mongodbPackage.version !== lockedMongo.version
+    || bsonPackage.version !== lockedBson.version
+    || !satisfiesCaret(bsonPackage.version, bsonRequirement)
+  ) {
+    throw new Error('Staged mongodb and bson do not match the committed compatible lockfile pair.');
+  }
+
+  await run(
+    process.execPath,
+    ['-e', "const mongodb=require('mongodb');const bson=require('bson');if(!mongodb.MongoClient||typeof bson.ByteUtils?.encodeUTF8Into!=='function')process.exit(2)"],
+    { cwd: destination, env: { ...process.env, NODE_PATH: '' } },
+  );
+
+  const packages = Object.entries(lock.packages || {})
+    .filter(([relative]) => relative.startsWith('node_modules/'))
+    .map(([relative, metadata]) => ({
+      path: relative,
+      version: metadata.version,
+    }))
+    .sort((left, right) => left.path.localeCompare(right.path));
+
+  await fs.rm(path.join(destination, 'package-lock.json'));
+  await pruneForbiddenTree(path.join(destination, 'node_modules'));
+  return {
+    packages,
+    lockfileVersion: lock.lockfileVersion,
+    mongodbVersion: mongodbPackage.version,
+    bsonVersion: bsonPackage.version,
+    bsonRequirement,
+  };
 }
 
 async function listFiles(root) {
@@ -150,7 +222,7 @@ async function buildDataApi({ staging, nodeZip }) {
   const root = path.join(staging, 'sitebuilder-data-api-windows');
   await mkdir(root);
   await copyReleaseDocs(root);
-  await fs.writeFile(path.join(root, 'CONFIGURATION.env.example'), `NODE_ENV=production\nSTORAGE_BACKEND=mongo\nMONGODB_URI=replace-in-server-secret-store\nMONGODB_DB_NAME=replace-with-target-database\nSERVER_PORT=3001\nCORS_ORIGINS=https://replace-with-approved-origin\nADMIN_API_KEY=replace-in-server-secret-store\nSITE_COLLECTION_PREFIX=site_\nREQUIRE_STARTUP_COLLECTIONS=true\n`);
+  await fs.writeFile(path.join(root, 'CONFIGURATION.env.example'), `NODE_ENV=production\nSERVER_PORT=3001\nSTORAGE_BACKEND=mongo\nMONGODB_URI=mongodb://127.0.0.1:27018/sitebuilder_site_data\nMONGODB_DB_NAME=sitebuilder_site_data\nADMIN_API_KEY=<required-builder-admin-api-key>\nCORS_ORIGINS=https://replace-with-approved-builder-origin\nSITE_COLLECTION_PREFIX=site_\nREQUIRE_STARTUP_COLLECTIONS=true\n`);
   const nodeScratch = path.join(staging, '.node-extract');
   await fs.rm(nodeScratch, { recursive: true, force: true });
   await mkdir(nodeScratch);
@@ -160,13 +232,27 @@ async function buildDataApi({ staging, nodeZip }) {
   await copy(path.join(nodeScratch, nodeRoot, 'node.exe'), path.join(root, 'runtime', 'node.exe'));
   await fs.rm(nodeScratch, { recursive: true, force: true });
   await copyTree(path.join(SOURCE_ROOT, 'server'), path.join(root, 'app', 'server'), (_entry, rel) => !isForbiddenPath(rel));
-  await fs.writeFile(path.join(root, 'app', 'package.json'), '{"name":"sitebuilder-data-api-runtime","private":true,"type":"module"}\n');
-  const packages = await copyProductionPackages(path.join(root, 'app', 'node_modules'));
+  await copy(
+    path.join(SOURCE_ROOT, 'scripts/server-colocation/release/validate-builder-smoke-env.mjs'),
+    path.join(root, 'app', 'validate-builder-smoke-env.mjs'),
+  );
+  const dependencyInfo = await installProductionDependencies(path.join(root, 'app'));
   await copyTree(path.join(SOURCE_ROOT, 'scripts/server-colocation/iis'), path.join(root, 'iis'), (_entry, rel) => !isForbiddenPath(rel));
   const webTemplate = await fs.readFile(path.join(root, 'iis', 'web.config.template'), 'utf8');
   await fs.writeFile(path.join(root, 'web.config'), webTemplate.replaceAll('__NODE_ENTRY__', 'app/server/index.js'));
-  await fs.writeFile(path.join(root, 'START-LOCAL-SMOKE.cmd'), '@echo off\r\nsetlocal EnableExtensions\r\nset "SERVER_PORT=3001"\r\n"%~dp0runtime\\node.exe" "%~dp0app\\server\\index.js"\r\n');
-  await fs.writeFile(path.join(root, 'PACKAGE-CONTENTS.json'), `${JSON.stringify({ component: 'sitebuilder-data-api', nodeRuntime: path.basename(nodeZip), productionPackages: packages }, null, 2)}\n`);
+  await fs.writeFile(path.join(root, 'START-LOCAL-SMOKE.cmd'), '@echo off\r\nsetlocal EnableExtensions\r\nrem Safety check rejects HUB MONGO_URI, sitebuilder_hub, and SERVER_PORT 4100 without printing values.\r\npushd "%~dp0" >nul\r\n"%~dp0runtime\\node.exe" "%~dp0app\\validate-builder-smoke-env.mjs"\r\nif errorlevel 1 (\r\n  popd\r\n  exit /b 2\r\n)\r\n"%~dp0runtime\\node.exe" "%~dp0app\\server\\index.js"\r\nset "BUILDER_EXIT=%ERRORLEVEL%"\r\npopd\r\nexit /b %BUILDER_EXIT%\r\n');
+  await fs.writeFile(path.join(root, 'PACKAGE-CONTENTS.json'), `${JSON.stringify({
+    component: 'sitebuilder-data-api',
+    nodeRuntime: path.basename(nodeZip),
+    productionPackages: dependencyInfo.packages,
+    dependencyLock: {
+      source: 'scripts/server-colocation/release/runtime-dependencies/package-lock.json',
+      lockfileVersion: dependencyInfo.lockfileVersion,
+      mongodbVersion: dependencyInfo.mongodbVersion,
+      bsonVersion: dependencyInfo.bsonVersion,
+      bsonRequirement: dependencyInfo.bsonRequirement,
+    },
+  }, null, 2)}\n`);
   await writeInternalManifest(root);
   await assertWindowsOnly(root);
   return root;
@@ -185,10 +271,23 @@ async function buildMongoTools({ staging, msi, nodeZip }) {
   await copy(path.join(nodeScratch, nodeRoot, 'node.exe'), path.join(root, 'runtime', 'node.exe'));
   await fs.rm(nodeScratch, { recursive: true, force: true });
   await copyTree(path.join(SOURCE_ROOT, 'scripts/server-colocation/migration'), path.join(root, 'migration'), (_entry, rel) => !isForbiddenPath(rel));
-  const packages = await copyProductionPackages(path.join(root, 'node_modules'));
+  const dependencyInfo = await installProductionDependencies(root);
   await fs.writeFile(path.join(root, 'RUN-INVENTORY.cmd'), '@echo off\r\n"%~dp0runtime\\node.exe" "%~dp0migration\\inventory.mjs" %*\r\n');
   await fs.writeFile(path.join(root, 'RUN-VERIFY.cmd'), '@echo off\r\n"%~dp0runtime\\node.exe" "%~dp0migration\\verify.mjs" %*\r\n');
-  await fs.writeFile(path.join(root, 'PACKAGE-CONTENTS.json'), `${JSON.stringify({ component: 'sitebuilder-mongo-transfer-tools', mongoTools: WINDOWS_TOOLS, nodeRuntime: path.basename(nodeZip), productionPackages: packages, msiSha256: await sha256(msi) }, null, 2)}\n`);
+  await fs.writeFile(path.join(root, 'PACKAGE-CONTENTS.json'), `${JSON.stringify({
+    component: 'sitebuilder-mongo-transfer-tools',
+    mongoTools: WINDOWS_TOOLS,
+    nodeRuntime: path.basename(nodeZip),
+    productionPackages: dependencyInfo.packages,
+    dependencyLock: {
+      source: 'scripts/server-colocation/release/runtime-dependencies/package-lock.json',
+      lockfileVersion: dependencyInfo.lockfileVersion,
+      mongodbVersion: dependencyInfo.mongodbVersion,
+      bsonVersion: dependencyInfo.bsonVersion,
+      bsonRequirement: dependencyInfo.bsonRequirement,
+    },
+    msiSha256: await sha256(msi),
+  }, null, 2)}\n`);
   await writeInternalManifest(root);
   await assertWindowsOnly(root);
   return root;

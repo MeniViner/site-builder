@@ -1,0 +1,13 @@
+{
+  "name": "sitebuilder-data-api-runtime",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "bson": "7.2.0",
+    "cors": "2.8.6",
+    "dotenv": "17.4.2",
+    "express": "5.2.1",
+    "mongodb": "7.2.0",
+    "zod": "4.4.3"
+  }
+}

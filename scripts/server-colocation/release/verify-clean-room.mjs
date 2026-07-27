@@ -54,8 +54,74 @@ async function main() {
     }
     const dataRoot = path.join(cleanRoom, 'sitebuilder-data-api-windows');
     const mongoRoot = path.join(cleanRoom, 'sitebuilder-mongo-transfer-tools-windows');
-    for (const required of [path.join(dataRoot, 'runtime', 'node.exe'), path.join(dataRoot, 'app', 'node_modules', 'express', 'package.json'), path.join(mongoRoot, 'bin', 'mongorestore.exe'), path.join(mongoRoot, 'runtime', 'node.exe')]) await fs.access(required);
-    process.stdout.write(JSON.stringify({ ok: true, cleanRoom, checks: ['extract outside repository', 'checksums', 'path containing spaces', 'offline payload', 'no npm install', 'no TypeScript build', 'Windows-only binaries', 'no secrets or production data'] }) + '\n');
+    for (const required of [
+      path.join(dataRoot, 'runtime', 'node.exe'),
+      path.join(dataRoot, 'app', 'node_modules', 'express', 'package.json'),
+      path.join(dataRoot, 'app', 'node_modules', 'mongodb', 'package.json'),
+      path.join(dataRoot, 'app', 'node_modules', 'bson', 'package.json'),
+      path.join(dataRoot, 'app', 'validate-builder-smoke-env.mjs'),
+      path.join(mongoRoot, 'bin', 'mongorestore.exe'),
+      path.join(mongoRoot, 'runtime', 'node.exe'),
+    ]) await fs.access(required);
+
+    const bsonInstallations = (await files(path.join(dataRoot, 'app', 'node_modules')))
+      .filter((file) => path.basename(file) === 'package.json' && path.basename(path.dirname(file)) === 'bson');
+    if (bsonInstallations.length !== 1) throw new Error(`Expected one packaged bson installation, found ${bsonInstallations.length}`);
+
+    const contents = JSON.parse(await fs.readFile(path.join(dataRoot, 'PACKAGE-CONTENTS.json'), 'utf8'));
+    if (
+      contents.dependencyLock?.mongodbVersion !== '7.2.0'
+      || contents.dependencyLock?.bsonVersion !== '7.2.0'
+      || contents.dependencyLock?.bsonRequirement !== '^7.2.0'
+    ) {
+      throw new Error('Builder dependency metadata does not contain the locked mongodb/bson pair.');
+    }
+
+    const configuration = await fs.readFile(path.join(dataRoot, 'CONFIGURATION.env.example'), 'utf8');
+    for (const requiredLine of [
+      'NODE_ENV=production',
+      'SERVER_PORT=3001',
+      'MONGODB_URI=mongodb://127.0.0.1:27018/sitebuilder_site_data',
+      'MONGODB_DB_NAME=sitebuilder_site_data',
+      'ADMIN_API_KEY=<required-builder-admin-api-key>',
+    ]) {
+      if (!configuration.split(/\r?\n/u).includes(requiredLine)) {
+        throw new Error(`Builder configuration is missing: ${requiredLine}`);
+      }
+    }
+    const configurationKeys = configuration
+      .split(/\r?\n/u)
+      .filter(Boolean)
+      .map((line) => line.split('=', 1)[0]);
+    const forbiddenHubKey = configurationKeys.find((key) => (
+      key === 'MONGO_URI'
+      || key === 'AUTH_ENABLED'
+      || /JOB|SCHEDUL|APPROVAL|^HUB_DANGEROUS_|SHAREPOINT.*COOKIE/iu.test(key)
+    ));
+    if (forbiddenHubKey) throw new Error(`Forbidden HUB configuration key: ${forbiddenHubKey}`);
+
+    const startCommand = await fs.readFile(path.join(dataRoot, 'START-LOCAL-SMOKE.cmd'), 'utf8');
+    for (const guard of ['MONGO_URI', 'sitebuilder_hub', 'SERVER_PORT 4100', 'validate-builder-smoke-env.mjs']) {
+      if (!startCommand.includes(guard)) throw new Error(`Builder smoke command is missing guard: ${guard}`);
+    }
+
+    process.stdout.write(JSON.stringify({
+      ok: true,
+      cleanRoom,
+      checks: [
+        'extract outside repository',
+        'checksums',
+        'path containing spaces',
+        'offline payload',
+        'locked mongodb/bson payload',
+        'Builder-only configuration',
+        'HUB environment guards',
+        'no npm install on server',
+        'no TypeScript build',
+        'Windows-only binaries',
+        'no secrets or production data',
+      ],
+    }) + '\n');
   } finally { await fs.rm(cleanRoom, { recursive: true, force: true }); }
 }
 main().catch((error) => { process.stderr.write(`Clean-room verification failed: ${error.message}\n`); process.exitCode = 1; });
