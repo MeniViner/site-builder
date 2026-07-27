@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>בדיקת יכולת — תיקיית רשת ב־Chrome</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Site Builder · Hard Gate 0</p>
+          <h1>בדיקת גישה לתיקיית רשת</h1>
+          <p>
+            דף מבודד לקריאה בלבד. הוא אינו שולח שמות, נתיבים או קבצים לשרת.
+          </p>
+        </div>
+        <span id="gate-badge" class="badge neutral">טרם נבדק</span>
+      </header>
+
+      <section class="card" aria-labelledby="environment-title">
+        <div class="section-heading">
+          <div>
+            <h2 id="environment-title">סביבת הבדיקה</h2>
+            <p>יש לבצע את הבדיקה ב־Chrome על תחנת Windows הארגונית האמיתית.</p>
+          </div>
+          <span id="support-badge" class="badge neutral">בודק תמיכה…</span>
+        </div>
+
+        <dl class="environment-grid">
+          <div>
+            <dt>Secure Context</dt>
+            <dd id="secure-context">—</dd>
+          </div>
+          <div>
+            <dt>Chrome</dt>
+            <dd id="chrome-version">—</dd>
+          </div>
+          <div>
+            <dt>מערכת</dt>
+            <dd id="platform">—</dd>
+          </div>
+          <div>
+            <dt>Handle שמור</dt>
+            <dd id="stored-handle">—</dd>
+          </div>
+        </dl>
+
+        <div class="form-grid">
+          <label>
+            גרסת Windows מדויקת
+            <input id="windows-version" autocomplete="off" placeholder="לדוגמה: Windows 11 23H2" />
+          </label>
+          <label>
+            גרסת Chrome מדויקת, אם הזיהוי אינו מלא
+            <input id="chrome-version-manual" autocomplete="off" placeholder="chrome://version" />
+          </label>
+          <label class="wide">
+            הנתיב שנבדק — לתיעוד בלבד
+            <input id="tested-path" autocomplete="off" dir="ltr" placeholder="\\server\share\folder" />
+          </label>
+        </div>
+
+        <fieldset>
+          <legend>מאפייני הנתיב בבדיקה הנוכחית</legend>
+          <div class="check-grid">
+            <label><input id="case-hostname" type="checkbox" /> UNC עם hostname</label>
+            <label><input id="case-spaces" type="checkbox" /> נתיב עם רווחים</label>
+            <label><input id="case-hebrew" type="checkbox" /> נתיב עם עברית</label>
+            <label><input id="case-nested" type="checkbox" /> תיקיית משנה מקוננת</label>
+          </div>
+        </fieldset>
+      </section>
+
+      <section class="card" aria-labelledby="run-title">
+        <div class="section-heading">
+          <div>
+            <h2 id="run-title">בדיקת היכולת</h2>
+            <p>
+              הלחצן פותח את בורר התיקיות ישירות מהלחיצה, מבקש קריאה בלבד,
+              מונה תוכן, פותח תיקיית משנה וקורא מטא־דאטה של קובץ.
+            </p>
+          </div>
+          <button id="pick-directory" class="primary" type="button">בחר ובדוק תיקיית רשת</button>
+        </div>
+
+        <ol id="checks" class="checks">
+          <li data-check="picker"><span>פתיחת showDirectoryPicker({ mode: 'read' })</span><strong>ממתין</strong></li>
+          <li data-check="enumerate"><span>מניית התיקייה באמצעות handle.values()</span><strong>ממתין</strong></li>
+          <li data-check="child"><span>פתיחת תיקיית משנה באמצעות getDirectoryHandle()</span><strong>ממתין</strong></li>
+          <li data-check="metadata"><span>קריאת מטא־דאטה באמצעות getFile()</span><strong>ממתין</strong></li>
+          <li data-check="indexeddb"><span>שמירת FileSystemDirectoryHandle ב־IndexedDB</span><strong>ממתין</strong></li>
+          <li data-check="permission"><span>בדיקת הרשאת read באמצעות queryPermission()</span><strong>ממתין</strong></li>
+          <li data-check="reload"><span>שליפת ה־handle לאחר רענון</span><strong>ממתין</strong></li>
+        </ol>
+
+        <div id="current-result" class="result" hidden></div>
+
+        <div class="actions">
+          <button id="reload-page" type="button" disabled>רענן ואמת שמירה</button>
+          <button id="request-permission" type="button" disabled>בקש מחדש הרשאת קריאה</button>
+          <button id="test-stored-handle" type="button" disabled>בדוק שוב את ה־handle השמור</button>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="observations-title">
+        <h2 id="observations-title">תצפיות ידניות נדרשות</h2>
+        <p>
+          Chrome אינו חושף לדף את הנתיב המוחלט, את תוכן מדיניות הארגון או את הבחירה
+          “Allow on every visit”. יש לתעד אותם לפי מה שנראה בפועל.
+        </p>
+
+        <div class="form-grid">
+          <label>
+            הבורר הציג Network locations
+            <select id="network-locations">
+              <option value="">בחרו…</option>
+              <option value="yes">כן</option>
+              <option value="no">לא</option>
+            </select>
+          </label>
+          <label>
+            הוצעה הרשאה קבועה / “Allow on every visit”
+            <select id="persistent-option">
+              <option value="">בחרו…</option>
+              <option value="yes">כן</option>
+              <option value="no">לא</option>
+              <option value="not-applicable">לא רלוונטי — ההרשאה נשארה granted</option>
+            </select>
+          </label>
+          <label>
+            לאחר סגירת כל הלשוניות ופתיחה מחדש
+            <select id="all-tabs-result">
+              <option value="">בחרו…</option>
+              <option value="granted">ה־handle נמצא וההרשאה granted</option>
+              <option value="prompt">ה־handle נמצא ונדרשה בקשת הרשאה</option>
+              <option value="missing">ה־handle לא נמצא</option>
+              <option value="failed">הגישה נכשלה</option>
+            </select>
+          </label>
+          <label>
+            השפעת מדיניות הארגון
+            <select id="policy-result">
+              <option value="">בחרו…</option>
+              <option value="allowed">לא חסמה ולא שינתה את הזרימה</option>
+              <option value="modified">שינתה את הזרימה</option>
+              <option value="blocked">חסמה את הבורר או את הגישה</option>
+              <option value="unknown">לא ידוע</option>
+            </select>
+          </label>
+          <label class="wide">
+            הערות מדויקות, הודעות שגיאה ותיאור מדיניות
+            <textarea id="operator-notes" rows="4"></textarea>
+          </label>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="evidence-title">
+        <div class="section-heading">
+          <div>
+            <h2 id="evidence-title">ראיות והחלטת Gate</h2>
+            <p>שמרו צילום מסך לפני החיבור ואחרי פתיחה חוזרת, והורידו את דוח ה־JSON.</p>
+          </div>
+          <button id="download-report" type="button">הורד דוח בדיקה</button>
+        </div>
+
+        <div id="gate-decision" class="decision neutral">
+          אין עדיין ראיות מספיקות לקבלת החלטה.
+        </div>
+
+        <h3>הרצות שנשמרו בדפדפן זה</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>זמן</th>
+                <th>שם handle</th>
+                <th>נתיב מתועד</th>
+                <th>תוצאה</th>
+              </tr>
+            </thead>
+            <tbody id="runs-table">
+              <tr><td colspan="4">אין הרצות</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <details>
+          <summary>יומן טכני</summary>
+          <pre id="technical-log" dir="ltr"></pre>
+        </details>
+      </section>
+    </main>
+
+    <script type="module" src="./spike.js"></script>
+  </body>
+</html>
