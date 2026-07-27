@@ -68,11 +68,11 @@ On each successful run the page:
 2. Enumerates the selected folder with `for await (const entry of
    handle.values())`.
 3. Opens a child using `getDirectoryHandle(name, { create: false })` when a
-   child directory exists. A folder without a child is recorded as
-   `not_applicable` and does not fail the gate.
+   child directory exists. A folder without a child is recorded as `skipped`
+   and does not fail the gate.
 4. Finds a file within a bounded depth and reads metadata using `getFile()` when
    a file exists. A folder without a readable file is recorded as
-   `not_applicable` and does not fail the gate.
+   `skipped` and does not fail the gate.
 5. Stores the `FileSystemDirectoryHandle` in IndexedDB.
 6. Retrieves it after reload and calls `queryPermission({ mode: "read" })`.
 7. Provides a separate user-gesture button for

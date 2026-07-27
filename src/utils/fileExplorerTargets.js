@@ -47,6 +47,7 @@ function unc(input) {
   if (!segments || segments.length < 2) return null;
   const [server, share, ...rest] = segments;
   if (/\s/u.test(server)) return null;
+  const shareRootPath = `\\\\${server}\\${share}`;
   const canonicalUncPath = `\\\\${server}\\${[share, ...rest].join('\\')}`;
   const shareKey = `unc://${normalizeUncComparisonPart(server)}/${normalizeUncComparisonPart(share)}`;
   const canonicalPrefix = [shareKey, ...rest.map(normalizeUncComparisonPart)].join('/');
@@ -60,6 +61,7 @@ function unc(input) {
     segments: rest,
     server,
     share,
+    shareRootPath,
     shareKey,
   });
 }

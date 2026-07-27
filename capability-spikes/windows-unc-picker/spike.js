@@ -417,9 +417,9 @@ async function runPickerTest() {
       setCheck("child", "pass", `נפתחה “${child.name}”`);
       log("child-directory-opened", { name: child.name });
     } else {
-      currentRun.childDirectoryCheck = "not_applicable";
-      setCheck("child", "warning", "לא רלוונטי — לא נמצאה תיקיית משנה");
-      log("child-directory-not-applicable");
+      currentRun.childDirectoryCheck = "skipped";
+      setCheck("child", "warning", "לא נמצאה תיקיית משנה; הבדיקה דולגה");
+      log("child-directory-skipped");
     }
 
     const metadata = await firstFileMetadata(handle);
@@ -429,9 +429,9 @@ async function runPickerTest() {
       setCheck("metadata", "pass", `${metadata.name} · ${metadata.size} בייט`);
       log("file-metadata-read", metadata);
     } else {
-      currentRun.fileMetadataCheck = "not_applicable";
-      setCheck("metadata", "warning", "לא רלוונטי — לא נמצא קובץ לקריאה");
-      log("file-metadata-not-applicable", {
+      currentRun.fileMetadataCheck = "skipped";
+      setCheck("metadata", "warning", "לא נמצא קובץ לדוגמה; בדיקת המטא־דאטה דולגה");
+      log("file-metadata-skipped", {
         maxDepth: MAX_FILE_SEARCH_DEPTH,
         maxEntries: MAX_ENUMERATED_ENTRIES,
       });

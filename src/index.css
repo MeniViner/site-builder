@@ -1093,6 +1093,18 @@ select,
   white-space: nowrap;
 }
 
+.file-explorer-location-row > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.file-explorer-location-row > div > span {
+  color: #78849a;
+  font-weight: 650;
+}
+
 .file-explorer-location-row span,
 .file-explorer-footer span {
   display: inline-flex;
@@ -1112,7 +1124,7 @@ select,
 .file-explorer-list-header,
 .file-explorer-content.is-list .file-explorer-entry {
   display: grid;
-  grid-template-columns: minmax(15rem, 2fr) minmax(6.5rem, 0.65fr) minmax(5rem, 0.5fr) minmax(8.5rem, 0.75fr) 2.5rem;
+  grid-template-columns: minmax(15rem, 2fr) minmax(6.5rem, 0.65fr) minmax(5rem, 0.5fr) minmax(8.5rem, 0.75fr) minmax(5rem, 0.45fr);
   align-items: center;
 }
 
@@ -1221,12 +1233,18 @@ select,
 
 .file-explorer-entry-action {
   display: inline-flex;
-  width: 2rem;
-  height: 2rem;
+  width: fit-content;
+  min-height: 2rem;
+  padding: 0.3rem 0.5rem;
   align-items: center;
   justify-content: center;
+  gap: 0.3rem;
   border-radius: 0.5rem;
-  color: #8290a5;
+  color: #4e6079;
+  background: #eef3f9;
+  font-size: 0.72rem;
+  font-weight: 650;
+  white-space: nowrap;
 }
 
 .file-explorer-content.is-grid {
@@ -1277,9 +1295,12 @@ select,
 
 .file-explorer-content.is-grid .file-explorer-entry > span:nth-child(2),
 .file-explorer-content.is-grid .file-explorer-entry > span:nth-child(3),
-.file-explorer-content.is-grid .file-explorer-entry > span:nth-child(4),
-.file-explorer-content.is-grid .file-explorer-entry-action {
+.file-explorer-content.is-grid .file-explorer-entry > span:nth-child(4) {
   display: none;
+}
+
+.file-explorer-content.is-grid .file-explorer-entry-action {
+  margin-top: 0.25rem;
 }
 
 .file-explorer-empty {
@@ -1380,9 +1401,20 @@ select,
   color: #6b4c16;
 }
 
+.file-explorer-search-progress button {
+  min-height: 2.25rem;
+  margin-inline-start: auto;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid #adc8ea;
+  border-radius: 0.55rem;
+  color: #315578;
+  background: #fff;
+  font-weight: 650;
+}
+
 .file-explorer-state-card {
   display: flex;
-  width: min(100%, 36rem);
+  width: min(100%, 42rem);
   min-height: 23rem;
   margin: clamp(3rem, 12vh, 8rem) auto;
   padding: clamp(1.5rem, 4vw, 3rem);
@@ -1440,6 +1472,83 @@ select,
   background: #f7f9fc;
   text-align: left;
   white-space: nowrap;
+}
+
+.file-explorer-onboarding-instruction {
+  color: #344158;
+  font-weight: 600;
+}
+
+.file-explorer-onboarding-note {
+  margin-top: 0.75rem !important;
+  color: #6c788c;
+  font-size: 0.82rem;
+}
+
+.file-explorer-path-block {
+  display: grid;
+  width: 100%;
+  margin-top: 1rem;
+  gap: 0.35rem;
+  text-align: start;
+}
+
+.file-explorer-path-block > span {
+  color: #536178;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.file-explorer-path-block > div {
+  display: grid;
+  padding: 0.4rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.9rem;
+  background: #eef4ff;
+  box-shadow:
+    0 0 0 1px rgba(20, 94, 229, 0.12),
+    0 2px 5px rgba(20, 70, 145, 0.07);
+}
+
+.file-explorer-path-block code {
+  min-width: 0;
+  padding: 0.55rem 0.65rem;
+  overflow-x: auto;
+  color: #203a64;
+  white-space: nowrap;
+}
+
+.file-explorer-path-block button {
+  display: inline-flex;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.7rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border: 1px solid #b8cff3;
+  border-radius: 0.65rem;
+  color: #1558c9;
+  background: #fff;
+  font-weight: 700;
+  transition-property: transform, background-color, box-shadow;
+  transition-duration: 140ms;
+}
+
+.file-explorer-path-block button:active {
+  transform: scale(0.96);
+}
+
+.file-explorer-path-block small {
+  color: #9a3e49;
+}
+
+.file-explorer-path-block.is-requested {
+  padding: 0.75rem;
+  border-radius: 0.8rem;
+  background: #f7f9fc;
+  box-shadow: 0 0 0 1px rgba(28, 47, 78, 0.08);
 }
 
 .file-explorer-diagnostics {

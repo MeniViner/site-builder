@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { parseFileExplorerTarget } from '../../utils/fileExplorerTargets';
-import BrowserFileSystemAdapter from './BrowserFileSystemAdapter';
+import BrowserFileSystemAdapter, { classifyFileAction } from './BrowserFileSystemAdapter';
 import { MemoryConnectionRegistry } from './IndexedDbConnectionRegistry';
 import { MockDirectoryHandle, MockFileHandle } from './MockFileSystemAdapter';
 
@@ -101,6 +101,22 @@ describe('BrowserFileSystemAdapter', () => {
     expect(await adapter.listDirectory(empty)).toEqual([]);
   });
 
+  it('accepts folders containing only files or only child directories', async () => {
+    const adapter = adapterWithPicker(tree());
+    const onlyFiles = new MockDirectoryHandle('עברית וקבצים', [
+      new MockFileHandle('מסמך mixed name.txt', { type: 'text/plain' }),
+    ]);
+    const onlyDirectories = new MockDirectoryHandle('Folders only', [
+      new MockDirectoryHandle('תיקיית משנה'),
+    ]);
+    await expect(adapter.listDirectory(onlyFiles)).resolves.toMatchObject([
+      { action: 'preview', isDirectory: false, name: 'מסמך mixed name.txt' },
+    ]);
+    await expect(adapter.listDirectory(onlyDirectories)).resolves.toMatchObject([
+      { isDirectory: true, name: 'תיקיית משנה' },
+    ]);
+  });
+
   it('returns explicit prompt and denied permission states without listing', async () => {
     for (const permission of ['prompt', 'denied']) {
       const root = tree();
@@ -185,7 +201,7 @@ describe('BrowserFileSystemAdapter', () => {
     });
 
     const pdf = new File(['pdf'], 'דוח.pdf', { type: 'application/pdf' });
-    expect(await adapter.openFile({ getFile: async () => pdf })).toMatchObject({ action: 'opened' });
+    expect(await adapter.openFile({ getFile: async () => pdf })).toMatchObject({ action: 'previewed' });
     expect(open).toHaveBeenCalledWith('blob:site-builder-test', '_blank', 'noopener,noreferrer');
 
     const workbook = new File(['sheet'], 'נתונים.xlsx', {
@@ -199,5 +215,58 @@ describe('BrowserFileSystemAdapter', () => {
     });
     expect(anchor.click).toHaveBeenCalled();
     expect(urlApi.revokeObjectURL).toHaveBeenCalledWith('blob:site-builder-test');
+  });
+
+  it.each([
+    ['notes.txt', '', 'preview'],
+    ['photo.jpg', 'image/jpeg', 'preview'],
+    ['manual.pdf', 'application/pdf', 'preview'],
+    ['sound.mp3', 'audio/mpeg', 'preview'],
+    ['movie.mp4', 'video/mp4', 'preview'],
+    ['deck.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'download'],
+    ['letter.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'download'],
+    ['archive.zip', 'application/zip', 'download'],
+    ['payload.bin', 'application/octet-stream', 'download'],
+    ['unsafe.html', 'text/html', 'download'],
+  ])('classifies %s as %s', (name, type, expected) => {
+    expect(classifyFileAction({ name, type })).toBe(expected);
+  });
+
+  it('copies an exact UNC path through the async clipboard on a user action', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const adapter = new BrowserFileSystemAdapter({
+      navigatorObject: { clipboard: { writeText } },
+      registry: new MemoryConnectionRegistry(),
+      windowObject: { isSecureContext: true },
+    });
+    const path = '\\\\Server\\Team Share';
+    await expect(adapter.copyText(path)).resolves.toBe(path);
+    expect(writeText).toHaveBeenCalledWith(path);
+  });
+
+  it('uses a contained fallback copy operation when the clipboard API is unavailable', async () => {
+    const textarea = {
+      remove: vi.fn(),
+      select: vi.fn(),
+      setAttribute: vi.fn(),
+      style: {},
+      value: '',
+    };
+    const documentObject = {
+      body: { append: vi.fn() },
+      createElement: vi.fn(() => textarea),
+      execCommand: vi.fn(() => true),
+    };
+    const adapter = new BrowserFileSystemAdapter({
+      documentObject,
+      navigatorObject: {},
+      registry: new MemoryConnectionRegistry(),
+      windowObject: { isSecureContext: true },
+    });
+    const path = '\\\\שרת\\שיתוף צוות';
+    await expect(adapter.copyText(path)).resolves.toBe(path);
+    expect(textarea.value).toBe(path);
+    expect(documentObject.execCommand).toHaveBeenCalledWith('copy');
+    expect(textarea.remove).toHaveBeenCalled();
   });
 });

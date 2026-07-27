@@ -5,7 +5,9 @@ import {
   Check,
   ChevronLeft,
   CircleAlert,
+  Copy,
   Download,
+  Eye,
   File,
   FileArchive,
   FileCode2,
@@ -39,7 +41,10 @@ import {
   useState,
 } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import BrowserFileSystemAdapter from '../services/fileExplorer/BrowserFileSystemAdapter';
+import { displayConnectionPrefix } from '../services/fileExplorer/connectionModel';
+import { canAccessAdminUi } from '../utils/adminAccess';
 import {
   decodeFileExplorerTarget,
   FILE_EXPLORER_TARGET_PARAM,
@@ -75,10 +80,16 @@ const KIND_ICONS = {
   video: FileVideo,
 };
 const PERMISSION_LABELS = {
-  denied: 'הגישה נחסמה',
-  granted: 'הגישה פעילה',
-  prompt: 'נדרשת הרשאה',
+  denied: 'הגישה נדחתה',
+  granted: 'ההרשאה פעילה',
+  prompt: 'נדרש אישור מחדש',
 };
+const LOADING_PHASES = new Set([
+  'initializing',
+  'loading-connections',
+  'resolving-target',
+  'loading-directory',
+]);
 
 function formatSize(size) {
   if (!Number.isFinite(size)) return '—';
@@ -101,6 +112,24 @@ function formatDate(value) {
 function currentDisplayPath(connection, relativeSegments) {
   if (!connection) return '';
   return [connection.displayPrefix, ...relativeSegments].join('\\');
+}
+
+function fileActionLabel(entry) {
+  if (entry?.isDirectory) return 'פתיחה';
+  return entry?.action === 'preview' ? 'צפייה' : 'הורדה';
+}
+
+function downloadedFileNotice(metadata = {}) {
+  if (metadata.kind === 'presentation') {
+    return `הקובץ ${metadata.name} הורד. אפשר לפתוח אותו ב־PowerPoint המותקן במחשב.`;
+  }
+  if (metadata.kind === 'document') {
+    return `הקובץ ${metadata.name} הורד. אפשר לפתוח אותו ביישום המסמכים המותקן במחשב.`;
+  }
+  if (metadata.kind === 'sheet') {
+    return `הקובץ ${metadata.name} הורד. אפשר לפתוח אותו ביישום הגיליונות המותקן במחשב.`;
+  }
+  return `הקובץ ${metadata.name} הורד למחשב.`;
 }
 
 function TechnicalDetails({ error }) {
@@ -308,8 +337,12 @@ function MappingDialog({ pending, onCancel, onConfirm }) {
   );
 }
 
-export function FileExplorerView({ adapter = defaultAdapter, target }) {
-  const [phase, setPhase] = useState('loading');
+export function FileExplorerView({
+  adapter = defaultAdapter,
+  canManageConnections = false,
+  target,
+}) {
+  const [phase, setPhase] = useState('initializing');
   const [error, setError] = useState(null);
   const [connections, setConnections] = useState([]);
   const [connection, setConnection] = useState(null);
@@ -326,7 +359,20 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
   const [pendingMapping, setPendingMapping] = useState(null);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [notice, setNotice] = useState('');
+  const [copyState, setCopyState] = useState('idle');
   const searchAbortRef = useRef(null);
+  const operationIdRef = useRef(0);
+  const searchOperationIdRef = useRef(0);
+  const copyResetTimerRef = useRef(null);
+
+  const beginOperation = useCallback(() => {
+    operationIdRef.current += 1;
+    return operationIdRef.current;
+  }, []);
+  const isCurrentOperation = useCallback(
+    (operationId) => operationIdRef.current === operationId,
+    [],
+  );
 
   const refreshConnections = useCallback(async () => {
     const loaded = await adapter.loadConnections();
@@ -334,8 +380,17 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
     return loaded;
   }, [adapter]);
 
-  const activate = useCallback(async (result, { noticeText = '', resetHistory = true } = {}) => {
+  const activate = useCallback(async (
+    result,
+    {
+      noticeText = '',
+      operationId = beginOperation(),
+      resetHistory = true,
+    } = {},
+  ) => {
+    setPhase('loading-directory');
     const listed = await adapter.listDirectory(result.directoryHandle);
+    if (!isCurrentOperation(operationId)) return false;
     setConnection(result.connection);
     setDirectoryHandle(result.directoryHandle);
     setRelativeSegments(result.remainingSegments || []);
@@ -347,11 +402,24 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
       setHistory([result.remainingSegments || []]);
       setHistoryIndex(0);
     }
-    await refreshConnections();
-  }, [adapter, refreshConnections]);
+    const loaded = await adapter.loadConnections();
+    if (isCurrentOperation(operationId)) setConnections(loaded);
+    return true;
+  }, [adapter, beginOperation, isCurrentOperation]);
 
   const loadTarget = useCallback(async () => {
+    const operationId = beginOperation();
     setError(null);
+    setNotice('');
+    setBusy(false);
+    setPendingMapping(null);
+    setCopyState('idle');
+    setConnection(null);
+    setDirectoryHandle(null);
+    setEntries([]);
+    setHistory([]);
+    setHistoryIndex(-1);
+    setPhase('initializing');
     if (!target || target.kind !== 'unc') {
       setPhase('invalid');
       return;
@@ -360,46 +428,72 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
       setPhase('unsupported');
       return;
     }
-    setPhase('loading');
     try {
-      const result = await adapter.resolveTarget(target);
+      setPhase('loading-connections');
+      const loadedConnections = await adapter.loadConnections();
+      if (!isCurrentOperation(operationId)) return;
+      setConnections(loadedConnections);
+      setPhase('resolving-target');
+      const result = await adapter.resolveTarget(target, { connections: loadedConnections });
+      if (!isCurrentOperation(operationId)) return;
       setConnections(result.connections || []);
       if (result.status === 'connected') {
-        await activate(result, { noticeText: 'החיבור השמור נטען בהצלחה.' });
+        await activate(result, {
+          noticeText: 'החיבור נטען בהצלחה.',
+          operationId,
+        });
         return;
       }
       setConnection(result.connection || null);
       setError(result.error || null);
-      setPhase(result.status);
+      if (result.status === 'no-connection') setPhase('needs-connection');
+      else if (result.status === 'permission-prompt') setPhase('needs-permission');
+      else if (result.status === 'permission-denied') setPhase('permission-denied');
+      else if (result.status === 'directory-not-found') setPhase('directory-not-found');
+      else setPhase('error');
     } catch (cause) {
+      if (!isCurrentOperation(operationId)) return;
       setError(cause);
-      setPhase('connection-error');
+      setPhase('error');
     }
-  }, [activate, adapter, target]);
+  }, [activate, adapter, beginOperation, isCurrentOperation, target]);
 
   useEffect(() => {
-    loadTarget();
-    return () => searchAbortRef.current?.abort();
+    void loadTarget();
+    return () => {
+      operationIdRef.current += 1;
+      searchAbortRef.current?.abort();
+      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
+    };
   }, [loadTarget]);
 
   const connect = async () => {
+    const operationId = beginOperation();
     setBusy(true);
     setError(null);
     try {
       const result = await adapter.connectDirectory(target);
+      if (!isCurrentOperation(operationId)) return;
       if (result.status === 'mapping-choice' || result.status === 'mapping-confirmation') {
         setPendingMapping(result);
       } else if (result.status === 'connected') {
-        await activate(result, { noticeText: 'החיבור נשמר ונפתח בהצלחה.' });
+        await activate(result, {
+          noticeText: 'החיבור נשמר ונפתח בהצלחה.',
+          operationId,
+        });
       }
     } catch (cause) {
-      if (cause?.name !== 'AbortError') setError(cause);
+      if (cause?.name !== 'AbortError' && isCurrentOperation(operationId)) {
+        setError(cause);
+        setPhase('error');
+      }
     } finally {
-      setBusy(false);
+      if (isCurrentOperation(operationId)) setBusy(false);
     }
   };
 
   const completeMapping = async (candidate) => {
+    const operationId = beginOperation();
     setBusy(true);
     try {
       const result = await adapter.completeConnection(
@@ -407,26 +501,38 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
         pendingMapping.directoryHandle,
         candidate,
       );
+      if (!isCurrentOperation(operationId)) return;
       setPendingMapping(null);
-      await activate(result, { noticeText: 'החיבור נשמר ונפתח בהצלחה.' });
+      await activate(result, {
+        noticeText: 'החיבור נשמר ונפתח בהצלחה.',
+        operationId,
+      });
     } catch (cause) {
+      if (!isCurrentOperation(operationId)) return;
       setPendingMapping(null);
       setError(cause);
       setPhase('directory-not-found');
     } finally {
-      setBusy(false);
+      if (isCurrentOperation(operationId)) setBusy(false);
     }
   };
 
   const grantPermission = async () => {
+    const operationId = beginOperation();
     setBusy(true);
     try {
-      await adapter.requestPermission(connection.directoryHandle);
-      await loadTarget();
+      const permission = await adapter.requestPermission(connection.directoryHandle);
+      if (!isCurrentOperation(operationId)) return;
+      if (permission === 'granted') {
+        setBusy(false);
+        await loadTarget();
+      } else {
+        setPhase('permission-denied');
+      }
     } catch (cause) {
-      if (cause?.name !== 'AbortError') setError(cause);
+      if (cause?.name !== 'AbortError' && isCurrentOperation(operationId)) setError(cause);
     } finally {
-      setBusy(false);
+      if (isCurrentOperation(operationId)) setBusy(false);
     }
   };
 
@@ -437,7 +543,7 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
       await adapter.removeConnection(connection);
       setConnection(null);
       setNotice('החיבור השמור הוסר.');
-      setPhase('no-connection');
+      setPhase('needs-connection');
       await refreshConnections();
     } catch (cause) {
       setError(cause);
@@ -448,11 +554,13 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
 
   const navigateTo = useCallback(async (segments, { addHistory = true } = {}) => {
     if (!connection) return;
+    const operationId = beginOperation();
     setBusy(true);
     setError(null);
     try {
       const nextHandle = await adapter.resolveDirectory(connection.directoryHandle, segments);
       const listed = await adapter.listDirectory(nextHandle);
+      if (!isCurrentOperation(operationId)) return;
       setDirectoryHandle(nextHandle);
       setRelativeSegments(segments);
       setEntries(listed);
@@ -466,11 +574,11 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
         setHistoryIndex(nextHistory.length - 1);
       }
     } catch (cause) {
-      setError(cause);
+      if (isCurrentOperation(operationId)) setError(cause);
     } finally {
-      setBusy(false);
+      if (isCurrentOperation(operationId)) setBusy(false);
     }
-  }, [adapter, connection, history, historyIndex]);
+  }, [adapter, beginOperation, connection, history, historyIndex, isCurrentOperation]);
 
   const moveHistory = async (nextIndex) => {
     if (nextIndex < 0 || nextIndex >= history.length) return;
@@ -480,19 +588,24 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
 
   const refresh = async () => {
     if (!directoryHandle) return;
+    const operationId = beginOperation();
     setBusy(true);
     try {
-      setEntries(await adapter.listDirectory(directoryHandle));
+      const listed = await adapter.listDirectory(directoryHandle);
+      if (!isCurrentOperation(operationId)) return;
+      setEntries(listed);
       setError(null);
     } catch (cause) {
-      setError(cause);
+      if (isCurrentOperation(operationId)) setError(cause);
     } finally {
-      setBusy(false);
+      if (isCurrentOperation(operationId)) setBusy(false);
     }
   };
 
   useEffect(() => {
     searchAbortRef.current?.abort();
+    searchOperationIdRef.current += 1;
+    const searchOperationId = searchOperationIdRef.current;
     if (!recursiveSearch || !query.trim() || !directoryHandle) {
       setSearchState({ progress: null, results: [], searching: false, truncated: false });
       return undefined;
@@ -501,10 +614,15 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
     searchAbortRef.current = controller;
     setSearchState({ progress: { results: 0, visited: 0 }, results: [], searching: true, truncated: false });
     adapter.searchDirectory(directoryHandle, query, {
-      onProgress: (progress) => setSearchState((current) => ({ ...current, progress })),
+      onProgress: (progress) => {
+        if (searchOperationIdRef.current === searchOperationId) {
+          setSearchState((current) => ({ ...current, progress }));
+        }
+      },
       recursive: true,
       signal: controller.signal,
     }).then((result) => {
+      if (searchOperationIdRef.current !== searchOperationId) return;
       setSearchState({
         progress: { results: result.results.length, visited: result.visited },
         results: result.results,
@@ -512,13 +630,25 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
         truncated: result.truncated,
       });
     }).catch((cause) => {
+      if (searchOperationIdRef.current !== searchOperationId) return;
       if (cause?.name !== 'AbortError') {
         setError(cause);
         setSearchState((current) => ({ ...current, searching: false }));
       }
     });
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      if (searchOperationIdRef.current === searchOperationId) {
+        searchOperationIdRef.current += 1;
+      }
+    };
   }, [adapter, directoryHandle, query, recursiveSearch]);
+
+  const cancelRecursiveSearch = () => {
+    searchAbortRef.current?.abort();
+    searchOperationIdRef.current += 1;
+    setSearchState((current) => ({ ...current, searching: false }));
+  };
 
   const visibleEntries = useMemo(() => {
     if (recursiveSearch && query.trim()) return searchState.results;
@@ -536,7 +666,10 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
       return;
     }
     try {
-      await adapter.openFile(entry.fileHandle);
+      const result = await adapter.openFile(entry.fileHandle);
+      if (result.action === 'downloaded') {
+        setNotice(downloadedFileNotice(result.metadata));
+      }
     } catch (cause) {
       setError(cause);
     }
@@ -551,11 +684,34 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
     }
   };
 
+  const preferredConnectionRoot = target?.kind === 'unc'
+    ? target.shareRootPath || displayConnectionPrefix(target, [])
+    : '';
+
+  const copyPreferredRoot = async () => {
+    setCopyState('copying');
+    try {
+      await adapter.copyText(preferredConnectionRoot);
+      setCopyState('copied');
+      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
+      copyResetTimerRef.current = setTimeout(() => setCopyState('idle'), 2_000);
+    } catch (cause) {
+      setCopyState('failed');
+      setError(cause);
+    }
+  };
+
   if (phase !== 'ready') {
+    const loadingMessages = {
+      initializing: 'מכינים את הסייר…',
+      'loading-connections': 'טוענים את החיבורים השמורים…',
+      'loading-directory': 'קוראים את תוכן התיקייה…',
+      'resolving-target': 'פותחים את המיקום המבוקש…',
+    };
     let state = {
       icon: HardDrive,
       title: 'פתיחת תיקיית רשת',
-      body: <p>מכינים את הסייר…</p>,
+      body: <p>{loadingMessages[phase] || 'מכינים את הסייר…'}</p>,
     };
     if (phase === 'invalid') {
       state = {
@@ -569,39 +725,68 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
         title: 'הדפדפן אינו תומך בפתיחת תיקיות',
         body: <p>יש לפתוח את הקישור בגרסה ארגונית עדכנית של Chrome או Edge, בחיבור מאובטח.</p>,
       };
-    } else if (phase === 'no-connection') {
+    } else if (phase === 'needs-connection') {
       state = {
-        action: { busy, disabled: busy, label: 'בחירת תיקיית הרשת', onClick: connect },
+        action: { busy, disabled: busy, label: 'בחר תיקיית רשת', onClick: connect },
         icon: Link2,
         title: 'נדרש חיבור חד־פעמי',
         body: (
           <>
-            <p>בחרו את תיקיית הרשת המתאימה. החיבור נשמר רק בדפדפן הזה ובמצב קריאה בלבד.</p>
+            <p className="file-explorer-onboarding-instruction">
+              העתק את נתיב השורש, לחץ על &quot;בחר תיקיית רשת&quot;, הדבק אותו בשורת הכתובת
+              העליונה בחלון שנפתח ולחץ Enter. לאחר מכן לחץ &quot;בחר תיקייה&quot;.
+            </p>
+            <div className="file-explorer-path-block">
+              <span>שורש השיתוף המומלץ</span>
+              <div>
+                <code dir="ltr">{preferredConnectionRoot}</code>
+                <button type="button" onClick={copyPreferredRoot} disabled={copyState === 'copying'}>
+                  {copyState === 'copied' ? <Check size={17} /> : <Copy size={17} />}
+                  {copyState === 'copied' ? 'הנתיב הועתק' : 'העתקה'}
+                </button>
+              </div>
+              {copyState === 'failed' && <small>לא הצלחנו להעתיק. אפשר לסמן את הנתיב ולהעתיק ידנית.</small>}
+            </div>
+            <div className="file-explorer-path-block is-requested">
+              <span>המיקום שייפתח לאחר החיבור</span>
+              <code dir="ltr">{target.displayPath}</code>
+            </div>
+            <p className="file-explorer-onboarding-note">
+              מומלץ לבחור את שורש השיתוף. אפשר לבחור גם את התיקייה המדויקת; במקרה כזה
+              הניווט יוגבל לתיקייה שנבחרה.
+            </p>
             {notice && <strong className="file-explorer-state-notice">{notice}</strong>}
-            <code className="file-explorer-requested-path" dir="ltr">{target.displayPath}</code>
           </>
         ),
       };
-    } else if (phase === 'permission-prompt') {
+    } else if (phase === 'needs-permission') {
       state = {
         action: { busy, disabled: busy, label: 'מתן הרשאת קריאה', onClick: grantPermission },
         actionIcon: KeyRound,
         icon: KeyRound,
-        title: 'נדרשת הרשאת קריאה',
+        title: 'נדרש אישור מחדש',
         body: <p>הדפדפן זוכר את החיבור, אך נדרש אישור כדי לקרוא ממנו כעת.</p>,
       };
     } else if (phase === 'permission-denied') {
       state = {
         action: { busy, disabled: busy, label: 'חיבור מחדש', onClick: connect },
         icon: KeyRound,
-        secondaryActions: [{
-          disabled: busy,
-          icon: Trash2,
-          label: 'הסרת החיבור השמור',
-          onClick: removeCurrentConnection,
-        }],
-        title: 'הגישה לתיקייה נחסמה',
-        body: <p>אפשר לבחור שוב את תיקיית הרשת או להסיר את החיבור השמור בדפדפן הזה.</p>,
+        secondaryActions: canManageConnections
+          ? [{
+            disabled: busy,
+            icon: Trash2,
+            label: 'הסרת החיבור השמור',
+            onClick: removeCurrentConnection,
+          }]
+          : [],
+        title: 'הגישה לתיקייה נדחתה',
+        body: (
+          <p>
+            {canManageConnections
+              ? 'אפשר לבחור שוב את תיקיית הרשת או להסיר את החיבור השמור בדפדפן הזה.'
+              : 'אפשר לבחור שוב את תיקיית הרשת כדי לחדש את הרשאת הקריאה.'}
+          </p>
+        ),
       };
     } else if (phase === 'directory-not-found') {
       state = {
@@ -610,7 +795,7 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
         title: 'הנתיב המבוקש לא נמצא בחיבור',
         body: <p>בחרו תיקיית רשת שמכילה את הנתיב המוצג ונסו שוב.</p>,
       };
-    } else if (phase === 'connection-error') {
+    } else if (phase === 'error') {
       state = {
         action: { busy, disabled: busy, label: 'ניסיון חוזר', onClick: loadTarget },
         actionIcon: RefreshCw,
@@ -620,11 +805,11 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
       };
     }
     return (
-      <main className="file-explorer-page" dir="rtl">
+      <main className="file-explorer-page" dir="rtl" data-phase={phase}>
         <StateCard
           action={state.action}
           actionIcon={state.actionIcon}
-          error={error}
+          error={LOADING_PHASES.has(phase) ? null : error}
           icon={state.icon}
           secondaryActions={state.secondaryActions}
           title={state.title}
@@ -654,11 +839,13 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
               <h1>סייר קבצים</h1>
             </div>
           </div>
-          <button className="file-explorer-secondary-button" type="button" onClick={() => setConnectionsOpen(true)}>
-            <Settings2 size={17} />
-            ניהול חיבורים
-            <span className="file-explorer-count">{connections.length}</span>
-          </button>
+          {canManageConnections && (
+            <button className="file-explorer-secondary-button" type="button" onClick={() => setConnectionsOpen(true)}>
+              <Settings2 size={17} />
+              ניהול חיבורים
+              <span className="file-explorer-count">{connections.length}</span>
+            </button>
+          )}
         </header>
 
         <div className="file-explorer-toolbar">
@@ -697,9 +884,12 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="חיפוש בתיקייה הנוכחית" />
             {query && <button type="button" onClick={() => setQuery('')} aria-label="ניקוי החיפוש"><X size={16} /></button>}
           </label>
-          <label className="file-explorer-recursive-toggle">
+          <label
+            className="file-explorer-recursive-toggle"
+            title="כאשר האפשרות פעילה, החיפוש סורק גם תיקיות בתוך המיקום הנוכחי. החיפוש עשוי להימשך זמן רב יותר."
+          >
             <input type="checkbox" checked={recursiveSearch} onChange={(event) => setRecursiveSearch(event.target.checked)} />
-            <span>כולל תיקיות משנה</span>
+            <span>חפש גם בתוך תיקיות משנה</span>
           </label>
           <div className="file-explorer-view-toggle" aria-label="תצוגה">
             <button type="button" className={viewMode === 'list' ? 'is-active' : ''} onClick={() => setViewMode('list')} aria-label="תצוגת רשימה"><List size={18} /></button>
@@ -708,9 +898,11 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
         </div>
 
         <div className="file-explorer-location-row">
-          <code dir="ltr" title={currentDisplayPath(connection, relativeSegments)}>
-            {currentDisplayPath(connection, relativeSegments)}
-          </code>
+          <div>
+            <span>שורש מחובר</span>
+            <code dir="ltr" title={connection.displayPrefix}>{connection.displayPrefix}</code>
+          </div>
+          <code dir="ltr" title={currentDisplayPath(connection, relativeSegments)}>{currentDisplayPath(connection, relativeSegments)}</code>
           <span><ShieldCheck size={15} /> קריאה בלבד</span>
         </div>
 
@@ -739,13 +931,16 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
               ? <><LoaderCircle className="file-explorer-spin" size={16} /> החיפוש מתבצע… נסרקו {searchState.progress?.visited || 0} פריטים</>
               : <>נמצאו {searchState.results.length} תוצאות לאחר סריקת {searchState.progress?.visited || 0} פריטים</>}
             {searchState.truncated && <span>החיפוש נעצר בגבול הבטיחות. אפשר לצמצם את הביטוי.</span>}
+            {searchState.searching && (
+              <button type="button" onClick={cancelRecursiveSearch}>ביטול חיפוש</button>
+            )}
           </div>
         )}
 
         <div className={`file-explorer-content is-${viewMode}`}>
           {viewMode === 'list' && visibleEntries.length > 0 && (
             <div className="file-explorer-list-header" aria-hidden="true">
-              <span>שם</span><span>סוג</span><span>גודל</span><span>תאריך שינוי</span><span />
+              <span>שם</span><span>סוג</span><span>גודל</span><span>תאריך שינוי</span><span>פעולה</span>
             </div>
           )}
           <div className="file-explorer-entries" role="list">
@@ -756,7 +951,7 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
                 type="button"
                 role="listitem"
                 onClick={() => openEntry(entry)}
-                title={entry.isDirectory ? `פתיחת ${entry.name}` : `פתיחה או הורדה של ${entry.name}`}
+                title={`${fileActionLabel(entry)}: ${entry.name}`}
               >
                 <span className="file-explorer-entry-primary">
                   <span className={`file-explorer-entry-icon is-${entry.kind}`}><EntryIcon kind={entry.kind} size={viewMode === 'grid' ? 32 : 20} /></span>
@@ -769,7 +964,12 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
                 <span className="file-explorer-number">{entry.isDirectory ? '—' : formatSize(entry.size)}</span>
                 <span className="file-explorer-number">{formatDate(entry.modifiedIso)}</span>
                 <span className="file-explorer-entry-action">
-                  {entry.isDirectory ? <ChevronLeft size={18} /> : entry.kind === 'pdf' || entry.kind === 'image' || entry.kind === 'text' ? <FolderOpen size={17} /> : <Download size={17} />}
+                  {entry.isDirectory
+                    ? <ChevronLeft size={17} />
+                    : entry.action === 'preview'
+                      ? <Eye size={16} />
+                      : <Download size={16} />}
+                  <span>{fileActionLabel(entry)}</span>
                 </span>
               </button>
             ))}
@@ -789,7 +989,7 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
         </footer>
       </section>
 
-      {connectionsOpen && (
+      {canManageConnections && connectionsOpen && (
         <ConnectionDialog
           adapter={adapter}
           connections={connections}
@@ -807,7 +1007,9 @@ export function FileExplorerView({ adapter = defaultAdapter, target }) {
 
 export default function FileExplorerPage() {
   const [searchParams] = useSearchParams();
+  const { isAdmin, loading: authLoading } = useAuth();
   const token = searchParams.get(FILE_EXPLORER_TARGET_PARAM);
   const target = useMemo(() => decodeFileExplorerTarget(token), [token]);
-  return <FileExplorerView target={target} />;
+  const canManageConnections = canAccessAdminUi({ isAdmin, loading: authLoading });
+  return <FileExplorerView canManageConnections={canManageConnections} target={target} />;
 }

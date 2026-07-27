@@ -48,10 +48,20 @@ describe('production file explorer architecture', () => {
     }
   });
 
+  it('uses the authoritative application admin decision for connection management', () => {
+    const page = read('src/pages/FileExplorerPage.jsx');
+    expect(page).toContain("import { useAuth } from '../context/AuthContext'");
+    expect(page).toContain("import { canAccessAdminUi } from '../utils/adminAccess'");
+    expect(page).toContain('canManageConnections && connectionsOpen');
+    expect(page).not.toMatch(/displayName.*ניהול חיבורים/u);
+  });
+
   it('keeps missing child directories and files non-fatal in the capability spike', () => {
     const spike = read('capability-spikes/windows-unc-picker/spike.js');
-    expect(spike).toContain('currentRun.childDirectoryCheck = "not_applicable"');
-    expect(spike).toContain('currentRun.fileMetadataCheck = "not_applicable"');
+    expect(spike).toContain('currentRun.childDirectoryCheck = "skipped"');
+    expect(spike).toContain('currentRun.fileMetadataCheck = "skipped"');
+    expect(spike).toContain('לא נמצאה תיקיית משנה; הבדיקה דולגה');
+    expect(spike).toContain('לא נמצא קובץ לדוגמה; בדיקת המטא־דאטה דולגה');
     expect(spike).not.toContain('No child directory was found in the selected folder.');
     expect(spike).not.toContain('No readable file was found within depth');
   });

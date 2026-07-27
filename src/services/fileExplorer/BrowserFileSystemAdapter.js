@@ -13,12 +13,44 @@ const DEFAULT_SEARCH_LIMITS = Object.freeze({
   maxResults: 100,
   maxVisited: 1_500,
 });
-const BROWSER_OPEN_MIME_PREFIXES = ['audio/', 'image/', 'text/', 'video/'];
+const BROWSER_OPEN_MIME_PREFIXES = ['audio/', 'image/', 'video/'];
 const BROWSER_OPEN_MIME_TYPES = new Set([
   'application/json',
   'application/pdf',
   'application/xml',
   'image/svg+xml',
+  'text/css',
+  'text/csv',
+  'text/markdown',
+  'text/plain',
+  'text/xml',
+]);
+const BROWSER_OPEN_EXTENSIONS = new Set([
+  'aac',
+  'css',
+  'csv',
+  'flac',
+  'gif',
+  'jpeg',
+  'jpg',
+  'js',
+  'json',
+  'log',
+  'm4a',
+  'md',
+  'mjs',
+  'mov',
+  'mp3',
+  'mp4',
+  'ogg',
+  'pdf',
+  'png',
+  'txt',
+  'webm',
+  'webp',
+  'xml',
+  'yaml',
+  'yml',
 ]);
 const FILE_KIND_EXTENSIONS = Object.freeze({
   archive: new Set(['7z', 'gz', 'rar', 'tar', 'zip']),
@@ -49,10 +81,13 @@ function fileKind(name, isDirectory = false) {
     .find(([, extensions]) => extensions.has(extension))?.[0] || 'file';
 }
 
-function isBrowserSupportedFile(file) {
+export function classifyFileAction(file) {
   const type = String(file?.type || '').toLocaleLowerCase('en-US');
-  return BROWSER_OPEN_MIME_PREFIXES.some((prefix) => type.startsWith(prefix))
-    || BROWSER_OPEN_MIME_TYPES.has(type);
+  return BROWSER_OPEN_EXTENSIONS.has(fileExtension(file?.name))
+    || BROWSER_OPEN_MIME_PREFIXES.some((prefix) => type.startsWith(prefix))
+    || BROWSER_OPEN_MIME_TYPES.has(type)
+    ? 'preview'
+    : 'download';
 }
 
 function makeId() {
@@ -73,11 +108,13 @@ export class BrowserFileSystemAdapter {
     registry = new IndexedDbConnectionRegistry(),
     windowObject = globalThis.window,
     documentObject = globalThis.document,
+    navigatorObject = globalThis.navigator,
     urlApi = globalThis.URL,
   } = {}) {
     this.registry = registry;
     this.window = windowObject;
     this.document = documentObject;
+    this.navigator = navigatorObject;
     this.urlApi = urlApi;
   }
 
@@ -117,6 +154,33 @@ export class BrowserFileSystemAdapter {
     if (id) await this.registry.remove(id);
   }
 
+  async copyText(value) {
+    const text = String(value || '');
+    if (typeof this.navigator?.clipboard?.writeText === 'function') {
+      await this.navigator.clipboard.writeText(text);
+      return text;
+    }
+
+    const textarea = this.document?.createElement?.('textarea');
+    if (!textarea || typeof this.document?.execCommand !== 'function') {
+      throw new Error('clipboard_unavailable');
+    }
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    this.document.body.append(textarea);
+    let copied = false;
+    try {
+      textarea.select();
+      copied = this.document.execCommand('copy');
+    } finally {
+      textarea.remove();
+    }
+    if (!copied) throw new Error('clipboard_copy_failed');
+    return text;
+  }
+
   async resolveDirectory(directoryHandle, segments = []) {
     let current = directoryHandle;
     for (const segment of segments) {
@@ -134,6 +198,7 @@ export class BrowserFileSystemAdapter {
       lastModified: file.lastModified || 0,
       modifiedIso: file.lastModified ? new Date(file.lastModified).toISOString() : '',
       name: file.name || fileHandle.name,
+      action: classifyFileAction(file),
       size: Number(file.size || 0),
       type: file.type || '',
     };
@@ -173,10 +238,10 @@ export class BrowserFileSystemAdapter {
       type: file.type || '',
     };
 
-    if (isBrowserSupportedFile(file)) {
+    if (classifyFileAction(file) === 'preview') {
       this.window.open(objectUrl, '_blank', 'noopener,noreferrer');
       this.window.setTimeout(() => this.urlApi.revokeObjectURL(objectUrl), 60_000);
-      return { action: 'opened', metadata };
+      return { action: 'previewed', metadata };
     }
 
     const anchor = this.document.createElement('a');
@@ -190,9 +255,9 @@ export class BrowserFileSystemAdapter {
     return { action: 'downloaded', metadata };
   }
 
-  async resolveTarget(target) {
+  async resolveTarget(target, { connections: suppliedConnections } = {}) {
     if (target?.kind !== 'unc') return { status: 'invalid-target' };
-    const connections = await this.loadConnections();
+    const connections = suppliedConnections || await this.loadConnections();
     const connection = selectLongestPrefixConnection(target, connections);
     if (!connection) return { connections, status: 'no-connection' };
 

@@ -15,6 +15,7 @@ describe('file explorer target parsing', () => {
         segments: ['PublicMalnash', 'Alpha', 'Hillel'],
         server: 'hrmazivfs',
         share: 'Malnash',
+        shareRootPath: '\\\\hrmazivfs\\Malnash',
         shareKey: 'unc://hrmazivfs/malnash',
       });
     }
@@ -29,6 +30,15 @@ describe('file explorer target parsing', () => {
       shareKey: 'unc://files-02.corp/team$',
     });
     expect(lower?.shareKey).toBe(upper?.shareKey);
+  });
+
+  it('preserves mixed Hebrew and English, repeated spaces, and valid punctuation', () => {
+    const parsed = parseFileExplorerTarget('\\\\files-03\\צוות R&D\\Alpha  צוות\\דו״ח (סופי) 2026');
+    expect(parsed).toMatchObject({
+      canonicalUncPath: '\\\\files-03\\צוות R&D\\Alpha  צוות\\דו״ח (סופי) 2026',
+      segments: ['Alpha  צוות', 'דו״ח (סופי) 2026'],
+      share: 'צוות R&D',
+    });
   });
 
   it('keeps opaque route tokens free of raw paths and round-trips spaces and Hebrew names', () => {
