@@ -793,9 +793,10 @@ export default function AdminBackupManagement() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const loadBackupFilesForBackup = async (backup) => {
+    const loadBackupFilesForBackup = async (backup, { includePackage = false } = {}) => {
         if (backup?.backupPackage) {
-            return Array.isArray(backup.files) ? backup.files : [];
+            const files = Array.isArray(backup.files) ? backup.files : [];
+            return includePackage ? { backupPackage: backup.backupPackage, files } : files;
         }
 
         if (mongoBackupStore && backup?.id) {
@@ -814,11 +815,11 @@ export default function AdminBackupManagement() {
                     }
                     : item
             )));
-            return files;
+            return includePackage ? { backupPackage, files } : files;
         }
 
         if (Array.isArray(backup.files) && backup.files.length > 0) {
-            return backup.files;
+            return includePackage ? { backupPackage: null, files: backup.files } : backup.files;
         }
 
         const files = await listSharePointBackupFiles(backup.serverRelativeUrl);
@@ -832,7 +833,7 @@ export default function AdminBackupManagement() {
                 }
                 : item
         )));
-        return files;
+        return includePackage ? { backupPackage: null, files } : files;
     };
 
     const openRestorePreview = async (backup, files) => {
@@ -899,9 +900,14 @@ export default function AdminBackupManagement() {
 
         setFilesLoading(true);
         try {
-            const files = await loadBackupFilesForBackup(backup);
+            const loaded = await loadBackupFilesForBackup(backup, { includePackage: true });
+            const files = loaded.files;
             setSelectedBackupFiles(files);
-            await openRestorePreview({ ...backup, files }, files);
+            await openRestorePreview({
+                ...backup,
+                ...(loaded.backupPackage ? { backupPackage: loaded.backupPackage } : {}),
+                files,
+            }, files);
         } catch (filesError) {
             setSelectedBackupFiles([]);
             toast.error(filesError?.message || 'טעינת קבצי הגיבוי נכשלה.');

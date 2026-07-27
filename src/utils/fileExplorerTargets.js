@@ -1,9 +1,7 @@
 export const FILE_EXPLORER_ROUTE_PATH = '/file-explorer';
 export const FILE_EXPLORER_TARGET_PARAM = 'target';
 
-const INVALID_SEGMENT_RE = /[<>:"|?*]/;
-const MAC_ABSOLUTE_PATH_RE = /^\/(?:Users|Volumes|Applications|Library|System|private|opt|var|tmp)(?:\/|$)/i;
-const WINDOWS_DRIVE_RE = /^([a-zA-Z]):[\\/](.*)$/;
+const INVALID_SEGMENT_RE = /[<>:"|?*]/u;
 const WEBDAV_RE = /^[\\/]{2}([^\\/]+)@SSL[\\/]DavWWWRoot(?:[\\/](.*))?$/i;
 
 function text(value) { return typeof value === 'string' ? value.trim() : ''; }
@@ -12,10 +10,24 @@ function encodePart(value) { return encodeURIComponent(value).replace(/%2F/gi, '
 function hasControlCharacter(value) {
   return Array.from(value).some((character) => character.charCodeAt(0) < 32);
 }
-function validSegments(segments) {
-  return segments.some((segment) => !segment || segment === '.' || segment === '..' || INVALID_SEGMENT_RE.test(segment) || hasControlCharacter(segment)) ? null : segments;
+export function normalizeUncComparisonPart(value) {
+  return String(value || '').normalize('NFC').toLocaleLowerCase('en-US');
 }
-function target({ kind, canonicalPath, canonicalHref, displayPath, server = null, share = null }) { return { canonicalHref, canonicalPath, displayPath, kind, server, share, version: 1 }; }
+function validSegments(segments) {
+  return segments.some((segment) => typeof segment !== 'string' || !segment || segment === '.' || segment === '..' || INVALID_SEGMENT_RE.test(segment) || hasControlCharacter(segment)) ? null : segments;
+}
+function target({ kind, canonicalPath, canonicalHref, displayPath, server = null, share = null, ...extra }) {
+  return {
+    canonicalHref,
+    canonicalPath,
+    displayPath,
+    kind,
+    server,
+    share,
+    version: 1,
+    ...extra,
+  };
+}
 
 function web(input) {
   try {
@@ -34,25 +46,22 @@ function unc(input) {
   const segments = validSegments(input.replace(/^[\\/]+/, '').split(/[\\/]+/).filter(Boolean).map(decodePart));
   if (!segments || segments.length < 2) return null;
   const [server, share, ...rest] = segments;
-  if (!/^[a-zA-Z0-9.-]+$/.test(server) || share.endsWith('$')) return null;
-  const canonicalPath = `\\\\${server}\\${[share, ...rest].join('\\')}`;
-  return target({ kind: 'unc', canonicalPath, canonicalHref: `file://${server}/${[share, ...rest].map(encodePart).join('/')}`, displayPath: canonicalPath, server, share });
-}
-function windowsPath(input) {
-  const match = input.match(WINDOWS_DRIVE_RE);
-  if (!match) return null;
-  const segments = validSegments(match[2].split(/[\\/]+/).filter(Boolean).map(decodePart));
-  if (!segments) return null;
-  const drive = match[1].toUpperCase();
-  const canonicalPath = `${drive}:\\${segments.join('\\')}`;
-  return target({ kind: 'windows-drive', canonicalPath, canonicalHref: `file:///${drive}:/${segments.map(encodePart).join('/')}`, displayPath: canonicalPath });
-}
-function macPath(input) {
-  if (!MAC_ABSOLUTE_PATH_RE.test(input)) return null;
-  const segments = validSegments(input.split('/').filter(Boolean).map(decodePart));
-  if (!segments) return null;
-  const canonicalPath = `/${segments.join('/')}`;
-  return target({ kind: 'mac-local', canonicalPath, canonicalHref: `file:///${segments.map(encodePart).join('/')}`, displayPath: canonicalPath });
+  if (/\s/u.test(server)) return null;
+  const canonicalUncPath = `\\\\${server}\\${[share, ...rest].join('\\')}`;
+  const shareKey = `unc://${normalizeUncComparisonPart(server)}/${normalizeUncComparisonPart(share)}`;
+  const canonicalPrefix = [shareKey, ...rest.map(normalizeUncComparisonPart)].join('/');
+  return target({
+    kind: 'unc',
+    canonicalPath: canonicalUncPath,
+    canonicalUncPath,
+    canonicalHref: `file://${server}/${[share, ...rest].map(encodePart).join('/')}`,
+    canonicalPrefix,
+    displayPath: canonicalUncPath,
+    segments: rest,
+    server,
+    share,
+    shareKey,
+  });
 }
 function fileUrl(input) {
   try {
@@ -64,7 +73,7 @@ function fileUrl(input) {
       const value = `\\\\${url.hostname}${pathname.replace(/\//g, '\\')}`;
       return webDav(value) || unc(value);
     }
-    return windowsPath(pathname.replace(/^\//, '')) || macPath(pathname);
+    return null;
   } catch { return null; }
 }
 function smbUrl(input) {
@@ -79,9 +88,9 @@ export function parseFileExplorerTarget(value) {
   if (value && typeof value === 'object' && typeof value.canonicalPath === 'string') return parseFileExplorerTarget(value.canonicalHref || value.canonicalPath);
   const input = text(value);
   if (!input) return null;
-  return webDav(input) || (/^https?:/i.test(input) ? web(input) : null) || (/^file:/i.test(input) ? fileUrl(input) : null) || (/^smb:/i.test(input) ? smbUrl(input) : null) || (/^[\\/]{2}/.test(input) ? unc(input) : null) || (WINDOWS_DRIVE_RE.test(input) ? windowsPath(input) : null) || macPath(input);
+  return webDav(input) || (/^https?:/i.test(input) ? web(input) : null) || (/^file:/i.test(input) ? fileUrl(input) : null) || (/^smb:/i.test(input) ? smbUrl(input) : null) || (/^[\\/]{2}/.test(input) ? unc(input) : null);
 }
-export function isFileExplorerTarget(value) { const parsed = parseFileExplorerTarget(value); return Boolean(parsed && parsed.kind !== 'web'); }
+export function isFileExplorerTarget(value) { return parseFileExplorerTarget(value)?.kind === 'unc'; }
 function base64(value) {
   if (globalThis.Buffer) return globalThis.Buffer.from(value, 'utf8').toString('base64');
   return btoa(encodeURIComponent(value).replace(/%([0-9A-F]{2})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16))));
@@ -95,7 +104,7 @@ function fromBase64(value) {
 }
 export function encodeFileExplorerTarget(value) {
   const parsed = parseFileExplorerTarget(value);
-  return !parsed || parsed.kind === 'web' ? null : base64(JSON.stringify({ p: parsed.canonicalPath, v: 1 })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  return parsed?.kind !== 'unc' ? null : base64(JSON.stringify({ p: parsed.canonicalPath, v: 1 })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 export function decodeFileExplorerTarget(token) {
   const compact = text(token);
@@ -104,7 +113,7 @@ export function decodeFileExplorerTarget(token) {
   try {
     const payload = JSON.parse(decoded);
     const parsed = payload?.v === 1 && typeof payload.p === 'string' ? parseFileExplorerTarget(payload.p) : null;
-    return parsed && parsed.kind !== 'web' ? parsed : null;
+    return parsed?.kind === 'unc' ? parsed : null;
   } catch { return null; }
 }
 export function buildFileExplorerHref(value) {

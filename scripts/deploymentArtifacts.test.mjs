@@ -21,11 +21,17 @@ describe('deployment artifacts', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sitebuilder-artifact-'));
     roots.push(root);
     fs.writeFileSync(path.join(root, 'index.html'), '<!doctype html>');
-    const result = writeDeploymentArtifacts(root, { fileExplorerBridgePath: '/_site-builder/file-explorer', siteCode: 'schedule', siteId: 'schedule' }, {
+    const result = writeDeploymentArtifacts(root, {
+      fileExplorerBridgePath: '/_site-builder/file-explorer',
+      siteCode: 'schedule',
+      siteId: 'schedule',
+    }, {
       generatedAt: '2026-07-13T00:00:00.000Z',
     });
 
-    expect(result.runtimeConfig).toMatchObject({ fileExplorerBridgePath: '/_site-builder/file-explorer', storageBackend: 'txt', siteId: 'schedule' });
+    expect(result.runtimeConfig).toMatchObject({ storageBackend: 'txt', siteId: 'schedule' });
+    expect(result.runtimeConfig).not.toHaveProperty('fileExplorerBridgePath');
+    expect(result.deploymentMetadata).not.toHaveProperty('fileExplorerBridgePath');
     expect(result.deploymentMetadata).toMatchObject({ storageBackend: 'txt', storageBackendSource: 'production-environment' });
     expect(result.manifest).toMatchObject({
       schemaVersion: 2,
@@ -69,17 +75,16 @@ describe('deployment artifacts', () => {
       VITE_SITE_ID: 'local-dev-site',
       VITE_SITE_BUILDER_API_KEY: 'local-secret',
       VITE_SITE_BUILDER_DEV_API_KEY: 'local-dev-secret',
-      VITE_LOCAL_FILE_BRIDGE: 'true',
     });
     expect(environment).toMatchObject({
       VITE_STORAGE_BACKEND: 'txt',
       VITE_SITE_ID: 'target-site',
       VITE_SITE_BUILDER_API_KEY: '',
       VITE_SITE_BUILDER_DEV_API_KEY: '',
-      VITE_FILE_EXPLORER_API_URL: '',
-      VITE_FILE_EXPLORER_BRIDGE_PATH: '/_site-builder/file-explorer',
-      VITE_LOCAL_FILE_BRIDGE: 'false',
       VITE_AUTO_DEPLOY: 'false',
     });
+    expect(environment).not.toHaveProperty('VITE_FILE_EXPLORER_API_URL');
+    expect(environment).not.toHaveProperty('VITE_FILE_EXPLORER_BRIDGE_PATH');
+    expect(environment).not.toHaveProperty('VITE_LOCAL_FILE_BRIDGE');
   });
 });

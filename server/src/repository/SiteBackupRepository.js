@@ -676,6 +676,12 @@ export class SiteBackupRepository {
         file: filesByName.get(entry.fileName),
       }));
 
+    // Validate every selected payload before the first write so an invalid
+    // package cannot produce a partially applied restore.
+    filesToRestore.forEach(({ file }) => {
+      if (file) parseFileJson(file);
+    });
+
     const restored = [];
     const failed = [];
     const notSelectedEntries = restoreEntries

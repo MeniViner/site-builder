@@ -5,7 +5,10 @@ import { getLinkTargetAttributes, isFileLinkTarget, normalizeLinkTarget, openLin
 function targetFromHref(href) { return decodeFileExplorerTarget(new URLSearchParams(href.split('?')[1]).get('target')); }
 
 describe('link targets', () => {
-  it('keeps web links as web links', () => { expect(normalizeLinkTarget('https://example.test/path')).toBe('https://example.test/path'); });
+  it('keeps normal HTTP and HTTPS links unchanged', () => {
+    expect(normalizeLinkTarget('https://example.test/path')).toBe('https://example.test/path');
+    expect(normalizeLinkTarget('http://example.test/path')).toBe('http://example.test/path');
+  });
   it('keeps Site Builder and SharePoint-relative paths in their existing navigation flow', () => {
     expect(normalizeLinkTarget('/org-chart')).toBe('/org-chart');
     expect(normalizeLinkTarget('/sites/schedule/siteDB')).toBe('/sites/schedule/siteDB');
@@ -31,5 +34,9 @@ describe('link targets', () => {
     expect(href).not.toContain('search-ms:');
     expect(href).not.toContain('file:');
   });
-  it('uses safe anchor attributes for internal explorer links', () => { expect(getLinkTargetAttributes('C:\\Team\\Files')).toMatchObject({ href: expect.stringMatching(/^#\/file-explorer\?target=/), rel: 'noopener noreferrer', target: '_blank' }); });
+  it('does not turn mapped drives or local file URLs into browser navigation', () => {
+    expect(getLinkTargetAttributes('C:\\Team\\Files')).toMatchObject({ href: '', rel: 'noopener noreferrer', target: '_blank' });
+    expect(normalizeLinkTarget('file:///C:/Team/Files')).toBe('');
+    expect(normalizeLinkTarget('afp://server/share')).toBe('');
+  });
 });

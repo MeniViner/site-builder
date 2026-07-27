@@ -23,14 +23,4 @@ describe('server env validation', () => {
 
     expect(validateServerConfig(config)).toEqual([]);
   });
-
-  it('rejects production startup when a configured explorer root has invalid browser security settings', () => {
-    const config = getServerConfig({
-      NODE_ENV: 'production',
-      STORAGE_BACKEND: 'local-dev',
-      SITE_BUILDER_FILE_EXPLORER_ROOTS: '\\\\hrmazivfs\\Malnash',
-    });
-
-    expect(validateServerConfig(config).join(' ')).toContain('File explorer configuration is invalid');
-  });
 });

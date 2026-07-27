@@ -1,5 +1,4 @@
 import dotenv from 'dotenv';
-import { getFileExplorerConfig } from './fileExplorer.js';
 
 dotenv.config();
 
@@ -10,7 +9,6 @@ const splitCsv = (value) =>
     .filter(Boolean);
 
 export function getServerConfig(env = process.env) {
-  const fileExplorer = getFileExplorerConfig(env);
   return {
     mongodbUri: env.MONGODB_URI || '',
     mongodbDbName: env.MONGODB_DB_NAME || 'site_builder',
@@ -22,8 +20,7 @@ export function getServerConfig(env = process.env) {
     jwtSecret: env.JWT_SECRET || '',
     siteCollectionPrefix: env.SITE_COLLECTION_PREFIX || 'site_',
     nodeEnv: env.NODE_ENV || 'development',
-    serverHost: env.SERVER_HOST || (fileExplorer.configured && fileExplorer.auth.mode === 'windows-proxy' ? '127.0.0.1' : '0.0.0.0'),
-    fileExplorer,
+    serverHost: env.SERVER_HOST || '0.0.0.0',
   };
 }
 
@@ -38,10 +35,6 @@ export function validateServerConfig(config) {
     if (!String(config.mongodbDbName || '').trim()) {
       errors.push('MONGODB_DB_NAME is required when STORAGE_BACKEND=mongo.');
     }
-  }
-
-  if (config.fileExplorer?.configured && config.fileExplorer.configurationError) {
-    errors.push(`File explorer configuration is invalid: ${config.fileExplorer.configurationError}`);
   }
 
   return errors;

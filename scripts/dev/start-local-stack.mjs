@@ -131,7 +131,6 @@ function validateLocalConfiguration(frontendEnv, serverEnv) {
     fail('VITE_SITE_BUILDER_DEV_API_KEY and ADMIN_API_KEY must match.');
   }
   if (frontendEnv.VITE_AUTO_DEPLOY !== 'false') fail('VITE_AUTO_DEPLOY must be false in local development.');
-  if (frontendEnv.VITE_LOCAL_FILE_BRIDGE !== 'true') fail('VITE_LOCAL_FILE_BRIDGE must be true for the styled local/network folder view.');
   return backendUrl;
 }
 

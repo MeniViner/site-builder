@@ -411,22 +411,31 @@ async function runPickerTest() {
     log("directory-enumerated", enumeration);
 
     const child = await firstChildDirectory(handle);
-    if (!child) {
-      throw new Error("No child directory was found in the selected folder.");
+    if (child) {
+      currentRun.childDirectoryName = child.name;
+      currentRun.childDirectoryCheck = "passed";
+      setCheck("child", "pass", `נפתחה “${child.name}”`);
+      log("child-directory-opened", { name: child.name });
+    } else {
+      currentRun.childDirectoryCheck = "not_applicable";
+      setCheck("child", "warning", "לא רלוונטי — לא נמצאה תיקיית משנה");
+      log("child-directory-not-applicable");
     }
-    currentRun.childDirectoryName = child.name;
-    setCheck("child", "pass", `נפתחה “${child.name}”`);
-    log("child-directory-opened", { name: child.name });
 
     const metadata = await firstFileMetadata(handle);
-    if (!metadata) {
-      throw new Error(
-        `No readable file was found within depth ${MAX_FILE_SEARCH_DEPTH} and the safety limit.`,
-      );
+    if (metadata) {
+      currentRun.fileMetadata = metadata;
+      currentRun.fileMetadataCheck = "passed";
+      setCheck("metadata", "pass", `${metadata.name} · ${metadata.size} בייט`);
+      log("file-metadata-read", metadata);
+    } else {
+      currentRun.fileMetadataCheck = "not_applicable";
+      setCheck("metadata", "warning", "לא רלוונטי — לא נמצא קובץ לקריאה");
+      log("file-metadata-not-applicable", {
+        maxDepth: MAX_FILE_SEARCH_DEPTH,
+        maxEntries: MAX_ENUMERATED_ENTRIES,
+      });
     }
-    currentRun.fileMetadata = metadata;
-    setCheck("metadata", "pass", `${metadata.name} · ${metadata.size} bytes`);
-    log("file-metadata-read", metadata);
 
     await saveHandle(handle);
     setCheck("indexeddb", "pass", "נשמר");

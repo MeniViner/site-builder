@@ -43,7 +43,7 @@ describe('runtimeConfig and storage descriptor', () => {
     vi.restoreAllMocks();
   });
 
-  it('uses an embedded runtime config without accepting or diagnosing secrets', async () => {
+  it('uses an embedded runtime config without accepting secrets or obsolete explorer settings', async () => {
     setWindowLocation('https://portal.army.idf/sites/demo/siteDB/dist/index.html', {
       storageBackend: 'mongo',
       backendApiUrl: 'https://api.example.test',
@@ -59,18 +59,32 @@ describe('runtimeConfig and storage descriptor', () => {
     expect(getRuntimeConfig()).toMatchObject({
       storageBackend: 'mongo',
       backendApiUrl: 'https://api.example.test',
-      fileExplorerApiUrl: 'https://explorer-api.example.test',
-      fileExplorerBridgePath: '/_site-builder/file-explorer',
       siteId: 'runtime-site',
     });
     expect(getRuntimeConfig()).not.toHaveProperty('apiKey');
+    expect(getRuntimeConfig()).not.toHaveProperty('fileExplorerApiUrl');
+    expect(getRuntimeConfig()).not.toHaveProperty('fileExplorerBridgePath');
     expect(getRuntimeConfigSource()).toBe('window-runtime-config');
     expect(getStorageBackend()).toBe('mongo');
     expect(getBackendApiBaseUrl()).toBe('https://api.example.test');
     expect(getSiteId()).toBe('runtime-site');
-    expect(getRuntimeValue('fileExplorerApiUrl')).toBe('https://explorer-api.example.test');
-    expect(getRuntimeValue('fileExplorerBridgePath')).toBe('/_site-builder/file-explorer');
     expect(JSON.stringify(getRuntimeLog())).not.toContain('must-not-escape');
+  });
+
+  it('does not let obsolete explorer configuration alter the TXT storage selection', async () => {
+    vi.stubEnv('VITE_STORAGE_BACKEND', 'txt');
+    vi.stubEnv('VITE_BACKEND_API_URL', '');
+    setWindowLocation('https://portal.army.idf/sites/demo/siteDB/dist/index.html', {
+      fileExplorerApiUrl: 'https://obsolete.example.test',
+      fileExplorerBridgePath: '/_site-builder/file-explorer',
+    });
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(asResponse({}, 404))));
+
+    await loadRuntimeConfig();
+
+    expect(getStorageBackend()).toBe('txt');
+    expect(getRuntimeConfig()).not.toHaveProperty('fileExplorerApiUrl');
+    expect(getRuntimeConfig()).not.toHaveProperty('fileExplorerBridgePath');
   });
 
   it('rejects an HTML fallback and loads the next JSON candidate beside nested index.html', async () => {

@@ -92,6 +92,7 @@ describe('LegacyObjectStorageAdapter', () => {
     it('allows the explicit development-only API key for local Mongo tools', async () => {
         vi.stubEnv('VITE_STORAGE_BACKEND', 'mongo');
         vi.stubEnv('VITE_BACKEND_API_URL', 'http://127.0.0.1:3001');
+        vi.stubEnv('VITE_SITE_ID', 'alpha');
         vi.stubEnv('VITE_SITE_BUILDER_DEV_API_KEY', 'secret');
         const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ ok: true, backups: [] }), {
             status: 200,

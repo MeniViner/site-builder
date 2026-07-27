@@ -6,6 +6,7 @@ export default defineConfig({
   
   test: {
     environment: 'jsdom',
+    exclude: ['.tmp-verify/**', 'dist/**', 'node_modules/**'],
     globals: true,
     setupFiles: ['./src/test/setupTests.js'],
   },

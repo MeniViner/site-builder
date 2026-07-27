@@ -79,7 +79,8 @@
             <h2 id="run-title">בדיקת היכולת</h2>
             <p>
               הלחצן פותח את בורר התיקיות ישירות מהלחיצה, מבקש קריאה בלבד,
-              מונה תוכן, פותח תיקיית משנה וקורא מטא־דאטה של קובץ.
+              מונה תוכן, וכאשר הם קיימים גם פותח תיקיית משנה וקורא מטא־דאטה של קובץ.
+              תיקייה ללא תיקיית משנה או ללא קובץ היא תוצאה תקינה של “לא רלוונטי”.
             </p>
           </div>
           <button id="pick-directory" class="primary" type="button">בחר ובדוק תיקיית רשת</button>
@@ -88,8 +89,8 @@
         <ol id="checks" class="checks">
           <li data-check="picker"><span>פתיחת showDirectoryPicker({ mode: 'read' })</span><strong>ממתין</strong></li>
           <li data-check="enumerate"><span>מניית התיקייה באמצעות handle.values()</span><strong>ממתין</strong></li>
-          <li data-check="child"><span>פתיחת תיקיית משנה באמצעות getDirectoryHandle()</span><strong>ממתין</strong></li>
-          <li data-check="metadata"><span>קריאת מטא־דאטה באמצעות getFile()</span><strong>ממתין</strong></li>
+          <li data-check="child"><span>פתיחת תיקיית משנה, אם קיימת, באמצעות getDirectoryHandle()</span><strong>ממתין</strong></li>
+          <li data-check="metadata"><span>קריאת מטא־דאטה של קובץ, אם קיים, באמצעות getFile()</span><strong>ממתין</strong></li>
           <li data-check="indexeddb"><span>שמירת FileSystemDirectoryHandle ב־IndexedDB</span><strong>ממתין</strong></li>
           <li data-check="permission"><span>בדיקת הרשאת read באמצעות queryPermission()</span><strong>ממתין</strong></li>
           <li data-check="reload"><span>שליפת ה־handle לאחר רענון</span><strong>ממתין</strong></li>
