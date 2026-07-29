@@ -56,6 +56,17 @@ describe('backupPackage', () => {
                         height: 900,
                         media: { fileName: 'photo.webp', mimeType: 'image/webp', sizeBytes: 100 },
                     }],
+                    display: {
+                        magalStrips: {
+                            rowCount: 2,
+                            cardSizePx: 196,
+                            gapPx: 16,
+                            rows: [
+                                { id: 'row-1', direction: 'left', durationSeconds: 33, angleDegrees: 3 },
+                                { id: 'row-2', direction: 'right', durationSeconds: 41, angleDegrees: -3 },
+                            ],
+                        },
+                    },
                 }],
             },
         };
@@ -65,6 +76,11 @@ describe('backupPackage', () => {
         expect(restored.imageGalleries.items[0].images[0]).toMatchObject({
             mediaRef: '/images/ImageGallery/photo.webp',
             alt: 'Training photo',
+        });
+        expect(restored.imageGalleries.items[0].display.magalStrips).toMatchObject({
+            rowCount: 2,
+            cardSizePx: 196,
+            gapPx: 16,
         });
     });
 });

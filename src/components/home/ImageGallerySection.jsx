@@ -2,6 +2,12 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Expand, ImageOff, X } from 'lucide-react';
 import { resolveSiteImageUrl } from '../../utils/assetUrl';
 import { isLocalGalleryMediaReference, resolveLocalGalleryMedia } from '../../services/galleryMediaStorage';
+import {
+    buildMagalStripLoopItems,
+    MAGAL_STRIP_REPEAT_GROUP_COUNT,
+    normalizeImageGalleryDisplay,
+    normalizeMagalStripsSettings,
+} from '../../utils/imageGallery';
 
 function modulo(value, length) {
     if (length <= 0) return 0;
@@ -173,7 +179,7 @@ function GalleryNavButton({ direction, rtl = true, onClick, label, disabled }) {
             onClick={onClick}
             disabled={disabled}
             aria-label={label}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/30 bg-slate-950/75 text-white shadow-lg transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/30 bg-slate-950/75 text-white shadow-lg transition-[background-color,transform] duration-150 hover:bg-primary active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
         >
             <Icon size={22} aria-hidden="true" />
         </button>
@@ -221,14 +227,36 @@ function GalleryLightbox({ images, activeIndex, onClose, onChange, direction }) 
     );
 }
 
-function GalleryFrame({ gallery, children, className = '' }) {
+function GalleryFrame({ gallery, children, className = '', fullBleed = false, preview = false }) {
+    const display = normalizeImageGalleryDisplay(gallery?.display, gallery);
+    const showTitle = display.showTitle && Boolean(gallery?.title);
+    const showDescription = display.showDescription && Boolean(gallery?.description);
+    const showHeadingBlock = showTitle || showDescription;
+    const titleId = `gallery-title-${gallery.id}`;
+    const headingAlignmentClass = display.titleAlignment === 'right'
+        ? 'ml-auto text-right'
+        : 'mx-auto text-center';
+
     return (
-        <section className={`relative overflow-hidden border-y border-theme-subtle bg-theme-bg-base/85 px-4 py-10 backdrop-blur-sm sm:px-8 lg:px-12 ${className}`} aria-labelledby={`gallery-title-${gallery.id}`}>
-            <div className="mx-auto max-w-7xl">
-                <div className="mb-6 max-w-3xl">
-                    <h2 id={`gallery-title-${gallery.id}`} className="text-2xl font-black text-theme sm:text-3xl">{gallery.title}</h2>
-                    {gallery.description && <p className="mt-2 text-sm leading-6 text-theme-muted sm:text-base">{gallery.description}</p>}
+        <section
+            className={`image-gallery-frame relative isolate w-full overflow-hidden border-y border-theme-subtle bg-theme-bg-base/92 py-14 sm:py-16 lg:py-20 ${preview ? 'image-gallery-frame--preview !py-8' : ''} ${className}`}
+            aria-labelledby={showTitle ? titleId : undefined}
+            aria-label={!showTitle ? (gallery.title || 'גלריית תמונות') : undefined}
+            data-testid={`gallery-frame-${gallery.id}`}
+            data-layout="normal-flow"
+        >
+            {showHeadingBlock && (
+                <div className="mx-auto mb-8 w-full max-w-7xl px-4 sm:mb-10 sm:px-8 lg:px-12">
+                    <div
+                        className={`max-w-3xl ${headingAlignmentClass}`}
+                        data-testid={`gallery-heading-${gallery.id}`}
+                    >
+                        {showTitle && <h2 id={titleId} className="text-balance text-2xl font-black text-theme sm:text-3xl">{gallery.title}</h2>}
+                        {showDescription && <p className="mt-2 text-pretty text-sm leading-6 text-theme-muted sm:text-base">{gallery.description}</p>}
+                    </div>
                 </div>
+            )}
+            <div className={fullBleed ? 'w-full min-w-0' : 'mx-auto w-full max-w-7xl px-4 sm:px-8 lg:px-12'}>
                 {children}
             </div>
         </section>
@@ -324,10 +352,10 @@ function CoverflowCarousel({ gallery, direction }) {
                         const rawOffset = index - controls.activeIndex;
                         const offset = rawOffset > images.length / 2 ? rawOffset - images.length : (rawOffset < -images.length / 2 ? rawOffset + images.length : rawOffset);
                         const distance = Math.abs(offset);
-                        const transform = `translateX(${offset * (direction === 'rtl' ? -20 : 20)}%) translateZ(${-distance * 100}px) rotateY(${offset * -18}deg) scale(${Math.max(0.72, 1 - distance * 0.12)})`;
+                        const transform = `translate(-50%, -50%) translateX(${offset * (direction === 'rtl' ? -20 : 20)}%) translateZ(${-distance * 100}px) rotateY(${offset * -18}deg) scale(${Math.max(0.72, 1 - distance * 0.12)})`;
                         const isActive = index === controls.activeIndex;
                         return (
-                            <button key={image.id} type="button" onClick={() => controls.setActiveIndex(index)} className={`absolute left-1/2 top-1/2 h-[235px] w-[72%] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-3xl border bg-slate-950 text-right shadow-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:h-[330px] sm:w-[62%] ${isActive ? 'border-primary/80' : 'border-white/20'}`} style={{ transform, zIndex: 20 - distance, opacity: distance > 2 ? 0 : Math.max(0.35, 1 - distance * 0.24), transition: reducedMotion ? 'none' : 'transform 420ms ease, opacity 420ms ease' }} aria-label={`הצג תמונה ${index + 1}: ${image.alt}`} aria-current={isActive ? 'true' : undefined}>
+                            <button key={image.id} type="button" onClick={() => controls.setActiveIndex(index)} className={`absolute left-1/2 top-1/2 h-[235px] w-[72%] overflow-hidden rounded-3xl border bg-slate-950 text-right shadow-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:h-[330px] sm:w-[62%] ${isActive ? 'border-primary/80' : 'border-white/20'}`} style={{ transform, zIndex: 20 - distance, opacity: distance > 2 ? 0 : Math.max(0.35, 1 - distance * 0.24), transition: reducedMotion ? 'none' : 'transform 420ms ease, opacity 420ms ease' }} aria-label={`הצג תמונה ${index + 1}: ${image.alt}`} aria-current={isActive ? 'true' : undefined}>
                                 <GalleryImage image={image} alt={isActive ? image.alt : ''} decorative={!isActive} loading={isActive ? 'eager' : 'lazy'} sizes="(max-width: 768px) 72vw, 640px" className="h-full w-full object-cover" />
                                 {isActive && <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-5 pb-4 pt-12 text-sm font-bold text-white">{image.caption || image.alt}</span>}
                             </button>
@@ -360,8 +388,8 @@ function MasonryGallery({ gallery, direction }) {
             <div className="columns-1 gap-4 sm:columns-2 lg:columns-3" dir={direction}>
                 {gallery.images.map((image, index) => (
                     <button key={image.id} type="button" className="group relative mb-4 block w-full break-inside-avoid overflow-hidden rounded-2xl border border-theme-subtle bg-slate-950 text-right shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" onClick={(event) => openLightbox(index, event)} aria-label={`הגדל תמונה: ${image.alt}`}>
-                        <GalleryImage image={image} alt={image.alt} loading={index === 0 ? 'eager' : 'lazy'} sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" className="h-auto w-full object-cover transition duration-300 group-hover:scale-[1.03] motion-reduce:transition-none" />
-                        <span className="absolute inset-0 flex items-end justify-between bg-gradient-to-t from-black/75 via-transparent to-transparent p-4 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none">
+                        <GalleryImage image={image} alt={image.alt} loading={index === 0 ? 'eager' : 'lazy'} sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" className="h-auto w-full object-cover transition-transform duration-300 group-hover:scale-[1.03] motion-reduce:transition-none" />
+                        <span className="absolute inset-0 flex items-end justify-between bg-gradient-to-t from-black/75 via-transparent to-transparent p-4 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none">
                             <span className="text-sm font-bold text-white">{image.caption || image.alt}</span>
                             <span className="rounded-full bg-white/20 p-2 text-white"><Expand size={18} aria-hidden="true" /></span>
                         </span>
@@ -373,10 +401,86 @@ function MasonryGallery({ gallery, direction }) {
     );
 }
 
+export function MagalStripsGallery({ gallery, direction, preview = false }) {
+    const settings = normalizeMagalStripsSettings(gallery?.display?.magalStrips);
+    const reducedMotion = useReducedMotion();
+    const rows = settings.rows.slice(0, settings.rowCount);
+    const sectionStyle = {
+        '--magal-card-size': `${settings.cardSizePx}px`,
+        '--magal-card-gap': `${settings.gapPx}px`,
+    };
+
+    return (
+        <GalleryFrame gallery={gallery} fullBleed preview={preview} className="image-gallery-frame--magal">
+            <div
+                className={`magal-strips ${preview ? 'magal-strips--preview' : ''} ${reducedMotion ? 'magal-strips--reduced-motion' : ''}`}
+                style={sectionStyle}
+                dir={direction}
+                data-testid="magal-strips"
+                data-reduced-motion={reducedMotion ? 'true' : 'false'}
+            >
+                {rows.map((row, rowIndex) => {
+                    const loopItems = buildMagalStripLoopItems(gallery.images, rowIndex);
+                    const rowStyle = {
+                        '--magal-row-angle': `${row.angleDegrees}deg`,
+                        '--magal-row-duration': `${row.durationSeconds}s`,
+                        '--magal-row-animation-direction': row.direction === 'left' ? 'normal' : 'reverse',
+                    };
+                    return (
+                        <div
+                            key={row.id}
+                            className="magal-strips__viewport"
+                            style={rowStyle}
+                            data-testid="magal-row"
+                            data-direction={row.direction}
+                            data-angle={row.angleDegrees}
+                            data-duration={row.durationSeconds}
+                        >
+                            <div className="magal-strips__angled-row">
+                                <div className="magal-strips__track" data-testid="magal-track">
+                                    {Array.from({ length: MAGAL_STRIP_REPEAT_GROUP_COUNT }, (_, groupIndex) => (
+                                        <div
+                                            className="magal-strips__group"
+                                            key={`${row.id}-group-${groupIndex}`}
+                                            aria-hidden={groupIndex > 0 ? 'true' : undefined}
+                                            data-testid="magal-repeat-group"
+                                        >
+                                            {loopItems.map(({ image, loopIndex }) => {
+                                                const meaningful = groupIndex === 0 && loopIndex < gallery.images.length;
+                                                return (
+                                                    <figure
+                                                        className="magal-strips__card"
+                                                        key={`${row.id}-${groupIndex}-${loopIndex}-${image.id}`}
+                                                        title={meaningful ? (image.caption || image.alt) : undefined}
+                                                    >
+                                                        <GalleryImage
+                                                            image={image}
+                                                            alt={meaningful ? image.alt : ''}
+                                                            decorative={!meaningful}
+                                                            loading={groupIndex === 0 && loopIndex === 0 ? 'eager' : 'lazy'}
+                                                            sizes="(max-width: 640px) 132px, (max-width: 1024px) 156px, 180px"
+                                                            className="h-full w-full object-cover outline outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"
+                                                        />
+                                                    </figure>
+                                                );
+                                            })}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </GalleryFrame>
+    );
+}
+
 export function ImageGalleryRenderer({ gallery, direction, preview = false }) {
     const normalizedDirection = readDirection(direction);
     if (!gallery?.images?.length) return null;
     const props = { gallery, direction: normalizedDirection, preview };
+    if (gallery.style === 'magal-strips') return <MagalStripsGallery {...props} />;
     if (gallery.style === 'center-carousel') return <CenterCarousel {...props} />;
     if (gallery.style === 'coverflow') return <CoverflowCarousel {...props} />;
     if (gallery.style === 'masonry') return <MasonryGallery {...props} />;
@@ -387,7 +491,7 @@ export default function ImageGallerySection({ galleries = [], direction }) {
     if (!Array.isArray(galleries) || galleries.length === 0) return null;
     const normalizedDirection = readDirection(direction);
     return (
-        <div className="relative z-10 w-full" dir={normalizedDirection} data-testid="image-gallery-section">
+        <div className="w-full min-w-0 overflow-x-clip" dir={normalizedDirection} data-testid="image-gallery-section" data-layout="normal-flow">
             {galleries.map((gallery) => <ImageGalleryRenderer key={gallery.id} gallery={gallery} direction={normalizedDirection} />)}
         </div>
     );

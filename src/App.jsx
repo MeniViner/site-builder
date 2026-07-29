@@ -134,11 +134,11 @@ export function Home({ isPreview = false }) {
 
   const renderExternalLinks = () => {
     if (!externalLinks || externalLinks.length === 0) return null;
-    const footerCls = 'relative z-10 w-full border-t border-theme-subtle bg-theme-card';
+    const linksSectionClass = 'relative z-10 w-full border-t border-theme-subtle bg-theme-card';
     if (externalLinksFixed) return null;
-    if (externalLinksLayout === 'minimal') return <footer className={footerCls}><ExtLinksMinimal links={externalLinks} bordered={externalLinksBordered} /></footer>;
-    if (externalLinksLayout === 'floating') return <footer className={footerCls}><ExtLinksFloating links={externalLinks} fixed={false} bordered={externalLinksBordered} showBackground={externalLinksShowBackground} borderStyle={extLinksBorderStyle} /></footer>;
-    return <footer className={footerCls}><ExtLinksCards links={externalLinks} bordered={externalLinksBordered} borderStyle={extLinksBorderStyle} /></footer>;
+    if (externalLinksLayout === 'minimal') return <section aria-label="קישורים חיצוניים" className={linksSectionClass}><ExtLinksMinimal links={externalLinks} bordered={externalLinksBordered} /></section>;
+    if (externalLinksLayout === 'floating') return <section aria-label="קישורים חיצוניים" className={linksSectionClass}><ExtLinksFloating links={externalLinks} fixed={false} bordered={externalLinksBordered} showBackground={externalLinksShowBackground} borderStyle={extLinksBorderStyle} /></section>;
+    return <section aria-label="קישורים חיצוניים" className={linksSectionClass}><ExtLinksCards links={externalLinks} bordered={externalLinksBordered} borderStyle={extLinksBorderStyle} /></section>;
   };
   const alphaTeamLinks = getAlphaTeamLinks();
   const alphaTeamEmailLink = alphaTeamLinks.find((link) => link.key === 'email');
@@ -199,10 +199,15 @@ export function Home({ isPreview = false }) {
           utilityLinks={utilityLinks}
         />
 
-        <main
-          data-widget-title={widgetTitle}
-          className={`home-portal-main w-full relative min-h-[calc(100vh-80px)] flex flex-col justify-between overflow-x-clip pt-4 [@media(max-height:850px)]:pt-2 lg:pt-8 xl:pt-12 ${regularLinksLayout === 'sidebar-right' ? 'site-main-with-right-sidebar' : ''}`}
+        <div
+          className={`homepage-usable-content ${regularLinksLayout === 'sidebar-right' ? 'homepage-usable-content--right-rail' : ''}`}
+          data-testid="homepage-usable-content"
+          data-right-rail-reserved={regularLinksLayout === 'sidebar-right' ? 'true' : 'false'}
         >
+          <main
+            data-widget-title={widgetTitle}
+            className="home-portal-main relative flex min-h-[calc(100vh-80px)] w-full flex-col justify-between overflow-x-clip pt-4 [@media(max-height:850px)]:pt-2 lg:pt-8 xl:pt-12"
+          >
           {heroGlassEffect && (
             <div
               className="pointer-events-none absolute inset-x-3 top-3 bottom-4 z-[1] rounded-[28px] border shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:inset-x-6 lg:inset-x-10 xl:inset-x-20"
@@ -246,41 +251,40 @@ export function Home({ isPreview = false }) {
           {showOverlayImage && overlayImage.displayArea === 'hero-full' && (
             <OverlayImageElement overlayImage={overlayImage} isPreview={isPreview} />
           )}
-        </main>
+          </main>
 
-        {regularLinksLayout !== 'sidebar-right' && (
-          <div className="relative z-10 w-full mt-[10vh] pb-24 px-6 lg:px-12 flex flex-col gap-16 bg-theme-bg-base/90 backdrop-blur-xl border-t border-theme-strong pt-16">
-            {loading ? (
-              <div className="w-full h-64 flex items-center justify-center text-theme-muted">טוען קטגוריות...</div>
-            ) : visibleCategories.map((cat) => (
-              <CategorySection
-                key={cat.id}
-                cat={cat}
-                regularLinksLayout={regularLinksLayout}
-                hqDashBorderStyle={hqDashBorderStyle}
-                flipCardBorderStyle={flipCardBorderStyle}
-                flippedCardId={flippedCardId}
-                onFlip={handleFlip}
-              />
-            ))}
-          </div>
-        )}
+          {regularLinksLayout !== 'sidebar-right' && (
+            <div className="relative z-10 mt-[10vh] flex w-full flex-col gap-16 border-t border-theme-strong bg-theme-bg-base/90 px-6 pb-24 pt-16 backdrop-blur-xl lg:px-12">
+              {loading ? (
+                <div className="flex h-64 w-full items-center justify-center text-theme-muted">טוען קטגוריות...</div>
+              ) : visibleCategories.map((cat) => (
+                <CategorySection
+                  key={cat.id}
+                  cat={cat}
+                  regularLinksLayout={regularLinksLayout}
+                  hqDashBorderStyle={hqDashBorderStyle}
+                  flipCardBorderStyle={flipCardBorderStyle}
+                  flippedCardId={flippedCardId}
+                  onFlip={handleFlip}
+                />
+              ))}
+            </div>
+          )}
 
-        {!externalLinksFixed && renderExternalLinks()}
+          {!externalLinksFixed && renderExternalLinks()}
 
-        <ImageGallerySection galleries={activeGalleries} direction="rtl" />
+          <ImageGallerySection galleries={activeGalleries} direction="rtl" />
 
-        <div className="relative z-10 border-t border-theme-subtle py-4 sm:py-5 px-3 text-center bg-theme-bg-base flex flex-col sm:flex-row items-center justify-center gap-2 min-h-[118px] sm:min-h-[104px]">
-          <p className="text-xs text-theme-muted text-gray-900 dark:text-gray-100 truncate leading-tight"> מתנ"ה - siteBuilder {appVersion}©</p>
+          <footer data-testid="site-footer" className="relative z-10 flex min-h-[118px] flex-col items-center justify-center gap-2 border-t border-theme-subtle bg-theme-bg-base px-3 py-4 text-center sm:min-h-[104px] sm:flex-row sm:py-5">
+            <p className="truncate text-xs leading-tight text-theme-muted text-gray-900 dark:text-gray-100"> מתנ"ה - siteBuilder {appVersion}©</p>
 
-          {/* Alpha Team Watermark */}
-          <div
-            dir="rtl"
-            className="relative order-first sm:absolute sm:left-4 sm:top-1/2 sm:-translate-y-1/2 z-[100] max-w-[min(460px,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-primary/70 dark:border-primary/20 bg-white/85 dark:bg-slate-950/75 bg-gradient-to-br from-white via-primary/10 to-primary/20 dark:from-slate-950 dark:via-primary/40 dark:to-primary/30 px-3 py-1 ring-1 ring-white/60 dark:ring-white/5 backdrop-blur-xl opacity-95 transition-all duration-200 select-none"
+            {/* Alpha Team Watermark */}
+            <div
+              dir="rtl"
+              className="relative z-[100] order-first max-w-[min(460px,calc(100vw-1.5rem))] select-none overflow-hidden rounded-2xl border border-primary/70 bg-gradient-to-br from-white via-primary/10 to-primary/20 bg-white/85 px-3 py-1 opacity-95 ring-1 ring-white/60 backdrop-blur-xl dark:border-primary/20 dark:from-slate-950 dark:via-primary/40 dark:to-primary/30 dark:bg-slate-950/75 dark:ring-white/5 sm:absolute sm:left-4 sm:top-1/2 sm:-translate-y-1/2"
        
        
-       
-          >
+            >
             <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-l from-transparent via-cyan-300/80 to-transparent" />
             <div className="flex items-center gap-3">
               <img
@@ -331,7 +335,8 @@ export function Home({ isPreview = false }) {
                 </p> */}
               </div>
             </div>
-          </div>
+            </div>
+          </footer>
         </div>
       </div>
 

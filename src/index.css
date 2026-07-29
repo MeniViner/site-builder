@@ -123,6 +123,7 @@ body,
   background: var(--surface-bg);
   font-family: 'Heebo', sans-serif;
   margin: 0;
+  overflow-x: clip;
   /* Prevent caret-browsing style cursor from appearing on regular page text */
   caret-color: transparent;
 }
@@ -573,6 +574,185 @@ select,
   .sidebar-nav-item--top-level *,
   .sidebar-nav-item__icon-box {
     transition-duration: 1ms;
+  }
+}
+
+/* ============================================================
+   IMAGE GALLERY — usable-width placement and Magal strips
+   ============================================================ */
+.homepage-usable-content {
+  width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.homepage-usable-content--right-rail {
+  width: calc(100% - var(--right-sidebar-safe-width));
+  margin-right: var(--right-sidebar-safe-width);
+}
+
+.image-gallery-frame {
+  position: relative;
+  inset: auto;
+}
+
+.magal-strips {
+  --magal-render-card-size: var(--magal-card-size, 180px);
+  --magal-render-gap: var(--magal-card-gap, 12px);
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: clamp(0.15rem, 0.8vw, 0.65rem);
+  overflow: hidden;
+  direction: ltr;
+}
+
+.magal-strips__viewport {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  padding-block: clamp(1.75rem, 3.2vw, 2.8rem);
+}
+
+.magal-strips__angled-row {
+  width: 106%;
+  margin-inline: -3%;
+  transform: rotate(var(--magal-row-angle, 0deg));
+  transform-origin: center;
+}
+
+.magal-strips__track {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  min-width: max-content;
+  backface-visibility: hidden;
+  animation: magal-gallery-slide var(--magal-row-duration, 36s) linear infinite;
+  animation-direction: var(--magal-row-animation-direction, normal);
+  will-change: transform;
+}
+
+.magal-strips__group {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--magal-render-gap);
+  padding-inline: calc(var(--magal-render-gap) / 2);
+}
+
+.magal-strips__card {
+  width: var(--magal-render-card-size);
+  height: var(--magal-render-card-size);
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  margin: 0;
+  overflow: hidden;
+  border-radius: clamp(1rem, 1.35vw, 1.25rem);
+  background: rgb(15 23 42 / 0.72);
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.08),
+    0 10px 20px -10px rgb(15 23 42 / 0.24),
+    0 18px 36px -22px rgb(15 23 42 / 0.30);
+}
+
+.dark .magal-strips__card {
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.10),
+    0 12px 28px -18px rgb(0 0 0 / 0.72);
+}
+
+.magal-strips--preview {
+  --magal-render-card-size: min(var(--magal-card-size, 180px), 124px);
+  --magal-render-gap: min(var(--magal-card-gap, 12px), 9px);
+}
+
+.magal-strips--preview .magal-strips__viewport {
+  padding-block: 1.35rem;
+}
+
+.magal-strips--preview .magal-strips__track,
+.magal-strips--reduced-motion .magal-strips__track {
+  animation-play-state: paused;
+}
+
+.magal-style-miniature {
+  display: grid;
+  width: 100%;
+  gap: 0.35rem;
+  overflow: hidden;
+  padding: 0.65rem 0.35rem;
+  direction: ltr;
+}
+
+.magal-style-miniature__row {
+  display: flex;
+  width: max-content;
+  gap: 0.25rem;
+}
+
+.magal-style-miniature__row:first-child {
+  transform: translateX(-0.65rem) rotate(3deg);
+}
+
+.magal-style-miniature__row:last-child {
+  transform: translateX(-1.7rem) rotate(-3deg);
+}
+
+.magal-style-miniature__card {
+  width: 1.45rem;
+  height: 1.45rem;
+  flex: 0 0 auto;
+  border-radius: 0.35rem;
+  background:
+    linear-gradient(135deg, hsl(var(--color-primary) / 0.94), hsl(var(--color-primary) / 0.28));
+  box-shadow: 0 4px 9px -5px rgb(15 23 42 / 0.5);
+}
+
+.magal-style-miniature__card:nth-child(3n + 2) {
+  background: linear-gradient(135deg, rgb(56 189 248 / 0.84), rgb(14 116 144 / 0.36));
+}
+
+.magal-style-miniature__card:nth-child(3n) {
+  background: linear-gradient(135deg, rgb(148 163 184 / 0.88), rgb(51 65 85 / 0.42));
+}
+
+@keyframes magal-gallery-slide {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-25%, 0, 0);
+  }
+}
+
+@media (max-width: 1023px) {
+  .magal-strips {
+    --magal-render-card-size: min(var(--magal-card-size, 180px), 156px);
+    --magal-render-gap: min(var(--magal-card-gap, 12px), 10px);
+  }
+}
+
+@media (max-width: 640px) {
+  .magal-strips {
+    --magal-render-card-size: min(var(--magal-card-size, 180px), 132px);
+    --magal-render-gap: min(var(--magal-card-gap, 12px), 8px);
+    gap: 0;
+  }
+
+  .magal-strips__viewport {
+    padding-block: 1.45rem;
+  }
+
+  .magal-strips__angled-row {
+    width: 112%;
+    margin-inline: -6%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .magal-strips__track {
+    animation-play-state: paused;
+    will-change: auto;
   }
 }
 

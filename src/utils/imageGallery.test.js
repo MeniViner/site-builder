@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+    DEFAULT_MAGAL_STRIPS_SETTINGS,
     getActiveImageGalleries,
     getImageGalleryValidationIssues,
     normalizeImageGalleryBranch,
+    normalizeImageGalleryDisplay,
+    normalizeMagalStripsSettings,
     reorderGalleryImages,
     reorderImageGalleryItems,
 } from './imageGallery';
@@ -90,5 +93,93 @@ describe('Image Gallery schema', () => {
         expect(getActiveImageGalleries({ items: updated }).map((item) => item.id)).toEqual(['two']);
         expect(normalizeImageGalleryBranch({ items: deleted }).items).toHaveLength(1);
         expect(normalizeImageGalleryBranch({ items: deleted }).items[0]).toMatchObject({ id: 'two', title: 'Two' });
+    });
+
+    it('provides backward-compatible Magal strip defaults for existing galleries', () => {
+        const branch = normalizeImageGalleryBranch({
+            items: [{ id: 'legacy', title: 'Legacy', style: 'classic-carousel', images: [validImage] }],
+        });
+
+        expect(branch.items[0].style).toBe('classic-carousel');
+        expect(branch.items[0].display).toMatchObject({
+            showTitle: true,
+            showDescription: true,
+            titleAlignment: 'center',
+        });
+        expect(branch.items[0].display.magalStrips).toEqual({
+            rowCount: 2,
+            cardSizePx: 180,
+            gapPx: 12,
+            rows: DEFAULT_MAGAL_STRIPS_SETTINGS.rows.map((row) => ({ ...row })),
+        });
+    });
+
+    it('normalizes and persists Magal row direction, speed, angle, size, and gap', () => {
+        const settings = normalizeMagalStripsSettings({
+            rowCount: 3,
+            cardSizePx: 220,
+            gapPx: 18,
+            rows: [
+                { direction: 'right', durationSeconds: 27.5, angleDegrees: -4.5 },
+                { direction: 'left', speedSeconds: 51, angle: 5 },
+                { direction: 'right', durationSeconds: 62, angleDegrees: 1.5 },
+            ],
+        });
+        const branch = normalizeImageGalleryBranch({
+            items: [{
+                id: 'magal',
+                title: 'Magal',
+                style: 'magal-strips',
+                images: [validImage],
+                display: { magalStrips: settings },
+            }],
+        });
+
+        expect(branch.items[0].style).toBe('magal-strips');
+        expect(branch.items[0].display.magalStrips).toMatchObject({
+            rowCount: 3,
+            cardSizePx: 220,
+            gapPx: 18,
+        });
+        expect(branch.items[0].display.magalStrips.rows.slice(0, 3)).toMatchObject([
+            { direction: 'right', durationSeconds: 27.5, angleDegrees: -4.5 },
+            { direction: 'left', durationSeconds: 51, angleDegrees: 5 },
+            { direction: 'right', durationSeconds: 62, angleDegrees: 1.5 },
+        ]);
+    });
+
+    it('normalizes and persists backward-compatible heading visibility and alignment settings', () => {
+        const branch = normalizeImageGalleryBranch({
+            items: [{
+                id: 'custom-heading',
+                title: 'Custom heading',
+                images: [validImage],
+                display: {
+                    showTitle: false,
+                    showDescription: false,
+                    titleAlignment: 'right',
+                },
+            }],
+        });
+
+        expect(branch.items[0].display).toMatchObject({
+            showTitle: false,
+            showDescription: false,
+            titleAlignment: 'right',
+        });
+        expect(normalizeImageGalleryDisplay({ titleAlignment: 'unsupported' })).toMatchObject({
+            showTitle: true,
+            showDescription: true,
+            titleAlignment: 'center',
+        });
+        expect(normalizeImageGalleryDisplay(undefined, {
+            showTitle: false,
+            showDescription: true,
+            titleAlignment: 'right',
+        })).toMatchObject({
+            showTitle: false,
+            showDescription: true,
+            titleAlignment: 'right',
+        });
     });
 });

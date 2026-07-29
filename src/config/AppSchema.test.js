@@ -99,4 +99,42 @@ describe('migrateLegacyToV1', () => {
             images: [{ mediaRef: '/images/legacy.jpg', alt: 'Legacy photo' }],
         });
     });
+
+    it('persists Magal strip display settings through master-config normalization', () => {
+        const normalized = validateAndNormalize({
+            imageGalleries: {
+                items: [{
+                    id: 'magal-gallery',
+                    title: 'Magal',
+                    style: 'magal-strips',
+                    images: [{
+                        id: 'image-1',
+                        mediaRef: '/images/magal.jpg',
+                        alt: 'Magal',
+                    }],
+                    display: {
+                        magalStrips: {
+                            rowCount: 2,
+                            cardSizePx: 204,
+                            gapPx: 14,
+                            rows: [
+                                { direction: 'right', durationSeconds: 31, angleDegrees: 4 },
+                                { direction: 'left', durationSeconds: 47, angleDegrees: -5 },
+                            ],
+                        },
+                    },
+                }],
+            },
+        });
+
+        expect(normalized.imageGalleries.items[0].display.magalStrips).toMatchObject({
+            rowCount: 2,
+            cardSizePx: 204,
+            gapPx: 14,
+        });
+        expect(normalized.imageGalleries.items[0].display.magalStrips.rows.slice(0, 2)).toMatchObject([
+            { direction: 'right', durationSeconds: 31, angleDegrees: 4 },
+            { direction: 'left', durationSeconds: 47, angleDegrees: -5 },
+        ]);
+    });
 });

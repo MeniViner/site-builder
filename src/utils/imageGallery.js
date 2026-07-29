@@ -2,6 +2,11 @@ export const IMAGE_GALLERY_SCHEMA_VERSION = 1;
 
 export const IMAGE_GALLERY_STYLES = Object.freeze([
     {
+        value: 'magal-strips',
+        label: 'רצועות בתנועה',
+        description: 'שורות תמונות זוויתיות הנעות ברצף ובכיוונים מנוגדים.',
+    },
+    {
         value: 'classic-carousel',
         label: 'קרוסלה קלאסית',
         description: 'תמונה ראשית, כפתורי ניווט ונקודות מעבר.',
@@ -25,6 +30,21 @@ export const IMAGE_GALLERY_STYLES = Object.freeze([
 
 export const IMAGE_GALLERY_STYLE_VALUES = Object.freeze(IMAGE_GALLERY_STYLES.map((style) => style.value));
 
+export const MAGAL_STRIP_REPEAT_GROUP_COUNT = 4;
+export const MAGAL_STRIP_MINIMUM_ITEMS_PER_GROUP = 12;
+
+export const DEFAULT_MAGAL_STRIPS_SETTINGS = Object.freeze({
+    rowCount: 2,
+    cardSizePx: 180,
+    gapPx: 12,
+    rows: Object.freeze([
+        Object.freeze({ id: 'row-1', direction: 'left', durationSeconds: 34, angleDegrees: 3 }),
+        Object.freeze({ id: 'row-2', direction: 'right', durationSeconds: 40, angleDegrees: -3 }),
+        Object.freeze({ id: 'row-3', direction: 'left', durationSeconds: 38, angleDegrees: 2 }),
+        Object.freeze({ id: 'row-4', direction: 'right', durationSeconds: 44, angleDegrees: -2 }),
+    ]),
+});
+
 const MAX_GALLERIES = 50;
 const MAX_IMAGES_PER_GALLERY = 120;
 const DEFAULT_IMAGE_WIDTH = 1600;
@@ -47,6 +67,13 @@ function clampInteger(value, min, max, fallback) {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return fallback;
     return Math.max(min, Math.min(max, Math.round(parsed)));
+}
+
+function clampNumber(value, min, max, fallback) {
+    if (value === '' || value === null || value === undefined) return fallback;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.max(min, Math.min(max, Math.round(parsed * 10) / 10));
 }
 
 function boundedText(value, maxLength, fallback = '') {
@@ -99,6 +126,79 @@ export function createImageGalleryImageId() {
     return `gallery-image-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+export function normalizeMagalStripsSettings(settingsLike) {
+    const source = isObject(settingsLike) ? settingsLike : {};
+    const sourceRows = Array.isArray(source.rows) ? source.rows : [];
+    const rows = DEFAULT_MAGAL_STRIPS_SETTINGS.rows.map((fallbackRow, index) => {
+        const rowSource = isObject(sourceRows[index]) ? sourceRows[index] : {};
+        return {
+            id: fallbackRow.id,
+            direction: rowSource.direction === 'right' ? 'right' : (
+                rowSource.direction === 'left' ? 'left' : fallbackRow.direction
+            ),
+            durationSeconds: clampNumber(
+                rowSource.durationSeconds ?? rowSource.speedSeconds,
+                10,
+                120,
+                fallbackRow.durationSeconds,
+            ),
+            angleDegrees: clampNumber(
+                rowSource.angleDegrees ?? rowSource.angle,
+                -12,
+                12,
+                fallbackRow.angleDegrees,
+            ),
+        };
+    });
+
+    return {
+        rowCount: clampInteger(source.rowCount, 1, 4, DEFAULT_MAGAL_STRIPS_SETTINGS.rowCount),
+        cardSizePx: clampInteger(
+            source.cardSizePx ?? source.globalSize,
+            120,
+            280,
+            DEFAULT_MAGAL_STRIPS_SETTINGS.cardSizePx,
+        ),
+        gapPx: clampInteger(
+            source.gapPx ?? source.globalGap,
+            4,
+            32,
+            DEFAULT_MAGAL_STRIPS_SETTINGS.gapPx,
+        ),
+        rows,
+    };
+}
+
+export function normalizeImageGalleryDisplay(displayLike, legacySourceLike) {
+    const source = isObject(displayLike) ? displayLike : {};
+    const legacySource = isObject(legacySourceLike) ? legacySourceLike : {};
+    const showTitleSource = source.showTitle ?? legacySource.showTitle;
+    const showDescriptionSource = source.showDescription ?? legacySource.showDescription;
+    const titleAlignmentSource = source.titleAlignment ?? legacySource.titleAlignment;
+
+    return {
+        showTitle: typeof showTitleSource === 'boolean' ? showTitleSource : true,
+        showDescription: typeof showDescriptionSource === 'boolean' ? showDescriptionSource : true,
+        titleAlignment: titleAlignmentSource === 'right' ? 'right' : 'center',
+        magalStrips: normalizeMagalStripsSettings(
+            source.magalStrips ?? legacySource.magalStrips ?? legacySource.gallerySettings,
+        ),
+    };
+}
+
+export function buildMagalStripLoopItems(images, rowIndex = 0) {
+    const source = Array.isArray(images) ? images : [];
+    if (source.length === 0) return [];
+    const normalizedOffset = ((rowIndex % source.length) + source.length) % source.length;
+    const rowImages = [...source.slice(normalizedOffset), ...source.slice(0, normalizedOffset)];
+    const itemCount = Math.max(MAGAL_STRIP_MINIMUM_ITEMS_PER_GROUP, rowImages.length);
+    return Array.from({ length: itemCount }, (_, index) => ({
+        image: rowImages[index % rowImages.length],
+        sourceIndex: index % rowImages.length,
+        loopIndex: index,
+    }));
+}
+
 export function createEmptyImageGallery(order = 0) {
     return {
         id: createImageGalleryId(),
@@ -108,6 +208,7 @@ export function createEmptyImageGallery(order = 0) {
         style: 'classic-carousel',
         order: clampInteger(order, 0, MAX_GALLERIES, 0),
         images: [],
+        display: normalizeImageGalleryDisplay(),
     };
 }
 
@@ -136,6 +237,7 @@ export function normalizeImageGalleryImage(imageLike, index = 0, galleryId = 'ga
 
 export function normalizeImageGalleryRecord(galleryLike, index = 0) {
     const source = isObject(galleryLike) ? galleryLike : {};
+    const display = isObject(source.display) ? source.display : {};
     const id = normalizeId(source.id, `gallery-${index + 1}`);
     const seenImageIds = new Set();
     const images = (Array.isArray(source.images) ? source.images : [])
@@ -159,6 +261,7 @@ export function normalizeImageGalleryRecord(galleryLike, index = 0) {
             : 'classic-carousel',
         order: clampInteger(source.order, 0, MAX_GALLERIES, index),
         images,
+        display: normalizeImageGalleryDisplay(display, source),
     };
 }
 
