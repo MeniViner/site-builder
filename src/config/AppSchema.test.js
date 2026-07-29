@@ -55,4 +55,48 @@ describe('migrateLegacyToV1', () => {
             url: 'smb://fileserver/public/handbook',
         });
     });
+
+    it('normalizes Image Gallery records as a backward-compatible master-config branch', () => {
+        const normalized = validateAndNormalize({
+            imageGalleries: {
+                items: [{
+                    id: 'gallery-1',
+                    title: 'גלריה',
+                    style: 'masonry',
+                    images: [{
+                        id: 'image-1',
+                        mediaRef: '/images/gallery.webp',
+                        alt: 'תמונה תקינה',
+                        media: { fileName: 'gallery.webp', mimeType: 'image/webp', sizeBytes: 128 },
+                    }],
+                }],
+            },
+        });
+
+        expect(normalized.imageGalleries.items[0]).toMatchObject({
+            id: 'gallery-1',
+            style: 'masonry',
+            images: [{ mediaRef: '/images/gallery.webp', alt: 'תמונה תקינה' }],
+        });
+    });
+
+    it('migrates the legacy galleries alias without requiring manual repair', () => {
+        const migrated = migrateLegacyToV1({
+            galleries: [{
+                id: 'legacy-gallery',
+                title: 'Legacy gallery',
+                images: [{
+                    id: 'legacy-image',
+                    imageUrl: '/images/legacy.jpg',
+                    alt: 'Legacy photo',
+                }],
+            }],
+        });
+
+        expect(migrated.imageGalleries.items[0]).toMatchObject({
+            id: 'legacy-gallery',
+            title: 'Legacy gallery',
+            images: [{ mediaRef: '/images/legacy.jpg', alt: 'Legacy photo' }],
+        });
+    });
 });

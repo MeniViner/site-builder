@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
     Undo2, Menu, Save, FileText, Link as LinkIcon,
-    LayoutGrid, Palette, ExternalLink, Sun, Moon, Users, ShieldCheck, ChevronDown, ChevronLeft, ChevronRight, CalendarDays
+    LayoutGrid, Palette, ExternalLink, Sun, Moon, Users, ShieldCheck, ChevronDown, ChevronLeft, ChevronRight, CalendarDays, Image as ImageIcon
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import AdminEvents from './AdminEvents';
@@ -27,6 +27,7 @@ import AdminAIHelp from './AdminAIHelp';
 import AdminSiteOwnersManagement from './AdminSiteOwnersManagement';
 import AdminAdminsSync from './AdminAdminsSync';
 import AdminBackupManagement from './AdminBackupManagement';
+import AdminImageGalleries from './AdminImageGalleries';
 import WidgetLivePreview from './WidgetLivePreview';
 import Tooltip from './Tooltip';
 import NotFoundPage from './NotFoundPage';
@@ -53,6 +54,7 @@ const ADMIN_SECTION_BY_TAB = {
     'org-chart': 'addons',
     gantt: 'addons',
     'external-links': 'content',
+    galleries: 'content',
     widgets: 'content',
     'current-widgets': 'system',
     theme: 'system',
@@ -196,6 +198,7 @@ export default function AdminHub() {
         if (path.includes('/admin/current-widgets')) return 'current-widgets';
         if (path.includes('/admin/theme')) return 'theme';
         if (path.includes('/admin/external-links')) return 'external-links';
+        if (path.includes('/admin/galleries')) return 'galleries';
         if (showAiUi && path.includes('/admin/ai-help')) return 'ai-help';
         if (path.includes('/admin/admins')) return 'admins';
         if (path.includes('/admin/site-owners')) return 'site-owners';
@@ -340,6 +343,15 @@ export default function AdminHub() {
                                 isActive={activeTab === 'info'}
                                 onClick={() => navigateAdmin('/admin')}
                                 isSidebarOpen={isSidebarOpen}
+                            />
+
+                            <SidebarButton
+                                icon={ImageIcon}
+                                label="גלריות תמונות"
+                                isActive={activeTab === 'galleries'}
+                                onClick={() => navigateAdmin('/admin/galleries')}
+                                isSidebarOpen={isSidebarOpen}
+                                title="ניהול גלריות תמונות בדף הבית"
                             />
 
                             <SidebarButton
@@ -550,6 +562,7 @@ export default function AdminHub() {
                                 <Route path="/org-chart" element={<div className="w-full h-full"><AdminOrgChart /></div>} />
                                 <Route path="/gantt" element={<div className="w-full h-full"><AdminGantt /></div>} />
                                 <Route path="/external-links" element={<div className="w-full h-full"><AdminExternalLinks /></div>} />
+                                <Route path="/galleries" element={<div className="w-full h-full"><AdminImageGalleries /></div>} />
                                 <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />
                                 <Route path="/countdown" element={<div className="w-full h-full"><AdminCountdown /></div>} />
                                 <Route path="/news" element={<div className="w-full h-full"><AdminNews /></div>} />
@@ -585,6 +598,7 @@ export default function AdminHub() {
                             <Route path="/org-chart" element={<div className="w-full h-full"><AdminOrgChart /></div>} />
                             <Route path="/gantt" element={<div className="w-full h-full"><AdminGantt /></div>} />
                             <Route path="/external-links" element={<div className="w-full h-full"><AdminExternalLinks /></div>} />
+                            <Route path="/galleries" element={<div className="w-full h-full"><AdminImageGalleries /></div>} />
                             <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />
                             <Route path="/countdown" element={<div className="w-full h-full"><AdminCountdown /></div>} />
                             <Route path="/news" element={<div className="w-full h-full"><AdminNews /></div>} />

@@ -35,4 +35,36 @@ describe('backupPackage', () => {
         expect(() => normalizeImportedBackupPackage({ kind: BACKUP_PACKAGE_KIND, files: [] }))
             .toThrow('קובץ הגיבוי לא כולל קבצים לשחזור.');
     });
+
+    it('preserves Image Gallery configuration through export and import', () => {
+        const config = {
+            schemaVersion: '1.0.0',
+            imageGalleries: {
+                schemaVersion: 1,
+                items: [{
+                    id: 'gallery-1',
+                    title: 'Gallery',
+                    active: true,
+                    style: 'classic-carousel',
+                    order: 0,
+                    images: [{
+                        id: 'image-1',
+                        mediaRef: '/images/ImageGallery/photo.webp',
+                        alt: 'Training photo',
+                        caption: 'Morning training',
+                        width: 1600,
+                        height: 900,
+                        media: { fileName: 'photo.webp', mimeType: 'image/webp', sizeBytes: 100 },
+                    }],
+                }],
+            },
+        };
+        const backup = normalizeImportedBackupPackage(config);
+        const restored = JSON.parse(packageToFileTextsMap(backup).get('bihs_master_config_v1.txt'));
+
+        expect(restored.imageGalleries.items[0].images[0]).toMatchObject({
+            mediaRef: '/images/ImageGallery/photo.webp',
+            alt: 'Training photo',
+        });
+    });
 });

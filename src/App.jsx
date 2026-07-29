@@ -20,6 +20,8 @@ import { useTheme } from './context/ThemeContext';
 import { useExternalLinks } from './context/ExternalLinksContext';
 import { useOrgChart } from './context/OrgChartContext';
 import { useGantt } from './context/GanttContext';
+import { useImageGalleries } from './context/ImageGalleryContext';
+import ImageGallerySection from './components/home/ImageGallerySection';
 import { normalizeBorderStyle, panelStyle } from './utils/borderStyles';
 import { normalizeOverlayImageConfig } from './utils/overlayImageConfig';
 import { resolveSiteImageUrl } from './utils/assetUrl';
@@ -51,6 +53,7 @@ export function Home({ isPreview = false }) {
   const { externalLinks } = useExternalLinks();
   const { orgChart } = useOrgChart();
   const { gantt } = useGantt();
+  const { activeGalleries } = useImageGalleries();
   const [widgetTitle, setWidgetTitle] = useState(() => getWidgetTitle('events'));
   const canOpenAdmin = canAccessAdminUi({ isAdmin, loading: authLoading, isPreview });
 
@@ -264,6 +267,8 @@ export function Home({ isPreview = false }) {
         )}
 
         {!externalLinksFixed && renderExternalLinks()}
+
+        <ImageGallerySection galleries={activeGalleries} direction="rtl" />
 
         <div className="relative z-10 border-t border-theme-subtle py-4 sm:py-5 px-3 text-center bg-theme-bg-base flex flex-col sm:flex-row items-center justify-center gap-2 min-h-[118px] sm:min-h-[104px]">
           <p className="text-xs text-theme-muted text-gray-900 dark:text-gray-100 truncate leading-tight"> מתנ"ה - siteBuilder {appVersion}©</p>

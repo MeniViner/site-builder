@@ -4,6 +4,7 @@ import { normalizeEventColor } from '../utils/colorValidation';
 import { normalizeSmartTextTokens } from '../utils/smartText';
 import { DEFAULT_ACTIVE_WIDGETS } from '../utils/widgetDisplay';
 import { getNavigationChildren, getNavigationKind, getNavigationUrl } from '../utils/navigationModel';
+import { normalizeImageGalleryBranch } from '../utils/imageGallery';
 
 const SCHEMA_VERSION = '1.0.0';
 const VALID_THEME_DISPLAY_MODES = ['dark', 'light', 'user-toggle'];
@@ -1508,6 +1509,10 @@ export const DEFAULT_CONFIG_V1 = {
 
         ],
     },
+    imageGalleries: {
+        schemaVersion: 1,
+        items: [],
+    },
     access: {
         adminUsers: [
             {
@@ -1695,6 +1700,9 @@ export function migrateLegacyToV1(legacyData) {
     }
     if (hasLegacyUsers) {
         migrated.access.adminUsers = normalizeAdminUsers(legacyUsers);
+    }
+    if (hasOwn(legacy, 'imageGalleries') || hasOwn(legacy, 'galleries')) {
+        migrated.imageGalleries = normalizeImageGalleryBranch(legacy.imageGalleries || legacy.galleries);
     }
 
     return validateAndNormalize(migrated);
@@ -1917,6 +1925,7 @@ export function validateAndNormalize(config) {
         externalLinks: {
             items: normalizeExternalLinksItems(source.externalLinks?.items),
         },
+        imageGalleries: normalizeImageGalleryBranch(source.imageGalleries),
         access: {
             adminUsers: normalizeAdminUsers(source.access?.adminUsers),
         },

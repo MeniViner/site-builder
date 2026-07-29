@@ -44,6 +44,7 @@ const renderApp = async () => {
     { ConfigProvider },
     { OrgChartProvider },
     { GanttProvider },
+    { ImageGalleryProvider },
   ] = await Promise.all([
     import('./App.jsx'),
     import('./context/AuthContext'),
@@ -56,6 +57,7 @@ const renderApp = async () => {
     import('./context/ConfigProvider'),
     import('./context/OrgChartContext'),
     import('./context/GanttContext'),
+    import('./context/ImageGalleryContext'),
   ]);
 
   const runtimeAllowed = typeof window === 'undefined'
@@ -86,13 +88,15 @@ const renderApp = async () => {
                   <SiteContentProvider>
                     <OrgChartProvider>
                     <GanttProvider>
-                      <ThemeProvider>
-                        <WidgetProvider>
-                          <ExternalLinksProvider>
-                            <App />
-                          </ExternalLinksProvider>
-                        </WidgetProvider>
-                      </ThemeProvider>
+                      <ImageGalleryProvider>
+                        <ThemeProvider>
+                          <WidgetProvider>
+                            <ExternalLinksProvider>
+                              <App />
+                            </ExternalLinksProvider>
+                          </WidgetProvider>
+                        </ThemeProvider>
+                      </ImageGalleryProvider>
                     </GanttProvider>
                     </OrgChartProvider>
                   </SiteContentProvider>
