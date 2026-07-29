@@ -532,8 +532,17 @@ function GalleryEditor({ initialGallery, onClose }) {
                             )}
                         </section>
                         {validationIssues.length > 0 && <section className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-100"><h2 className="flex items-center gap-2 font-black"><AlertTriangle size={18} aria-hidden="true" />נדרשת השלמה לפני פרסום</h2><ul className="mt-2 list-disc space-y-1 pr-5 text-sm">{validationIssues.slice(0, 5).map((issue) => <li key={issue.field}>{issue.message}</li>)}</ul></section>}
-                        <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/5"><div className="border-b border-gray-200 px-5 py-4 dark:border-white/10"><h2 className="text-lg font-black">תצוגה מקדימה חיה</h2></div><div className="max-h-[640px] overflow-auto bg-theme-bg-base"><ImageGalleryRenderer gallery={{ ...draft, active: true, images: draft.images.filter((image) => image.mediaRef && isSafeGalleryMediaReference(image.mediaRef) && image.alt) }} direction="rtl" preview /></div></section>
                     </aside>
+
+                    <section className="overflow-hidden rounded-3xl bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.08),0_18px_50px_-32px_rgba(15,23,42,0.45)] dark:bg-white/5 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.10)] xl:col-span-2">
+                        <div className="border-b border-gray-200 px-6 py-5 dark:border-white/10">
+                            <h2 className="text-balance text-xl font-black">תצוגה מקדימה חיה</h2>
+                            <p className="mt-1 text-pretty text-sm text-gray-500 dark:text-gray-400">תצוגה רחבה של הגלריה כפי שתופיע בדף הבית.</p>
+                        </div>
+                        <div className="min-h-[520px] w-full overflow-hidden bg-theme-bg-base">
+                            <ImageGalleryRenderer gallery={{ ...draft, active: true, images: draft.images.filter((image) => image.mediaRef && isSafeGalleryMediaReference(image.mediaRef) && image.alt) }} direction="rtl" preview />
+                        </div>
+                    </section>
 
                     <div className="flex flex-wrap items-center justify-between gap-3 xl:col-span-2">
                         {renderAutoSaveStatus()}
