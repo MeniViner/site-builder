@@ -3,6 +3,7 @@ import { buildFileValueEndpoint, upsertSharePointTextFile } from '../utils/share
 import { DEFAULT_ACTIVE_WIDGETS, mergeWidgetSettings } from '../utils/widgetDisplay';
 import { createLegacyObjectStorageAdapter } from './storage/LegacyObjectStorageAdapter';
 import { isMongoStorageBackend, isSharePointReadonlyBackend } from './storage/storageBackend';
+import { isKasharDemoProfile } from '../demo-data/demoProfile';
 import {
     spLog,
     spLogFileReadStart,
@@ -84,7 +85,10 @@ class WidgetService {
     async getWidgetConfig() {
         try {
             let data;
-            if (this.useMongo) {
+            if (isKasharDemoProfile()) {
+                const { createKasharDemoWidgetConfig } = await import('../demo-data/kasharDemoData');
+                data = createKasharDemoWidgetConfig();
+            } else if (this.useMongo) {
                 data = await this.mongoAdapter.load();
             } else if (this.useMock) {
                 data = await this._getMockData();
@@ -132,6 +136,11 @@ class WidgetService {
     }
 
     async saveWidgetConfig(payload) {
+        if (isKasharDemoProfile()) {
+            // Shared polls are the only remaining legacy widget persistence path.
+            // Keep demo edits in the provider state and do not write any backend.
+            return this._normalizeData(payload);
+        }
         if (this.useMongo) {
             return this.mongoAdapter.save(payload);
         }

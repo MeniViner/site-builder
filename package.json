@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "node scripts/dev/start-local-stack.mjs",
     "dev:vite": "vite",
+    "dev:kashar": "vite --mode kashar-demo",
     "build": "node scripts/build-production.mjs",
+    "build:kashar": "vite build --mode kashar-demo",
     "postbuild": "node scripts/postbuild.js",
     "site:init": "node scripts/init-sharepoint-site.js --write-env",
     "ai:backend:install": "npm --prefix newAlphaAIBackend/newAlphaAIBackend install",

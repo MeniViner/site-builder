@@ -4,6 +4,7 @@ import {
     migrateLegacyToV1,
     validateAndNormalize,
 } from '../config/AppSchema';
+import { resolveDemoProfile, KASHAR_DEMO_PROFILE } from '../demo-data/demoProfile';
 import { spLog } from '../utils/spAppLog';
 
 function isObject(value) {
@@ -52,8 +53,16 @@ function deepMergeReplaceArrays(baseValue, overrideValue) {
 }
 
 export class ConfigService {
-    constructor(adapter = configAdapter) {
+    constructor(adapter = configAdapter, {
+        resolveProfile = resolveDemoProfile,
+        loadKasharDemoConfig = async () => {
+            const { cloneKasharDemoData } = await import('../demo-data/kasharDemoData');
+            return cloneKasharDemoData();
+        },
+    } = {}) {
         this.adapter = adapter;
+        this.resolveProfile = resolveProfile;
+        this.loadKasharDemoConfig = loadKasharDemoConfig;
     }
 
     _withDefaults(config) {
@@ -67,6 +76,14 @@ export class ConfigService {
     }
 
     async loadConfigEnvelope(legacySplitData = null) {
+        if (this.resolveProfile() === KASHAR_DEMO_PROFILE) {
+            const demoConfig = await this.loadKasharDemoConfig();
+            return {
+                config: validateAndNormalize(demoConfig),
+                source: 'demo:kashar',
+            };
+        }
+
         try {
             if (isObject(legacySplitData)) {
                 return {
@@ -122,6 +139,11 @@ export class ConfigService {
 
     async saveConfig(config) {
         const normalized = validateAndNormalize(this._withDefaults(config));
+        if (this.resolveProfile() === KASHAR_DEMO_PROFILE) {
+            // ConfigProvider keeps this normalized value in memory. It must never
+            // be written to the configured Mongo, TXT, or local-storage backend.
+            return normalized;
+        }
         const text = JSON.stringify(normalized, null, 2);
         await this.adapter.save(text);
         return normalized;

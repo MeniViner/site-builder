@@ -102,6 +102,56 @@ describe('ConfigAdapter TXT persistence', () => {
         await expect(service.loadConfigEnvelope()).rejects.toThrow(/Unexpected token|JSON/);
     });
 
+    it('uses the Kashar fixture without reading or writing the configured adapter', async () => {
+        const adapter = {
+            load: vi.fn(),
+            save: vi.fn(),
+            isStrictPersistence: () => true,
+            isLoadFailureFatal: () => true,
+        };
+        const loadKasharDemoConfig = vi.fn().mockResolvedValue({
+            schemaVersion: '1.0.0',
+            content: { hero: { siteName: 'פורטל קשר״ר' } },
+        });
+        const service = new ConfigService(adapter, {
+            resolveProfile: () => 'kashar',
+            loadKasharDemoConfig,
+        });
+
+        await expect(service.loadConfigEnvelope()).resolves.toMatchObject({
+            source: 'demo:kashar',
+            config: { content: { hero: { siteName: 'פורטל קשר״ר' } } },
+        });
+        await expect(service.saveConfig({ content: { hero: { siteName: 'edited in memory' } } })).resolves.toMatchObject({
+            content: { hero: { siteName: 'edited in memory' } },
+        });
+
+        expect(loadKasharDemoConfig).toHaveBeenCalledTimes(1);
+        expect(adapter.load).not.toHaveBeenCalled();
+        expect(adapter.save).not.toHaveBeenCalled();
+    });
+
+    it('keeps the normal adapter path when the Kashar profile is not selected', async () => {
+        const adapter = {
+            load: vi.fn().mockResolvedValue({ text: JSON.stringify({ schemaVersion: '1.0.0' }) }),
+            save: vi.fn().mockResolvedValue({ ok: true }),
+            isStrictPersistence: () => true,
+            isLoadFailureFatal: () => true,
+        };
+        const loadKasharDemoConfig = vi.fn();
+        const service = new ConfigService(adapter, {
+            resolveProfile: () => null,
+            loadKasharDemoConfig,
+        });
+
+        await service.loadConfigEnvelope();
+        await service.saveConfig({ content: { hero: { siteName: 'normal source' } } });
+
+        expect(adapter.load).toHaveBeenCalledTimes(1);
+        expect(adapter.save).toHaveBeenCalledTimes(1);
+        expect(loadKasharDemoConfig).not.toHaveBeenCalled();
+    });
+
     it('serializes writes so a later save cannot finish before an earlier save', async () => {
         const writes = [];
         let releaseFirst;
