@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DynamicIcon } from './DynamicIcon';
-import { resolveSiteImageUrl } from '../utils/assetUrl';
+import { useResolvedSiteImageUrl } from './ResolvedSiteImage';
 
 export default function NavVisual({
     item = null,
@@ -13,7 +13,7 @@ export default function NavVisual({
 }) {
     const [imageFailed, setImageFailed] = useState(false);
     const rawImageUrl = iconUrl || item?.iconUrl || item?.imageUrl || item?.image || '';
-    const resolvedImageUrl = resolveSiteImageUrl(rawImageUrl);
+    const { source: resolvedImageUrl } = useResolvedSiteImageUrl(rawImageUrl);
 
     if (resolvedImageUrl && !imageFailed) {
         return (

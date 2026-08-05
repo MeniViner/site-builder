@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Badge, darkTheme, GraphCanvas as Graph, Icon, lightTheme, Sphere } from 'reagraph';
+import { useResolvedSiteImageUrls } from './ResolvedSiteImage';
 import { resolveSiteImageUrl } from '../utils/assetUrl';
 
 const DEFAULT_GRAPH_3D_SETTINGS = {
@@ -139,7 +140,17 @@ function buildSubLabel(node) {
     return composed || 'ללא דרגה ותפקיד';
 }
 
-function buildGraphData(rawNodes) {
+function collectNodeImageUrls(rawNodes, urls = []) {
+    (Array.isArray(rawNodes) ? rawNodes : []).forEach((node) => {
+        if (!isObject(node)) return;
+        const imageUrl = asText(node.imageUrl);
+        if (imageUrl) urls.push(imageUrl);
+        collectNodeImageUrls(node.children, urls);
+    });
+    return urls;
+}
+
+function buildGraphData(rawNodes, resolvedImageUrls = new Map()) {
     const nodes = [];
     const edges = [];
     const rootIds = [];
@@ -170,7 +181,8 @@ function buildGraphData(rawNodes) {
         const id = createUniqueId(node.id, fallbackId);
         const children = Array.isArray(node.children) ? node.children : [];
         const label = asText(node.name) || asText(node.role) || 'צומת ללא שם';
-        const icon = resolveSiteImageUrl(asText(node.imageUrl));
+        const imageUrl = asText(node.imageUrl);
+        const icon = resolvedImageUrls.get(imageUrl) || resolveSiteImageUrl(imageUrl);
 
         nodes.push({
             id,
@@ -334,9 +346,15 @@ function buildGraphTheme(primaryColor, effectiveMode) {
 }
 
 export default function OrgChart3D({ rawNodes, graph3d, primaryColor, effectiveMode }) {
+    const nodeImageUrls = useMemo(() => collectNodeImageUrls(rawNodes), [rawNodes]);
+    const resolvedNodeImageUrls = useResolvedSiteImageUrls(nodeImageUrls);
+    const resolvedNodeImageMap = useMemo(
+        () => new Map(nodeImageUrls.map((url, index) => [url, resolvedNodeImageUrls[index] || ''])),
+        [nodeImageUrls, resolvedNodeImageUrls]
+    );
     const { nodes: flatNodes, edges: flatEdges, rootIds, childrenById } = useMemo(
-        () => buildGraphData(rawNodes),
-        [rawNodes]
+        () => buildGraphData(rawNodes, resolvedNodeImageMap),
+        [rawNodes, resolvedNodeImageMap]
     );
     const settings = useMemo(() => normalizeGraph3dSettings(graph3d), [graph3d]);
     const graphTheme = useMemo(() => buildGraphTheme(primaryColor, effectiveMode), [primaryColor, effectiveMode]);

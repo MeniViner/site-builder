@@ -1,6 +1,7 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { buildFileValueEndpoint, upsertSharePointTextFile } from '../utils/sharepointUtils';
 import { DEFAULT_OVERLAY_IMAGE, normalizeOverlayImageConfig } from '../utils/overlayImageConfig';
+import { normalizeCommanderImageSettings } from '../utils/commanderImage';
 import { createLegacyObjectStorageAdapter } from './storage/LegacyObjectStorageAdapter';
 import { isMongoStorageBackend, isSharePointReadonlyBackend } from './storage/storageBackend';
 import {
@@ -30,6 +31,8 @@ const DEFAULT_SITE_CONTENT = {
     },
     commander: {
         image: '/images/אייל זמיר.png',
+        imageScale: 100,
+        imageOffsetX: 0,
         sectionTitle: 'דבר המפקד',
         roleLabel: 'שם מפקד היחידה',
         decorativeElement: 'line-diamond-line',
@@ -75,14 +78,17 @@ class SiteContentService {
         if (!data) return { ...DEFAULT_SITE_CONTENT };
 
         const hero = data.hero || DEFAULT_SITE_CONTENT.hero;
-        const commander = data.commander || DEFAULT_SITE_CONTENT.commander;
+        const commander = normalizeCommanderImageSettings({
+            ...DEFAULT_SITE_CONTENT.commander,
+            ...(data.commander || {}),
+        });
 
         if (hero && !hero.siteName) hero.siteName = DEFAULT_SITE_CONTENT.hero.siteName;
         if (hero && !hero.logo) hero.logo = DEFAULT_SITE_CONTENT.hero.logo;
         if (!hero.backgroundImages || !hero.backgroundImages.length) {
             hero.backgroundImages = DEFAULT_SITE_CONTENT.hero.backgroundImages;
         }
-        if (!commander.messages || !commander.messages.length) {
+        if (!Array.isArray(commander.messages) || !commander.messages.length) {
             commander.messages = DEFAULT_SITE_CONTENT.commander.messages;
         }
         if (!commander.decorativeElement) {

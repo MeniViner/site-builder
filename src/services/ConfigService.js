@@ -4,7 +4,11 @@ import {
     migrateLegacyToV1,
     validateAndNormalize,
 } from '../config/AppSchema';
-import { resolveDemoProfile, KASHAR_DEMO_PROFILE } from '../demo-data/demoProfile';
+import {
+    KASHAR_DEMO_PROFILE,
+    resolveDemoProfile,
+} from '../demo-data/demoProfile';
+import kasharDraftStore from './KasharDraftStore';
 import { spLog } from '../utils/spAppLog';
 
 function isObject(value) {
@@ -55,14 +59,11 @@ function deepMergeReplaceArrays(baseValue, overrideValue) {
 export class ConfigService {
     constructor(adapter = configAdapter, {
         resolveProfile = resolveDemoProfile,
-        loadKasharDemoConfig = async () => {
-            const { cloneKasharDemoData } = await import('../demo-data/kasharDemoData');
-            return cloneKasharDemoData();
-        },
+        draftStore = kasharDraftStore,
     } = {}) {
         this.adapter = adapter;
         this.resolveProfile = resolveProfile;
-        this.loadKasharDemoConfig = loadKasharDemoConfig;
+        this.draftStore = draftStore;
     }
 
     _withDefaults(config) {
@@ -75,16 +76,70 @@ export class ConfigService {
         return validateAndNormalize(merged);
     }
 
-    async loadConfigEnvelope(legacySplitData = null) {
-        if (this.resolveProfile() === KASHAR_DEMO_PROFILE) {
-            const demoConfig = await this.loadKasharDemoConfig();
-            return {
-                config: validateAndNormalize(demoConfig),
-                source: 'demo:kashar',
-            };
+    _normalizeLoadedText(text) {
+        const parsed = JSON.parse(text);
+
+        if (isObject(parsed) && parsed.schemaVersion === '1.0.0') {
+            return { config: validateAndNormalize(parsed), source: 'schema-v1' };
         }
 
+        const migrated = migrateLegacyToV1(parsed);
+        return {
+            config: validateAndNormalize(this._withDefaults(migrated)),
+            source: 'migrated-legacy',
+        };
+    }
+
+    async _saveNormalizedConfig(config) {
+        const text = JSON.stringify(config, null, 2);
+        await this.adapter.save(text);
+        return config;
+    }
+
+    async _loadKasharConfigEnvelope() {
+        const { draft, source, notice = null } = await this.draftStore.loadOrSeed();
+        return { config: validateAndNormalize(this._withDefaults(draft.configEnvelope)), source, notice };
+    }
+
+    async resetKasharDemoData() {
+        if (this.resolveProfile() !== KASHAR_DEMO_PROFILE) {
+            throw new Error('Reset Kashar demo data is available only in the Kashar demo profile.');
+        }
+        const draft = await this.draftStore.reset();
+        return validateAndNormalize(this._withDefaults(draft.configEnvelope));
+    }
+
+    async validateKasharDemoDraftImport(text) {
+        if (this.resolveProfile() !== KASHAR_DEMO_PROFILE) {
+            throw new Error('Kashar demo import is available only in the Kashar demo profile.');
+        }
+        return this.draftStore.validateWorkspaceImport(text);
+    }
+
+    async exportKasharDemoDraft() {
+        if (this.resolveProfile() !== KASHAR_DEMO_PROFILE) {
+            throw new Error('Kashar demo export is available only in the Kashar demo profile.');
+        }
+        return this.draftStore.exportWorkspace();
+    }
+
+    async importKasharDemoDraft(text) {
+        if (this.resolveProfile() !== KASHAR_DEMO_PROFILE) {
+            throw new Error('Kashar demo import is available only in the Kashar demo profile.');
+        }
+        const result = await this.draftStore.importWorkspaceText(text);
+        return {
+            config: validateAndNormalize(this._withDefaults(result.draft.configEnvelope)),
+            warning: result.warning,
+        };
+    }
+
+    async loadConfigEnvelope(legacySplitData = null) {
         try {
+            if (this.resolveProfile() === KASHAR_DEMO_PROFILE) {
+                return this._loadKasharConfigEnvelope();
+            }
+
             if (isObject(legacySplitData)) {
                 return {
                     config: this.migrateFromLegacySplitData(legacySplitData),
@@ -120,6 +175,12 @@ export class ConfigService {
             const merged = this._withDefaults(migrated);
             return { config: validateAndNormalize(merged), source: 'migrated-legacy' };
         } catch (error) {
+            // Kashar has no secondary repository. Falling back to the normal
+            // default config here would make an unavailable or corrupt local
+            // draft look like a successful load and could overwrite it later.
+            if (this.resolveProfile() === KASHAR_DEMO_PROFILE) {
+                throw error;
+            }
             if (this.adapter?.isLoadFailureFatal?.(error)) {
                 throw error;
             }
@@ -140,13 +201,9 @@ export class ConfigService {
     async saveConfig(config) {
         const normalized = validateAndNormalize(this._withDefaults(config));
         if (this.resolveProfile() === KASHAR_DEMO_PROFILE) {
-            // ConfigProvider keeps this normalized value in memory. It must never
-            // be written to the configured Mongo, TXT, or local-storage backend.
-            return normalized;
+            return this.draftStore.saveConfig(normalized);
         }
-        const text = JSON.stringify(normalized, null, 2);
-        await this.adapter.save(text);
-        return normalized;
+        return this._saveNormalizedConfig(normalized);
     }
 }
 

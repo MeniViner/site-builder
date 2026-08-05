@@ -10,7 +10,7 @@ import ReactFlow, {
     useEdgesState,
     useNodesState,
 } from 'reactflow';
-import { resolveSiteImageUrl } from '../utils/assetUrl';
+import { useResolvedSiteImageUrl } from './ResolvedSiteImage';
 import { personalNumberToArmyMailto } from '../utils/personalNumber';
 import OrgChartMailLink from './OrgChartMailLink';
 import 'reactflow/dist/style.css';
@@ -378,7 +378,7 @@ function OrgNode({ data }) {
         showRole ? data?.role : '',
     ].filter(Boolean).join(' | ');
     const avatarShape = avatarShapeClass(data?.avatarShape);
-    const imageUrl = resolveSiteImageUrl(data?.imageUrl || '');
+    const { source: imageUrl } = useResolvedSiteImageUrl(data?.imageUrl || '');
     const visualStyle = data?.nodeVisualStyle || 'command';
     const styleClass = visualStyle === 'clean'
         ? 'border border-primary/20 bg-white/95 shadow-[0_8px_20px_rgba(15,23,42,0.12)] dark:border-primary/30 dark:bg-[#182233]/95'

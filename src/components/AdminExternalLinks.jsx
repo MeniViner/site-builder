@@ -6,7 +6,7 @@ import {
     ExternalLink, GripVertical, Image as ImageIcon, Link as LinkIcon, Type, Upload, Loader2, Star, Palette
 } from 'lucide-react';
 import { uploadImage } from '../utils/sharepointUtils';
-import { resolveSiteImageUrl } from '../utils/assetUrl';
+import ResolvedSiteImage from './ResolvedSiteImage';
 import { normalizeLinkTarget } from '../utils/linkTargets';
 import { spLog } from '../utils/spAppLog';
 import { toast } from 'react-toastify';
@@ -197,8 +197,8 @@ export default function AdminExternalLinks() {
                                         <DynamicIcon name={link.icon} size={32} className="text-gray-500 dark:text-gray-400" />
                                     ) : link.iconUrl ? (
                                         <>
-                                            <img
-                                                src={resolveSiteImageUrl(link.iconUrl)}
+                                            <ResolvedSiteImage
+                                                source={link.iconUrl}
                                                 alt={link.title}
                                                 className="w-full h-full object-cover"
                                                 onError={(e) => { e.target.style.display = 'none'; const fallback = e.target.nextElementSibling; if (fallback) fallback.style.display = 'flex'; }}
@@ -394,8 +394,8 @@ export default function AdminExternalLinks() {
                                         {editingLink.iconUrl && (
                                             <div className="mt-3 flex items-center gap-3">
                                                 <div className="w-14 h-14 rounded-xl bg-white dark:bg-[#232733] border border-gray-300 dark:border-gray-700/50 overflow-hidden flex items-center justify-center">
-                                                    <img
-                                                        src={resolveSiteImageUrl(editingLink.iconUrl)}
+                                                    <ResolvedSiteImage
+                                                        source={editingLink.iconUrl}
                                                         alt="תצוגה מקדימה"
                                                         className="w-full h-full object-cover"
                                                         onError={(e) => { e.target.style.display = 'none'; }}

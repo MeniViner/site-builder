@@ -10,7 +10,7 @@ import { canAccessAdminUi } from '../utils/adminAccess';
 import { useConfig } from '../context/ConfigProvider';
 import { useSiteContent } from '../context/SiteContentContext';
 import { useTheme } from '../context/ThemeContext';
-import { resolveSiteImageUrl } from '../utils/assetUrl';
+import { useResolvedSiteImageUrl } from '../components/ResolvedSiteImage';
 import { normalizeBorderStyle } from '../utils/borderStyles';
 import { personalNumberToArmyMailto } from '../utils/personalNumber';
 
@@ -56,7 +56,7 @@ function avatarRadiusClass(avatarShape) {
 }
 
 function NodePortrait({ node, size = 'md', avatarShape = 'circle' }) {
-    const src = resolveSiteImageUrl(node.imageUrl);
+    const { source: src } = useResolvedSiteImageUrl(node.imageUrl);
     const sizeClasses = {
         sm: 'h-10 w-10 text-xs',
         md: 'h-16 w-16 text-lg',

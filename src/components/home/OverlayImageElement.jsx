@@ -1,6 +1,6 @@
 import { panelStyle } from '../../utils/borderStyles';
 import { getOverlayStyle, normalizeOverlayImageConfig } from '../../utils/overlayImageConfig';
-import { resolveSiteImageUrl } from '../../utils/assetUrl';
+import ResolvedSiteImage from '../ResolvedSiteImage';
 
 export default function OverlayImageElement({ overlayImage, isPreview = false }) {
   const normalized = normalizeOverlayImageConfig(overlayImage);
@@ -20,8 +20,8 @@ export default function OverlayImageElement({ overlayImage, isPreview = false })
         className={`w-full h-full overflow-hidden ${hasBorder ? 'border border-theme-strong bg-theme-card/30 backdrop-blur-[1px]' : ''}`}
         style={frameStyle}
       >
-        <img
-          src={resolveSiteImageUrl(normalized.imageUrl)}
+        <ResolvedSiteImage
+          source={normalized.imageUrl}
           alt=""
           className="w-full h-full"
           style={{ objectFit: normalized.objectFit }}

@@ -1,6 +1,8 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { buildFileValueEndpoint, upsertSharePointTextFile } from '../utils/sharepointUtils';
 import { DEFAULT_GANTT_DATA, normalizeGanttData } from '../utils/ganttData';
+import { isKasharDemoProfile } from '../demo-data/demoProfile';
+import kasharDraftStore from './KasharDraftStore';
 import { createLegacyObjectStorageAdapter } from './storage/LegacyObjectStorageAdapter';
 import { isMongoStorageBackend, isSharePointReadonlyBackend } from './storage/storageBackend';
 import {
@@ -15,13 +17,19 @@ import {
 export class GanttService {
     constructor(config = SHAREPOINT_CONFIG) {
         this.config = { ...SHAREPOINT_CONFIG, ...config };
-        this.useMongo = isMongoStorageBackend();
+        this.useKasharDemo = isKasharDemoProfile();
+        this.useMongo = !this.useKasharDemo && isMongoStorageBackend();
         this.useMock = !this.useMongo && Boolean(this.config.useMock);
-        this.mongoAdapter = createLegacyObjectStorageAdapter({ key: this.config.ganttFileServerRelativeUrl });
+        this.mongoAdapter = this.useKasharDemo
+            ? null
+            : createLegacyObjectStorageAdapter({ key: this.config.ganttFileServerRelativeUrl });
         spLog.system(`GanttService — מצב ${this.useMongo ? 'MONGO' : (this.useMock ? 'MOCK' : 'PRODUCTION')}`);
     }
 
     async getGantt() {
+        if (this.useKasharDemo) {
+            return normalizeGanttData(await kasharDraftStore.getGantt());
+        }
         if (this.useMongo) {
             return normalizeGanttData(await this.mongoAdapter.load());
         }
@@ -33,6 +41,9 @@ export class GanttService {
 
     async saveGantt(payload) {
         const normalized = normalizeGanttData(payload);
+        if (this.useKasharDemo) {
+            return normalizeGanttData(await kasharDraftStore.saveGantt(normalized));
+        }
         if (this.useMongo) {
             return normalizeGanttData(await this.mongoAdapter.save(normalized));
         }

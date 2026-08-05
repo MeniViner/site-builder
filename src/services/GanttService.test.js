@@ -1,13 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_GANTT_DATA } from '../utils/ganttData';
 import { GanttService } from './GanttService';
+import kasharDraftStore, { KASHAR_DRAFT_FORMAT, KASHAR_DRAFT_STORAGE_KEY } from './KasharDraftStore';
 
-const storageState = vi.hoisted(() => ({ mongo: false }));
+const storageState = vi.hoisted(() => ({ mongo: false, kashar: false }));
 
 vi.mock('./storage/storageBackend', () => ({
     isMongoStorageBackend: () => storageState.mongo,
     isLocalDevStorageBackend: () => !storageState.mongo,
     isSharePointReadonlyBackend: () => false,
+}));
+
+vi.mock('../demo-data/demoProfile', () => ({
+    isKasharDemoProfile: () => storageState.kashar,
 }));
 
 const mockConfig = {
@@ -19,6 +24,7 @@ const mockConfig = {
 describe('GanttService', () => {
     beforeEach(() => {
         storageState.mongo = false;
+        storageState.kashar = false;
         localStorage.clear();
         vi.restoreAllMocks();
     });
@@ -91,6 +97,47 @@ describe('GanttService', () => {
         await service.saveGantt({ enabled: true, items: [] });
 
         expect(savedPath).toBe('/sites/schedule/siteDB/siteAssets/gantt_data.txt');
+    });
+
+    it('seeds empty Kashar gantt data once and preserves an edit after reload', async () => {
+        storageState.kashar = true;
+        const service = new GanttService(mockConfig);
+
+        const loaded = await service.getGantt();
+
+        expect(loaded).toMatchObject({
+            enabled: true,
+            pageTitle: 'תכנית עבודה שנתית – הדגמה',
+        });
+        expect(loaded.items.some((item) => item.dependsOn.length > 0)).toBe(true);
+        expect(JSON.parse(localStorage.getItem(KASHAR_DRAFT_STORAGE_KEY))).toMatchObject({
+            format: KASHAR_DRAFT_FORMAT,
+            gantt: { pageTitle: 'תכנית עבודה שנתית – הדגמה' },
+        });
+
+        await service.saveGantt({
+            ...loaded,
+            pageTitle: 'גאנט שנערך ונשמר',
+        });
+
+        const reloaded = await new GanttService(mockConfig).getGantt();
+        expect(reloaded.pageTitle).toBe('גאנט שנערך ונשמר');
+        expect(JSON.parse(localStorage.getItem(KASHAR_DRAFT_STORAGE_KEY))).toMatchObject({
+            format: KASHAR_DRAFT_FORMAT,
+            gantt: { pageTitle: 'גאנט שנערך ונשמר' },
+        });
+    });
+
+    it('reads the reset Kashar gantt fixture from the shared draft', async () => {
+        storageState.kashar = true;
+        const service = new GanttService(mockConfig);
+        const seeded = await service.getGantt();
+        await service.saveGantt({ ...seeded, pageTitle: 'גאנט שנערך' });
+
+        await kasharDraftStore.reset();
+        await expect(new GanttService(mockConfig).getGantt()).resolves.toMatchObject({
+            pageTitle: 'תכנית עבודה שנתית – הדגמה',
+        });
     });
 
     it('falls back safely when production gantt_data.txt is missing', async () => {

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
     Undo2, Menu, Save, FileText, Link as LinkIcon,
-    LayoutGrid, Palette, ExternalLink, Sun, Moon, Users, ShieldCheck, ChevronDown, ChevronLeft, ChevronRight, CalendarDays, Image as ImageIcon
+    LayoutGrid, Palette, ExternalLink, Sun, Moon, Users, ShieldCheck, ChevronDown, ChevronLeft, ChevronRight, CalendarDays, Image as ImageIcon, RotateCcw
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import AdminEvents from './AdminEvents';
@@ -33,9 +33,11 @@ import Tooltip from './Tooltip';
 import NotFoundPage from './NotFoundPage';
 import { useWidget } from '../context/WidgetContext';
 import { useTheme } from '../context/ThemeContext';
+import { useConfig } from '../context/ConfigProvider';
 import { UI_FEATURES } from '../config/uiFeatures.config';
 import { resolveSiteImageUrl } from '../utils/assetUrl';
 import { ALPHA_TEAM_CONFIG, getAppVersion } from '../config/alphaTeam.config';
+import { isKasharDemoProfile } from '../demo-data/demoProfile';
 
 const ADMIN_SECTION_STORAGE_KEY = 'siteBuilder.adminHub.openSections.v1';
 const ADMIN_LAST_PATH_STORAGE_KEY = 'siteBuilder.adminHub.lastPath.v1';
@@ -163,6 +165,12 @@ export default function AdminHub() {
     const lastJumpKeyRef = useRef(null);
     const { widgetConfig } = useWidget();
     const { effectiveMode, toggleAdminMode } = useTheme();
+    const {
+        resetKasharDemoData,
+        exportKasharDemoData,
+        importKasharDemoData,
+    } = useConfig();
+    const kasharImportInputRef = useRef(null);
     const appVersion = getAppVersion();
 
     const activeWidgets = Array.isArray(widgetConfig?.activeWidgets) && widgetConfig.activeWidgets.length > 0
@@ -170,6 +178,7 @@ export default function AdminHub() {
         : [widgetConfig?.activeWidget || 'events'];
     const primaryWidget = activeWidgets[0] || 'events';
     const isLightMode = effectiveMode === 'light';
+    const showKasharDraftTools = isKasharDemoProfile() && import.meta.env.DEV;
     const [sectionOpen, setSectionOpen] = useState(() => readStoredOpenSections());
 
     const toggleSection = (sectionKey) => {
@@ -188,6 +197,28 @@ export default function AdminHub() {
             // Local UI state is best-effort only.
         }
         navigate(path);
+    };
+
+    const exportKasharDraft = async () => {
+        const draft = await exportKasharDemoData();
+        if (!draft) return;
+
+        const blob = new Blob([JSON.stringify(draft, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `kashar-demo-draft-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+    };
+
+    const importKasharDraft = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+        await importKasharDemoData(await file.text());
     };
 
     const getActiveTab = () => {
@@ -288,6 +319,15 @@ export default function AdminHub() {
 
     return (
         <div dir="rtl" className="flex h-screen bg-gray-100 dark:bg-[#1e212b] text-gray-900 dark:text-white font-heebo overflow-hidden">
+            {showKasharDraftTools && (
+                <input
+                    ref={kasharImportInputRef}
+                    type="file"
+                    accept="application/json,.json"
+                    className="hidden"
+                    onChange={importKasharDraft}
+                />
+            )}
             {/* Sidebar */}
             <div className={`${isSidebarOpen ? 'w-72' : 'w-20'} bg-white dark:bg-[#232733] border-l border-gray-200 dark:border-white/10 flex flex-col transition-all duration-300 z-50 shrink-0 shadow-[0_0_20px_rgba(0,0,0,0.1)] dark:shadow-[0_0_20px_rgba(0,0,0,0.5)]`}>
                 <div className="flex items-center  p-6 border-b border-gray-200 dark:border-white/5 h-20 shrink-0">
@@ -485,6 +525,35 @@ export default function AdminHub() {
                                 isSidebarOpen={isSidebarOpen}
                                 title="דשבורד גיבויים מלא עם צפייה ומחיקה"
                             />
+
+                            {showKasharDraftTools && (
+                                <>
+                                    <SidebarButton
+                                        icon={RotateCcw}
+                                        label="Reset Kashar demo data"
+                                        isActive={false}
+                                        onClick={resetKasharDemoData}
+                                        isSidebarOpen={isSidebarOpen}
+                                        title="Restore the original Kashar fixture after confirmation"
+                                    />
+                                    <SidebarButton
+                                        icon={Save}
+                                        label="Export Kashar demo data"
+                                        isActive={false}
+                                        onClick={exportKasharDraft}
+                                        isSidebarOpen={isSidebarOpen}
+                                        title="Download a complete local Kashar draft backup"
+                                    />
+                                    <SidebarButton
+                                        icon={FileText}
+                                        label="Import Kashar demo data"
+                                        isActive={false}
+                                        onClick={() => kasharImportInputRef.current?.click()}
+                                        isSidebarOpen={isSidebarOpen}
+                                        title="Validate and restore a Kashar draft backup"
+                                    />
+                                </>
+                            )}
                         </>
                     )}
 

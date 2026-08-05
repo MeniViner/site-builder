@@ -4,6 +4,7 @@ import { DEFAULT_ACTIVE_WIDGETS, mergeWidgetSettings } from '../utils/widgetDisp
 import { createLegacyObjectStorageAdapter } from './storage/LegacyObjectStorageAdapter';
 import { isMongoStorageBackend, isSharePointReadonlyBackend } from './storage/storageBackend';
 import { isKasharDemoProfile } from '../demo-data/demoProfile';
+import kasharDraftStore from './KasharDraftStore';
 import {
     spLog,
     spLogFileReadStart,
@@ -73,21 +74,23 @@ export const DEFAULT_WIDGETS_CONFIG = {
 
 export const createDefaultWidgetConfig = () => JSON.parse(JSON.stringify(DEFAULT_WIDGETS_CONFIG));
 
-class WidgetService {
+export class WidgetService {
     constructor() {
         this.config = SHAREPOINT_CONFIG;
-        this.useMongo = isMongoStorageBackend();
+        this.useKasharDemo = isKasharDemoProfile();
+        this.useMongo = !this.useKasharDemo && isMongoStorageBackend();
         this.useMock = !this.useMongo && this.config.useMock;
-        this.mongoAdapter = createLegacyObjectStorageAdapter({ key: this.config.widgetsFileServerRelativeUrl });
+        this.mongoAdapter = this.useKasharDemo
+            ? null
+            : createLegacyObjectStorageAdapter({ key: this.config.widgetsFileServerRelativeUrl });
         spLog.system(`WidgetService — מצב ${this.useMongo ? 'MONGO' : (this.useMock ? 'MOCK' : 'PRODUCTION')}`);
     }
 
     async getWidgetConfig() {
         try {
             let data;
-            if (isKasharDemoProfile()) {
-                const { createKasharDemoWidgetConfig } = await import('../demo-data/kasharDemoData');
-                data = createKasharDemoWidgetConfig();
+            if (this.useKasharDemo) {
+                data = await kasharDraftStore.getSharedWidgetConfig();
             } else if (this.useMongo) {
                 data = await this.mongoAdapter.load();
             } else if (this.useMock) {
@@ -98,7 +101,7 @@ class WidgetService {
             return this._normalizeData(data);
         } catch (e) {
             spLog.error('WidgetService: failed to load widget config.', e);
-            if (this.useMongo) throw e;
+            if (this.useKasharDemo || this.useMongo) throw e;
             return createDefaultWidgetConfig();
         }
     }
@@ -136,10 +139,8 @@ class WidgetService {
     }
 
     async saveWidgetConfig(payload) {
-        if (isKasharDemoProfile()) {
-            // Shared polls are the only remaining legacy widget persistence path.
-            // Keep demo edits in the provider state and do not write any backend.
-            return this._normalizeData(payload);
+        if (this.useKasharDemo) {
+            return kasharDraftStore.saveSharedWidgetConfig(this._normalizeData(payload));
         }
         if (this.useMongo) {
             return this.mongoAdapter.save(payload);

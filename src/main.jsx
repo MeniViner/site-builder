@@ -22,6 +22,13 @@ const currentRuntimeLocation = typeof window === 'undefined'
 const renderApp = async () => {
   await loadRuntimeConfig();
   initializeStorageDescriptor();
+  if (import.meta.env.DEV) {
+    const { isKasharDemoProfile } = await import('./demo-data/demoProfile')
+    if (isKasharDemoProfile()) {
+      const { installKasharDevRecovery } = await import('./services/KasharDevRecovery')
+      installKasharDevRecovery({ isKashar: () => true })
+    }
+  }
   const runtimeConfig = getRuntimeConfig() || {};
   const runtimeLog = getRuntimeLog();
   const storageDiagnostics = getStorageDiagnostics();

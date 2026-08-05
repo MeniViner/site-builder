@@ -19,7 +19,7 @@ import {
 import { useOrgChart } from '../context/OrgChartContext';
 import { IDF_RANKS, IDF_ROLES } from '../data/idfDictionaries';
 import { uploadImage } from '../utils/sharepointUtils';
-import { resolveSiteImageUrl } from '../utils/assetUrl';
+import ResolvedSiteImage from './ResolvedSiteImage';
 import { confirmToast } from '../utils/confirmToast';
 import { spLog } from '../utils/spAppLog';
 import DismissibleNotice from './DismissibleNotice';
@@ -527,14 +527,13 @@ function avatarRadiusClass(avatarShape) {
 }
 
 function NodeAvatar({ node, avatarShape, size = 'sm' }) {
-    const src = resolveSiteImageUrl(node.imageUrl);
     const sizeClasses = size === 'sm' ? 'h-10 w-10 text-xs' : 'h-20 w-20 text-xl';
     const initials = displayName(node).replace(/\s+/g, ' ').trim().slice(0, 2) || 'צה';
 
     return (
         <div className={`${sizeClasses} ${avatarRadiusClass(avatarShape)} overflow-hidden border border-primary/25 bg-primary/10 shadow-[0_10px_24px_rgba(0,0,0,0.16)]`}>
             {node.imageUrl ? (
-                <img src={src} alt={displayName(node)} className="h-full w-full object-cover" />
+                <ResolvedSiteImage source={node.imageUrl} alt={displayName(node)} className="h-full w-full object-cover" />
             ) : (
                 <div className="flex h-full w-full items-center justify-center font-black text-primary">{initials}</div>
             )}

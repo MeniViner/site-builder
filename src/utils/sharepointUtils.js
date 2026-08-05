@@ -1,6 +1,7 @@
 // src/utils/sharepointUtils.js
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { SHAREPOINT_PATHS } from '../config/sharepointPaths';
+import { isKasharDemoProfile } from '../demo-data/demoProfile';
 import { spLog, spLogDigestCache } from './spAppLog';
 
 const requestDigestCache = new Map();
@@ -1030,6 +1031,16 @@ export const ensureRecentBackup = async ({
 export const uploadImage = async (file, categoryFolder) => {
     if (!file) throw new Error('לא סופק קובץ להעלאה');
 
+    if (isKasharDemoProfile()) {
+        const [{ kasharAssetStore }, { default: kasharDraftStore }] = await Promise.all([
+            import('../services/KasharAssetStore'),
+            import('../services/KasharDraftStore'),
+        ]);
+        return kasharDraftStore.runExclusive(async () => (
+            (await kasharAssetStore.put(file, { category: categoryFolder })).reference
+        ));
+    }
+
     if (SHAREPOINT_CONFIG.useMock) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -1098,4 +1109,10 @@ export const uploadImage = async (file, categoryFolder) => {
     const url = data?.d?.ServerRelativeUrl;
     spLog.success(`העלאת תמונה הצליחה | נתיב: ${url}`);
     return url;
+};
+
+/** Preserves a feature's legacy inline-image behavior outside Kashar. */
+export const uploadImageWithLocalFallback = async (file, categoryFolder, localFallback) => {
+    if (isKasharDemoProfile()) return uploadImage(file, categoryFolder);
+    return localFallback(file);
 };

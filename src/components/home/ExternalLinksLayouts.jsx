@@ -3,12 +3,12 @@ import { ExternalLink, Globe } from 'lucide-react';
 import { DynamicIcon } from '../DynamicIcon';
 import Tooltip from '../Tooltip';
 import { panelStyle } from '../../utils/borderStyles';
-import { resolveSiteImageUrl } from '../../utils/assetUrl';
+import { useResolvedSiteImageUrl } from '../ResolvedSiteImage';
 import { getLinkTargetAttributes } from '../../utils/linkTargets';
 
 function ExtLinkIcon({ icon, src, alt, size = 18, className = '' }) {
   const [failed, setFailed] = useState(false);
-  const resolvedSrc = resolveSiteImageUrl(src);
+  const { source: resolvedSrc } = useResolvedSiteImageUrl(src);
   if (icon) {
     return <DynamicIcon name={icon} size={size} className={`text-theme-muted group-hover:text-primary transition ${className}`} />;
   }

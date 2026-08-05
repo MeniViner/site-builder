@@ -16,6 +16,20 @@ const response = (body, {
     },
 });
 
+function createMemoryAdapter(initialText = null) {
+    let text = initialText;
+    return {
+        load: vi.fn(async () => ({ text })),
+        save: vi.fn(async (nextText) => {
+            text = nextText;
+            return { ok: true };
+        }),
+        getText: () => text,
+        isStrictPersistence: () => true,
+        isLoadFailureFatal: () => true,
+    };
+}
+
 describe('ConfigAdapter TXT persistence', () => {
     beforeEach(() => {
         clearRuntimeConfigForTests();
@@ -102,33 +116,62 @@ describe('ConfigAdapter TXT persistence', () => {
         await expect(service.loadConfigEnvelope()).rejects.toThrow(/Unexpected token|JSON/);
     });
 
-    it('uses the Kashar fixture without reading or writing the configured adapter', async () => {
-        const adapter = {
-            load: vi.fn(),
-            save: vi.fn(),
-            isStrictPersistence: () => true,
-            isLoadFailureFatal: () => true,
+    it('selects the Kashar draft store without reading or writing the configured adapter', async () => {
+        const adapter = createMemoryAdapter(JSON.stringify({ schemaVersion: '1.0.0', title: 'normal source' }));
+        const draftStore = {
+            loadOrSeed: vi.fn().mockResolvedValue({
+                source: 'kashar-draft',
+                draft: { configEnvelope: { schemaVersion: '1.0.0', content: { hero: { siteName: 'טיוטה מקומית' } } } },
+            }),
+            saveConfig: vi.fn().mockImplementation(async (config) => config),
         };
-        const loadKasharDemoConfig = vi.fn().mockResolvedValue({
-            schemaVersion: '1.0.0',
-            content: { hero: { siteName: 'פורטל קשר״ר' } },
-        });
         const service = new ConfigService(adapter, {
             resolveProfile: () => 'kashar',
-            loadKasharDemoConfig,
+            draftStore,
         });
 
         await expect(service.loadConfigEnvelope()).resolves.toMatchObject({
-            source: 'demo:kashar',
-            config: { content: { hero: { siteName: 'פורטל קשר״ר' } } },
+            source: 'kashar-draft',
+            config: { content: { hero: { siteName: 'טיוטה מקומית' } } },
         });
-        await expect(service.saveConfig({ content: { hero: { siteName: 'edited in memory' } } })).resolves.toMatchObject({
-            content: { hero: { siteName: 'edited in memory' } },
-        });
+        await service.saveConfig({ content: { hero: { siteName: 'עריכה מקומית' } } });
 
-        expect(loadKasharDemoConfig).toHaveBeenCalledTimes(1);
         expect(adapter.load).not.toHaveBeenCalled();
         expect(adapter.save).not.toHaveBeenCalled();
+        expect(draftStore.saveConfig).toHaveBeenCalledTimes(1);
+    });
+
+    it('passes a local-draft migration notice through the Kashar config envelope', async () => {
+        const draftStore = {
+            loadOrSeed: vi.fn().mockResolvedValue({
+                source: 'kashar-draft-migrated',
+                notice: 'Local Kashar draft upgraded to the current format.',
+                draft: { configEnvelope: { schemaVersion: '1.0.0', content: { hero: { siteName: 'טיוטה משודרגת' } } } },
+            }),
+        };
+        const service = new ConfigService(createMemoryAdapter(), {
+            resolveProfile: () => 'kashar',
+            draftStore,
+        });
+
+        await expect(service.loadConfigEnvelope()).resolves.toMatchObject({
+            source: 'kashar-draft-migrated',
+            notice: 'Local Kashar draft upgraded to the current format.',
+        });
+    });
+
+    it('does not disguise a Kashar draft-storage failure as a default configuration', async () => {
+        const adapter = createMemoryAdapter(JSON.stringify({ schemaVersion: '1.0.0' }));
+        const draftStore = {
+            loadOrSeed: vi.fn().mockRejectedValue(new Error('Kashar draft storage is unavailable')),
+        };
+        const service = new ConfigService(adapter, {
+            resolveProfile: () => 'kashar',
+            draftStore,
+        });
+
+        await expect(service.loadConfigEnvelope()).rejects.toThrow('Kashar draft storage is unavailable');
+        expect(adapter.load).not.toHaveBeenCalled();
     });
 
     it('keeps the normal adapter path when the Kashar profile is not selected', async () => {
@@ -150,6 +193,26 @@ describe('ConfigAdapter TXT persistence', () => {
         expect(adapter.load).toHaveBeenCalledTimes(1);
         expect(adapter.save).toHaveBeenCalledTimes(1);
         expect(loadKasharDemoConfig).not.toHaveBeenCalled();
+    });
+
+    it('does not initialize or access a Kashar draft store in normal mode', async () => {
+        const adapter = createMemoryAdapter(JSON.stringify({ schemaVersion: '1.0.0' }));
+        const draftStore = {
+            loadOrSeed: vi.fn(),
+            saveConfig: vi.fn(),
+        };
+        const service = new ConfigService(adapter, {
+            resolveProfile: () => null,
+            draftStore,
+        });
+
+        await service.loadConfigEnvelope();
+        await service.saveConfig({ content: { hero: { siteName: 'normal source' } } });
+
+        expect(draftStore.loadOrSeed).not.toHaveBeenCalled();
+        expect(draftStore.saveConfig).not.toHaveBeenCalled();
+        expect(adapter.load).toHaveBeenCalledTimes(1);
+        expect(adapter.save).toHaveBeenCalledTimes(1);
     });
 
     it('serializes writes so a later save cannot finish before an earlier save', async () => {

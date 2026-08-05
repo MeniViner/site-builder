@@ -12,7 +12,10 @@ import { DEFAULT_CONFIG_V1, validateAndNormalize } from '../config/AppSchema';
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { confirmToast } from '../utils/confirmToast';
 import { spLog } from '../utils/spAppLog';
+import { toast } from 'react-toastify';
 import { isMongoStorageBackend, isSharePointReadonlyBackend } from '../services/storage/storageBackend';
+import { isKasharDemoProfile } from '../demo-data/demoProfile';
+import KasharDraftRecoveryPanel from '../components/KasharDraftRecoveryPanel';
 
 const STATUS = {
     LOADING: 'loading',
@@ -257,18 +260,22 @@ export const ConfigProvider = ({ children }) => {
 
         try {
             spLog.info('[ConfigProvider] Init started...');
+            const isKasharProfile = isKasharDemoProfile();
 
-            const masterRawBeforeLoad = safeReadLocalStorageRaw(MASTER_CONFIG_MOCK_KEY);
+            const masterRawBeforeLoad = isKasharProfile ? null : safeReadLocalStorageRaw(MASTER_CONFIG_MOCK_KEY);
             const masterWasEmpty = !masterRawBeforeLoad || !masterRawBeforeLoad.trim();
-            const skipLegacyMigration = USE_LOCAL_MOCK_STORAGE && consumeSkipLegacyMigrationFlag();
+            const skipLegacyMigration = !isKasharProfile && USE_LOCAL_MOCK_STORAGE && consumeSkipLegacyMigrationFlag();
 
             const loadEnvelope = await ConfigService.loadConfigEnvelope();
             resolvedConfig = normalizeConfigStrict(loadEnvelope.config);
             loadFailedRef.current = false;
+            if (loadEnvelope.notice) {
+                toast.info(loadEnvelope.notice);
+            }
             spLog.info(`[ConfigProvider] Loaded config from adapter (${loadEnvelope.source || 'unknown'}).`);
             const loadedLooksDefault = JSON.stringify(resolvedConfig) === JSON.stringify(normalizeConfigSafely(DEFAULT_CONFIG_V1));
 
-            if (USE_LOCAL_MOCK_STORAGE && !skipLegacyMigration && (masterWasEmpty || loadedLooksDefault)) {
+            if (!isKasharProfile && USE_LOCAL_MOCK_STORAGE && !skipLegacyMigration && (masterWasEmpty || loadedLooksDefault)) {
                 const legacySplitData = extractLegacyLocalData();
                 if (legacySplitData) {
                     spLog.info('[ConfigProvider] Executing legacy migration...');
@@ -280,7 +287,7 @@ export const ConfigProvider = ({ children }) => {
 
             resolvedConfig = normalizeConfigStrict(resolvedConfig);
 
-            if (!USE_LOCAL_MOCK_STORAGE && !isMongoStorageBackend() && !isSharePointReadonlyBackend() && !bootstrapAttemptedRef.current) {
+            if (!isKasharProfile && !USE_LOCAL_MOCK_STORAGE && !isMongoStorageBackend() && !isSharePointReadonlyBackend() && !bootstrapAttemptedRef.current) {
                 bootstrapAttemptedRef.current = true;
                 try {
                     await ensureSharePointBootstrapFiles();
@@ -289,7 +296,9 @@ export const ConfigProvider = ({ children }) => {
                 }
             }
 
-            const repairResult = repairMigratedMockDefaults(resolvedConfig);
+            const repairResult = isKasharProfile
+                ? { config: resolvedConfig, repaired: false }
+                : repairMigratedMockDefaults(resolvedConfig);
             if (repairResult.repaired) {
                 try {
                     const savedRepair = await ConfigService.saveConfig(repairResult.config);
@@ -320,7 +329,9 @@ export const ConfigProvider = ({ children }) => {
             setError(null);
             return resolvedConfig;
         } catch (err) {
-            const fatalLoad = ConfigService.adapter?.isLoadFailureFatal?.(err) || isMongoStorageBackend();
+            const fatalLoad = isKasharDemoProfile()
+                || ConfigService.adapter?.isLoadFailureFatal?.(err)
+                || isMongoStorageBackend();
             loadFailedRef.current = fatalLoad;
             spLog.error(
                 fatalLoad
@@ -510,6 +521,15 @@ export const ConfigProvider = ({ children }) => {
     }, [loadConfig]);
 
     const factoryReset = useCallback(async () => {
+        if (isKasharDemoProfile()) {
+            const message = 'Factory Reset is unavailable for Kashar. Use Reset Kashar demo data instead.';
+            if (isMountedRef.current) {
+                setError(message);
+                setStatus(STATUS.ERROR);
+            }
+            return false;
+        }
+
         const confirmed = await confirmToast({
             title: 'איפוס מערכת (Factory Reset)',
             message: 'אזהרה: פעולה זו תמחק את כל נתוני האתר ותחזיר אותו למצב ברירת מחדל.\nהאם להמשיך?',
@@ -559,6 +579,130 @@ export const ConfigProvider = ({ children }) => {
         }
     }, []);
 
+    const resetKasharDemoData = useCallback(async () => {
+        if (!isKasharDemoProfile()) return false;
+
+        const confirmed = await confirmToast({
+            title: 'Reset Kashar demo data',
+            message: 'This will replace all Kashar demo content, widgets, and Gantt data with the original fixture. This cannot be undone. Continue?',
+            confirmText: 'Reset demo data',
+            cancelText: 'Cancel',
+            type: 'warning',
+        });
+        if (!confirmed) return false;
+
+        if (isMountedRef.current) {
+            setStatus(STATUS.SAVING);
+            setError(null);
+        }
+
+        try {
+            const resetConfig = await ConfigService.resetKasharDemoData();
+            const normalizedReset = normalizeConfigStrict(resetConfig);
+
+            configRef.current = normalizedReset;
+            revisionRef.current = 0;
+            persistedRevisionRef.current = 0;
+            loadFailedRef.current = false;
+            if (isMountedRef.current) {
+                setConfig(normalizedReset);
+                setStatus(STATUS.IDLE);
+                setPersistence({
+                    status: PERSISTENCE_STATUS.SAVED,
+                    revision: 0,
+                    persistedRevision: 0,
+                    dirty: false,
+                    saving: false,
+                    savedAt: new Date().toISOString(),
+                    error: null,
+                });
+            }
+
+            window.location.reload();
+            return true;
+        } catch (err) {
+            spLog.error('Kashar demo reset failed', err);
+            if (isMountedRef.current) {
+                setError(err?.message || 'Kashar demo reset failed');
+                setStatus(STATUS.ERROR);
+                setPersistence((prev) => ({
+                    ...prev,
+                    status: PERSISTENCE_STATUS.ERROR,
+                    saving: false,
+                    error: err?.message || 'Kashar demo reset failed',
+                }));
+            }
+            return false;
+        }
+    }, []);
+
+    const exportKasharDemoData = useCallback(async () => {
+        if (!isKasharDemoProfile()) return null;
+        try {
+            return await ConfigService.exportKasharDemoDraft();
+        } catch (err) {
+            spLog.error('Kashar demo export failed', err);
+            if (isMountedRef.current) {
+                setError(err?.message || 'Kashar demo export failed');
+                setStatus(STATUS.ERROR);
+            }
+            return null;
+        }
+    }, []);
+
+    const importKasharDemoData = useCallback(async (text) => {
+        if (!isKasharDemoProfile()) return false;
+
+        try {
+            await ConfigService.validateKasharDemoDraftImport(text);
+        } catch (err) {
+            if (isMountedRef.current) {
+                setError(err?.message || 'Kashar demo import validation failed');
+                setStatus(STATUS.ERROR);
+            }
+            return false;
+        }
+
+        const confirmed = await confirmToast({
+            title: 'Import Kashar demo data',
+            message: 'This replaces the current local Kashar draft. A backup of the current draft will be kept. Continue?',
+            confirmText: 'Import demo data',
+            cancelText: 'Cancel',
+            type: 'warning',
+        });
+        if (!confirmed) return false;
+
+        if (isMountedRef.current) {
+            setStatus(STATUS.SAVING);
+            setError(null);
+        }
+
+        try {
+            const importResult = await ConfigService.importKasharDemoDraft(text);
+            const normalizedImported = normalizeConfigStrict(importResult.config);
+            configRef.current = normalizedImported;
+            revisionRef.current = 0;
+            persistedRevisionRef.current = 0;
+            loadFailedRef.current = false;
+            if (isMountedRef.current) {
+                setConfig(normalizedImported);
+                setStatus(STATUS.IDLE);
+            }
+            if (importResult.warning) {
+                toast.warn(importResult.warning);
+            }
+            window.location.reload();
+            return true;
+        } catch (err) {
+            spLog.error('Kashar demo import failed', err);
+            if (isMountedRef.current) {
+                setError(err?.message || 'Kashar demo import failed');
+                setStatus(STATUS.ERROR);
+            }
+            return false;
+        }
+    }, []);
+
     if (status === STATUS.LOADING) {
         return (
             <div className="min-h-screen w-full flex items-center justify-center bg-[#0c0d12]">
@@ -582,6 +726,9 @@ export const ConfigProvider = ({ children }) => {
                     >
                         נסה שוב
                     </button>
+                    {isKasharDemoProfile() && import.meta.env.DEV && (
+                        <KasharDraftRecoveryPanel onRetry={loadConfig} />
+                    )}
                 </div>
             </div>
         );
@@ -597,6 +744,9 @@ export const ConfigProvider = ({ children }) => {
                 saveNow,
                 reload,
                 factoryReset,
+                resetKasharDemoData,
+                exportKasharDemoData,
+                importKasharDemoData,
                 persistence,
                 retrySave: saveNow,
             }}

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { act, render, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigProvider, useConfig } from './ConfigProvider';
 
@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
     saveConfig: vi.fn(),
     ensureBootstrap: vi.fn(),
     overwriteBootstrap: vi.fn(),
+    kashar: false,
 }));
 
 vi.mock('../services/ConfigService', () => ({
@@ -27,6 +28,10 @@ vi.mock('../services/SharePointBootstrapService', () => ({
 vi.mock('../services/storage/storageBackend', () => ({
     isMongoStorageBackend: () => false,
     isSharePointReadonlyBackend: () => false,
+}));
+
+vi.mock('../demo-data/demoProfile', () => ({
+    isKasharDemoProfile: () => mocks.kashar,
 }));
 
 vi.mock('../config/sharepoint.config', () => ({
@@ -103,6 +108,7 @@ describe('ConfigProvider persistence queue', () => {
         mocks.saveConfig.mockReset().mockImplementation(async (config) => config);
         mocks.ensureBootstrap.mockReset().mockResolvedValue([]);
         mocks.overwriteBootstrap.mockReset().mockResolvedValue([]);
+        mocks.kashar = false;
     });
 
     it('serializes rapid saves and never lets a stale completion replace newer state', async () => {
@@ -176,6 +182,24 @@ describe('ConfigProvider persistence queue', () => {
             saving: false,
             status: 'saved',
         });
+    });
+
+    it('shows a blocking error instead of falling back when Kashar draft storage cannot load', async () => {
+        mocks.kashar = true;
+        mocks.loadConfigEnvelope.mockRejectedValueOnce(new Error('Kashar draft storage is unavailable'));
+
+        render(<ConfigProvider><Probe /></ConfigProvider>);
+
+        expect(await screen.findByText('טעינת נתוני האתר נכשלה')).toBeInTheDocument();
+        expect(screen.getByText('Kashar draft storage is unavailable')).toBeInTheDocument();
+        expect(screen.getByText('Kashar draft recovery (development only)')).toBeInTheDocument();
+        expect(mocks.saveConfig).not.toHaveBeenCalled();
+    });
+
+    it('does not initialize recovery controls in normal mode', async () => {
+        await renderLoadedProvider();
+
+        expect(screen.queryByText('Kashar draft recovery (development only)')).not.toBeInTheDocument();
     });
 
     it('starts a new loop when a save is requested from the previous save completion', async () => {

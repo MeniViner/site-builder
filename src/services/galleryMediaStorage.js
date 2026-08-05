@@ -1,4 +1,5 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
+import { isKasharDemoProfile } from '../demo-data/demoProfile';
 import { getSiteId } from './storage/storageBackend';
 import { uploadImage } from '../utils/sharepointUtils';
 
@@ -132,7 +133,7 @@ export async function uploadGalleryImage(file) {
         throw new Error('גודל התמונה חורג מהמגבלה של 20MB.');
     }
 
-    if (SHAREPOINT_CONFIG.useMock) {
+    if (SHAREPOINT_CONFIG.useMock && !isKasharDemoProfile()) {
         return putLocalGalleryMedia(file);
     }
 

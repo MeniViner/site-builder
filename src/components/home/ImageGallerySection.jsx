@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Expand, ImageOff, X } from 'lucide-react';
-import { resolveSiteImageUrl } from '../../utils/assetUrl';
 import { isLocalGalleryMediaReference, resolveLocalGalleryMedia } from '../../services/galleryMediaStorage';
+import { useResolvedSiteImageUrl } from '../ResolvedSiteImage';
 import {
     buildMagalStripLoopItems,
     MAGAL_STRIP_REPEAT_GROUP_COUNT,
@@ -38,7 +38,8 @@ function useReducedMotion() {
 }
 
 function useResolvedGalleryMedia(mediaRef) {
-    const externalSource = isLocalGalleryMediaReference(mediaRef) ? '' : resolveSiteImageUrl(mediaRef);
+    const { source: resolvedSource, missing: resolvedMissing } = useResolvedSiteImageUrl(mediaRef);
+    const externalSource = isLocalGalleryMediaReference(mediaRef) ? '' : resolvedSource;
     const [localMedia, setLocalMedia] = useState({ reference: '', source: '', missing: false });
 
     useEffect(() => {
@@ -71,7 +72,9 @@ function useResolvedGalleryMedia(mediaRef) {
     const isLocal = isLocalGalleryMediaReference(mediaRef);
     const localMatchesReference = localMedia.reference === mediaRef;
     const source = isLocal ? (localMatchesReference ? localMedia.source : '') : externalSource;
-    const missing = isLocal && localMatchesReference && localMedia.missing;
+    const missing = isLocal
+        ? (localMatchesReference && localMedia.missing)
+        : resolvedMissing;
     return { source, missing };
 }
 

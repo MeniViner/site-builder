@@ -25,6 +25,7 @@ import ImageGallerySection from './components/home/ImageGallerySection';
 import { normalizeBorderStyle, panelStyle } from './utils/borderStyles';
 import { normalizeOverlayImageConfig } from './utils/overlayImageConfig';
 import { resolveSiteImageUrl } from './utils/assetUrl';
+import { useResolvedSiteImageUrl, useResolvedSiteImageUrls } from './components/ResolvedSiteImage';
 import { openLinkTarget } from './utils/linkTargets';
 import { getNavigationNodeModel } from './utils/navigationModel';
 import { canAccessAdminUi } from './utils/adminAccess';
@@ -61,7 +62,8 @@ export function Home({ isPreview = false }) {
   const commander = siteContent?.commander || { image: '', sectionTitle: '', roleLabel: '', messages: [] };
   const overlayImage = normalizeOverlayImageConfig(siteContent?.overlayImage);
   const messages = commander.messages || [];
-  const backgrounds = (hero.backgroundImages || []).filter(Boolean).map((path) => resolveSiteImageUrl(path));
+  const backgroundReferences = (hero.backgroundImages || []).filter(Boolean);
+  const backgrounds = useResolvedSiteImageUrls(backgroundReferences);
   const showOverlayImage = overlayImage.enabled && Boolean(overlayImage.imageUrl);
   const heroGrayscale = theme?.heroGrayscale ?? false;
   const showNavCategories = theme?.showNavCategories ?? true;
@@ -142,7 +144,6 @@ export function Home({ isPreview = false }) {
   };
   const alphaTeamLinks = getAlphaTeamLinks();
   const alphaTeamEmailLink = alphaTeamLinks.find((link) => link.key === 'email');
-  const alphaTeamEmail = ALPHA_TEAM_CONFIG.email?.trim?.() || ALPHA_TEAM_CONFIG.nameEn;
   const appVersion = getAppVersion();
   const heroGlassBlur = 10 + (heroGlassStrength * 0.36);
   const heroGlassBackgroundAlpha = 0.04 + (heroGlassStrength * 0.0018);
@@ -388,12 +389,12 @@ function AdminRoute() {
 export default function App() {
   const { effectiveMode } = useTheme();
   const { siteContent } = useSiteContent();
+  const { source: faviconHref } = useResolvedSiteImageUrl(siteContent?.hero?.logo || '/images/gift.svg');
 
   useEffect(() => {
     const siteName = siteContent?.hero?.siteName?.trim() || 'אלפא';
     document.title = `ניהול ידע | ${siteName}`;
 
-    const faviconHref = resolveSiteImageUrl(siteContent?.hero?.logo || '/images/gift.svg');
     let faviconEl = document.querySelector('link[data-app-favicon="true"]');
 
     if (!faviconEl) {
@@ -404,7 +405,7 @@ export default function App() {
     }
 
     faviconEl.setAttribute('href', faviconHref);
-  }, [siteContent?.hero?.logo, siteContent?.hero?.siteName]);
+  }, [faviconHref, siteContent?.hero?.siteName]);
 
   return (
     <>
