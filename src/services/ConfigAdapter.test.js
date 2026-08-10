@@ -37,7 +37,8 @@ describe('ConfigAdapter TXT persistence', () => {
         setRuntimeConfigForTests({
             storageBackend: 'txt',
             siteId: 'alpha',
-            siteRoot: '/sites/alpha',
+            host: 'test.local',
+            siteCode: 'alpha',
         });
     });
 

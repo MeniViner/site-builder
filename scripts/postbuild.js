@@ -2,7 +2,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawnSync } from 'child_process';
 import { loadEnvFile, parseCliArgs, resolveConfig } from './sp-env.js';
-import { writeDeploymentArtifacts } from './deploymentArtifacts.mjs';
+import { writeReleaseArtifacts } from './deploymentArtifacts.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,8 +37,8 @@ const runNodeCommand = (scriptPath, args = []) => {
 };
 
 const writeDeployManifest = () => {
-  const artifacts = writeDeploymentArtifacts(distRoot, config);
-  console.log(`[postbuild] generated explicit ${artifacts.runtimeConfig.storageBackend} runtime selector and object manifest (${artifacts.manifest.files.length} files)`);
+  const artifacts = writeReleaseArtifacts(distRoot);
+  console.log(`[postbuild] generated universal release manifest (${artifacts.manifest.files.length} files); site runtime metadata is written only during deployment.`);
 };
 
 const parseCheckResult = (stdout) => {
@@ -57,7 +57,7 @@ try {
   writeDeployManifest();
 
   if (!autoDeployEnabled) {
-    console.log('[postbuild] Runtime selector and manifest were generated; SharePoint deploy was skipped. Set SITE_BUILDER_POSTBUILD_DEPLOY=true plus VITE_AUTO_DEPLOY=true for an explicit postbuild deploy.');
+    console.log('[postbuild] Universal release manifest was generated; SharePoint deploy was skipped. Set SITE_BUILDER_POSTBUILD_DEPLOY=true plus VITE_AUTO_DEPLOY=true for an explicit postbuild deploy.');
     process.exit(0);
   }
 

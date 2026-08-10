@@ -7,11 +7,8 @@ import { spLog, spLogDigestCache } from './spAppLog';
 const requestDigestCache = new Map();
 const CACHE_EXPIRATION_MS = 25 * 60 * 1000; // 25 minutes (SharePoint digest ~30m)
 
-const IMAGE_BASE_FOLDER = import.meta.env.VITE_SP_IMAGE_BASE_FOLDER || SHAREPOINT_PATHS.imageBaseFolderServerRelativeUrl;
-const RAW_SITE_API_ROOT =
-    import.meta.env.VITE_SP_SITE_API_ROOT ||
-    import.meta.env.VITE_SP_SITE_ROOT ||
-    SHAREPOINT_PATHS.siteApiRoot;
+const getImageBaseFolder = () => SHAREPOINT_PATHS.imageBaseFolderServerRelativeUrl;
+const getRuntimeSiteApiRoot = () => SHAREPOINT_PATHS.siteApiRoot;
 const ODATA_ACCEPT = 'application/json;odata=verbose';
 const ODATA_CONTENT_TYPE = 'application/json;odata=verbose';
 const ROOT_CACHE_KEY = '__root__';
@@ -192,7 +189,7 @@ const inferTopLevelSiteRoot = (value = '') => {
 };
 
 const resolveApiSiteRoot = (value = '') => {
-    const configured = toPathname(RAW_SITE_API_ROOT);
+    const configured = toPathname(getRuntimeSiteApiRoot());
     if (configured) return configured;
 
     const normalizedPath = toPathname(value);
@@ -500,7 +497,7 @@ export const createBackup = async (options = {}) => {
         const filesToBackup = Array.isArray(requestedFiles) && requestedFiles.length > 0
             ? requestedFiles
             : [
-                import.meta.env.VITE_SP_MASTER_CONFIG_FILE_URL || SHAREPOINT_PATHS.masterConfigFileServerRelativeUrl,
+                SHAREPOINT_PATHS.masterConfigFileServerRelativeUrl,
                 SHAREPOINT_CONFIG.fileServerRelativeUrl,
                 SHAREPOINT_CONFIG.navFileServerRelativeUrl,
                 SHAREPOINT_CONFIG.siteContentFileServerRelativeUrl,
@@ -1026,7 +1023,7 @@ export const ensureRecentBackup = async ({
 
 /**
  * Uploads an image file. In mock mode, converts to Base64 data URL.
- * In production, uploads to SharePoint under IMAGE_BASE_FOLDER/<categoryFolder>.
+ * In production, uploads to SharePoint under the runtime images root.
  */
 export const uploadImage = async (file, categoryFolder) => {
     if (!file) throw new Error('לא סופק קובץ להעלאה');
@@ -1076,7 +1073,7 @@ export const uploadImage = async (file, categoryFolder) => {
         });
     }
 
-    const targetFolder = `${normalizeServerRelativeUrl(IMAGE_BASE_FOLDER)}/${String(categoryFolder || '').trim()}`;
+    const targetFolder = `${normalizeServerRelativeUrl(getImageBaseFolder())}/${String(categoryFolder || '').trim()}`;
     const siteUrl = resolveApiSiteRoot(targetFolder);
     spLog.file(`מעלה תמונה ל-SharePoint | תיקייה: ${targetFolder} | קובץ: ${file.name}`);
 

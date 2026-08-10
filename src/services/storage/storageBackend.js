@@ -58,7 +58,7 @@ function currentLocationSiteRoot() {
     const pathname = text(window.location?.pathname);
     if (!pathname) return '';
 
-    const siteDbFolder = text(import.meta.env.VITE_SP_SITE_DB_FOLDER || 'siteDB');
+    const siteDbFolder = text(getRuntimeConfig()?.siteDbFolder || 'siteDB');
     const marker = `/${siteDbFolder.toLowerCase()}/`;
     const lowerPath = pathname.toLowerCase();
     const markerIndex = lowerPath.indexOf(marker);
@@ -78,11 +78,6 @@ function configuredTxtSiteRoot(config) {
         || config.sharePointSiteUrl
         || config.allowedSiteRoot,
     );
-}
-
-function buildTimeTxtSiteRoot() {
-    const siteCode = text(import.meta.env.VITE_SP_SITE_CODE || 'siteBuilder').replace(/^\/+|\/+$/g, '');
-    return `/sites/${siteCode || 'siteBuilder'}`;
 }
 
 function siteIdFromSiteRoot(siteRoot) {
@@ -165,9 +160,7 @@ function buildDescriptor() {
     const runtimeConfig = getRuntimeConfig() || {};
     const runtimeSource = getRuntimeConfigSource();
     const hasRuntimeSelection = Boolean(runtimeConfig.storageBackend);
-    const rawBackend = hasRuntimeSelection
-        ? runtimeConfig.storageBackend
-        : import.meta.env.VITE_STORAGE_BACKEND;
+    const rawBackend = runtimeConfig.storageBackend;
     const backend = normalizeBackend(rawBackend, { defaultBackend: STORAGE_BACKENDS.TXT });
     const source = hasRuntimeSelection ? runtimeSource : (text(rawBackend) ? 'production-env' : 'safe-default');
     const deploymentMetadata = getDeploymentMetadata() || {};
@@ -184,20 +177,20 @@ function buildDescriptor() {
     let backendApiUrl = '';
     if (backend === STORAGE_BACKENDS.MONGO) {
         siteId = validateSiteId(
-            hasRuntimeSelection ? runtimeConfig.siteId : import.meta.env.VITE_SITE_ID,
+            runtimeConfig.siteId,
         );
         backendApiUrl = validateBackendUrl(
-            hasRuntimeSelection ? runtimeConfig.backendApiUrl : import.meta.env.VITE_BACKEND_API_URL,
+            runtimeConfig.backendApiUrl,
         );
     } else {
         const actualRoot = currentLocationSiteRoot();
         const configuredRoot = configuredTxtSiteRoot(runtimeConfig);
         assertSiteRootMatchesLocation(configuredRoot, actualRoot);
-        siteRoot = actualRoot || configuredRoot || buildTimeTxtSiteRoot();
+        siteRoot = configuredRoot || actualRoot;
         siteId = validateSiteId(
-            runtimeConfig.siteId || siteIdFromSiteRoot(siteRoot) || import.meta.env.VITE_SP_SITE_CODE,
-            { required: false },
-        ) || 'siteBuilder';
+            runtimeConfig.siteId || siteIdFromSiteRoot(siteRoot),
+            { required: Boolean(siteRoot) },
+        );
     }
 
     return Object.freeze({
@@ -304,9 +297,12 @@ export function buildTxtStoragePath(fileName) {
             code: 'invalid_txt_file_name',
         });
     }
-    const siteDbFolder = text(import.meta.env.VITE_SP_SITE_DB_FOLDER || 'siteDB').replace(/^\/+|\/+$/g, '');
-    const siteAssetsFolder = text(import.meta.env.VITE_SP_SITE_ASSETS_FOLDER || 'siteAssets').replace(/^\/+|\/+$/g, '');
-    return `${getTxtSiteRoot()}/${siteDbFolder}/${siteAssetsFolder}/${safeFileName}`;
+    const runtimeConfig = getRuntimeConfig() || {};
+    const siteAssetsRoot = text(runtimeConfig.siteAssetsRoot);
+    if (siteAssetsRoot) return `${siteAssetsRoot}/${safeFileName}`;
+    throw new StorageConfigurationError('TXT runtime configuration is missing siteAssetsRoot.', {
+        code: 'missing_sharepoint_runtime_paths',
+    });
 }
 
 export function isStrictPersistentBackend() {

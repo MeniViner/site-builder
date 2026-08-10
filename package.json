@@ -9,6 +9,7 @@
     "dev:kashar": "vite --mode kashar-demo",
     "build": "node scripts/build-production.mjs",
     "build:kashar": "vite build --mode kashar-demo",
+    "verify:universal-dist": "node scripts/verify-universal-dist.mjs dist",
     "postbuild": "node scripts/postbuild.js",
     "site:init": "node scripts/init-sharepoint-site.js --write-env",
     "ai:backend:install": "npm --prefix newAlphaAIBackend/newAlphaAIBackend install",

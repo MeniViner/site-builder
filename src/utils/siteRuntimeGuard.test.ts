@@ -6,8 +6,7 @@ import {
 } from './siteRuntimeGuard';
 
 const env = {
-  VITE_SP_HOST: 'portal.army.idf',
-  VITE_SP_SITE_CODE: 'schedule',
+  allowedSiteRoot: 'https://portal.army.idf/sites/schedule',
 };
 
 const runtimeLocation = (value: string) => new URL(value) as unknown as Location;
@@ -27,12 +26,10 @@ describe('site runtime guard', () => {
     )).toBe(false);
   });
 
-  it('allows the runtime metadata site root when the build env belongs to another site', () => {
+  it('allows the runtime metadata site root', () => {
     expect(isAllowedSharePointRuntimeLocation(
       runtimeLocation('https://portal.army.idf/sites/runtime-target/siteDB/dist/index.html#/admin'),
       {
-        VITE_SP_HOST: 'portal.army.idf',
-        VITE_SP_SITE_CODE: 'template-build',
         allowedSiteRoot: 'https://portal.army.idf/sites/runtime-target',
       }
     )).toBe(true);
@@ -78,11 +75,11 @@ describe('site runtime guard', () => {
   it('allows missing env values', () => {
     expect(isAllowedSharePointRuntimeLocation(
       runtimeLocation('https://other.host/sites/copied/siteDB/dist/index.html'),
-      { VITE_SP_HOST: '', VITE_SP_SITE_CODE: 'schedule' }
+      { allowedSiteRoot: '' }
     )).toBe(true);
     expect(isAllowedSharePointRuntimeLocation(
       runtimeLocation('https://other.host/sites/copied/siteDB/dist/index.html'),
-      { VITE_SP_HOST: 'portal.army.idf', VITE_SP_SITE_CODE: '' }
+      { sharePointSiteUrl: '' }
     )).toBe(true);
   });
 

@@ -1,3 +1,5 @@
+import { SHAREPOINT_PATHS } from '../config/sharepointPaths';
+
 const PREFIX = '[SharePointPermissionsSetup]';
 const MARKER_FILE_NAME = '.permissions-setup.json';
 const CONTRIBUTE_ROLE_DEF_ID = 1073741827;
@@ -161,9 +163,7 @@ const buildMarkerFileUrl = (folderUrl: string) => `${folderUrl.replace(/\/+$/g, 
 const escapeMarkerPutUrl = (markerFileUrl: string) => encodePathForDirectRequest(markerFileUrl);
 
 const inferSiteRootFromFolder = (folderUrl: string) => {
-    const explicit = normalizeServerRelativeFolderUrl(
-        import.meta.env.VITE_SP_SITE_API_ROOT || import.meta.env.VITE_SP_SITE_ROOT
-    );
+    const explicit = normalizeServerRelativeFolderUrl(SHAREPOINT_PATHS.siteApiRoot || SHAREPOINT_PATHS.siteRoot);
     if (explicit) return explicit.replace(/\/+$/g, '');
 
     const segments = folderUrl.split('/').filter(Boolean);
@@ -578,7 +578,7 @@ const classifyFailure = (error: unknown, folderUrl?: string, markerFileUrl?: str
             status: 'folder-not-found' as const,
             folderUrl,
             markerFileUrl,
-            userMessage: 'תיקיית מסד הנתונים ב-SharePoint לא נמצאה. יש לבדוק שהערך VITE_SP_USERS_DB_FOLDER נכון ושהתיקייה קיימת.',
+            userMessage: 'תיקיית מסד הנתונים ב-SharePoint לא נמצאה. יש לבדוק את usersDbRoot בהגדרת זמן הריצה ואת קיום התיקייה.',
             technicalError: normalized || error,
         };
     }
@@ -595,7 +595,7 @@ const classifyFailure = (error: unknown, folderUrl?: string, markerFileUrl?: str
 
 const ensureUsersDbFolderPermissionsReadyInternal = async (): Promise<PermissionSetupResult> => {
     const logs: PermissionSetupLogEntry[] = [];
-    const configuredFolder = import.meta.env.VITE_SP_USERS_DB_FOLDER;
+    const configuredFolder = SHAREPOINT_PATHS.usersDbRoot;
     const folderUrl = normalizeServerRelativeFolderUrl(configuredFolder);
     const markerFileUrl = folderUrl ? buildMarkerFileUrl(folderUrl) : undefined;
     const siteRoot = folderUrl ? inferSiteRootFromFolder(folderUrl) : '';
@@ -610,14 +610,14 @@ const ensureUsersDbFolderPermissionsReadyInternal = async (): Promise<Permission
             VITE_SP_VERBOSE_LOG: import.meta.env.VITE_SP_VERBOSE_LOG,
         },
     });
-    recordLog(logs, 'info', 'configuration', 'Configured VITE_SP_USERS_DB_FOLDER value resolved', { configuredFolder, folderUrl });
+    recordLog(logs, 'info', 'configuration', 'Configured runtime usersDbRoot value resolved', { configuredFolder, folderUrl });
     recordLog(logs, 'info', 'configuration', 'Resolved SharePoint site/web URL', { siteRoot });
     recordLog(logs, 'info', 'configuration', 'Resolved marker file path', { markerFileUrl });
 
     if (!folderUrl) {
-        const error = normalizeError('configuration', 'VITE_SP_USERS_DB_FOLDER is missing', {
+        const error = normalizeError('configuration', 'runtime usersDbRoot is missing', {
             responseBody: {
-                VITE_SP_USERS_DB_FOLDER: configuredFolder ?? null,
+                usersDbRoot: configuredFolder ?? null,
                 mode: import.meta.env.MODE,
                 prod: import.meta.env.PROD,
             },
@@ -626,7 +626,7 @@ const ensureUsersDbFolderPermissionsReadyInternal = async (): Promise<Permission
         return {
             ok: false,
             status: 'missing-config',
-            userMessage: 'נתיב תיקיית מסד הנתונים של SharePoint לא מוגדר. חסר הערך VITE_SP_USERS_DB_FOLDER.',
+            userMessage: 'נתיב תיקיית מסד הנתונים של SharePoint לא מוגדר בהגדרת זמן הריצה.',
             technicalError: error,
             logs,
         };
@@ -769,3 +769,4 @@ export const ensureUsersDbFolderPermissionsReady = (): Promise<PermissionSetupRe
 };
 
 export default ensureUsersDbFolderPermissionsReady;
+import { SHAREPOINT_PATHS } from '../config/sharepointPaths';

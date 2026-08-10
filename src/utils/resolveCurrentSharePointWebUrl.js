@@ -22,28 +22,15 @@ const pathnameSitesFallback = () => {
     const segments = window.location.pathname.split('/').filter(Boolean);
     const first = String(segments[0] || '').toLowerCase();
     if ((first === 'sites' || first === 'teams') && segments.length >= 2) {
-        const host = hostOnly(SHAREPOINT_PATHS.host || import.meta.env.VITE_SP_HOST || window.location.host);
+        const host = hostOnly(SHAREPOINT_PATHS.host || window.location.host);
         if (!host) return '';
         return stripTrailingSlashes(`https://${host}/${segments[0]}/${segments[1]}`);
     }
     return '';
 };
 
-const envApiRootToAbsolute = () => {
-    const apiRootRaw = String(import.meta.env.VITE_SP_SITE_API_ROOT || '').trim();
-    const viteHost = hostOnly(import.meta.env.VITE_SP_HOST || SHAREPOINT_PATHS.host || '');
-    if (!apiRootRaw || !viteHost) return '';
-
-    if (/^https?:\/\//i.test(apiRootRaw)) {
-        return stripTrailingSlashes(apiRootRaw);
-    }
-
-    const path = apiRootRaw.startsWith('/') ? apiRootRaw : `/${apiRootRaw}`;
-    return stripTrailingSlashes(`https://${viteHost}${path}`);
-};
-
 const sharePointPathsToAbsolute = () => {
-    const h = hostOnly(SHAREPOINT_PATHS.host || import.meta.env.VITE_SP_HOST || '');
+    const h = hostOnly(SHAREPOINT_PATHS.host || '');
     const sr = normalizeServerRelativeUrl(SHAREPOINT_PATHS.siteApiRoot || SHAREPOINT_PATHS.siteRoot);
     if (!h || !sr) return '';
     const path = sr.startsWith('/') ? sr : `/${sr}`;
@@ -52,7 +39,7 @@ const sharePointPathsToAbsolute = () => {
 
 /**
  * Resolves the SharePoint web URL for REST calls (current site web, e.g. https://portal.army.idf/sites/schedule).
- * Order: _spPageContextInfo.webAbsoluteUrl → VITE_SP_SITE_API_ROOT + VITE_SP_HOST → SHAREPOINT_PATHS → pathname sites/*.
+ * Order: _spPageContextInfo.webAbsoluteUrl → runtime SharePoint descriptor → pathname sites/*.
  *
  * @param {{ onResolved?: (info: Record<string, unknown>) => void }} [options]
  * @returns {string}
@@ -67,9 +54,9 @@ export const resolveCurrentSharePointWebUrl = (options = {}) => {
             windowLocationHref: typeof window !== 'undefined' ? window.location.href : '',
             windowLocationOrigin: typeof window !== 'undefined' ? window.location.origin : '',
             spPageContextWebAbsoluteUrl: pageContext?.webAbsoluteUrl,
-            VITE_SP_HOST: import.meta.env.VITE_SP_HOST,
-            VITE_SP_SITE_CODE: import.meta.env.VITE_SP_SITE_CODE,
-            VITE_SP_SITE_API_ROOT: import.meta.env.VITE_SP_SITE_API_ROOT,
+            runtimeHost: SHAREPOINT_PATHS.host,
+            runtimeSiteCode: SHAREPOINT_PATHS.siteCode,
+            runtimeSiteApiRoot: SHAREPOINT_PATHS.siteApiRoot,
             finalWebUrl,
         };
         if (typeof onResolved === 'function') {
@@ -82,12 +69,6 @@ export const resolveCurrentSharePointWebUrl = (options = {}) => {
     if (fromPageContext) {
         logResolution(fromPageContext, '_spPageContextInfo.webAbsoluteUrl');
         return fromPageContext;
-    }
-
-    const fromEnv = envApiRootToAbsolute();
-    if (fromEnv) {
-        logResolution(fromEnv, 'VITE_SP_SITE_API_ROOT+VITE_SP_HOST');
-        return fromEnv;
     }
 
     const fromPaths = sharePointPathsToAbsolute();

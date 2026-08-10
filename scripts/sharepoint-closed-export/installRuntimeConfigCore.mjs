@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { buildRuntimeConfigPayload as buildCanonicalRuntimeConfigPayload } from '../deploymentArtifacts.mjs';
 
 const ALLOWED_RUNTIME_FILE_NAMES = new Set([
   'sitebuilder-runtime-config.json',
@@ -47,8 +48,16 @@ export function resolveRuntimeConfigPlan({ config, cli = {} } = {}) {
   const sharePointSiteUrl = config.host
     ? `https://${String(config.host).replace(/^https?:\/\//i, '').replace(/\/+$/, '')}${normalizeServerRelative(config.siteRootRel || `/sites/${rawSite}`)}`
     : normalizeServerRelative(config.siteRootRel || `/sites/${rawSite}`);
+  const siteRoot = normalizeServerRelative(config.siteRootRel || `/sites/${rawSite}`);
+  const siteDbFolder = String(config.siteDbFolder || 'siteDB').replace(/^\/+|\/+$/g, '');
+  const siteDbRoot = normalizeServerRelative(config.siteDbRel || `${siteRoot}/${siteDbFolder}`);
+  const usersDbFolder = String(config.usersDbFolder || 'siteUsersDb').replace(/^\/+|\/+$/g, '');
+  const usersDbRoot = normalizeServerRelative(config.usersDbRel || `${siteRoot}/${usersDbFolder}`);
+  const siteAssetsFolder = String(config.siteAssetsFolder || 'siteAssets').replace(/^\/+|\/+$/g, '');
+  const imagesFolder = String(config.imagesFolder || 'images').replace(/^\/+|\/+$/g, '');
 
   return {
+    host: String(config.host || '').replace(/^https?:\/\//i, '').replace(/\/+$/g, ''),
     siteCode: String(rawSite).replace(/^\/+|\/+$/g, ''),
     siteId,
     storageBackend,
@@ -58,6 +67,21 @@ export function resolveRuntimeConfigPlan({ config, cli = {} } = {}) {
     runtimeConfigRel,
     runtimeConfigUrl,
     sharePointSiteUrl,
+    siteRoot,
+    siteApiRoot: normalizeServerRelative(config.siteApiRootRel || siteRoot),
+    siteDbFolder,
+    siteDbRoot,
+    usersDbFolder,
+    usersDbRoot,
+    siteAssetsFolder,
+    siteAssetsRoot: normalizeServerRelative(config.siteAssetsRel || `${siteDbRoot}/${siteAssetsFolder}`),
+    imagesFolder,
+    imagesRoot: normalizeServerRelative(config.imagesRel || `${siteDbRoot}/${imagesFolder}`),
+    widgetsDbTarget: String(config.widgetsDbTarget || 'users').toLowerCase() === 'site' ? 'site' : 'users',
+    targetDistPath: distRel,
+    finalAppUrl: config.host ? `https://${String(config.host).replace(/^https?:\/\//i, '').replace(/\/+$/g, '')}${distRel}/index.html` : `${distRel}/index.html`,
+    bootstrapLibrary: String(config.bootstrapLibrary || 'SiteAssets').replace(/^\/+|\/+$/g, ''),
+    bootstrapFolder: String(config.bootstrapFolder || 'sitebuilder-bootstrap').replace(/^\/+|\/+$/g, ''),
   };
 }
 
@@ -74,6 +98,9 @@ export function assertSafeRuntimeConfigPlan(plan) {
   if (!plan.siteId) {
     throw new Error('siteId is required for runtime config.');
   }
+  if (!plan.host || !plan.siteCode) {
+    throw new Error('host and siteCode are required for SharePoint runtime config.');
+  }
   if (typeof plan.runtimeConfigRel !== 'string') {
     throw new Error('Invalid runtime config relative path.');
   }
@@ -81,16 +108,30 @@ export function assertSafeRuntimeConfigPlan(plan) {
 }
 
 export function buildRuntimeConfigPayload(plan) {
-  const payload = {
-    schemaVersion: 1,
+  // This helper may be used to recover a deployed site, so it must emit the
+  // identical payload and validation contract as the ordinary legacy deploy.
+  return buildCanonicalRuntimeConfigPayload({
     storageBackend: plan.storageBackend,
+    backendApiUrl: plan.backendApiUrl,
+    host: plan.host,
+    siteCode: plan.siteCode,
     siteId: plan.siteId,
-    generatedBy: 'site-builder-runtime-installer',
-    allowedSiteRoot: plan.sharePointSiteUrl,
-    sharePointSiteUrl: plan.sharePointSiteUrl,
-  };
-  if (plan.storageBackend === 'mongo') payload.backendApiUrl = plan.backendApiUrl.replace(/\/+$/g, '');
-  return payload;
+    siteRootRel: plan.siteRoot,
+    siteApiRootRel: plan.siteApiRoot,
+    siteDbFolder: plan.siteDbFolder,
+    siteDbRel: plan.siteDbRoot,
+    usersDbFolder: plan.usersDbFolder,
+    usersDbRel: plan.usersDbRoot,
+    siteAssetsFolder: plan.siteAssetsFolder,
+    siteAssetsRel: plan.siteAssetsRoot,
+    imagesFolder: plan.imagesFolder,
+    imagesRel: plan.imagesRoot,
+    widgetsDbTarget: plan.widgetsDbTarget,
+    bootstrapLibrary: plan.bootstrapLibrary,
+    bootstrapFolder: plan.bootstrapFolder,
+    distRel: plan.targetDistPath,
+    siteBaseUrl: plan.finalAppUrl,
+  }, { deploymentGeneratedBy: 'site-builder-runtime-installer' });
 }
 
 export function buildRuntimeConfigWrites(plan) {

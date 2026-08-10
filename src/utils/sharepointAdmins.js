@@ -149,7 +149,7 @@ export const fetchSharePointAdmins = async () => {
             primaryEndpoint: SHAREPOINT_SITE_ADMINS_ENDPOINT,
             fallbackCurrentWebEndpoint: CURRENT_WEB_ADMINS_ENDPOINT,
             fallbackRootWebEndpoint: CURRENT_SITE_ROOT_WEB_ADMINS_ENDPOINT,
-            envSiteCode: import.meta.env.VITE_SP_SITE_CODE || '(not set)',
+            runtimeSiteCode: SHAREPOINT_PATHS.siteCode,
             envShowAdminFetchLogs: SHOULD_LOG_ADMIN_FETCH,
             envShowAdminFetchVerboseLogs: SHOULD_LOG_ADMIN_FETCH_VERBOSE,
         });

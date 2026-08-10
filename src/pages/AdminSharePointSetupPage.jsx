@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { spBootstrapLog } from '../utils/spAppLog';
 import { DEFAULT_GANTT_DATA } from '../utils/ganttData';
 import DismissibleNotice from '../components/DismissibleNotice';
+import { SHAREPOINT_PATHS } from '../config/sharepointPaths';
 
 const ODATA_ACCEPT = 'application/json;odata=verbose';
 const ODATA_CONTENT = 'application/json;odata=verbose';
@@ -79,19 +80,18 @@ export default function AdminSharePointSetupPage() {
   });
 
   const cfg = useMemo(() => {
-    const siteCode = String(import.meta.env.VITE_SP_SITE_CODE || 'siteBuilder').trim();
-    const host = String(import.meta.env.VITE_SP_HOST || 'portal.army.idf').trim();
-    const bootstrapLibrary = String(import.meta.env.VITE_SP_BOOTSTRAP_LIBRARY || 'SiteAssets').trim();
-    const bootstrapFolder = String(import.meta.env.VITE_SP_BOOTSTRAP_FOLDER || 'sitebuilder-bootstrap').trim();
-    const siteRoot = `/sites/${siteCode}`;
-    const siteDbLib = resolveLibraryConfig(import.meta.env.VITE_SP_SITE_DB_FOLDER, 'siteDB', siteRoot);
-    const usersDbLib = resolveLibraryConfig(import.meta.env.VITE_SP_USERS_DB_FOLDER, 'siteUsersDb', siteRoot);
+    const {
+      host, siteCode, siteRoot, siteDbFolder, siteDbRoot, usersDbFolder, usersDbRoot,
+      bootstrapLibrary, bootstrapFolder, targetDistPath, finalAppUrl,
+    } = SHAREPOINT_PATHS;
+    const siteDbLib = resolveLibraryConfig(siteDbRoot || siteDbFolder, siteDbFolder, siteRoot);
+    const usersDbLib = resolveLibraryConfig(usersDbRoot || usersDbFolder, usersDbFolder, siteRoot);
     const bootstrapDistRoot = `${siteRoot}/${bootstrapLibrary}/${bootstrapFolder}/dist`;
-    const finalDistRoot = `${siteDbLib.rootRel}/dist`;
+    const finalDistRoot = targetDistPath || `${siteDbLib.rootRel}/dist`;
     return {
       host, siteCode, siteDb: siteDbLib.title, siteDbRoot: siteDbLib.rootRel, usersDb: usersDbLib.title, usersDbRoot: usersDbLib.rootRel,
       bootstrapDistRoot, finalDistRoot,
-      finalAppUrl: `https://${host}${finalDistRoot}/index.html`,
+      finalAppUrl: finalAppUrl || `https://${host}${finalDistRoot}/index.html`,
       manifestRel: `${bootstrapDistRoot}/sharepoint-deploy-manifest.json`,
       manifestAbs: `https://${host}${bootstrapDistRoot}/sharepoint-deploy-manifest.json`,
     };
@@ -361,7 +361,8 @@ export default function AdminSharePointSetupPage() {
     let files = [];
     if (manifestRes.ok) {
       try {
-        files = JSON.parse(manifestText);
+        const parsedManifest = JSON.parse(manifestText);
+        files = Array.isArray(parsedManifest) ? parsedManifest : parsedManifest?.files;
         addLog('manifest parse result: json ok', 'sharepoint-final-copy');
       } catch {
         const preview = manifestText.slice(0, 700);
@@ -381,6 +382,12 @@ export default function AdminSharePointSetupPage() {
     }
 
     const normalized = [...new Set((Array.isArray(files) ? files : []).map((f) => String(f || '').replace(/^\/+/, '').replace(/\\/g, '/')).filter(Boolean))];
+    // The bootstrap deployment receives site-specific runtime metadata after
+    // the universal release is copied. Preserve that metadata when promoting
+    // the same release into the final siteDB/dist location.
+    for (const runtimeFile of ['sitebuilder-runtime-config.json', 'sitebuilder-deployment.json']) {
+      if (await fileExists(`${cfg.bootstrapDistRoot}/${runtimeFile}`)) normalized.push(runtimeFile);
+    }
     const hasIndex = normalized.includes('index.html');
     const hasAssets = normalized.some((f) => f.startsWith('assets/'));
     const bootstrapIndexExists = await fileExists(cfg.bootstrapDistRoot + '/index.html');

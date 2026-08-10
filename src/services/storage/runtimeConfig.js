@@ -1,3 +1,5 @@
+import { createSharePointRuntimeDescriptor, SharePointRuntimeDescriptorError } from '../../config/sharepointRuntimeDescriptor';
+
 const RUNTIME_CONFIG_FILENAMES = Object.freeze([
   'sitebuilder-runtime-config.json',
   'runtime-config.json',
@@ -41,6 +43,61 @@ function sanitizeBackend(value, { allowEmpty = true } = {}) {
   return normalized;
 }
 
+const isDevelopmentRuntime = () => import.meta.env.DEV === true || import.meta.env.MODE === 'test';
+
+const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+
+const SHAREPOINT_RUNTIME_FIELDS = Object.freeze([
+  'host', 'siteCode', 'siteRoot', 'siteApiRoot',
+  'siteDbFolder', 'siteDbRoot', 'usersDbFolder', 'usersDbRoot',
+  'siteAssetsFolder', 'siteAssetsRoot', 'imagesFolder', 'imagesRoot',
+  'widgetsDbTarget', 'sharePointSiteUrl', 'allowedSiteRoot', 'finalAppUrl',
+  'targetDistPath', 'bootstrapLibrary', 'bootstrapFolder',
+]);
+
+function hasSharePointRuntimeFields(candidate) {
+  return SHAREPOINT_RUNTIME_FIELDS.some((field) => hasOwn(candidate, field));
+}
+
+function deriveSharePointIdentityFromUrl(candidate) {
+  if (asString(candidate.host) && asString(candidate.siteCode)) return candidate;
+  const rawUrl = asString(candidate.sharePointSiteUrl || candidate.allowedSiteRoot || candidate.targetSiteUrl);
+  if (!rawUrl) return candidate;
+  try {
+    const url = new URL(rawUrl);
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (parts.length < 2 || !['sites', 'teams'].includes(String(parts[0]).toLowerCase())) return candidate;
+    const siteRoot = `/${parts[0]}/${parts[1]}`;
+    return {
+      ...candidate,
+      host: asString(candidate.host) || url.host,
+      siteCode: asString(candidate.siteCode) || parts[1],
+      siteRoot: asString(candidate.siteRoot) || siteRoot,
+    };
+  } catch {
+    return candidate;
+  }
+}
+
+function createDevelopmentFallback() {
+  return normalizeCandidate({
+    schemaVersion: 2,
+    storageBackend: import.meta.env.VITE_STORAGE_BACKEND || 'txt',
+    backendApiUrl: import.meta.env.VITE_BACKEND_API_URL,
+    siteId: import.meta.env.VITE_SITE_ID || import.meta.env.VITE_SP_SITE_CODE,
+    host: import.meta.env.VITE_SP_HOST,
+    siteCode: import.meta.env.VITE_SP_SITE_CODE,
+    siteDbFolder: import.meta.env.VITE_SP_SITE_DB_FOLDER,
+    usersDbFolder: import.meta.env.VITE_SP_USERS_DB_FOLDER,
+    siteAssetsFolder: import.meta.env.VITE_SP_SITE_ASSETS_FOLDER,
+    imagesFolder: import.meta.env.VITE_SP_IMAGES_FOLDER,
+    widgetsDbTarget: import.meta.env.VITE_SP_WIDGETS_DB_TARGET,
+    siteApiRoot: import.meta.env.VITE_SP_SITE_API_ROOT,
+    bootstrapLibrary: import.meta.env.VITE_SP_BOOTSTRAP_LIBRARY,
+    bootstrapFolder: import.meta.env.VITE_SP_BOOTSTRAP_FOLDER,
+  }, { source: 'development environment', requireTxtIdentity: false });
+}
+
 function sanitizeBodyPrefix(text, { parsedJson = false } = {}) {
   if (parsedJson) return '[valid JSON payload omitted]';
   return asString(text)
@@ -57,7 +114,7 @@ function looksLikeHtml(text, contentType = '') {
     || prefix.includes('<head>');
 }
 
-function normalizeCandidate(candidate = {}, { source = 'runtime config' } = {}) {
+function normalizeCandidate(candidate = {}, { source = 'runtime config', requireTxtIdentity = false } = {}) {
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
     throw new RuntimeConfigError(`${source} must contain a JSON object.`, {
       code: 'invalid_runtime_shape',
@@ -75,8 +132,7 @@ function normalizeCandidate(candidate = {}, { source = 'runtime config' } = {}) 
   const rawBackend = candidate.storageBackend;
   const storageBackend = sanitizeBackend(rawBackend, { allowEmpty: true });
   const backendApiUrl = asString(candidate.backendApiUrl || candidate.backendUrl || candidate.apiUrl || candidate.API_URL);
-  const siteId = asString(candidate.siteId || candidate.site || candidate.siteCode);
-  const siteRoot = asString(candidate.siteRoot || candidate.sharePointSiteRoot);
+  const rawSiteId = asString(candidate.siteId || candidate.site || candidate.siteCode);
   const releaseVersion = asString(candidate.releaseVersion || candidate.siteBuilderVersion || candidate.appVersion || candidate.version);
   const releaseId = asString(candidate.releaseId);
   const deployedAt = asString(candidate.deployedAt);
@@ -89,8 +145,7 @@ function normalizeCandidate(candidate = {}, { source = 'runtime config' } = {}) 
   if (
     !storageBackend
     && !backendApiUrl
-    && !siteId
-    && !siteRoot
+    && !rawSiteId
     && !releaseVersion
     && !releaseId
     && !deployedAt
@@ -99,17 +154,44 @@ function normalizeCandidate(candidate = {}, { source = 'runtime config' } = {}) 
     && !finalAppUrl
     && !targetDistPath
     && !deploymentGeneratedBy
+    && !hasSharePointRuntimeFields(candidate)
   ) {
     return null;
+  }
+
+  if (requireTxtIdentity && !storageBackend) {
+    throw new RuntimeConfigError('Production runtime configuration requires "storageBackend".', {
+      code: 'missing_storage_backend',
+    });
+  }
+
+  const sharePointCandidate = deriveSharePointIdentityFromUrl(candidate);
+  let sharePointDescriptor = null;
+  const hasCanonicalSharePointIdentity = Boolean(asString(sharePointCandidate.host) || asString(sharePointCandidate.siteCode));
+  if (hasCanonicalSharePointIdentity || (storageBackend === 'txt' && requireTxtIdentity)) {
+    try {
+      sharePointDescriptor = createSharePointRuntimeDescriptor(sharePointCandidate, {
+        requireIdentity: requireTxtIdentity && storageBackend === 'txt',
+      });
+    } catch (error) {
+      const message = error instanceof SharePointRuntimeDescriptorError ? error.message : String(error);
+      throw new RuntimeConfigError(message, { code: error?.code || 'invalid_sharepoint_runtime_config' });
+    }
+  }
+
+  if (requireTxtIdentity && storageBackend === 'txt' && !sharePointDescriptor) {
+    throw new RuntimeConfigError('TXT runtime configuration requires SharePoint site identity.', {
+      code: 'missing_sharepoint_site_identity',
+    });
   }
 
   // API keys, tokens, and credentials are intentionally never accepted from a
   // publicly hosted runtime configuration file.
   return Object.freeze({
+    schemaVersion: Number(candidate.schemaVersion || 2),
     storageBackend,
     backendApiUrl,
-    siteId,
-    siteRoot,
+    siteId: rawSiteId || sharePointDescriptor?.siteCode || '',
     releaseVersion,
     releaseId,
     deployedAt,
@@ -118,6 +200,7 @@ function normalizeCandidate(candidate = {}, { source = 'runtime config' } = {}) 
     finalAppUrl,
     targetDistPath,
     deploymentGeneratedBy,
+    ...(sharePointDescriptor || {}),
   });
 }
 
@@ -126,7 +209,10 @@ function loadEmbeddedRuntimeConfig() {
     ? (window.SITE_BUILDER_RUNTIME_CONFIG || window.__SITE_BUILDER_RUNTIME_CONFIG__)
     : null;
   if (!runtimeGlobal) return null;
-  const normalized = normalizeCandidate(runtimeGlobal, { source: 'window runtime config' });
+  const normalized = normalizeCandidate(runtimeGlobal, {
+    source: 'window runtime config',
+    requireTxtIdentity: !isDevelopmentRuntime(),
+  });
   if (!normalized) return null;
   return { source: 'window-runtime-config', config: normalized };
 }
@@ -254,7 +340,10 @@ async function loadJsonCandidate(url, { kind = 'runtime' } = {}) {
 
     let normalized;
     try {
-      normalized = normalizeCandidate(parsed, { source: `${kind} file ${url}` });
+      normalized = normalizeCandidate(parsed, {
+        source: `${kind} file ${url}`,
+        requireTxtIdentity: kind === 'runtime' && !isDevelopmentRuntime(),
+      });
     } catch (error) {
       attempt.bodyPrefix = sanitizeBodyPrefix(text, { parsedJson: true });
       attempt.error = error.message;
@@ -326,16 +415,26 @@ async function resolveRuntimeConfig() {
       }
     }
 
-    assertNoBackendDisagreement(resolved?.config, deployment?.config);
+    if (!resolved && isDevelopmentRuntime()) {
+      resolved = { source: 'development-env', config: createDevelopmentFallback() };
+    }
+    if (!resolved) {
+      throw new RuntimeConfigError(
+        'Production runtime configuration is missing. Deploy sitebuilder-runtime-config.json beside index.html.',
+        { code: 'missing_runtime_config' },
+      );
+    }
+
+    assertNoBackendDisagreement(resolved.config, deployment?.config);
 
     runtimeConfigLoaded = true;
-    runtimeConfigSource = resolved?.source || 'production-env';
+    runtimeConfigSource = resolved.source;
     deploymentMetadataSource = deployment?.source || null;
-    lastResolvedConfig = Object.freeze({ ...(resolved?.config || {}) });
+    lastResolvedConfig = Object.freeze({ ...resolved.config });
     lastDeploymentMetadata = Object.freeze({ ...(deployment?.config || {}) });
-    lastConsoleMessage = resolved
-      ? `Loaded runtime config from ${resolved.source}.`
-      : 'No valid runtime config file found. Storage selection will use the validated production environment (default: txt).';
+    lastConsoleMessage = resolved.source === 'development-env'
+      ? 'No runtime config file found; using development-only Vite fallback values.'
+      : `Loaded runtime config from ${resolved.source}.`;
     console.info(`[site-builder-runtime-config] ${lastConsoleMessage}`);
     return lastResolvedConfig;
   } catch (error) {
@@ -385,7 +484,10 @@ export function setRuntimeConfigForTests(config = {}, deploymentMetadata = {}) {
   runtimeConfigLoaded = true;
   runtimeConfigSource = 'test';
   lastResolvedConfig = normalizeCandidate(config, { source: 'test runtime config' }) || Object.freeze({});
-  lastDeploymentMetadata = normalizeCandidate(deploymentMetadata, { source: 'test deployment metadata' }) || Object.freeze({});
+  lastDeploymentMetadata = normalizeCandidate(deploymentMetadata, {
+    source: 'test deployment metadata',
+    requireTxtIdentity: false,
+  }) || Object.freeze({});
   assertNoBackendDisagreement(lastResolvedConfig, lastDeploymentMetadata);
   deploymentMetadataSource = Object.keys(lastDeploymentMetadata).length > 0 ? 'test' : null;
   lastConsoleMessage = 'Runtime config was forced for tests.';
@@ -420,6 +522,7 @@ export function getRuntimeLog() {
 
 export function getRuntimeValue(key, fallback = '') {
   const config = getRuntimeConfig() || {};
+  if (Object.prototype.hasOwnProperty.call(config, key)) return config[key] || fallback;
   switch (key) {
     case 'storageBackend': return config.storageBackend || '';
     case 'backendApiUrl': return config.backendApiUrl || '';

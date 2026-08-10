@@ -1,16 +1,11 @@
 type RuntimeLocation = Pick<Location, 'origin' | 'pathname' | 'hostname' | 'protocol' | 'port'>;
 
 type RuntimeEnv = {
-  VITE_SP_HOST?: string;
-  VITE_SP_SITE_CODE?: string;
-  VITE_SP_ALLOWED_SITE_ROOT?: string;
   allowedSiteRoot?: string;
   sharePointSiteUrl?: string;
   siteRoot?: string;
   finalAppUrl?: string;
   targetSiteUrl?: string;
-  DEV?: boolean;
-  MODE?: string;
 };
 
 const VITE_LOCAL_PORTS = new Set(['5173', '4173']);
@@ -61,18 +56,12 @@ function expectedSharePointRoots(env: RuntimeEnv): string[] {
     env?.sharePointSiteUrl,
     env?.siteRoot,
     env?.targetSiteUrl,
-    env?.VITE_SP_ALLOWED_SITE_ROOT,
   ]
     .map((value) => normalizeUrlForSiteCheck(String(value ?? '')))
     .filter(Boolean);
 
-  const buildTimeRoot = buildExpectedSharePointSiteRoot(
-    String(env?.VITE_SP_HOST ?? ''),
-    String(env?.VITE_SP_SITE_CODE ?? '')
-  );
-
   if (configuredRoots.length > 0) return Array.from(new Set(configuredRoots));
-  return buildTimeRoot ? [buildTimeRoot] : [];
+  return [];
 }
 
 export function isLocalDevelopmentLocation(location: RuntimeLocation): boolean {
@@ -91,7 +80,6 @@ export function isAllowedSharePointRuntimeLocation(
   location: RuntimeLocation,
   env: RuntimeEnv
 ): boolean {
-  if (env?.DEV === true || String(env?.MODE ?? '').toLowerCase() === 'development') return true;
   if (isLocalDevelopmentLocation(location)) return true;
 
   const expectedRoots = expectedSharePointRoots(env);

@@ -4,7 +4,10 @@ const PREFIX = '[SharePointLibrarySetup]';
 const ODATA_ACCEPT = 'application/json;odata=verbose';
 const ODATA_CONTENT_TYPE = 'application/json;odata=verbose';
 const REQUIRED_WELCOME_PAGE = 'Forms/AllItems.aspx';
-const env = (import.meta as any).env || {};
+const runtimeLoggingEnv = {
+  libraryProvisioning: import.meta.env.VITE_SP_LIBRARY_PROVISIONING_LOGS,
+  verbose: import.meta.env.VITE_SP_VERBOSE_LOG,
+};
 
 type SetupLogLevel = 'info' | 'warn' | 'error';
 
@@ -73,7 +76,7 @@ const parseBooleanEnv = (value: unknown, fallback: boolean) => {
 };
 
 const isConsoleLoggingEnabled = () =>
-  parseBooleanEnv(env.VITE_SP_LIBRARY_PROVISIONING_LOGS ?? env.VITE_SP_VERBOSE_LOG, false);
+  parseBooleanEnv(runtimeLoggingEnv.libraryProvisioning ?? runtimeLoggingEnv.verbose, false);
 
 const recordLog = (
   logs: SharePointLibrarySetupLogEntry[],
@@ -548,7 +551,7 @@ const classifyFailure = (error: unknown): Omit<Extract<SharePointLibrarySetupRes
     return {
       ok: false,
       status: 'invalid-config',
-      userMessage: 'הגדרת ספריות SharePoint חסרה או לא תקינה (VITE_SP_SITE_DB_FOLDER / VITE_SP_USERS_DB_FOLDER).',
+      userMessage: 'הגדרת ספריות SharePoint בזמן הריצה חסרה או לא תקינה.',
       technicalError: normalized || error,
     };
   }
@@ -569,8 +572,8 @@ const ensureSharePointDocumentLibrariesReadyInternal = async (): Promise<SharePo
     runtime: typeof window === 'undefined' ? 'node' : 'browser',
     siteRoot,
     contextinfoEndpoint: buildSiteApiEndpoint(siteRoot, '/_api/contextinfo'),
-    VITE_SP_SITE_DB_FOLDER: env.VITE_SP_SITE_DB_FOLDER,
-    VITE_SP_USERS_DB_FOLDER: env.VITE_SP_USERS_DB_FOLDER,
+    runtimeSiteDbFolder: SHAREPOINT_PATHS.siteDbFolder,
+    runtimeUsersDbFolder: SHAREPOINT_PATHS.usersDbFolder,
   });
 
   if (typeof window === 'undefined') {
@@ -586,15 +589,15 @@ const ensureSharePointDocumentLibrariesReadyInternal = async (): Promise<SharePo
 
   try {
     const siteDbDef = resolveLibraryDefinition(
-      env.VITE_SP_SITE_DB_FOLDER,
+      SHAREPOINT_PATHS.siteDbRoot || SHAREPOINT_PATHS.siteDbFolder,
       SHAREPOINT_PATHS.siteDbFolder || 'siteDB',
-      'VITE_SP_SITE_DB_FOLDER',
+      'runtime.siteDbFolder',
       siteRoot,
     );
     const usersDbDef = resolveLibraryDefinition(
-      env.VITE_SP_USERS_DB_FOLDER,
+      SHAREPOINT_PATHS.usersDbRoot || SHAREPOINT_PATHS.usersDbFolder,
       SHAREPOINT_PATHS.usersDbFolder || 'siteUsersDb',
-      'VITE_SP_USERS_DB_FOLDER',
+      'runtime.usersDbFolder',
       siteRoot,
     );
 

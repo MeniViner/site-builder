@@ -6,14 +6,8 @@ import UnauthorizedSiteBlocker from './components/UnauthorizedSiteBlocker'
 import { getRuntimeConfig, getRuntimeLog, loadRuntimeConfig } from './services/storage/runtimeConfig'
 import { getStorageDiagnostics, initializeStorageDescriptor } from './services/storage/storageBackend'
 import {
-  buildExpectedSharePointSiteRoot,
   isAllowedSharePointRuntimeLocation,
 } from './utils/siteRuntimeGuard'
-
-const expectedSiteRoot = buildExpectedSharePointSiteRoot(
-  import.meta.env.VITE_SP_HOST,
-  import.meta.env.VITE_SP_SITE_CODE,
-)
 
 const currentRuntimeLocation = typeof window === 'undefined'
   ? ''
@@ -70,14 +64,13 @@ const renderApp = async () => {
   const runtimeAllowed = typeof window === 'undefined'
     ? true
     : isAllowedSharePointRuntimeLocation(window.location, {
-      ...import.meta.env,
       allowedSiteRoot: runtimeConfig.allowedSiteRoot,
       sharePointSiteUrl: runtimeConfig.sharePointSiteUrl,
       siteRoot: runtimeConfig.siteRoot,
       finalAppUrl: runtimeConfig.finalAppUrl,
       targetSiteUrl: runtimeConfig.targetSiteUrl,
     })
-  const expectedRuntimeSiteRoot = runtimeConfig.allowedSiteRoot || runtimeConfig.sharePointSiteUrl || expectedSiteRoot
+  const expectedRuntimeSiteRoot = runtimeConfig.allowedSiteRoot || runtimeConfig.sharePointSiteUrl || runtimeConfig.siteRoot
 
   const root = document.getElementById('root')
   if (!root) {

@@ -49,7 +49,7 @@ import DismissibleNotice from './DismissibleNotice';
 import backendApiClient from '../services/storage/backendApiClient';
 import { getSiteId, isMongoStorageBackend, isSharePointReadonlyBackend } from '../services/storage/storageBackend';
 
-const MASTER_CONFIG_TARGET_URL = import.meta.env.VITE_SP_MASTER_CONFIG_FILE_URL || SHAREPOINT_PATHS.masterConfigFileServerRelativeUrl;
+const MASTER_CONFIG_TARGET_URL = SHAREPOINT_PATHS.masterConfigFileServerRelativeUrl;
 const MASTER_CONFIG_FILE_NAME = (MASTER_CONFIG_TARGET_URL || '').split('/').pop();
 const DEV_BACKUPS_STORAGE_KEY = 'bihs_dev_backup_packages_v1';
 const MAX_DEV_BACKUPS = 30;

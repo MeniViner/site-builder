@@ -16,8 +16,11 @@
   מפעיל סביבת פיתוח מקומית עם HMR.
 
 - `npm run build`  
-  יוצר Build לפרודקשן בתיקיית `dist/`.
-  בסיום רץ `postbuild` אוטומטי (אם `VITE_AUTO_DEPLOY=true`).
+  יוצר Build אוניברסלי לפרודקשן בתיקיית `dist/`.
+  בסיום רץ `postbuild` שמייצר manifest אוניברסלי בלבד; deploy אוטומטי דורש opt-in מפורש.
+
+- `npm run verify:universal-dist`
+  מוכיח שקובצי JS/CSS של `dist` זהים לאחר החלת metadata לשני אתרי SharePoint שונים.
 
 - `npm run site:init`  
   יוצר/מאתחל מבנה SharePoint לאתר חדש לפי `.env.production`.
@@ -95,6 +98,66 @@
 
 - **Services**  
   שכבת Services אחראית על גישה לנתונים והתממשקות למקורות מידע, ומבודדת לוגיקת גישה מהקומפוננטות.
+
+## Universal SharePoint release contract
+
+One release is one universal `dist`. Build it once with `npm run build`, then deploy the exact same static files to every supported SharePoint target. Site identity is supplied only at deployment time in `sitebuilder-runtime-config.json`; no Vite rebuild is required for a different host, site code, library, REST root, or final URL.
+
+The release manifest in raw `dist` is universal. The legacy Node deploy command creates a new temporary staging copy, writes `sitebuilder-runtime-config.json` and `sitebuilder-deployment.json` into that copy, regenerates `sharepoint-deploy-manifest.json` after the overlays exist, then copies the staging directory to SharePoint and verifies the three files in the target. The canonical `dist` is never made site-specific. A production release without a valid runtime config still fails visibly before storage-dependent modules load.
+
+Required TXT runtime fields are `schemaVersion: 2`, `storageBackend: "txt"`, `host`, and `siteCode`. Folder names are canonical inputs; roots and TXT file URLs are derived and validated. The deployment payload also records `releaseVersion`, `releaseId`, and `deployedAt` when supplied by deployment tooling.
+
+```json
+{
+  "schemaVersion": 2,
+  "storageBackend": "txt",
+  "host": "portal.army.idf",
+  "siteCode": "example-a",
+  "siteDbFolder": "siteDB",
+  "usersDbFolder": "siteUsersDb",
+  "siteAssetsFolder": "siteAssets",
+  "imagesFolder": "images",
+  "widgetsDbTarget": "users"
+}
+```
+
+```json
+{
+  "schemaVersion": 2,
+  "storageBackend": "txt",
+  "host": "mazi.army.idf",
+  "siteCode": "example-b",
+  "siteDbFolder": "siteDB",
+  "usersDbFolder": "siteUsersDb",
+  "siteAssetsFolder": "siteAssets",
+  "imagesFolder": "images",
+  "widgetsDbTarget": "site"
+}
+```
+
+For the first example, the runtime descriptor deterministically resolves `/sites/example-a/siteDB`, `/sites/example-a/siteUsersDb`, the TXT paths beneath them, and `https://portal.army.idf/sites/example-a/siteDB/dist/index.html`. Explicit redundant roots are accepted only when they match these canonical values.
+
+Development precedence is: runtime JSON when present, then `.env.local`/Vite values, then safe local defaults. Production precedence is runtime JSON only. `VITE_SP_*` and `VITE_SITE_*` site identity values remain supported by local development and deployment CLI helpers, but are not an authority for the production frontend bundle.
+
+### Traditional Node deployment (existing TXT sites)
+
+Existing sites do not need the Release Manager and do not need manually authored JSON. Keep the target's existing `.env.production` (or pass it with `--env`) and use either supported flow:
+
+```bash
+npm run build
+npm run deploy
+```
+
+```bash
+# Explicit legacy postbuild deployment, when .env.production has VITE_AUTO_DEPLOY=true
+SITE_BUILDER_POSTBUILD_DEPLOY=true npm run build
+```
+
+`npm run deploy` is equivalent to `node deploy.js --force`; use `node deploy.js --env path/to/.env.production --force` for a different existing site. The command requires an explicit `VITE_SP_HOST` and `VITE_SP_SITE_CODE` (or `--host` and `--site`) so it cannot accidentally deploy the old default site.
+
+The deployment mapping is direct: `VITE_SP_HOST`, `VITE_SP_SITE_CODE`, `VITE_SP_SITE_DB_FOLDER`, `VITE_SP_USERS_DB_FOLDER`, `VITE_SP_SITE_ASSETS_FOLDER`, `VITE_SP_IMAGES_FOLDER`, `VITE_SP_WIDGETS_DB_TARGET`, `VITE_SP_SITE_API_ROOT`, and `VITE_SITE_BASE_URL` are resolved by `scripts/sp-env.js`, then validated by `src/config/sharepointRuntimeDescriptor.js` before staging starts. This preserves non-default document-library names; `siteDB` is only a fallback, never a deployment-path assumption. `widgetsDbTarget=users` resolves widgets under the users library, while `widgetsDbTarget=site` resolves them under the site-assets library.
+
+For a previously broken TXT site showing `missing_runtime_config`, simply run the same `npm run build && npm run deploy` sequence with its existing `.env.production`. The deploy staging overlay supplies the missing runtime file; no Release Manager is required.
 
 ## MongoDB persistence backend
 

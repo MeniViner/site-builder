@@ -70,8 +70,7 @@ describe('runtime config core', () => {
     const plan = resolveRuntimeConfigPlan({
       config: {
         ...config,
-        distRel: '/missing/siteDB/dist',
-        toWebDav: (serverRelativePath) => `WEB_DAV:${serverRelativePath}`,
+        toWebDav: (serverRelativePath) => `MISSING_WEB_DAV:${serverRelativePath}`,
       },
       cli: {
         site: 'demo-site',
@@ -85,8 +84,7 @@ describe('runtime config core', () => {
       plan,
       config: {
         ...config,
-        distRel: '/missing/siteDB/dist',
-        toWebDav: (serverRelativePath) => `WEB_DAV:${serverRelativePath}`,
+        toWebDav: (serverRelativePath) => `MISSING_WEB_DAV:${serverRelativePath}`,
       },
       dryRun: false,
       fsAdapter: makeFsStub({ files: [] }),

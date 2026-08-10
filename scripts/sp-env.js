@@ -94,6 +94,16 @@ const extractLibraryTitle = (value, fallback) => {
 export function resolveConfig({ envFilePath = path.resolve(process.cwd(), '.env.production'), cli = {}, environment = process.env } = {}) {
   const envFromFile = loadEnvFile(envFilePath);
 
+  // Deployment must never silently fall back to the historical default site.
+  // Keep the provenance separate from resolved defaults so local helpers may
+  // still display defaults while deploy tooling can fail safely.
+  const explicitHost = pick(cli.host, environment.VITE_SP_HOST || envFromFile.VITE_SP_HOST, '');
+  const explicitSiteCode = pick(
+    cli.site || cli['site-code'],
+    environment.VITE_SP_SITE_CODE || envFromFile.VITE_SP_SITE_CODE,
+    '',
+  );
+
   const host = pick(cli.host, environment.VITE_SP_HOST || envFromFile.VITE_SP_HOST, DEFAULTS.host);
   const siteCode = pick(
     cli.site || cli['site-code'],
@@ -207,6 +217,7 @@ export function resolveConfig({ envFilePath = path.resolve(process.cwd(), '.env.
     envFilePath,
     envFromFile,
     cli,
+    hasExplicitSiteIdentity: Boolean(explicitHost && explicitSiteCode),
     host,
     siteCode,
     siteDbFolder,

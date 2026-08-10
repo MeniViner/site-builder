@@ -1,10 +1,6 @@
 // src/utils/assetUrl.js
 import { SHAREPOINT_PATHS } from '../config/sharepointPaths';
 
-const RAW_SITE_BASE_URL =
-    import.meta.env.VITE_SITE_BASE_URL ||
-    (import.meta.env.PROD ? SHAREPOINT_PATHS.siteBaseUrl : '');
-
 const normalizeBaseUrl = (value) => {
     const trimmed = String(value ?? '').trim();
     if (!trimmed) return '';
@@ -35,12 +31,13 @@ const inferRuntimeBaseUrl = () => {
 };
 
 export const getSiteBaseUrl = () => {
-    // `VITE_SITE_BASE_URL` targets SharePoint; on localhost we serve `public/` from the Vite dev/preview server.
+    // Local development serves `public/` from Vite; deployed releases use the
+    // runtime descriptor instead of a build-time SharePoint base URL.
     if (isLocalRuntimeHost()) {
         return normalizeBaseUrl(window.location?.origin || '');
     }
-    const envBase = normalizeBaseUrl(RAW_SITE_BASE_URL);
-    if (envBase) return envBase;
+    const configuredBase = normalizeBaseUrl(SHAREPOINT_PATHS.siteBaseUrl);
+    if (configuredBase) return configuredBase;
     return normalizeBaseUrl(inferRuntimeBaseUrl());
 };
 

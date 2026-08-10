@@ -27,12 +27,12 @@ export const SHAREPOINT_CONFIG = {
     ganttMockStorageKey: 'bihs_gantt_data',
 
     // SharePoint file URLs (production mode)
-    fileServerRelativeUrl: import.meta.env.VITE_SP_EVENTS_FILE_URL || SHAREPOINT_PATHS.eventsFileServerRelativeUrl,
-    navFileServerRelativeUrl: import.meta.env.VITE_SP_NAV_FILE_URL || SHAREPOINT_PATHS.navigationFileServerRelativeUrl,
-    usersFileServerRelativeUrl: import.meta.env.VITE_SP_USERS_FILE_URL || SHAREPOINT_PATHS.usersFileServerRelativeUrl,
-    siteContentFileServerRelativeUrl: import.meta.env.VITE_SP_SITE_CONTENT_FILE_URL || SHAREPOINT_PATHS.siteContentFileServerRelativeUrl,
-    themeFileServerRelativeUrl: import.meta.env.VITE_SP_THEME_FILE_URL || SHAREPOINT_PATHS.themeFileServerRelativeUrl,
-    widgetsFileServerRelativeUrl: import.meta.env.VITE_SP_WIDGETS_FILE_URL || SHAREPOINT_PATHS.widgetsFileServerRelativeUrl,
-    externalLinksFileServerRelativeUrl: import.meta.env.VITE_SP_EXTERNAL_LINKS_FILE_URL || SHAREPOINT_PATHS.externalLinksFileServerRelativeUrl,
-    ganttFileServerRelativeUrl: import.meta.env.VITE_SP_GANTT_FILE_URL || SHAREPOINT_PATHS.ganttFileServerRelativeUrl,
+    fileServerRelativeUrl: SHAREPOINT_PATHS.eventsFileServerRelativeUrl,
+    navFileServerRelativeUrl: SHAREPOINT_PATHS.navigationFileServerRelativeUrl,
+    usersFileServerRelativeUrl: SHAREPOINT_PATHS.usersFileServerRelativeUrl,
+    siteContentFileServerRelativeUrl: SHAREPOINT_PATHS.siteContentFileServerRelativeUrl,
+    themeFileServerRelativeUrl: SHAREPOINT_PATHS.themeFileServerRelativeUrl,
+    widgetsFileServerRelativeUrl: SHAREPOINT_PATHS.widgetsFileServerRelativeUrl,
+    externalLinksFileServerRelativeUrl: SHAREPOINT_PATHS.externalLinksFileServerRelativeUrl,
+    ganttFileServerRelativeUrl: SHAREPOINT_PATHS.ganttFileServerRelativeUrl,
 };

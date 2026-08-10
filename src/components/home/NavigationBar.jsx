@@ -8,8 +8,8 @@ import { SHAREPOINT_PATHS } from '../../config/sharepointPaths';
 function buildSharePointSearchUrl(searchQuery) {
   const query = String(searchQuery || '').trim();
   if (!query) return '';
-  const host = SHAREPOINT_PATHS.host || 'portal.army.idf';
-  const siteCode = SHAREPOINT_PATHS.siteCode || 'siteBuilder';
+  const host = SHAREPOINT_PATHS.host;
+  const siteCode = SHAREPOINT_PATHS.siteCode;
   return `https://${host}/sites/${siteCode}/Shared%20Documents/Forms/AllItems.aspx?view=7&q=${encodeURIComponent(query)}`;
 }
 
