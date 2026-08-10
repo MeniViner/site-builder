@@ -2,6 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { writeReleaseArtifacts } from './deploymentArtifacts.mjs';
 import { verifyUniversalDist } from './verify-universal-dist.mjs';
 
 const roots = [];
@@ -18,6 +19,7 @@ describe('verifyUniversalDist', () => {
     fs.writeFileSync(path.join(dist, 'index.html'), '<!doctype html>');
     fs.writeFileSync(path.join(dist, 'assets', 'app-abc.js'), 'universal javascript');
     fs.writeFileSync(path.join(dist, 'assets', 'app-abc.css'), 'universal css');
+    writeReleaseArtifacts(dist);
 
     const proof = verifyUniversalDist(dist);
 
@@ -31,5 +33,13 @@ describe('verifyUniversalDist', () => {
     });
     expect(Object.keys(proof.assetHashes)).toEqual(['assets/app-abc.css', 'assets/app-abc.js']);
     expect(proof.universalAssetHash).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it('rejects a legacy artifact that has no universal release manifest', () => {
+    const dist = fs.mkdtempSync(path.join(os.tmpdir(), 'sitebuilder-legacy-test-'));
+    roots.push(dist);
+    fs.writeFileSync(path.join(dist, 'index.html'), '<!doctype html>');
+
+    expect(() => verifyUniversalDist(dist)).toThrow('npm run build:universal');
   });
 });

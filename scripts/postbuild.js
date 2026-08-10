@@ -2,12 +2,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawnSync } from 'child_process';
 import { loadEnvFile, parseCliArgs, resolveConfig } from './sp-env.js';
-import { writeReleaseArtifacts } from './deploymentArtifacts.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
-const distRoot = path.resolve(projectRoot, 'dist');
 
 const cli = parseCliArgs();
 const envPath = cli.env ? path.resolve(process.cwd(), String(cli.env)) : path.resolve(projectRoot, '.env.production');
@@ -36,11 +34,6 @@ const runNodeCommand = (scriptPath, args = []) => {
   return result;
 };
 
-const writeDeployManifest = () => {
-  const artifacts = writeReleaseArtifacts(distRoot);
-  console.log(`[postbuild] generated universal release manifest (${artifacts.manifest.files.length} files); site runtime metadata is written only during deployment.`);
-};
-
 const parseCheckResult = (stdout) => {
   const lines = String(stdout || '').split(/\r?\n/);
   const line = lines.reverse().find((row) => row.startsWith('[init-site][result] '));
@@ -54,10 +47,8 @@ const parseCheckResult = (stdout) => {
 };
 
 try {
-  writeDeployManifest();
-
   if (!autoDeployEnabled) {
-    console.log('[postbuild] Universal release manifest was generated; SharePoint deploy was skipped. Set SITE_BUILDER_POSTBUILD_DEPLOY=true plus VITE_AUTO_DEPLOY=true for an explicit postbuild deploy.');
+    console.log('[postbuild] Legacy site-specific build completed; SharePoint deploy was skipped. Set SITE_BUILDER_POSTBUILD_DEPLOY=true plus VITE_AUTO_DEPLOY=true for an explicit postbuild deploy.');
     process.exit(0);
   }
 

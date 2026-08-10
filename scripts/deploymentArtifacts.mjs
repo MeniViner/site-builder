@@ -209,6 +209,22 @@ export function writeReleaseArtifacts(distRoot) {
   return { manifest: writeDeployManifest(distRoot) };
 }
 
+/** Prevent the traditional deploy command from publishing a Release Manager artifact. */
+export function assertLegacyDeployableDist(distRoot) {
+  const manifestPath = path.join(distRoot, DEPLOY_MANIFEST_FILE);
+  if (!fs.existsSync(manifestPath)) return true;
+  let manifest;
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  } catch {
+    throw new Error(`Legacy deploy refused unreadable ${DEPLOY_MANIFEST_FILE}; rebuild with npm run build.`);
+  }
+  if (manifest?.artifactKind === 'site-builder-universal-frontend') {
+    throw new Error('Legacy deploy refused a universal Release Manager artifact. Run npm run build before npm run deploy.');
+  }
+  return true;
+}
+
 export function assertDeploymentOverlay(rootDir) {
   const requiredFiles = [RUNTIME_CONFIG_FILE, DEPLOYMENT_METADATA_FILE, DEPLOY_MANIFEST_FILE];
   for (const filename of requiredFiles) {
@@ -250,16 +266,16 @@ export function writeSiteDeploymentMetadata(targetRoot, config = {}, options = {
 }
 
 /**
- * Copy a reusable release to an owned temporary directory before adding a
- * legacy site's overlay. A new directory is used on every invocation so that
- * a deployment for Site B cannot inherit Site A's metadata.
+ * Copy a universal release to an owned temporary directory before adding a
+ * Release Manager-style target overlay. A new directory is used on every
+ * invocation so that Target B cannot inherit Target A's metadata.
  */
-export function createLegacyDeploymentStaging(releaseRoot, config = {}, options = {}) {
+export function createUniversalDeploymentStaging(releaseRoot, config = {}, options = {}) {
   const source = path.resolve(releaseRoot);
   if (!fs.existsSync(path.join(source, 'index.html'))) {
     throw new Error(`Expected a universal dist directory with index.html: ${source}`);
   }
-  const stagingRoot = fs.mkdtempSync(path.join(options.stagingParent || os.tmpdir(), 'sitebuilder-legacy-deploy-'));
+  const stagingRoot = fs.mkdtempSync(path.join(options.stagingParent || os.tmpdir(), 'sitebuilder-universal-deploy-'));
   try {
     fs.cpSync(source, stagingRoot, { recursive: true });
     // Protect against a pre-migration or manually contaminated source release.
@@ -272,7 +288,7 @@ export function createLegacyDeploymentStaging(releaseRoot, config = {}, options 
   }
 }
 
-export function removeLegacyDeploymentStaging(staging) {
+export function removeUniversalDeploymentStaging(staging) {
   if (staging?.stagingRoot) fs.rmSync(staging.stagingRoot, { recursive: true, force: true });
 }
 

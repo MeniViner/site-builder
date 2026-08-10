@@ -5,8 +5,8 @@ import os from 'os';
 import path from 'path';
 import { pathToFileURL } from 'url';
 import {
-  createLegacyDeploymentStaging,
-  removeLegacyDeploymentStaging,
+  createUniversalDeploymentStaging,
+  removeUniversalDeploymentStaging,
   SITE_SPECIFIC_OVERLAY_FILES,
 } from './deploymentArtifacts.mjs';
 
@@ -35,6 +35,14 @@ export function verifyUniversalDist(distRoot) {
   if (!fs.existsSync(path.join(source, 'index.html'))) {
     throw new Error(`Expected a built dist directory with index.html: ${source}`);
   }
+  const manifestPath = path.join(source, 'sharepoint-deploy-manifest.json');
+  if (!fs.existsSync(manifestPath)) {
+    throw new Error('Expected a universal release manifest. Run npm run build:universal first.');
+  }
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  if (manifest.artifactKind !== 'site-builder-universal-frontend' || manifest.requiresRuntimeConfig !== true) {
+    throw new Error('dist is not a universal Release Manager artifact. Run npm run build:universal first.');
+  }
   for (const overlayFile of SITE_SPECIFIC_OVERLAY_FILES) {
     if (fs.existsSync(path.join(source, overlayFile))) {
       throw new Error(`Universal dist is contaminated by site-specific ${overlayFile}. Rebuild before deployment.`);
@@ -44,7 +52,7 @@ export function verifyUniversalDist(distRoot) {
   let siteA;
   let siteB;
   try {
-    siteA = createLegacyDeploymentStaging(source, {
+    siteA = createUniversalDeploymentStaging(source, {
       hasExplicitSiteIdentity: true,
       storageBackend: 'txt',
       host: 'portal.army.idf',
@@ -56,7 +64,7 @@ export function verifyUniversalDist(distRoot) {
       imagesFolder: 'site-images',
       widgetsDbTarget: 'users',
     }, { stagingParent: proofRoot, generatedAt: '2026-08-10T12:00:00.000Z' });
-    siteB = createLegacyDeploymentStaging(source, {
+    siteB = createUniversalDeploymentStaging(source, {
       hasExplicitSiteIdentity: true,
       storageBackend: 'txt',
       host: 'mazi.army.idf',
@@ -84,8 +92,8 @@ export function verifyUniversalDist(distRoot) {
       targetB: siteB.runtimeConfig,
     };
   } finally {
-    removeLegacyDeploymentStaging(siteA);
-    removeLegacyDeploymentStaging(siteB);
+    removeUniversalDeploymentStaging(siteA);
+    removeUniversalDeploymentStaging(siteB);
     fs.rmSync(proofRoot, { recursive: true, force: true });
   }
 }

@@ -4,12 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 import { parseCliArgs, resolveConfig } from './scripts/sp-env.js';
-import {
-  assertDeploymentOverlay,
-  assertLegacyDeploymentConfig,
-  createLegacyDeploymentStaging,
-  removeLegacyDeploymentStaging,
-} from './scripts/deploymentArtifacts.mjs';
+import { assertLegacyDeployableDist, assertLegacyDeploymentConfig } from './scripts/deploymentArtifacts.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,7 +37,7 @@ console.log(`${logPrefix} Source: ${buildDir}`);
 console.log(`${logPrefix} Target: ${targetDir}`);
 console.log(`${logPrefix} TargetRel: ${targetRel}`);
 console.log(`${logPrefix} Storage backend: ${config.storageBackend} (${config.storageBackendSource})`);
-console.log(`${logPrefix} Clean-first mode: disabled (the universal release is staged before deployment)`);
+console.log(`${logPrefix} Clean-first mode: disabled (existing SharePoint data is preserved)`);
 if (dryRun) {
   console.log(`${logPrefix} Dry-run mode: robocopy will not run.`);
 }
@@ -67,12 +62,13 @@ try {
   if (!fs.existsSync(buildDir)) {
     throw new Error(`Build directory does not exist: ${buildDir}`);
   }
+  assertLegacyDeployableDist(buildDir);
   if (cleanFirst) {
     throw new Error('--clean-first is disabled because purging a target can remove unrelated SharePoint data.');
   }
 
-  // Validate the exact legacy .env/CLI mapping before either target readiness
-  // work or filesystem writes. This uses the browser's canonical descriptor.
+  // Validate the traditional deployment environment, but do not create any
+  // runtime overlay: legacy builds carry their own compiled identity.
   const deploymentIdentity = assertLegacyDeploymentConfig(config);
 
   if (deployMode === 'final' && config.storageBackend === 'txt') {
@@ -92,25 +88,14 @@ try {
     }
   }
 
-  const staging = createLegacyDeploymentStaging(buildDir, config);
-  try {
-    console.log(`${logPrefix} Staging: ${staging.stagingRoot}`);
-    console.log(`${logPrefix} Generated runtime overlay for ${staging.runtimeConfig.finalAppUrl}.`);
-
-    if (dryRun) {
-      console.log(`${logPrefix} Would copy staged release "${staging.stagingRoot}" => "${targetDir}"`);
-    } else {
-      fs.mkdirSync(targetDir, { recursive: true });
-      const copyCommand = `robocopy "${staging.stagingRoot}" "${targetDir}" /E /R:3 /W:5`;
-      runRobocopy(copyCommand, 'copy-staged-release');
-
-      const targetOverlay = assertDeploymentOverlay(targetDir);
-      console.log(`${logPrefix} Verified ${targetOverlay.runtimeConfig.storageBackend} runtime metadata in the SharePoint target.`);
-      console.log(`${logPrefix} Final app URL: ${deploymentIdentity.descriptor.finalAppUrl}`);
-      console.log(`${logPrefix} Deployment completed.`);
-    }
-  } finally {
-    removeLegacyDeploymentStaging(staging);
+  if (dryRun) {
+    console.log(`${logPrefix} Would copy legacy build "${buildDir}" => "${targetDir}"`);
+  } else {
+    fs.mkdirSync(targetDir, { recursive: true });
+    const copyCommand = `robocopy "${buildDir}" "${targetDir}" /E /R:3 /W:5`;
+    runRobocopy(copyCommand, 'copy-legacy-build');
+    console.log(`${logPrefix} Final app URL: ${deploymentIdentity.descriptor.finalAppUrl}`);
+    console.log(`${logPrefix} Deployment completed.`);
   }
 } catch (error) {
   console.error(`${logPrefix} Error: ${error.message}`);

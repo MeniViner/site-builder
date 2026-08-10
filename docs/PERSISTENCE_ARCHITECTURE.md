@@ -13,11 +13,11 @@ There is no dual-write mode. A save is serialized through the master-config repo
 
 ## Resolution and precedence
 
-Storage is resolved once, before storage-dependent application modules are imported:
+Storage is resolved once, before storage-dependent application modules are imported. The source is selected by the immutable build mode:
 
-1. A valid `sitebuilder-runtime-config.json` next to `index.html`.
-2. Explicit production build variables.
-3. The safe default, `txt`.
+1. A legacy `npm run build` artifact uses its compiled `.env.production` values and does not read or require a runtime JSON file.
+2. A universal `npm run build:universal` artifact requires a valid `sitebuilder-runtime-config.json` next to `index.html`.
+3. Development may use its Vite environment fallback.
 
 Only the exact, case-sensitive strings `txt` and `mongo` are valid; values such as `TXT`, `MONGO`, `local-dev`, and `unknown` are rejected. An invalid explicit value stops startup. An explicit Mongo selection without both a public backend URL and logical site ID also stops startup; it never falls back to TXT.
 
@@ -76,15 +76,11 @@ Missing or blank resolves to TXT. `mongo` must be set explicitly. Invalid values
 
 ## Build and deployment
 
-`npm run build` uses `scripts/build-production.mjs`, which injects validated production values so `.env.local` cannot contaminate the artifact. Postbuild always creates:
+`npm run build` uses `scripts/build-production.mjs` to inject validated `.env.production` values into a traditional, site-specific artifact. `npm run deploy` copies that artifact directly; it neither creates nor requires a runtime selector.
 
-- `sitebuilder-runtime-config.json`
-- `sitebuilder-deployment.json`
-- `sharepoint-deploy-manifest.json`
+`npm run build:universal` creates the separate Release Manager artifact. It contains no SharePoint site identity, requires a runtime selector in production, and writes `sharepoint-deploy-manifest.json`. Release Manager supplies `sitebuilder-runtime-config.json` and optional deployment metadata at its target.
 
-The manifest is an object with artifact type, schema version, supported storage modes, runtime-selector requirements, and the exact file inventory. It is written even when automatic deployment is disabled.
-
-Direct SharePoint deployment regenerates the selector and metadata before copying and does not purge the target directory. TXT deployment requires the expected TXT files to exist. Mongo deployment requires a valid backend URL/site ID and a successful readiness check.
+TXT deployment requires the expected TXT files to exist. Mongo deployment requires a valid backend URL/site ID and a successful readiness check.
 
 SiteBuilderHub resolves its production backend from `SITE_BUILDER_PRODUCTION_STORAGE_BACKEND` for every deployment, verifies release compatibility, creates a target-specific selector for TXT or Mongo, and includes generated selector/metadata in read-back evidence. Mongo deploy is blocked until the API and site data are ready; TXT deploy is blocked if the required TXT data inventory is missing.
 
@@ -152,4 +148,4 @@ In the browser console inspect:
 window.__SITE_BUILDER_GET_STORAGE_DIAGNOSTICS__()
 ```
 
-Verify `backend`, `source`, `siteId`, `siteRoot`/`backendApiUrl`, `repository`, runtime attempts, and the last redacted error. Then fetch `sitebuilder-runtime-config.json`, `sitebuilder-deployment.json`, and `sharepoint-deploy-manifest.json` beside the loaded HTML and confirm all three agree.
+Verify `backend`, `source`, `siteId`, `siteRoot`/`backendApiUrl`, `repository`, runtime attempts, and the last redacted error. For a universal deployment, also fetch `sitebuilder-runtime-config.json`, `sitebuilder-deployment.json`, and `sharepoint-deploy-manifest.json` beside the loaded HTML. Legacy deployments intentionally need none of those runtime files.

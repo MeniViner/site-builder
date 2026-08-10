@@ -43,7 +43,22 @@ function sanitizeBackend(value, { allowEmpty = true } = {}) {
   return normalized;
 }
 
+export const SITE_BUILD_MODES = Object.freeze({
+  LEGACY: 'legacy',
+  UNIVERSAL: 'universal',
+});
+
 const isDevelopmentRuntime = () => import.meta.env.DEV === true || import.meta.env.MODE === 'test';
+
+/** The production artifact selects this before the browser executes any app code. */
+export function getSiteBuildMode() {
+  const configured = asString(import.meta.env.VITE_SITE_BUILD_MODE).toLowerCase();
+  if (configured === SITE_BUILD_MODES.LEGACY || configured === SITE_BUILD_MODES.UNIVERSAL) return configured;
+  return isDevelopmentRuntime() ? 'development' : SITE_BUILD_MODES.LEGACY;
+}
+
+const isLegacyBuild = () => getSiteBuildMode() === SITE_BUILD_MODES.LEGACY;
+const requiresRuntimeOverlay = () => getSiteBuildMode() === SITE_BUILD_MODES.UNIVERSAL;
 
 const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 
@@ -96,6 +111,43 @@ function createDevelopmentFallback() {
     bootstrapLibrary: import.meta.env.VITE_SP_BOOTSTRAP_LIBRARY,
     bootstrapFolder: import.meta.env.VITE_SP_BOOTSTRAP_FOLDER,
   }, { source: 'development environment', requireTxtIdentity: false });
+}
+
+function finalAppUrlFromBuildBaseUrl(value) {
+  const baseUrl = asString(value);
+  if (!baseUrl || /\/index\.html(?:$|[?#])/i.test(baseUrl)) return baseUrl;
+  return `${baseUrl.replace(/\/+$/g, '')}/index.html`;
+}
+
+/**
+ * Legacy builds intentionally freeze their descriptor from values compiled by
+ * Vite. Runtime JSON is ignored in this mode so a stale or absent overlay can
+ * never change how an existing traditional SharePoint deployment boots.
+ */
+function createLegacyBuildConfig() {
+  const config = normalizeCandidate({
+    schemaVersion: 2,
+    storageBackend: import.meta.env.VITE_STORAGE_BACKEND || 'txt',
+    backendApiUrl: import.meta.env.VITE_BACKEND_API_URL,
+    siteId: import.meta.env.VITE_SITE_ID || import.meta.env.VITE_SP_SITE_CODE,
+    host: import.meta.env.VITE_SP_HOST,
+    siteCode: import.meta.env.VITE_SP_SITE_CODE,
+    siteDbFolder: import.meta.env.VITE_SP_SITE_DB_FOLDER,
+    usersDbFolder: import.meta.env.VITE_SP_USERS_DB_FOLDER,
+    siteAssetsFolder: import.meta.env.VITE_SP_SITE_ASSETS_FOLDER,
+    imagesFolder: import.meta.env.VITE_SP_IMAGES_FOLDER,
+    widgetsDbTarget: import.meta.env.VITE_SP_WIDGETS_DB_TARGET,
+    siteApiRoot: import.meta.env.VITE_SP_SITE_API_ROOT,
+    bootstrapLibrary: import.meta.env.VITE_SP_BOOTSTRAP_LIBRARY,
+    bootstrapFolder: import.meta.env.VITE_SP_BOOTSTRAP_FOLDER,
+    finalAppUrl: finalAppUrlFromBuildBaseUrl(import.meta.env.VITE_SITE_BASE_URL),
+  }, { source: 'legacy build environment', requireTxtIdentity: true });
+  if (!config) {
+    throw new RuntimeConfigError('Legacy build is missing its compiled storage configuration.', {
+      code: 'missing_legacy_build_config',
+    });
+  }
+  return config;
 }
 
 function sanitizeBodyPrefix(text, { parsedJson = false } = {}) {
@@ -211,7 +263,7 @@ function loadEmbeddedRuntimeConfig() {
   if (!runtimeGlobal) return null;
   const normalized = normalizeCandidate(runtimeGlobal, {
     source: 'window runtime config',
-    requireTxtIdentity: !isDevelopmentRuntime(),
+    requireTxtIdentity: requiresRuntimeOverlay(),
   });
   if (!normalized) return null;
   return { source: 'window-runtime-config', config: normalized };
@@ -342,7 +394,7 @@ async function loadJsonCandidate(url, { kind = 'runtime' } = {}) {
     try {
       normalized = normalizeCandidate(parsed, {
         source: `${kind} file ${url}`,
-        requireTxtIdentity: kind === 'runtime' && !isDevelopmentRuntime(),
+        requireTxtIdentity: kind === 'runtime' && requiresRuntimeOverlay(),
       });
     } catch (error) {
       attempt.bodyPrefix = sanitizeBodyPrefix(text, { parsedJson: true });
@@ -389,6 +441,18 @@ async function resolveRuntimeConfig() {
   }
 
   try {
+    if (isLegacyBuild()) {
+      const legacyConfig = createLegacyBuildConfig();
+      runtimeConfigLoaded = true;
+      runtimeConfigSource = 'legacy-build-env';
+      deploymentMetadataSource = null;
+      lastResolvedConfig = Object.freeze({ ...legacyConfig });
+      lastDeploymentMetadata = Object.freeze({});
+      lastConsoleMessage = 'Loaded site-specific runtime identity compiled into the legacy build.';
+      console.info(`[site-builder-runtime-config] ${lastConsoleMessage}`);
+      return lastResolvedConfig;
+    }
+
     const runtimeUrls = buildRuntimeConfigCandidateUrls(
       window.location,
       typeof document !== 'undefined' ? document.baseURI : '',

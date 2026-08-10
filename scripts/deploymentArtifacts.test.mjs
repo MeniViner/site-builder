@@ -4,12 +4,16 @@ import path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   assertProductionBuildConfig,
+  assertLegacyDeployableDist,
   buildDeployManifest,
   buildRuntimeConfigPayload,
   writeReleaseArtifacts,
   writeDeploymentArtifacts,
 } from './deploymentArtifacts.mjs';
-import { buildProductionEnvironment } from './build-production.mjs';
+import {
+  buildLegacyProductionEnvironment,
+  buildUniversalProductionEnvironment,
+} from './build-production.mjs';
 
 const roots = [];
 
@@ -55,6 +59,17 @@ describe('deployment artifacts', () => {
     expect(result.deploymentMetadata).toMatchObject({ storageBackend: 'txt', storageBackendSource: 'deployment-target' });
   });
 
+  it('refuses to send a universal artifact through the traditional deploy command', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sitebuilder-artifact-'));
+    roots.push(root);
+    fs.writeFileSync(path.join(root, 'index.html'), '<!doctype html>');
+    writeReleaseArtifacts(root);
+
+    expect(() => assertLegacyDeployableDist(root)).toThrow('Run npm run build before npm run deploy');
+    fs.rmSync(path.join(root, 'sharepoint-deploy-manifest.json'));
+    expect(assertLegacyDeployableDist(root)).toBe(true);
+  });
+
   it('requires complete Mongo public configuration and emits no secret fields', () => {
     expect(() => assertProductionBuildConfig({ storageBackend: 'mongo', siteId: 'site-1' })).toThrow('VITE_BACKEND_API_URL');
     const payload = buildRuntimeConfigPayload({
@@ -75,11 +90,19 @@ describe('deployment artifacts', () => {
     expect(() => assertProductionBuildConfig({ storageBackend: 'Txt' })).toThrow('Expected txt or mongo');
   });
 
-  it('overrides local Vite values for an isolated production TXT build', () => {
-    const environment = buildProductionEnvironment({
+  it('builds a legacy artifact with its configured site identity', () => {
+    const environment = buildLegacyProductionEnvironment({
       storageBackend: 'txt',
+      host: 'portal.army.idf',
       siteCode: 'target-site',
       siteId: 'target-site',
+      siteDbFolder: 'records',
+      usersDbFolder: 'users-records',
+      siteAssetsFolder: 'site-assets',
+      imagesFolder: 'site-images',
+      widgetsDbTarget: 'site',
+      siteApiRootRel: '/sites/target-site',
+      siteBaseUrl: 'https://portal.army.idf/sites/target-site/records/dist',
     }, {
       VITE_STORAGE_BACKEND: 'local-dev',
       VITE_SITE_ID: 'local-dev-site',
@@ -87,9 +110,35 @@ describe('deployment artifacts', () => {
       VITE_SITE_BUILDER_DEV_API_KEY: 'local-dev-secret',
     });
     expect(environment).toMatchObject({
+      VITE_SITE_BUILD_MODE: 'legacy',
+      VITE_STORAGE_BACKEND: 'txt',
+      VITE_SITE_ID: 'target-site',
+      VITE_SITE_BASE_URL: 'https://portal.army.idf/sites/target-site/records/dist',
+      VITE_SP_HOST: 'portal.army.idf',
+      VITE_SP_SITE_CODE: 'target-site',
+      VITE_SP_SITE_DB_FOLDER: 'records',
+      VITE_SP_USERS_DB_FOLDER: 'users-records',
+      VITE_SP_SITE_ASSETS_FOLDER: 'site-assets',
+      VITE_SP_IMAGES_FOLDER: 'site-images',
+      VITE_SP_WIDGETS_DB_TARGET: 'site',
+      VITE_SP_SITE_API_ROOT: '/sites/target-site',
+      VITE_SITE_BUILDER_API_KEY: '',
+      VITE_SITE_BUILDER_DEV_API_KEY: '',
+      VITE_AUTO_DEPLOY: 'false',
+    });
+  });
+
+  it('removes every site identity field from a universal artifact', () => {
+    const environment = buildUniversalProductionEnvironment({
+      VITE_SP_HOST: 'compiled.example.test',
+      VITE_SP_SITE_CODE: 'compiled-site',
+      VITE_SITE_ID: 'compiled-site',
+      VITE_STORAGE_BACKEND: 'txt',
+    });
+    expect(environment).toMatchObject({
+      VITE_SITE_BUILD_MODE: 'universal',
       VITE_STORAGE_BACKEND: '',
       VITE_SITE_ID: '',
-      VITE_SITE_BASE_URL: '',
       VITE_SP_HOST: '',
       VITE_SP_SITE_CODE: '',
       VITE_SP_SITE_DB_FOLDER: '',
@@ -98,12 +147,6 @@ describe('deployment artifacts', () => {
       VITE_SP_IMAGES_FOLDER: '',
       VITE_SP_WIDGETS_DB_TARGET: '',
       VITE_SP_SITE_API_ROOT: '',
-      VITE_SITE_BUILDER_API_KEY: '',
-      VITE_SITE_BUILDER_DEV_API_KEY: '',
-      VITE_AUTO_DEPLOY: 'false',
     });
-    expect(environment).not.toHaveProperty('VITE_FILE_EXPLORER_API_URL');
-    expect(environment).not.toHaveProperty('VITE_FILE_EXPLORER_BRIDGE_PATH');
-    expect(environment).not.toHaveProperty('VITE_LOCAL_FILE_BRIDGE');
   });
 });

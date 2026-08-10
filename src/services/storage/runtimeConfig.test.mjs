@@ -1,3 +1,6 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildRuntimeConfigCandidateUrls,
@@ -7,6 +10,7 @@ import {
   getRuntimeConfigSource,
   getRuntimeLog,
   getRuntimeValue,
+  getSiteBuildMode,
   loadRuntimeConfig,
   setRuntimeConfigForTests,
 } from './runtimeConfig';
@@ -287,15 +291,17 @@ describe('runtimeConfig and storage descriptor', () => {
   it('fails closed in production when the runtime config file is missing', async () => {
     vi.stubEnv('DEV', false);
     vi.stubEnv('MODE', 'production');
+    vi.stubEnv('VITE_SITE_BUILD_MODE', 'universal');
     setWindowLocation('https://portal.army.idf/sites/runtime-target/siteDB/dist/index.html');
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(asResponse({}, 404))));
 
     await expect(loadRuntimeConfig()).rejects.toMatchObject({ code: 'missing_runtime_config' });
   });
 
-  it('boots a simulated legacy deployment from its generated runtime overlay', async () => {
+  it('boots a universal deployment from its generated runtime overlay', async () => {
     vi.stubEnv('DEV', false);
     vi.stubEnv('MODE', 'production');
+    vi.stubEnv('VITE_SITE_BUILD_MODE', 'universal');
     const generatedOverlay = buildRuntimeConfigPayload({
       hasExplicitSiteIdentity: true,
       storageBackend: 'txt',
@@ -329,6 +335,77 @@ describe('runtimeConfig and storage descriptor', () => {
     });
     expect(getStorageBackend()).toBe('txt');
     expect(getRuntimeConfigSource()).toContain('sitebuilder-runtime-config.json');
+  });
+
+  it.each([
+    {
+      label: 'Site A with a non-default TXT library and user widgets',
+      host: 'portal.army.idf',
+      siteCode: 'legacy-site-a',
+      siteDbFolder: 'txt-library',
+      usersDbFolder: '/sites/legacy-site-a/txt-users',
+      widgetsDbTarget: 'users',
+      expectedWidgets: '/sites/legacy-site-a/txt-users/widgets_data.txt',
+    },
+    {
+      label: 'Site B with a non-default TXT library and site widgets',
+      host: 'mazi.army.idf',
+      siteCode: 'legacy-site-b',
+      siteDbFolder: 'records-library',
+      usersDbFolder: '/sites/legacy-site-b/records-users',
+      widgetsDbTarget: 'site',
+      expectedWidgets: '/sites/legacy-site-b/records-library/site-assets/widgets_data.txt',
+    },
+  ])('boots legacy $label with no runtime configuration file', async ({
+    host,
+    siteCode,
+    siteDbFolder,
+    usersDbFolder,
+    widgetsDbTarget,
+    expectedWidgets,
+  }) => {
+    vi.stubEnv('DEV', false);
+    vi.stubEnv('MODE', 'production');
+    vi.stubEnv('VITE_SITE_BUILD_MODE', 'legacy');
+    vi.stubEnv('VITE_STORAGE_BACKEND', 'txt');
+    vi.stubEnv('VITE_SP_HOST', host);
+    vi.stubEnv('VITE_SP_SITE_CODE', siteCode);
+    vi.stubEnv('VITE_SITE_ID', siteCode);
+    vi.stubEnv('VITE_SP_SITE_DB_FOLDER', siteDbFolder);
+    vi.stubEnv('VITE_SP_USERS_DB_FOLDER', usersDbFolder);
+    vi.stubEnv('VITE_SP_SITE_ASSETS_FOLDER', 'site-assets');
+    vi.stubEnv('VITE_SP_IMAGES_FOLDER', 'site-images');
+    vi.stubEnv('VITE_SP_WIDGETS_DB_TARGET', widgetsDbTarget);
+    vi.stubEnv('VITE_SP_SITE_API_ROOT', `/sites/${siteCode}`);
+    vi.stubEnv('VITE_SITE_BASE_URL', `https://${host}/sites/${siteCode}/${siteDbFolder}/dist`);
+    setWindowLocation(`https://${host}/sites/${siteCode}/${siteDbFolder}/dist/index.html`);
+    const deploymentFixture = fs.mkdtempSync(path.join(os.tmpdir(), 'sitebuilder-legacy-recovery-'));
+    fs.writeFileSync(path.join(deploymentFixture, 'index.html'), '<!doctype html>');
+    fs.writeFileSync(path.join(deploymentFixture, 'sitebuilder-runtime-config.json'), '{}');
+    fs.writeFileSync(path.join(deploymentFixture, 'runtime-config.json'), '{}');
+    // Recovery explicitly removes both overlay files before legacy bootstrap.
+    fs.rmSync(path.join(deploymentFixture, 'sitebuilder-runtime-config.json'));
+    fs.rmSync(path.join(deploymentFixture, 'runtime-config.json'));
+    expect(fs.existsSync(path.join(deploymentFixture, 'sitebuilder-runtime-config.json'))).toBe(false);
+    expect(fs.existsSync(path.join(deploymentFixture, 'runtime-config.json'))).toBe(false);
+    const fetchMock = vi.fn(() => Promise.resolve(asResponse({}, 404)));
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      await expect(loadRuntimeConfig()).resolves.toMatchObject({
+        host,
+        siteCode,
+        siteDbRoot: `/sites/${siteCode}/${siteDbFolder}`,
+        widgetsDbTarget,
+        widgetsFileServerRelativeUrl: expectedWidgets,
+      });
+      expect(getSiteBuildMode()).toBe('legacy');
+      expect(getRuntimeConfigSource()).toBe('legacy-build-env');
+      expect(getStorageBackend()).toBe('txt');
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      fs.rmSync(deploymentFixture, { recursive: true, force: true });
+    }
   });
 
   it('uses runtime metadata ahead of conflicting development Vite values', async () => {
