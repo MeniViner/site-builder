@@ -5,6 +5,8 @@ import os from 'os';
 import path from 'path';
 import { pathToFileURL } from 'url';
 import {
+  ARTIFACT_KINDS,
+  assertBuildManifest,
   createUniversalDeploymentStaging,
   removeUniversalDeploymentStaging,
   SITE_SPECIFIC_OVERLAY_FILES,
@@ -40,9 +42,10 @@ export function verifyUniversalDist(distRoot) {
     throw new Error('Expected a universal release manifest. Run npm run build:universal first.');
   }
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  if (manifest.artifactKind !== 'site-builder-universal-frontend' || manifest.requiresRuntimeConfig !== true) {
+  if (manifest.artifactKind !== ARTIFACT_KINDS.UNIVERSAL || manifest.requiresRuntimeConfig !== true) {
     throw new Error('dist is not a universal Release Manager artifact. Run npm run build:universal first.');
   }
+  assertBuildManifest(source, { artifactKind: ARTIFACT_KINDS.UNIVERSAL, buildMode: 'universal' });
   for (const overlayFile of SITE_SPECIFIC_OVERLAY_FILES) {
     if (fs.existsSync(path.join(source, overlayFile))) {
       throw new Error(`Universal dist is contaminated by site-specific ${overlayFile}. Rebuild before deployment.`);

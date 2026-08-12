@@ -7,6 +7,9 @@ import {
   assertLegacyDeployableDist,
   buildDeployManifest,
   buildRuntimeConfigPayload,
+  readBuildManifest,
+  verifyManifestFiles,
+  writeLegacyBuildArtifacts,
   writeReleaseArtifacts,
   writeDeploymentArtifacts,
 } from './deploymentArtifacts.mjs';
@@ -31,7 +34,7 @@ describe('deployment artifacts', () => {
     const release = writeReleaseArtifacts(root);
     expect(fs.existsSync(path.join(root, 'sitebuilder-runtime-config.json'))).toBe(false);
     expect(release.manifest).toMatchObject({
-      schemaVersion: 3,
+      schemaVersion: 4,
       artifactKind: 'site-builder-universal-frontend',
       requiresRuntimeConfig: true,
       preservesRuntimeConfig: true,
@@ -67,7 +70,7 @@ describe('deployment artifacts', () => {
 
     expect(() => assertLegacyDeployableDist(root)).toThrow('Run npm run build before npm run deploy');
     fs.rmSync(path.join(root, 'sharepoint-deploy-manifest.json'));
-    expect(assertLegacyDeployableDist(root)).toBe(true);
+    expect(() => assertLegacyDeployableDist(root)).toThrow('without sharepoint-deploy-manifest.json');
   });
 
   it('requires complete Mongo public configuration and emits no secret fields', () => {
@@ -148,5 +151,44 @@ describe('deployment artifacts', () => {
       VITE_SP_WIDGETS_DB_TARGET: '',
       VITE_SP_SITE_API_ROOT: '',
     });
+  });
+
+  it('makes a legacy build manifest prove every current index dependency', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sitebuilder-legacy-manifest-'));
+    roots.push(root);
+    fs.mkdirSync(path.join(root, 'assets'));
+    fs.writeFileSync(path.join(root, 'index.html'), '<link rel="stylesheet" href="./assets/index-B.css"><script type="module" src="./assets/index-B.js"></script>');
+    fs.writeFileSync(path.join(root, 'assets', 'index-B.css'), 'body{}');
+    fs.writeFileSync(path.join(root, 'assets', 'index-B.js'), 'console.log("B")');
+
+    const result = writeLegacyBuildArtifacts(root, { buildId: 'build-b' });
+    expect(result.manifest).toMatchObject({ buildId: 'build-b', buildMode: 'legacy', artifactKind: 'site-builder-legacy-frontend', entryPoint: 'index.html' });
+    expect(result.manifest.files).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'assets/index-B.css', size: 6, sha256: expect.stringMatching(/^[a-f0-9]{64}$/) }),
+      expect.objectContaining({ path: 'assets/index-B.js', sha256: expect.stringMatching(/^[a-f0-9]{64}$/) }),
+    ]));
+    expect(result.manifest.indexReferences).toEqual(['assets/index-B.css', 'assets/index-B.js']);
+  });
+
+  it('detects a partial Bootstrap or final copy instead of accepting stale Build A assets for Build B', () => {
+    const buildB = fs.mkdtempSync(path.join(os.tmpdir(), 'sitebuilder-build-b-'));
+    const partialTarget = fs.mkdtempSync(path.join(os.tmpdir(), 'sitebuilder-partial-target-'));
+    roots.push(buildB, partialTarget);
+    fs.mkdirSync(path.join(buildB, 'assets'));
+    fs.mkdirSync(path.join(partialTarget, 'assets'));
+    fs.writeFileSync(path.join(buildB, 'index.html'), '<link rel="stylesheet" href="./assets/index-B.css"><script type="module" src="./assets/index-B.js"></script>');
+    fs.writeFileSync(path.join(buildB, 'assets', 'index-B.css'), 'css-B');
+    fs.writeFileSync(path.join(buildB, 'assets', 'index-B.js'), 'js-B');
+    const buildBManifest = writeLegacyBuildArtifacts(buildB, { buildId: 'build-b' }).manifest;
+    // Final target still serves Build A index; only one Build B chunk arrived.
+    fs.writeFileSync(path.join(partialTarget, 'index.html'), '<script src="./assets/index-A.js"></script>');
+    fs.writeFileSync(path.join(partialTarget, 'assets', 'index-A.js'), 'js-A');
+    fs.writeFileSync(path.join(partialTarget, 'assets', 'index-B.js'), 'js-B');
+
+    const report = verifyManifestFiles(partialTarget, buildBManifest, { includeEntryPoint: false });
+    expect(report.missingFiles).toEqual(['assets/index-B.css']);
+    expect(report.verifiedFiles).toBe(1);
+    expect(fs.readFileSync(path.join(partialTarget, 'index.html'), 'utf8')).toContain('index-A.js');
+    expect(readBuildManifest(buildB).buildId).toBe('build-b');
   });
 });

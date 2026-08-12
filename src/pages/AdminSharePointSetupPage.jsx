@@ -5,6 +5,11 @@ import { spBootstrapLog } from '../utils/spAppLog';
 import { DEFAULT_GANTT_DATA } from '../utils/ganttData';
 import DismissibleNotice from '../components/DismissibleNotice';
 import { SHAREPOINT_PATHS } from '../config/sharepointPaths';
+import {
+  assertIndexReferencesMatchManifest,
+  normalizeAtomicBuildManifest,
+  orderFilesForAtomicDeployment,
+} from '../utils/atomicDeploymentManifest';
 
 const ODATA_ACCEPT = 'application/json;odata=verbose';
 const ODATA_CONTENT = 'application/json;odata=verbose';
@@ -62,7 +67,7 @@ export default function AdminSharePointSetupPage() {
   const [showLogs, setShowLogs] = useState(false);
   const [latestStep, setLatestStep] = useState('ממתין');
   const [errorInfo, setErrorInfo] = useState(null);
-  const [copyStats, setCopyStats] = useState({ manifestUrl: '', manifestCount: 0, copied: 0, failed: 0, finalIndex: false, finalAssets: false, fallbackUsed: false });
+  const [copyStats, setCopyStats] = useState({ manifestUrl: '', buildId: '', manifestCount: 0, copied: 0, verified: 0, failed: 0, mismatched: 0, finalIndex: false, finalAssets: false });
   const [details, setDetails] = useState({ copiedFiles: [], failedFiles: [], skippedFiles: [] });
   const [state, setState] = useState({
     webUrl: '',
@@ -315,165 +320,147 @@ export default function AdminSharePointSetupPage() {
     setState((p) => ({ ...p, txtFiles: 'created' }));
   };
 
-  const buildFileValueUrl = (webUrl, rel) => `${webUrl}/_api/web/GetFileByServerRelativeUrl('${esc(rel)}')/$value`;
-  const buildFolderFilesUrl = (webUrl, rel) => `${webUrl}/_api/web/GetFolderByServerRelativeUrl('${esc(rel)}')/Files?$select=Name,ServerRelativeUrl`;
-  const buildFolderFoldersUrl = (webUrl, rel) => `${webUrl}/_api/web/GetFolderByServerRelativeUrl('${esc(rel)}')/Folders?$select=Name,ServerRelativeUrl`;
+  const buildFileValueUrl = (webUrl, rel, cacheKey = '') => {
+    const query = cacheKey ? `?siteBuilderBuild=${encodeURIComponent(cacheKey)}` : '';
+    return `${webUrl}/_api/web/GetFileByServerRelativeUrl('${esc(rel)}')/$value${query}`;
+  };
+  const sha256Bytes = async (bytes) => {
+    if (!globalThis.crypto?.subtle) throw new Error('Web Crypto SHA-256 is unavailable; final deployment cannot be verified safely.');
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(digest)).map((part) => part.toString(16).padStart(2, '0')).join('');
+  };
+  const deploymentFailure = (context) => {
+    const error = new Error(`Atomic deployment verification failed: ${JSON.stringify(context)}`);
+    error.deploymentDetails = context;
+    return error;
+  };
 
-  const discoverFilesRecursively = async (webUrl, rootRel) => {
-    const collected = [];
-    const walk = async (folderRel) => {
-      const filesRes = await logRequest({ url: buildFolderFilesUrl(webUrl, folderRel), purpose: `discover-files-${folderRel}` });
-      const filesJson = await readResponseSafely(filesRes, { url: buildFolderFilesUrl(webUrl, folderRel) });
-      const files = Array.isArray(filesJson?.d?.results) ? filesJson.d.results : [];
-      for (const file of files) {
-        const full = String(file?.ServerRelativeUrl || '').trim();
-        if (!full.startsWith(rootRel)) continue;
-        const rel = full.slice(rootRel.length).replace(/^\/+/, '');
-        if (rel) collected.push(rel);
-      }
-      const subRes = await logRequest({ url: buildFolderFoldersUrl(webUrl, folderRel), purpose: `discover-folders-${folderRel}` });
-      const subJson = await readResponseSafely(subRes, { url: buildFolderFoldersUrl(webUrl, folderRel) });
-      const folders = Array.isArray(subJson?.d?.results) ? subJson.d.results : [];
-      for (const folder of folders) {
-        const subRel = String(folder?.ServerRelativeUrl || '').trim();
-        if (subRel) await walk(subRel);
-      }
-    };
-    await walk(rootRel);
-    return [...new Set(collected.map((f) => f.replace(/\\/g, '/')))].sort();
+  const fetchAndVerifyFile = async ({ webUrl, rootRel, entry, buildId, boundary, phase }) => {
+    const serverRelativePath = `${rootRel}/${entry.path}`;
+    const url = buildFileValueUrl(webUrl, serverRelativePath, `${buildId}-${Date.now()}`);
+    const response = await logRequest({ url, purpose: `${boundary}-${phase}-${entry.path}` });
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.ok) {
+      const preview = (await response.text()).slice(0, 500);
+      throw deploymentFailure({ boundary, phase, buildId, path: entry.path, method: 'GET', status: response.status, contentType, responsePreview: preview, expectedSize: entry.size, expectedSha256: entry.sha256 });
+    }
+    const bytes = await response.arrayBuffer();
+    const actualSize = bytes.byteLength;
+    const actualSha256 = await sha256Bytes(bytes);
+    if (actualSize !== entry.size || actualSha256 !== entry.sha256) {
+      throw deploymentFailure({ boundary, phase, buildId, path: entry.path, method: 'GET', status: response.status, contentType, expectedSize: entry.size, actualSize, expectedSha256: entry.sha256, actualSha256 });
+    }
+    return bytes;
+  };
+
+  const uploadAndVerifyFile = async ({ webUrl, digest, rootRel, entry, bytes, buildId, phase }) => {
+    const target = `${rootRel}/${entry.path}`;
+    const targetFolder = target.slice(0, target.lastIndexOf('/'));
+    await ensureFolder(webUrl, targetFolder, digest);
+    const fileName = target.split('/').pop();
+    const url = `${webUrl}/_api/web/GetFolderByServerRelativeUrl('${esc(targetFolder)}')/Files/add(url='${encodeURIComponent(fileName)}',overwrite=true)`;
+    const response = await logRequest({ url, method: 'POST', purpose: `boundary-b-${phase}-${entry.path}`, headers: { Accept: ODATA_ACCEPT, 'X-RequestDigest': digest }, body: bytes });
+    if (!response.ok) {
+      const preview = (await response.text()).slice(0, 500);
+      throw deploymentFailure({ boundary: 'B', phase, buildId, path: entry.path, method: 'POST', status: response.status, contentType: response.headers.get('content-type') || '', responsePreview: preview, expectedSize: entry.size, expectedSha256: entry.sha256 });
+    }
+    await readResponseSafely(response, { url });
+    await fetchAndVerifyFile({ webUrl, rootRel, entry, buildId, boundary: 'B', phase: `verify-${phase}` });
   };
 
   const preflightSource = async (webUrl) => {
-    addLog('source preflight started', 'sharepoint-final-copy');
-    addLog('final dist will not be touched until preflight passes', 'sharepoint-final-copy');
-    addLog('manifest method: REST $value', 'sharepoint-final-copy');
-    addLog(`manifest server-relative URL: ${cfg.manifestRel}`, 'sharepoint-final-copy');
-    addLog(`manifest absolute URL: ${cfg.manifestAbs}`, 'sharepoint-final-copy');
+    addLog('Boundary B source preflight started; final dist will not be touched until it passes.', 'sharepoint-final-copy');
     setCopyStats((p) => ({ ...p, manifestUrl: cfg.manifestAbs }));
-
-    const manifestValueUrl = buildFileValueUrl(webUrl, cfg.manifestRel);
-    const manifestRes = await logRequest({ url: manifestValueUrl, purpose: 'manifest-load-value' });
-    const manifestCt = manifestRes.headers.get('content-type') || '';
-    const manifestText = await manifestRes.text();
-    addLog(`manifest status=${manifestRes.status}`, 'sharepoint-final-copy');
-    addLog(`manifest content-type=${manifestCt}`, 'sharepoint-final-copy');
-
-    let files = [];
-    if (manifestRes.ok) {
-      try {
-        const parsedManifest = JSON.parse(manifestText);
-        files = Array.isArray(parsedManifest) ? parsedManifest : parsedManifest?.files;
-        addLog('manifest parse result: json ok', 'sharepoint-final-copy');
-      } catch {
-        const preview = manifestText.slice(0, 700);
-        addLog(`manifest parse failed. preview=${preview}`, 'sharepoint-final-copy');
-        if (looksHtml(manifestText)) {
-          addLog('manifest response appears to be SharePoint HTML page, not file', 'sharepoint-final-copy');
-        }
-        throw new Error('לא ניתן להעתיק את האתר הסופי: קבצי המקור ב־Bootstrap אינם תקינים או שקובץ manifest חסר.');
-      }
-    } else if (manifestRes.status === 404) {
-      addLog('manifest missing; discovering files recursively from bootstrap folder', 'sharepoint-final-copy');
-      files = await discoverFilesRecursively(webUrl, cfg.bootstrapDistRoot);
-    } else {
-      const preview = manifestText.slice(0, 700);
-      addLog(`manifest load failed preview=${preview}`, 'sharepoint-final-copy');
-      throw new Error('לא ניתן להעתיק את האתר הסופי: קבצי המקור ב־Bootstrap אינם תקינים או שקובץ manifest חסר.');
+    const manifestUrl = buildFileValueUrl(webUrl, cfg.manifestRel, Date.now());
+    const manifestResponse = await logRequest({ url: manifestUrl, purpose: 'boundary-b-manifest-load' });
+    const manifestContentType = manifestResponse.headers.get('content-type') || '';
+    const manifestText = await manifestResponse.text();
+    if (!manifestResponse.ok) {
+      throw deploymentFailure({ boundary: 'B', phase: 'source-manifest', buildId: '', path: 'sharepoint-deploy-manifest.json', method: 'GET', status: manifestResponse.status, contentType: manifestContentType, responsePreview: manifestText.slice(0, 500) });
     }
-
-    const normalized = [...new Set((Array.isArray(files) ? files : []).map((f) => String(f || '').replace(/^\/+/, '').replace(/\\/g, '/')).filter(Boolean))];
-    // The bootstrap deployment receives site-specific runtime metadata after
-    // the universal release is copied. Preserve that metadata when promoting
-    // the same release into the final siteDB/dist location.
-    for (const runtimeFile of ['sitebuilder-runtime-config.json', 'sitebuilder-deployment.json']) {
-      if (await fileExists(`${cfg.bootstrapDistRoot}/${runtimeFile}`)) normalized.push(runtimeFile);
+    let manifest;
+    try {
+      manifest = normalizeAtomicBuildManifest(JSON.parse(manifestText));
+    } catch (error) {
+      throw deploymentFailure({ boundary: 'B', phase: 'source-manifest', buildId: '', path: 'sharepoint-deploy-manifest.json', method: 'GET', status: manifestResponse.status, contentType: manifestContentType, responsePreview: manifestText.slice(0, 500), reason: error.message });
     }
-    const hasIndex = normalized.includes('index.html');
-    const hasAssets = normalized.some((f) => f.startsWith('assets/'));
-    const bootstrapIndexExists = await fileExists(cfg.bootstrapDistRoot + '/index.html');
-    const bootstrapAssetsExists = await folderExists(webUrl, `${cfg.bootstrapDistRoot}/assets`);
-    const jsAssets = normalized.filter((f) => /^assets\/.*\.js$/i.test(f));
-    const cssAssets = normalized.filter((f) => /^assets\/.*\.css$/i.test(f));
-
-    addLog(`manifest file count: ${normalized.length}`, 'sharepoint-final-copy');
-    addLog(`manifest includes assets: ${hasAssets}`, 'sharepoint-final-copy');
-    addLog(`source index exists: ${bootstrapIndexExists}`, 'sharepoint-final-copy');
-    addLog(`source JS assets count: ${jsAssets.length}`, 'sharepoint-final-copy');
-    addLog(`source CSS assets count: ${cssAssets.length}`, 'sharepoint-final-copy');
-    addLog(`manifest first files: ${normalized.slice(0, 20).join(', ')}`, 'sharepoint-final-copy');
-    setCopyStats((p) => ({ ...p, manifestCount: normalized.length }));
-
-    const valid = normalized.length > 2 && hasIndex && hasAssets && bootstrapIndexExists && bootstrapAssetsExists && jsAssets.length > 0;
-    if (!valid) {
-      throw new Error('קובץ manifest לא נמצא או לא תקין ב־Bootstrap. ההעתקה ל־dist הסופי לא בוצעה כדי לא למחוק קבצים קיימים.');
+    addLog(`buildId=${manifest.buildId}; Source verification: 0 / ${manifest.files.length}`, 'sharepoint-final-copy');
+    setCopyStats((p) => ({ ...p, buildId: manifest.buildId, manifestCount: manifest.files.length, copied: 0, verified: 0, failed: 0, mismatched: 0 }));
+    const sourceBytes = new Map();
+    for (let index = 0; index < manifest.files.length; index += 1) {
+      const entry = manifest.files[index];
+      const bytes = await fetchAndVerifyFile({ webUrl, rootRel: cfg.bootstrapDistRoot, entry, buildId: manifest.buildId, boundary: 'B', phase: 'source-preflight' });
+      sourceBytes.set(entry.path, bytes);
+      addLog(`Source verification: ${index + 1} / ${manifest.files.length} — ${entry.path}`, 'sharepoint-final-copy');
     }
-    return { files: normalized, jsAssets, cssAssets };
+    const indexBytes = sourceBytes.get('index.html');
+    const indexHtml = new TextDecoder().decode(indexBytes);
+    const indexReferences = assertIndexReferencesMatchManifest(manifest, indexHtml);
+    const requiredCss = indexReferences.filter((reference) => /\.css$/i.test(reference));
+    const requiredJs = indexReferences.filter((reference) => /\.js$/i.test(reference));
+    if (!requiredJs.length || !requiredCss.length) {
+      throw deploymentFailure({ boundary: 'B', phase: 'source-index-references', buildId: manifest.buildId, path: 'index.html', reason: 'index.html must reference at least one local JS and CSS asset.' });
+    }
+    return { manifest, sourceBytes, indexReferences, manifestText };
   };
 
   const copyFromBootstrapToFinal = async (webUrl, digest) => {
-    setState((p) => ({ ...p, copyFiles: 'copying' }));
-    setLatestStep('העתקת קבצי האתר');
-    const manifest = await preflightSource(webUrl);
-    addLog(`bootstrapDistRoot=${cfg.bootstrapDistRoot}`, 'sharepoint-final-copy');
-    addLog(`finalDistRoot=${cfg.finalDistRoot}`, 'sharepoint-final-copy');
-    addLog('final copy started', 'sharepoint-final-copy');
-
+    setState((p) => ({ ...p, copyFiles: 'copying', finalIndex: 'waiting' }));
+    setLatestStep('מאמת ומעתיק את קבצי האתר');
+    const source = await preflightSource(webUrl);
+    const { manifest, sourceBytes, indexReferences, manifestText } = source;
     const copied = [];
-    const failed = [];
-    const skipped = [];
-    for (const rel of manifest.files) {
-      const source = `${cfg.bootstrapDistRoot}/${rel}`;
-      const target = `${cfg.finalDistRoot}/${rel}`;
-      const targetFolder = target.slice(0, target.lastIndexOf('/'));
-      try {
-        addLog(`copy file | source=${source} | target=${target}`, 'sharepoint-final-copy');
-        await ensureFolder(webUrl, targetFolder, digest);
-        addLog(`target folder ensure result | ${targetFolder}`, 'sharepoint-final-copy');
-        const sourceValueUrl = buildFileValueUrl(webUrl, source);
-        const sourceRes = await logRequest({ url: sourceValueUrl, purpose: `copy-source-${rel}` });
-        if (!sourceRes.ok) {
-          const preview = (await sourceRes.text()).slice(0, 300);
-          throw new Error(`source fetch failed ${sourceRes.status} preview=${preview}`);
-        }
-        const bytes = await sourceRes.arrayBuffer();
-        const fileName = target.split('/').pop();
-        const upUrl = `${webUrl}/_api/web/GetFolderByServerRelativeUrl('${esc(targetFolder)}')/Files/add(url='${encodeURIComponent(fileName)}',overwrite=true)`;
-        const uploadRes = await logRequest({ url: upUrl, method: 'POST', purpose: `copy-upload-${rel}`, headers: { Accept: ODATA_ACCEPT, 'X-RequestDigest': digest }, body: bytes });
-        await readResponseSafely(uploadRes, { url: upUrl });
-        addLog(`upload success | ${rel}`, 'sharepoint-final-copy');
-        copied.push(rel);
-      } catch (error) {
-        failed.push({ file: rel, reason: error.message });
-        addLog(`upload failure | ${rel} | ${error.message}`, 'sharepoint-final-copy');
+    try {
+      const orderedFiles = orderFilesForAtomicDeployment(manifest.files);
+      for (let index = 0; index < orderedFiles.length; index += 1) {
+        const entry = orderedFiles[index];
+        addLog(`Uploading: ${index + 1} / ${orderedFiles.length} — ${entry.path}`, 'sharepoint-final-copy');
+        await uploadAndVerifyFile({ webUrl, digest, rootRel: cfg.finalDistRoot, entry, bytes: sourceBytes.get(entry.path), buildId: manifest.buildId, phase: 'non-entry' });
+        copied.push(entry.path);
+        setCopyStats((p) => ({ ...p, copied: copied.length, verified: copied.length }));
       }
-    }
-    setDetails((p) => ({ ...p, copiedFiles: [...p.copiedFiles, ...copied], failedFiles: [...p.failedFiles, ...failed], skippedFiles: [...p.skippedFiles, ...skipped] }));
-    setCopyStats((p) => ({ ...p, copied: copied.length, failed: failed.length }));
 
-    const indexExists = await fileExists(`${cfg.finalDistRoot}/index.html`);
-    const assetsExists = await folderExists(webUrl, `${cfg.finalDistRoot}/assets`);
-    const jsInManifest = manifest.jsAssets.length > 0;
-    const cssInManifest = manifest.cssAssets.length > 0;
-    let jsOk = true;
-    let cssOk = true;
-    if (jsInManifest) jsOk = copied.some((f) => f.startsWith('assets/') && /\.js$/i.test(f));
-    if (cssInManifest) cssOk = copied.some((f) => f.startsWith('assets/') && /\.css$/i.test(f));
-    const fullCountOk = copied.length === manifest.files.length;
-    const complete = indexExists && assetsExists && jsOk && cssOk && fullCountOk && failed.length === 0;
+      const manifestBytes = new TextEncoder().encode(manifestText).buffer;
+      const manifestEntry = { path: 'sharepoint-deploy-manifest.json', size: manifestBytes.byteLength, sha256: await sha256Bytes(manifestBytes) };
+      await uploadAndVerifyFile({ webUrl, digest, rootRel: cfg.finalDistRoot, entry: manifestEntry, bytes: manifestBytes, buildId: manifest.buildId, phase: 'manifest' });
+      const finalManifestResponse = await logRequest({ url: buildFileValueUrl(webUrl, `${cfg.finalDistRoot}/sharepoint-deploy-manifest.json`, `${manifest.buildId}-${Date.now()}`), purpose: 'boundary-b-verify-final-manifest' });
+      const finalManifestText = await finalManifestResponse.text();
+      let finalManifest;
+      try {
+        finalManifest = finalManifestResponse.ok ? normalizeAtomicBuildManifest(JSON.parse(finalManifestText)) : null;
+      } catch (error) {
+        throw deploymentFailure({ boundary: 'B', phase: 'final-manifest', buildId: manifest.buildId, path: 'sharepoint-deploy-manifest.json', method: 'GET', status: finalManifestResponse.status, contentType: finalManifestResponse.headers.get('content-type') || '', responsePreview: finalManifestText.slice(0, 500), reason: error.message });
+      }
+      if (!finalManifestResponse.ok || finalManifest.buildId !== manifest.buildId) {
+        throw deploymentFailure({ boundary: 'B', phase: 'final-manifest', buildId: manifest.buildId, path: 'sharepoint-deploy-manifest.json', method: 'GET', status: finalManifestResponse.status, contentType: finalManifestResponse.headers.get('content-type') || '', responsePreview: finalManifestText.slice(0, 500), actualBuildId: finalManifest?.buildId || '' });
+      }
 
-    addLog(`final verification | index=${indexExists} assets=${assetsExists} jsOk=${jsOk} cssOk=${cssOk} copied=${copied.length}/${manifest.files.length} failed=${failed.length}`, 'sharepoint-final-copy');
-    setCopyStats((p) => ({ ...p, finalIndex: indexExists, finalAssets: assetsExists }));
+      const indexEntry = manifest.files.find((entry) => entry.path === 'index.html');
+      addLog(`Committing index.html last for buildId=${manifest.buildId}`, 'sharepoint-final-copy');
+      await uploadAndVerifyFile({ webUrl, digest, rootRel: cfg.finalDistRoot, entry: indexEntry, bytes: sourceBytes.get('index.html'), buildId: manifest.buildId, phase: 'commit-index-last' });
 
-    if (complete) {
+      for (let index = 0; index < indexReferences.length; index += 1) {
+        const path = indexReferences[index];
+        const entry = manifest.files.find((file) => file.path === path);
+        addLog(`Verifying final: ${index + 1} / ${indexReferences.length} — ${path}`, 'sharepoint-final-copy');
+        await fetchAndVerifyFile({ webUrl, rootRel: cfg.finalDistRoot, entry, buildId: manifest.buildId, boundary: 'B', phase: 'final-index-reference' });
+      }
+      setDetails((p) => ({ ...p, copiedFiles: [...p.copiedFiles, ...copied, 'sharepoint-deploy-manifest.json', 'index.html'] }));
+      setCopyStats((p) => ({ ...p, copied: copied.length + 2, verified: copied.length + 2, finalIndex: true, finalAssets: true }));
       setState((p) => ({ ...p, copyFiles: 'done', finalIndex: 'done', dist: 'done' }));
-      return { complete: true };
+      return { complete: true, buildId: manifest.buildId };
+    } catch (error) {
+      setDetails((p) => ({ ...p, copiedFiles: [...p.copiedFiles, ...copied], failedFiles: [...p.failedFiles, { file: 'atomic-final-copy', reason: error.message }] }));
+      setCopyStats((p) => ({
+        ...p,
+        copied: copied.length,
+        verified: copied.length,
+        failed: p.failed + 1,
+        mismatched: p.mismatched + (error?.deploymentDetails?.actualSha256 || error?.deploymentDetails?.actualSize !== undefined ? 1 : 0),
+      }));
+      setState((p) => ({ ...p, copyFiles: copied.length ? 'partial' : 'failed', finalIndex: 'failed' }));
+      throw error;
     }
-    if (copied.length > 0) {
-      setState((p) => ({ ...p, copyFiles: 'partial', finalIndex: indexExists ? 'exists' : 'failed' }));
-      throw new Error('ההקמה לא הושלמה: קבצי assets חסרים בתיקיית dist הסופית.');
-    }
-    setState((p) => ({ ...p, copyFiles: 'failed' }));
-    throw new Error('העתקת קבצי האתר נכשלה.');
   };
 
   const runSetup = async () => {
@@ -611,8 +598,9 @@ export default function AdminSharePointSetupPage() {
           <button type="button" onClick={() => setShowLogs((v) => !v)} className="w-full text-right font-semibold">פרטי לוג טכניים</button>
           <div className="text-sm mt-2">latest step: {latestStep}</div>
           <div className="text-xs mt-1">manifest URL: {copyStats.manifestUrl || '—'}</div>
+          <div className="text-xs">build ID: {copyStats.buildId || '—'}</div>
           <div className="text-xs">manifest file count: {copyStats.manifestCount}</div>
-          <div className="text-xs">copied: {copyStats.copied} | failed: {copyStats.failed}</div>
+          <div className="text-xs">copied: {copyStats.copied} | verified: {copyStats.verified} | failed: {copyStats.failed} | mismatched: {copyStats.mismatched}</div>
           <div className="text-xs">final index: {copyStats.finalIndex ? 'ok' : 'missing'} | final assets: {copyStats.finalAssets ? 'ok' : 'missing'}</div>
           {showLogs && (
             <>

@@ -66,8 +66,8 @@ describe('universal deployment staging', () => {
     const release = createUniversalRelease();
     const universalManifest = JSON.parse(fs.readFileSync(path.join(release, 'sharepoint-deploy-manifest.json'), 'utf8'));
     expect(fs.existsSync(path.join(release, 'sitebuilder-runtime-config.json'))).toBe(false);
-    expect(universalManifest.files).not.toContain('sitebuilder-runtime-config.json');
-    expect(universalManifest.files).not.toContain('sitebuilder-deployment.json');
+    expect(universalManifest.files.map((file) => file.path)).not.toContain('sitebuilder-runtime-config.json');
+    expect(universalManifest.files.map((file) => file.path)).not.toContain('sitebuilder-deployment.json');
 
     const targetA = createUniversalDeploymentStaging(release, legacyConfig(), {
       generatedAt: '2026-08-10T12:00:00.000Z',
@@ -124,10 +124,10 @@ describe('universal deployment staging', () => {
     expect(runtimeBText).not.toContain('legacy-runtime-a');
     expect(runtimeBText).not.toContain('portal.army.idf');
     const targetManifest = JSON.parse(fs.readFileSync(path.join(targetB.stagingRoot, 'sharepoint-deploy-manifest.json'), 'utf8'));
-    expect(targetManifest.files).toEqual(expect.arrayContaining([
+    expect(targetManifest.buildId).toBe(universalManifest.buildId);
+    expect(targetManifest.files.map((file) => file.path)).toEqual(expect.arrayContaining([
       'sitebuilder-runtime-config.json',
       'sitebuilder-deployment.json',
-      'sharepoint-deploy-manifest.json',
     ]));
   });
 

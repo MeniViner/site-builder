@@ -4,7 +4,13 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 import { parseCliArgs, resolveConfig } from './scripts/sp-env.js';
-import { assertLegacyDeployableDist, assertLegacyDeploymentConfig } from './scripts/deploymentArtifacts.mjs';
+import {
+  assertLegacyDeployableDist,
+  assertLegacyDeploymentConfig,
+  assertManifestFilesVerified,
+  assertTargetBuildMatchesManifest,
+  readBuildManifest,
+} from './scripts/deploymentArtifacts.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,7 +43,7 @@ console.log(`${logPrefix} Source: ${buildDir}`);
 console.log(`${logPrefix} Target: ${targetDir}`);
 console.log(`${logPrefix} TargetRel: ${targetRel}`);
 console.log(`${logPrefix} Storage backend: ${config.storageBackend} (${config.storageBackendSource})`);
-console.log(`${logPrefix} Clean-first mode: disabled (existing SharePoint data is preserved)`);
+console.log(`${logPrefix} Bootstrap cleanup: ${deployMode === 'bootstrap' ? 'mirror only the configured bootstrap dist' : 'preserve final dist assets'}`);
 if (dryRun) {
   console.log(`${logPrefix} Dry-run mode: robocopy will not run.`);
 }
@@ -62,7 +68,7 @@ try {
   if (!fs.existsSync(buildDir)) {
     throw new Error(`Build directory does not exist: ${buildDir}`);
   }
-  assertLegacyDeployableDist(buildDir);
+  const buildManifest = assertLegacyDeployableDist(buildDir);
   if (cleanFirst) {
     throw new Error('--clean-first is disabled because purging a target can remove unrelated SharePoint data.');
   }
@@ -89,11 +95,27 @@ try {
   }
 
   if (dryRun) {
-    console.log(`${logPrefix} Would copy legacy build "${buildDir}" => "${targetDir}"`);
+    console.log(`${logPrefix} Would deploy validated buildId=${buildManifest.buildId} from "${buildDir}" => "${targetDir}". No target verification was performed in dry-run mode.`);
   } else {
     fs.mkdirSync(targetDir, { recursive: true });
-    const copyCommand = `robocopy "${buildDir}" "${targetDir}" /E /R:3 /W:5`;
-    runRobocopy(copyCommand, 'copy-legacy-build');
+    // The bootstrap dist is disposable staging, so mirror it exactly. Final
+    // dist keeps prior hashed chunks until the new build has fully verified.
+    // In both cases index.html is deliberately excluded and committed last.
+    const copyMode = deployMode === 'bootstrap' ? '/MIR' : '/E';
+    const copyCommand = `robocopy "${buildDir}" "${targetDir}" ${copyMode} /XF "index.html" /R:3 /W:5`;
+    runRobocopy(copyCommand, 'copy-non-entry-files');
+
+    const targetManifest = readBuildManifest(targetDir);
+    if (targetManifest.buildId !== buildManifest.buildId) {
+      throw new Error(`Boundary A manifest build ID mismatch: expected ${buildManifest.buildId}, received ${targetManifest.buildId || '(missing)'}.`);
+    }
+    const nonEntryReport = assertManifestFilesVerified(targetDir, buildManifest, { includeEntryPoint: false });
+    console.log(`${logPrefix} Boundary A non-entry verification: expected=${nonEntryReport.expectedFiles} found=${nonEntryReport.foundFiles} verified=${nonEntryReport.verifiedFiles} buildId=${buildManifest.buildId}`);
+
+    const entryPointCommand = `robocopy "${buildDir}" "${targetDir}" "index.html" /R:3 /W:5`;
+    runRobocopy(entryPointCommand, 'commit-index-last');
+    const report = assertTargetBuildMatchesManifest(targetDir, buildManifest);
+    console.log(`${logPrefix} Boundary A complete verification: expected=${report.expectedFiles} found=${report.foundFiles} verified=${report.verifiedFiles} buildId=${buildManifest.buildId}`);
     console.log(`${logPrefix} Final app URL: ${deploymentIdentity.descriptor.finalAppUrl}`);
     console.log(`${logPrefix} Deployment completed.`);
   }

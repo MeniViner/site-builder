@@ -3,7 +3,9 @@ import {
     getRuntimeConfig,
     getRuntimeConfigSource,
     getRuntimeLog,
+    getSiteBuildMode,
     isRuntimeConfigLoaded,
+    SITE_BUILD_MODES,
 } from './runtimeConfig';
 
 export const STORAGE_BACKENDS = Object.freeze({
@@ -53,12 +55,23 @@ function normalizePath(value) {
     return raw.startsWith('/') ? raw.replace(/\/+$/g, '') : '';
 }
 
-function currentLocationSiteRoot() {
-    if (typeof window === 'undefined') return '';
-    const pathname = text(window.location?.pathname);
+function locationHost(location) {
+    return text(location?.host || location?.hostname)
+        .replace(/^https?:\/\//i, '')
+        .replace(/\/+$/g, '')
+        .toLowerCase();
+}
+
+function pathStartsAt(pathname, prefix) {
+    const path = text(pathname).replace(/\/+$/g, '').toLowerCase();
+    const expected = text(prefix).replace(/\/+$/g, '').toLowerCase();
+    return Boolean(path && expected && (path === expected || path.startsWith(`${expected}/`)));
+}
+
+function fallbackLocationSiteRoot(pathname, config = {}) {
     if (!pathname) return '';
 
-    const siteDbFolder = text(getRuntimeConfig()?.siteDbFolder || 'siteDB');
+    const siteDbFolder = text(config.siteDbFolder || 'siteDB');
     const marker = `/${siteDbFolder.toLowerCase()}/`;
     const lowerPath = pathname.toLowerCase();
     const markerIndex = lowerPath.indexOf(marker);
@@ -70,6 +83,45 @@ function currentLocationSiteRoot() {
 
     const match = pathname.match(/^\/(sites|teams)\/([^/]+)/i);
     return match ? `/${match[1]}/${match[2]}` : '';
+}
+
+/**
+ * Resolves the SharePoint web that owns the hosted frontend. Final releases
+ * are expected below <siteRoot>/<siteDbFolder>/dist. A legacy bootstrap
+ * release is the one narrowly-scoped exception: it is hosted under the
+ * configured SiteAssets-style bootstrap folder but still operates on the
+ * canonical SharePoint web. Anything else retains the historical derived
+ * nested root and is rejected by assertSiteRootMatchesLocation.
+ */
+export function resolveHostedTxtSiteRoot(location, config = {}, {
+    buildMode = getSiteBuildMode(),
+} = {}) {
+    const pathname = text(location?.pathname);
+    const configuredRoot = configuredTxtSiteRoot(config);
+    if (!pathname) return '';
+    if (!configuredRoot) return fallbackLocationSiteRoot(pathname, config);
+
+    const siteDbFolder = text(config.siteDbFolder || 'siteDB');
+    const finalDistRoot = `${configuredRoot}/${siteDbFolder}/dist`;
+    if (pathStartsAt(pathname, finalDistRoot)) return configuredRoot;
+
+    const configuredHost = locationHost({ host: config.host });
+    const hostedOnConfiguredHost = Boolean(configuredHost && configuredHost === locationHost(location));
+    const bootstrapLibrary = text(config.bootstrapLibrary);
+    const bootstrapFolder = text(config.bootstrapFolder);
+    const bootstrapDistRoot = bootstrapLibrary && bootstrapFolder
+        ? `${configuredRoot}/${bootstrapLibrary}/${bootstrapFolder}/dist`
+        : '';
+    if (
+        buildMode === SITE_BUILD_MODES.LEGACY
+        && hostedOnConfiguredHost
+        && bootstrapDistRoot
+        && pathStartsAt(pathname, bootstrapDistRoot)
+    ) {
+        return configuredRoot;
+    }
+
+    return fallbackLocationSiteRoot(pathname, config);
 }
 
 function configuredTxtSiteRoot(config) {
@@ -183,8 +235,10 @@ function buildDescriptor() {
             runtimeConfig.backendApiUrl,
         );
     } else {
-        const actualRoot = currentLocationSiteRoot();
         const configuredRoot = configuredTxtSiteRoot(runtimeConfig);
+        const actualRoot = typeof window === 'undefined'
+            ? ''
+            : resolveHostedTxtSiteRoot(window.location, runtimeConfig);
         assertSiteRootMatchesLocation(configuredRoot, actualRoot);
         siteRoot = configuredRoot || actualRoot;
         siteId = validateSiteId(

@@ -15,11 +15,14 @@ import {
   setRuntimeConfigForTests,
 } from './runtimeConfig';
 import {
+  buildTxtStoragePath,
   clearStorageDescriptorForTests,
   getBackendApiBaseUrl,
   getSiteId,
   getStorageBackend,
   getStorageDescriptor,
+  getTxtSiteRoot,
+  resolveHostedTxtSiteRoot,
 } from './storageBackend';
 import { getSharePointPaths } from '../../config/sharepointPaths';
 import { buildRuntimeConfigPayload } from '../../../scripts/deploymentArtifacts.mjs';
@@ -38,6 +41,32 @@ const setWindowLocation = (href, runtimeConfig = undefined) => {
     ...(runtimeConfig === undefined ? {} : { SITE_BUILDER_RUNTIME_CONFIG: runtimeConfig }),
     location: new URL(href),
   });
+};
+
+const configureLegacyBootstrapEnvironment = ({
+  host = 'portal.army.idf',
+  siteCode = 'new-site-a',
+  siteDbFolder = 'siteDB',
+  usersDbFolder = `/sites/${siteCode}/siteUsersDB`,
+  bootstrapLibrary = 'SiteAssets',
+  bootstrapFolder = 'sitebuilder-bootstrap',
+} = {}) => {
+  vi.stubEnv('DEV', false);
+  vi.stubEnv('MODE', 'production');
+  vi.stubEnv('VITE_SITE_BUILD_MODE', 'legacy');
+  vi.stubEnv('VITE_STORAGE_BACKEND', 'txt');
+  vi.stubEnv('VITE_SP_HOST', host);
+  vi.stubEnv('VITE_SP_SITE_CODE', siteCode);
+  vi.stubEnv('VITE_SITE_ID', siteCode);
+  vi.stubEnv('VITE_SP_SITE_DB_FOLDER', siteDbFolder);
+  vi.stubEnv('VITE_SP_USERS_DB_FOLDER', usersDbFolder);
+  vi.stubEnv('VITE_SP_SITE_ASSETS_FOLDER', 'siteAssets');
+  vi.stubEnv('VITE_SP_IMAGES_FOLDER', 'images');
+  vi.stubEnv('VITE_SP_WIDGETS_DB_TARGET', 'users');
+  vi.stubEnv('VITE_SP_SITE_API_ROOT', `/sites/${siteCode}`);
+  vi.stubEnv('VITE_SP_BOOTSTRAP_LIBRARY', bootstrapLibrary);
+  vi.stubEnv('VITE_SP_BOOTSTRAP_FOLDER', bootstrapFolder);
+  vi.stubEnv('VITE_SITE_BASE_URL', `https://${host}/sites/${siteCode}/${siteDbFolder}/dist`);
 };
 
 describe('runtimeConfig and storage descriptor', () => {
@@ -406,6 +435,108 @@ describe('runtimeConfig and storage descriptor', () => {
     } finally {
       fs.rmSync(deploymentFixture, { recursive: true, force: true });
     }
+  });
+
+  it.each([
+    {
+      label: 'the default configured bootstrap library',
+      siteCode: 'new-site-a',
+      bootstrapLibrary: 'SiteAssets',
+      bootstrapFolder: 'sitebuilder-bootstrap',
+      browserPath: '/sites/new-site-a/SiteAssets/sitebuilder-bootstrap/dist/index.html#/admin/sharepoint-setup',
+    },
+    {
+      label: 'a non-default configured bootstrap library',
+      siteCode: 'new-site-b',
+      bootstrapLibrary: 'CustomAssets',
+      bootstrapFolder: 'install-temp',
+      browserPath: '/sites/new-site-b/CustomAssets/install-temp/dist/index.html#/admin/sharepoint-setup',
+    },
+  ])('boots a legacy new-site setup from $label without changing TXT identity', async ({
+    siteCode,
+    bootstrapLibrary,
+    bootstrapFolder,
+    browserPath,
+  }) => {
+    configureLegacyBootstrapEnvironment({ siteCode, bootstrapLibrary, bootstrapFolder });
+    setWindowLocation(`https://portal.army.idf${browserPath}`);
+    const fetchMock = vi.fn(() => Promise.resolve(asResponse({}, 404)));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(loadRuntimeConfig()).resolves.toMatchObject({
+      siteRoot: `/sites/${siteCode}`,
+      siteDbRoot: `/sites/${siteCode}/siteDB`,
+      usersDbRoot: `/sites/${siteCode}/siteUsersDB`,
+      bootstrapLibrary,
+      bootstrapFolder,
+    });
+    expect(getStorageDescriptor()).toMatchObject({
+      backend: 'txt',
+      siteRoot: `/sites/${siteCode}`,
+    });
+    expect(getTxtSiteRoot()).toBe(`/sites/${siteCode}`);
+    expect(buildTxtStoragePath('events_data.txt')).toBe(`/sites/${siteCode}/siteDB/siteAssets/events_data.txt`);
+    expect(getRuntimeConfig().widgetsFileServerRelativeUrl).toBe(`/sites/${siteCode}/siteUsersDB/widgets_data.txt`);
+    expect(getTxtSiteRoot()).not.toContain(bootstrapLibrary);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      label: 'a bootstrap location under another site',
+      href: 'https://portal.army.idf/sites/other-site/SiteAssets/sitebuilder-bootstrap/dist/index.html#/admin/sharepoint-setup',
+    },
+    {
+      label: 'an arbitrary nested folder inside the configured site',
+      href: 'https://portal.army.idf/sites/new-site-a/random-folder/dist/index.html#/admin/sharepoint-setup',
+    },
+    {
+      label: 'the configured bootstrap path on another host',
+      href: 'https://other.army.idf/sites/new-site-a/SiteAssets/sitebuilder-bootstrap/dist/index.html#/admin/sharepoint-setup',
+    },
+  ])('rejects $label in legacy TXT mode', async ({ href }) => {
+    configureLegacyBootstrapEnvironment();
+    setWindowLocation(href);
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(asResponse({}, 404))));
+
+    await loadRuntimeConfig();
+
+    expect(() => getStorageDescriptor()).toThrow(expect.objectContaining({
+      code: 'txt_site_root_mismatch',
+    }));
+  });
+
+  it('does not allow a universal artifact to treat a bootstrap folder as its TXT site root', () => {
+    vi.stubEnv('VITE_SITE_BUILD_MODE', 'universal');
+    setWindowLocation('https://portal.army.idf/sites/new-site-a/SiteAssets/sitebuilder-bootstrap/dist/index.html#/admin/sharepoint-setup');
+    setRuntimeConfigForTests({
+      storageBackend: 'txt',
+      host: 'portal.army.idf',
+      siteCode: 'new-site-a',
+      siteRoot: '/sites/new-site-a',
+      siteDbFolder: 'siteDB',
+      usersDbFolder: 'siteUsersDB',
+      bootstrapLibrary: 'SiteAssets',
+      bootstrapFolder: 'sitebuilder-bootstrap',
+    });
+
+    expect(() => getStorageDescriptor()).toThrow(expect.objectContaining({
+      code: 'txt_site_root_mismatch',
+    }));
+  });
+
+  it('preserves configured /teams roots for a legacy bootstrap location', () => {
+    expect(resolveHostedTxtSiteRoot(
+      new URL('https://portal.army.idf/teams/new-site-a/CustomAssets/install-temp/dist/index.html'),
+      {
+        host: 'portal.army.idf',
+        siteRoot: '/teams/new-site-a',
+        siteDbFolder: 'siteDB',
+        bootstrapLibrary: 'CustomAssets',
+        bootstrapFolder: 'install-temp',
+      },
+      { buildMode: 'legacy' },
+    )).toBe('/teams/new-site-a');
   });
 
   it('uses runtime metadata ahead of conflicting development Vite values', async () => {
