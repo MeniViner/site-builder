@@ -17,6 +17,13 @@ const VALID_BACKENDS = new Set(Object.values(STORAGE_BACKENDS));
 let storageDescriptor = null;
 let lastStorageError = null;
 
+export const SHAREPOINT_APP_HOSTING_CONTEXTS = Object.freeze({
+    FINAL: 'final',
+    BOOTSTRAP: 'bootstrap',
+    DEVELOPMENT: 'development',
+    OTHER: 'other',
+});
+
 export class StorageConfigurationError extends Error {
     constructor(message, { code = 'storage_configuration_error', details = null } = {}) {
         super(message);
@@ -86,6 +93,48 @@ function fallbackLocationSiteRoot(pathname, config = {}) {
 }
 
 /**
+ * Classifies the physical frontend location from the same canonical runtime
+ * roots used by TXT storage. Hash routes are deliberately not inspected here;
+ * callers own route-specific actions such as the explicit setup page.
+ */
+export function resolveSharePointAppHostingContext(location, config = {}, {
+    buildMode = getSiteBuildMode(),
+} = {}) {
+    const pathname = text(location?.pathname);
+    const configuredRoot = configuredTxtSiteRoot(config);
+    if (pathname && configuredRoot) {
+        const configuredFinalRoot = normalizePath(config.targetDistPath)
+            || (normalizePath(config.siteDbRoot) ? `${normalizePath(config.siteDbRoot)}/dist` : '')
+            || (text(config.siteDbFolder) ? `${configuredRoot}/${text(config.siteDbFolder)}/dist` : '');
+        if (configuredFinalRoot && pathStartsAt(pathname, configuredFinalRoot)) {
+            return SHAREPOINT_APP_HOSTING_CONTEXTS.FINAL;
+        }
+
+        const configuredHost = locationHost({ host: config.host });
+        const hostedOnConfiguredHost = Boolean(configuredHost && configuredHost === locationHost(location));
+        const bootstrapLibrary = text(config.bootstrapLibrary);
+        const bootstrapFolder = text(config.bootstrapFolder);
+        const bootstrapDistRoot = bootstrapLibrary && bootstrapFolder
+            ? `${configuredRoot}/${bootstrapLibrary}/${bootstrapFolder}/dist`
+            : '';
+        if (
+            buildMode === SITE_BUILD_MODES.LEGACY
+            && hostedOnConfiguredHost
+            && bootstrapDistRoot
+            && pathStartsAt(pathname, bootstrapDistRoot)
+        ) {
+            return SHAREPOINT_APP_HOSTING_CONTEXTS.BOOTSTRAP;
+        }
+    }
+
+    const host = locationHost(location);
+    if (buildMode === 'development' || host === 'localhost' || host === '127.0.0.1') {
+        return SHAREPOINT_APP_HOSTING_CONTEXTS.DEVELOPMENT;
+    }
+    return SHAREPOINT_APP_HOSTING_CONTEXTS.OTHER;
+}
+
+/**
  * Resolves the SharePoint web that owns the hosted frontend. Final releases
  * are expected below <siteRoot>/<siteDbFolder>/dist. A legacy bootstrap
  * release is the one narrowly-scoped exception: it is hosted under the
@@ -101,22 +150,10 @@ export function resolveHostedTxtSiteRoot(location, config = {}, {
     if (!pathname) return '';
     if (!configuredRoot) return fallbackLocationSiteRoot(pathname, config);
 
-    const siteDbFolder = text(config.siteDbFolder || 'siteDB');
-    const finalDistRoot = `${configuredRoot}/${siteDbFolder}/dist`;
-    if (pathStartsAt(pathname, finalDistRoot)) return configuredRoot;
-
-    const configuredHost = locationHost({ host: config.host });
-    const hostedOnConfiguredHost = Boolean(configuredHost && configuredHost === locationHost(location));
-    const bootstrapLibrary = text(config.bootstrapLibrary);
-    const bootstrapFolder = text(config.bootstrapFolder);
-    const bootstrapDistRoot = bootstrapLibrary && bootstrapFolder
-        ? `${configuredRoot}/${bootstrapLibrary}/${bootstrapFolder}/dist`
-        : '';
+    const hostingContext = resolveSharePointAppHostingContext(location, config, { buildMode });
     if (
-        buildMode === SITE_BUILD_MODES.LEGACY
-        && hostedOnConfiguredHost
-        && bootstrapDistRoot
-        && pathStartsAt(pathname, bootstrapDistRoot)
+        hostingContext === SHAREPOINT_APP_HOSTING_CONTEXTS.FINAL
+        || hostingContext === SHAREPOINT_APP_HOSTING_CONTEXTS.BOOTSTRAP
     ) {
         return configuredRoot;
     }

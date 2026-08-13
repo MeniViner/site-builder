@@ -133,6 +133,17 @@ export function assertLegacyManifestFilesVerified(rootDir, manifest, options = {
   return report;
 }
 
+export function assertLegacyManifestEntryVerified(rootDir, manifest, entryPath) {
+  const normalizedPath = toPosixPath(entryPath);
+  const entry = (Array.isArray(manifest?.files) ? manifest.files : [])
+    .map(normalizeEntry)
+    .find((candidate) => candidate.path === normalizedPath);
+  if (!entry) {
+    throw new Error(`Legacy deployment manifest does not include ${normalizedPath || '(empty path)'}.`);
+  }
+  return assertLegacyManifestFilesVerified(rootDir, { ...manifest, files: [entry] });
+}
+
 export function assertLegacyDeployableDist(rootDir) {
   const manifest = readLegacyDeployManifest(rootDir);
   if (manifest.schemaVersion !== LEGACY_MANIFEST_SCHEMA_VERSION

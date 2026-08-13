@@ -1,9 +1,9 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runLegacyBuild } from './build-legacy.mjs';
-import { runLegacyDeploy, runRobocopy } from './deploy-legacy.mjs';
+import { commitFinalIndex, runLegacyDeploy, runRobocopy } from './deploy-legacy.mjs';
 import {
   assertLegacyManifestFilesVerified,
   readLegacyDeployManifest,
@@ -332,6 +332,137 @@ describe('historical Legacy pipeline isolation', () => {
     expect(() => runRobocopy('robocopy "source" "target"', 'test-copy', {
       execute() { throw Object.assign(new Error('robocopy failed'), { status: 8 }); },
     })).toThrow('exit code 8');
+  });
+
+  it.each([0, 7])('commits and normally verifies a valid final index after Robocopy exit code %i', (exitCode) => {
+    const root = makeRoot();
+    const source = path.join(root, 'source');
+    const target = path.join(root, 'target');
+    writeBuild(source, 'A');
+    copyWithoutIndex(source, target);
+    const buildManifest = readLegacyDeployManifest(source);
+
+    const result = commitFinalIndex({
+      buildDir: source,
+      targetDir: target,
+      buildManifest,
+      execute() {
+        fs.copyFileSync(path.join(source, 'index.html'), path.join(target, 'index.html'));
+        if (exitCode) throw Object.assign(new Error('robocopy copied with metadata differences'), { status: exitCode });
+      },
+    });
+
+    expect(result).toMatchObject({ status: 'SUCCESS', exitCode });
+    expect(assertLegacyManifestFilesVerified(target, buildManifest).missingFiles).toEqual([]);
+  });
+
+  it('accepts Robocopy 9 only when the current-build remote index independently matches', () => {
+    const root = makeRoot();
+    const source = path.join(root, 'source');
+    const target = path.join(root, 'target');
+    writeBuild(source, 'B');
+    copyWithoutIndex(source, target);
+    const buildManifest = readLegacyDeployManifest(source);
+
+    const result = commitFinalIndex({
+      buildDir: source,
+      targetDir: target,
+      buildManifest,
+      execute() {
+        fs.copyFileSync(path.join(source, 'index.html'), path.join(target, 'index.html'));
+        throw Object.assign(new Error('destination scan warning'), {
+          status: 9,
+          stdout: '100% New File index.html',
+          stderr: 'ERROR 2 The system cannot find the file specified.',
+        });
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: 'SUCCESS_WITH_TRANSPORT_WARNING',
+      exitCode: 9,
+      verificationReport: { expectedFiles: 1, verifiedFiles: 1 },
+      transportWarning: {
+        source,
+        target,
+        buildId: 'build-b',
+        output: expect.stringContaining('100% New File index.html'),
+      },
+    });
+  });
+
+  it('fails FINAL_INDEX_COMMIT when Robocopy 9 leaves the remote index missing', () => {
+    const root = makeRoot();
+    const source = path.join(root, 'source');
+    const target = path.join(root, 'target');
+    writeBuild(source, 'A');
+    copyWithoutIndex(source, target);
+
+    expect(() => commitFinalIndex({
+      buildDir: source,
+      targetDir: target,
+      buildManifest: readLegacyDeployManifest(source),
+      execute() { throw Object.assign(new Error('scan warning'), { status: 9, stderr: 'ERROR 2' }); },
+    })).toThrowError(expect.objectContaining({
+      message: expect.stringContaining('missingFiles'),
+      legacyDetails: expect.objectContaining({ boundary: 'FINAL_INDEX_COMMIT' }),
+    }));
+  });
+
+  it('fails FINAL_INDEX_COMMIT when Robocopy 9 leaves a hash-mismatched remote index', () => {
+    const root = makeRoot();
+    const source = path.join(root, 'source');
+    const target = path.join(root, 'target');
+    writeBuild(source, 'A');
+    copyWithoutIndex(source, target);
+
+    expect(() => commitFinalIndex({
+      buildDir: source,
+      targetDir: target,
+      buildManifest: readLegacyDeployManifest(source),
+      execute() {
+        fs.writeFileSync(path.join(target, 'index.html'), 'stale index from a different build');
+        throw Object.assign(new Error('scan warning'), { status: 9, stdout: '100% New File index.html' });
+      },
+    })).toThrowError(expect.objectContaining({
+      message: expect.stringContaining('mismatchedFiles'),
+      legacyDetails: expect.objectContaining({ boundary: 'FINAL_INDEX_COMMIT' }),
+    }));
+  });
+
+  it('continues through FINAL_INDEX_VERIFY and smoke before COMPLETE after a verified warning', async () => {
+    const root = makeRoot();
+    const legacyDist = path.join(root, 'dist');
+    const deploymentConfig = config(path.join(root, 'webdav'));
+    const target = deploymentConfig.toWebDav(deploymentConfig.distRel);
+    writeBuild(legacyDist, 'B');
+    const logs = [];
+    const logSpy = vi.spyOn(console, 'log').mockImplementation((...args) => logs.push(args.join(' ')));
+    let operation = 0;
+
+    const result = await runLegacyDeploy({
+      cwd: root,
+      cli: { force: true, mode: 'final' },
+      config: deploymentConfig,
+      execute() {
+        operation += 1;
+        if (operation === 1) copyWithoutIndex(legacyDist, target);
+        if (operation === 2) {
+          fs.copyFileSync(path.join(legacyDist, 'index.html'), path.join(target, 'index.html'));
+          throw Object.assign(new Error('destination scan warning'), { status: 9, stdout: '100% New File index.html' });
+        }
+      },
+    });
+    logSpy.mockRestore();
+
+    expect(result.indexCommit.status).toBe('SUCCESS_WITH_TRANSPORT_WARNING');
+    expect(result.completeReport.verifiedFiles).toBe(result.completeReport.expectedFiles);
+    const verifyIndex = logs.findIndex((line) => line.includes('FINAL_INDEX_VERIFY: SUCCESS'));
+    const smokeIndex = logs.findIndex((line) => line.includes('FINAL_APP_SMOKE: STATIC PASS'));
+    const completeIndex = logs.findIndex((line) => line.includes('LEGACY PIPELINE: COMPLETE'));
+    expect(verifyIndex).toBeGreaterThan(-1);
+    expect(smokeIndex).toBeGreaterThan(verifyIndex);
+    expect(completeIndex).toBeGreaterThan(smokeIndex);
   });
 
   it('keeps package commands and canonical output directories hard-separated', () => {

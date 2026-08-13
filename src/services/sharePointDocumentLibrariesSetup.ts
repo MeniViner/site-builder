@@ -68,6 +68,18 @@ type LibraryDefinition = {
   expectedRootUrl: string;
 };
 
+export const unwrapSharePointODataRecord = (payload: unknown): Record<string, unknown> | null => {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+  const candidate = payload as { d?: unknown; value?: unknown };
+  if (candidate.d && typeof candidate.d === 'object' && !Array.isArray(candidate.d)) {
+    return candidate.d as Record<string, unknown>;
+  }
+  if (candidate.value && typeof candidate.value === 'object' && !Array.isArray(candidate.value)) {
+    return candidate.value as Record<string, unknown>;
+  }
+  return payload as Record<string, unknown>;
+};
+
 let setupOncePromise: Promise<SharePointLibrarySetupResult> | null = null;
 
 const parseBooleanEnv = (value: unknown, fallback: boolean) => {
@@ -260,7 +272,9 @@ const requestDigest = async (siteRoot: string, logs: SharePointLibrarySetupLogEn
     },
   });
 
-  const digest = data?.d?.GetContextWebInformation?.FormDigestValue || '';
+  const record = unwrapSharePointODataRecord(data);
+  const contextInfo = record?.GetContextWebInformation as { FormDigestValue?: string } | undefined;
+  const digest = contextInfo?.FormDigestValue || String(record?.FormDigestValue || '');
   if (!digest) {
     throw normalizeError(step, 'contextinfo response did not include FormDigestValue', {
       endpoint,
@@ -282,7 +296,7 @@ const getCurrentUserInfo = async (siteRoot: string, logs: SharePointLibrarySetup
       Accept: ODATA_ACCEPT,
     },
   });
-  recordLog(logs, 'info', step, 'Current SharePoint user resolved', data?.d || null);
+  recordLog(logs, 'info', step, 'Current SharePoint user resolved', unwrapSharePointODataRecord(data));
 };
 
 const readLibrary = async (siteRoot: string, libraryTitle: string, logs: SharePointLibrarySetupLogEntry[]) => {
@@ -294,14 +308,14 @@ const readLibrary = async (siteRoot: string, libraryTitle: string, logs: SharePo
   );
 
   try {
-    const data = await fetchJson<{ d?: Record<string, unknown> }>(endpoint, {
+    const data = await fetchJson<Record<string, unknown>>(endpoint, {
       method: 'GET',
       purpose: `Read library "${libraryTitle}"`,
       step,
       logs,
       headers: { Accept: ODATA_ACCEPT },
     });
-    return data?.d || null;
+    return unwrapSharePointODataRecord(data);
   } catch (error) {
     const normalized = error as NormalizedSetupError;
     if (normalized?.status === 404) return null;
@@ -410,7 +424,7 @@ const validateLibrary = (
       { responseBody: library },
     );
   }
-  if (actualRoot !== expectedRootUrl) {
+  if (normalizeServerRelative(actualRoot).toLowerCase() !== normalizeServerRelative(expectedRootUrl).toLowerCase()) {
     throw normalizeError(
       'validate-library',
       `Library "${libraryTitle}" root mismatch. Expected "${expectedRootUrl}" but got "${actualRoot || '(empty)'}".`,

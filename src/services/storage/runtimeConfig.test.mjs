@@ -22,7 +22,9 @@ import {
   getStorageBackend,
   getStorageDescriptor,
   getTxtSiteRoot,
+  resolveSharePointAppHostingContext,
   resolveHostedTxtSiteRoot,
+  SHAREPOINT_APP_HOSTING_CONTEXTS,
 } from './storageBackend';
 import { getSharePointPaths } from '../../config/sharepointPaths';
 import { buildRuntimeConfigPayload } from '../../../scripts/deploymentArtifacts.mjs';
@@ -537,6 +539,34 @@ describe('runtimeConfig and storage descriptor', () => {
       },
       { buildMode: 'legacy' },
     )).toBe('/teams/new-site-a');
+  });
+
+  it('classifies final and bootstrap hosting from canonical configured paths, including non-default names', () => {
+    const runtime = {
+      host: 'portal.army.idf',
+      siteRoot: '/teams/new-site-a',
+      siteDbFolder: 'RecordsDb',
+      siteDbRoot: '/teams/new-site-a/RecordsDb',
+      targetDistPath: '/teams/new-site-a/RecordsDb/dist',
+      bootstrapLibrary: 'DeploymentAssets',
+      bootstrapFolder: 'install-temp',
+    };
+
+    expect(resolveSharePointAppHostingContext(
+      new URL('https://portal.army.idf/teams/new-site-a/RecordsDb/dist/index.html#/admin'),
+      runtime,
+      { buildMode: 'legacy' },
+    )).toBe(SHAREPOINT_APP_HOSTING_CONTEXTS.FINAL);
+    expect(resolveSharePointAppHostingContext(
+      new URL('https://portal.army.idf/teams/new-site-a/DeploymentAssets/install-temp/dist/index.html#/admin/sharepoint-setup'),
+      runtime,
+      { buildMode: 'legacy' },
+    )).toBe(SHAREPOINT_APP_HOSTING_CONTEXTS.BOOTSTRAP);
+    expect(resolveSharePointAppHostingContext(
+      new URL('https://portal.army.idf/teams/new-site-a/Unrelated/dist/index.html'),
+      runtime,
+      { buildMode: 'legacy' },
+    )).toBe(SHAREPOINT_APP_HOSTING_CONTEXTS.OTHER);
   });
 
   it('uses runtime metadata ahead of conflicting development Vite values', async () => {

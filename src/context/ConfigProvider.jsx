@@ -292,7 +292,7 @@ export const ConfigProvider = ({ children }) => {
                 try {
                     await ensureSharePointBootstrapFiles();
                 } catch (bootstrapError) {
-                    spLog.warn('[ConfigProvider] SharePoint bootstrap failed. Continuing init.', bootstrapError);
+                    spLog.warn('[ConfigProvider] RUNTIME DATA OPERATION FAILURE: optional SharePoint seed check failed. Continuing init.', bootstrapError);
                 }
             }
 

@@ -7,6 +7,7 @@ import { parseCliArgs, resolveConfig } from './sp-env.js';
 import {
   LEGACY_ENTRY_POINT,
   assertLegacyDeployableDist,
+  assertLegacyManifestEntryVerified,
   assertLegacyManifestFilesVerified,
   assertLegacyTargetMatchesManifest,
   readLegacyDeployManifest,
@@ -36,6 +37,77 @@ const runAtBoundary = (boundary, operation, details, work) => {
     throw error;
   }
 };
+
+const verifyCommittedFinalIndex = (targetDir, buildManifest) => {
+  const targetManifest = readLegacyDeployManifest(targetDir);
+  if (targetManifest.buildId !== buildManifest.buildId) {
+    throw new Error(`Legacy manifest build ID mismatch: expected ${buildManifest.buildId}, received ${targetManifest.buildId || '(missing)'}.`);
+  }
+  return assertLegacyManifestEntryVerified(targetDir, buildManifest, LEGACY_ENTRY_POINT);
+};
+
+export function commitFinalIndex({
+  buildDir,
+  targetDir,
+  buildManifest,
+  execute = execSync,
+  logPrefix = '[legacy-deploy]',
+} = {}) {
+  const command = `robocopy "${buildDir}" "${targetDir}" "${LEGACY_ENTRY_POINT}" /R:3 /W:5`;
+  try {
+    const exitCode = runRobocopy(command, 'commit-index-last', { execute, logPrefix });
+    logLegacyStage('FINAL_INDEX_COMMIT', 'SUCCESS', {
+      target: targetDir,
+      currentFile: LEGACY_ENTRY_POINT,
+      buildId: buildManifest.buildId,
+    });
+    return { status: 'SUCCESS', exitCode, verificationReport: null, transportWarning: null };
+  } catch (transportError) {
+    const transportWarning = {
+      exitCode: transportError.exitCode ?? null,
+      source: buildDir,
+      target: targetDir,
+      buildId: buildManifest.buildId,
+      output: [transportError.stdout, transportError.stderr].filter(Boolean).join('\n'),
+    };
+    console.warn('[legacy][FINAL_INDEX_COMMIT] Robocopy transport warning; independently verifying the final index.', transportWarning);
+
+    let verificationReport;
+    try {
+      verificationReport = verifyCommittedFinalIndex(targetDir, buildManifest);
+    } catch (verificationError) {
+      const failure = new Error(`Final index verification failed after Robocopy exit code ${transportWarning.exitCode}: ${verificationError.message}`);
+      failure.exitCode = transportWarning.exitCode;
+      failure.stdout = transportError.stdout || '';
+      failure.stderr = transportError.stderr || '';
+      failure.cause = verificationError;
+      failure.legacyDetails = {
+        boundary: 'FINAL_INDEX_COMMIT',
+        operation: 'verify-index-after-transport-warning',
+        source: buildDir,
+        target: targetDir,
+        currentFile: LEGACY_ENTRY_POINT,
+        buildId: buildManifest.buildId,
+        transportOutput: transportWarning.output,
+      };
+      throw failure;
+    }
+
+    logLegacyStage('FINAL_INDEX_COMMIT', 'SUCCESS_WITH_TRANSPORT_WARNING', {
+      exitCode: transportWarning.exitCode,
+      source: buildDir,
+      target: targetDir,
+      buildId: buildManifest.buildId,
+    });
+    console.warn('Robocopy reported a transport warning, but the final index was independently verified. Continuing.');
+    return {
+      status: 'SUCCESS_WITH_TRANSPORT_WARNING',
+      exitCode: transportWarning.exitCode,
+      verificationReport,
+      transportWarning,
+    };
+  }
+}
 
 export function runRobocopy(command, label, { execute = execSync, logPrefix = '[deploy]' } = {}) {
   console.log(`${logPrefix} Running (${label}): ${command}`);
@@ -255,10 +327,7 @@ export async function runLegacyDeploy({
   logLegacyStage('FINAL_ASSET_VERIFY', 'SUCCESS', { target: targetDir, buildId: buildManifest.buildId, fileCount: dependencyReport.verifiedFiles });
 
   console.log(`[legacy][FINAL_INDEX_COMMIT] STARTED | currentFile=${LEGACY_ENTRY_POINT} | buildId=${buildManifest.buildId}`);
-  runAtBoundary('FINAL_INDEX_COMMIT', 'robocopy-index-last', { source: buildDir, target: targetDir, currentFile: LEGACY_ENTRY_POINT, buildId: buildManifest.buildId }, () => (
-    runRobocopy(`robocopy "${buildDir}" "${targetDir}" "${LEGACY_ENTRY_POINT}" /R:3 /W:5`, 'commit-index-last', { execute, logPrefix })
-  ));
-  logLegacyStage('FINAL_INDEX_COMMIT', 'SUCCESS', { target: targetDir, currentFile: LEGACY_ENTRY_POINT, buildId: buildManifest.buildId });
+  const indexCommit = commitFinalIndex({ buildDir, targetDir, buildManifest, execute, logPrefix });
   const completeReport = runAtBoundary('FINAL_INDEX_VERIFY', 'verify-final-index-and-references', { source: buildDir, target: targetDir, currentFile: LEGACY_ENTRY_POINT, buildId: buildManifest.buildId }, () => assertLegacyTargetMatchesManifest(targetDir, buildManifest));
   console.log(`${logPrefix} Complete build verified: ${completeReport.verifiedFiles}/${completeReport.expectedFiles} buildId=${buildManifest.buildId}`);
   logLegacyStage('FINAL_INDEX_VERIFY', 'SUCCESS', { target: targetDir, currentFile: LEGACY_ENTRY_POINT, buildId: buildManifest.buildId });
@@ -267,7 +336,7 @@ export async function runLegacyDeploy({
   console.log('LEGACY PIPELINE: COMPLETE');
   console.log(`FINAL APP URL: https://${config.host}${config.distRel}/index.html`);
   console.log(`${logPrefix} Deployment completed.`);
-  return { config, deployMode, targetDir, targetRel, buildManifest, dependencyReport, completeReport };
+  return { config, deployMode, targetDir, targetRel, buildManifest, dependencyReport, indexCommit, completeReport };
 }
 
 export function reportLegacyDeployError(error) {
@@ -280,7 +349,7 @@ export function reportLegacyDeployError(error) {
     target: error.legacyDetails?.target || error.details?.destination || error.details?.targetDir,
     currentFile: error.legacyDetails?.currentFile || error.details?.currentFile,
     robocopyExitCode: error.exitCode ?? error.details?.exitCode,
-    responsePreview: error.details?.stderr || error.details?.stdout,
+    responsePreview: error.details?.stderr || error.details?.stdout || error.legacyDetails?.transportOutput || error.stderr || error.stdout,
     buildId: error.legacyDetails?.buildId || error.details?.buildId,
     nextAction: boundary === 'BOOTSTRAP_VERIFY' ? 'Inspect the reported remote file and retry the build before opening the Setup URL.' : `Inspect and retry only ${boundary}.`,
   });

@@ -5,6 +5,7 @@ import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { useAuth } from '../context/AuthContext';
 import { ensureSharePointDocumentLibrariesReady } from '../services/sharePointDocumentLibrariesSetup';
 import { ensureUsersDbFolderPermissionsReady } from '../services/sharePointPermissionsSetup';
+import { shouldRunBlockingSharePointSetupValidation } from '../utils/sharePointSetupContext';
 
 const RUNNING_PANEL_DELAY_MS = 700;
 
@@ -37,17 +38,21 @@ export default function SharePointPermissionsSetupStatus() {
   const [showRunning, setShowRunning] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
   const isOnAdminRoute = location.pathname.startsWith('/admin');
+  const ownsStrictSetupValidation = shouldRunBlockingSharePointSetupValidation({ routePath: location.pathname });
 
   useEffect(() => {
-    if (!isOnAdminRoute) return;
+    if (!isOnAdminRoute || !ownsStrictSetupValidation) return;
     setIsDismissed(false);
-  }, [isOnAdminRoute]);
+  }, [isOnAdminRoute, ownsStrictSetupValidation]);
 
   useEffect(() => {
     if (SHAREPOINT_CONFIG.useMock) {
       return undefined;
     }
     if (!isOnAdminRoute) {
+      return undefined;
+    }
+    if (!ownsStrictSetupValidation) {
       return undefined;
     }
     if (authLoading) {
@@ -102,7 +107,7 @@ export default function SharePointPermissionsSetupStatus() {
       alive = false;
       if (delayTimer) window.clearTimeout(delayTimer);
     };
-  }, [authLoading, isAdmin, isOnAdminRoute]);
+  }, [authLoading, isAdmin, isOnAdminRoute, ownsStrictSetupValidation]);
 
   const latestLogs = useMemo(() => {
     const logs = Array.isArray(result?.logs) ? result.logs : [];
@@ -111,6 +116,7 @@ export default function SharePointPermissionsSetupStatus() {
 
   if (SHAREPOINT_CONFIG.useMock) return null;
   if (!isOnAdminRoute) return null;
+  if (!ownsStrictSetupValidation) return null;
   if (authLoading || !isAdmin) return null;
   if (isDismissed) return null;
   if (isRunning && !showRunning) return null;
@@ -146,7 +152,7 @@ export default function SharePointPermissionsSetupStatus() {
       <div className="flex items-start gap-3">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold">נדרשת הגדרת SharePoint ראשונית</p>
+          <p className="text-sm font-bold">BOOTSTRAP SETUP FAILURE</p>
           <p className="mt-1 text-sm leading-6 text-theme-muted">{result.userMessage}</p>
           <div className="mt-3 grid gap-1 text-xs text-theme-muted">
             {result.folderUrl && <div><span className="font-bold text-theme">תיקייה:</span> {result.folderUrl}</div>}
