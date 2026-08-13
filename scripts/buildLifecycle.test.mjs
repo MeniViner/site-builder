@@ -6,7 +6,6 @@ import {
   ARTIFACT_KINDS,
   assertBuildManifest,
   readBuildManifest,
-  writeLegacyBuildArtifacts,
   writeReleaseArtifacts,
 } from './deploymentArtifacts.mjs';
 import {
@@ -35,34 +34,31 @@ const writeBuild = (distRoot, label) => {
   fs.writeFileSync(path.join(distRoot, 'assets', `index-${label}.css`), `body{--build:${label}}`);
 };
 
-const writeManifest = (distRoot, buildMode, buildId) => (
-  buildMode === 'universal'
-    ? writeReleaseArtifacts(distRoot, { buildId })
-    : writeLegacyBuildArtifacts(distRoot, { buildId })
-);
+const writeManifest = (distRoot, buildId) => writeReleaseArtifacts(distRoot, { buildId });
 
-const artifactKindFor = (buildMode) => (
-  buildMode === 'universal' ? ARTIFACT_KINDS.UNIVERSAL : ARTIFACT_KINDS.LEGACY
-);
-
-const createBuildPair = (buildMode = 'legacy') => {
+const createBuildPair = () => {
   const root = makeRoot();
-  const canonical = path.join(root, 'dist');
+  const buildMode = 'universal';
+  const canonical = path.join(root, 'dist-universal');
   writeBuild(canonical, 'A');
-  writeManifest(canonical, buildMode, 'build-a');
+  writeManifest(canonical, 'build-a');
   const staging = createBuildStaging({ projectRoot: root, buildMode, buildId: 'build-b' });
   writeBuild(staging.distRoot, 'B');
-  writeManifest(staging.distRoot, buildMode, 'build-b');
-  const validate = (dist) => assertBuildManifest(dist, { artifactKind: artifactKindFor(buildMode), buildMode });
+  writeManifest(staging.distRoot, 'build-b');
+  const validate = (dist) => assertBuildManifest(dist, { artifactKind: ARTIFACT_KINDS.UNIVERSAL, buildMode });
   return { root, canonical, staging, validate };
 };
 
 describe('atomic production build lifecycle', () => {
-  it.each(['legacy', 'universal'])('retains canonical Build A when a %s staging build fails with EPERM, then promotes Build C', (buildMode) => {
+  it('retains canonical Universal Build A when staging fails with EPERM, then promotes Build C without touching Legacy dist', () => {
     const root = makeRoot();
-    const canonical = path.join(root, 'dist');
+    const buildMode = 'universal';
+    const canonical = path.join(root, 'dist-universal');
+    const legacyDist = path.join(root, 'dist');
     writeBuild(canonical, 'A');
-    writeManifest(canonical, buildMode, 'build-a');
+    writeManifest(canonical, 'build-a');
+    fs.mkdirSync(legacyDist);
+    fs.writeFileSync(path.join(legacyDist, 'legacy-marker.txt'), 'legacy-safe');
     const beforeFailure = fs.readFileSync(path.join(canonical, 'index.html'), 'utf8');
 
     expect(() => runProductionBuild({
@@ -87,12 +83,13 @@ describe('atomic production build lifecycle', () => {
       },
     });
     expect(success.buildId).toBe('build-c');
-    expect(assertBuildManifest(canonical, { artifactKind: artifactKindFor(buildMode), buildMode }).buildId).toBe('build-c');
+    expect(assertBuildManifest(canonical, { artifactKind: ARTIFACT_KINDS.UNIVERSAL, buildMode }).buildId).toBe('build-c');
     expect(fs.readFileSync(path.join(canonical, 'index.html'), 'utf8')).toContain('index-C');
+    expect(fs.readFileSync(path.join(legacyDist, 'legacy-marker.txt'), 'utf8')).toBe('legacy-safe');
   });
 
-  it.each(['legacy', 'universal'])('does not require a canonical-directory rename when a %s build promotes', (buildMode) => {
-    const { canonical, staging, validate } = createBuildPair(buildMode);
+  it('does not require a canonical-directory rename when a Universal build promotes', () => {
+    const { canonical, staging, validate } = createBuildPair();
     const renameCalls = [];
     const originalRename = fs.renameSync;
     const result = promoteValidatedBuild({
@@ -243,7 +240,7 @@ describe('atomic production build lifecycle', () => {
     expect(result.cleanupWarnings[0]).toMatchObject({ operation: 'cleanup-stale-asset', targetPath: staleAsset, osErrorCode: 'EPERM' });
     expect(warnings.join('\n')).toContain(staleAsset);
     expect(fs.readFileSync(path.join(canonical, 'index.html'), 'utf8')).toContain('index-B');
-    expect(assertBuildManifest(canonical, { artifactKind: ARTIFACT_KINDS.LEGACY, buildMode: 'legacy' }).buildId).toBe('build-b');
+    expect(assertBuildManifest(canonical, { artifactKind: ARTIFACT_KINDS.UNIVERSAL, buildMode: 'universal' }).buildId).toBe('build-b');
     expect(fs.existsSync(staleAsset)).toBe(true);
   });
 

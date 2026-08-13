@@ -174,6 +174,7 @@ export function resolveConfig({ envFilePath = path.resolve(process.cwd(), '.env.
   const siteRootRel = `/sites/${siteCode}`;
   const siteDbRel = `${siteRootRel}/${siteDbFolder}`;
   const usersDbRel = `${siteRootRel}/${usersDbFolder}`;
+  const bootstrapLibraryRootRel = `${siteRootRel}/${bootstrapLibrary}`;
   const bootstrapBaseRel = `${siteRootRel}/${bootstrapLibrary}/${bootstrapFolder}`;
   const bootstrapDistRel = `${bootstrapBaseRel}/dist`;
   const siteAssetsRel = `${siteDbRel}/${siteAssetsFolder}`;
@@ -236,6 +237,7 @@ export function resolveConfig({ envFilePath = path.resolve(process.cwd(), '.env.
     siteRootRel,
     siteDbRel,
     usersDbRel,
+    bootstrapLibraryRootRel,
     bootstrapBaseRel,
     bootstrapDistRel,
     siteAssetsRel,

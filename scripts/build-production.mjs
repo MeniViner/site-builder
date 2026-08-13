@@ -5,9 +5,7 @@ import { spawnSync } from 'child_process';
 import {
   ARTIFACT_KINDS,
   assertBuildManifest,
-  assertProductionBuildConfig,
   createBuildId,
-  writeLegacyBuildArtifacts,
   writeReleaseArtifacts,
 } from './deploymentArtifacts.mjs';
 import {
@@ -16,10 +14,8 @@ import {
   markBuildStagingFailed,
   promoteValidatedBuild,
 } from './buildLifecycle.mjs';
-import { resolveConfig } from './sp-env.js';
 
 export const SITE_BUILD_MODES = Object.freeze({
-  LEGACY: 'legacy',
   UNIVERSAL: 'universal',
 });
 
@@ -45,34 +41,6 @@ const SITE_IDENTITY_ENV_KEYS = Object.freeze([
 
 const emptySiteIdentityEnvironment = () => Object.fromEntries(SITE_IDENTITY_ENV_KEYS.map((key) => [key, '']));
 
-/** Legacy dist intentionally contains one site's immutable SharePoint identity. */
-export function buildLegacyProductionEnvironment(config, baseEnvironment = process.env) {
-  const storageBackend = assertProductionBuildConfig(config);
-  return {
-    ...baseEnvironment,
-    NODE_ENV: 'production',
-    VITE_SITE_BUILD_MODE: SITE_BUILD_MODES.LEGACY,
-    VITE_SP_HOST: String(config.host || ''),
-    VITE_SP_SITE_CODE: String(config.siteCode || ''),
-    VITE_SP_SITE_DB_FOLDER: String(config.siteDbFolder || ''),
-    VITE_SP_USERS_DB_FOLDER: String(config.usersDbFolder || ''),
-    VITE_SP_SITE_ASSETS_FOLDER: String(config.siteAssetsFolder || ''),
-    VITE_SP_IMAGES_FOLDER: String(config.imagesFolder || ''),
-    VITE_SP_WIDGETS_DB_TARGET: String(config.widgetsDbTarget || ''),
-    VITE_SP_SITE_API_ROOT: String(config.siteApiRootRel || ''),
-    VITE_SP_BOOTSTRAP_LIBRARY: String(config.bootstrapLibrary || ''),
-    VITE_SP_BOOTSTRAP_FOLDER: String(config.bootstrapFolder || ''),
-    VITE_SITE_BASE_URL: String(config.siteBaseUrl || ''),
-    VITE_STORAGE_BACKEND: storageBackend,
-    VITE_BACKEND_API_URL: String(config.backendApiUrl || ''),
-    VITE_SITE_ID: String(config.siteId || config.siteCode || ''),
-    VITE_SITE_BUILDER_API_KEY: '',
-    VITE_SITE_BUILDER_DEV_API_KEY: '',
-    VITE_ADMIN_API_KEY: '',
-    VITE_AUTO_DEPLOY: 'false',
-  };
-}
-
 /** Universal dist deliberately has no deploy-target identity. */
 export function buildUniversalProductionEnvironment(baseEnvironment = process.env) {
   return {
@@ -86,9 +54,6 @@ export function buildUniversalProductionEnvironment(baseEnvironment = process.en
     VITE_AUTO_DEPLOY: 'false',
   };
 }
-
-// Retained for callers that used the old helper: default production builds are legacy builds.
-export const buildProductionEnvironment = buildLegacyProductionEnvironment;
 
 const assertNoOutputDirectoryOverride = (argv) => {
   const outputOverride = argv.find((argument, index) => (
@@ -105,26 +70,21 @@ const assertNoOutputDirectoryOverride = (argv) => {
 export function runProductionBuild({
   cwd = projectRoot,
   argv = process.argv.slice(2),
-  buildMode = SITE_BUILD_MODES.LEGACY,
+  buildMode = SITE_BUILD_MODES.UNIVERSAL,
   spawn = spawnSync,
   buildId = createBuildId(),
 } = {}) {
-  if (!Object.values(SITE_BUILD_MODES).includes(buildMode)) {
-    throw new Error(`Unsupported Site Builder production build mode "${buildMode}".`);
+  if (buildMode !== SITE_BUILD_MODES.UNIVERSAL) {
+    throw new Error('scripts/build-production.mjs is reserved for the isolated Universal Release Manager build. Use npm run build for Legacy.');
   }
   assertNoOutputDirectoryOverride(argv);
 
-  const envFilePath = path.resolve(cwd, '.env.production');
-  const config = buildMode === SITE_BUILD_MODES.LEGACY
-    ? resolveConfig({ envFilePath })
-    : null;
-  const env = buildMode === SITE_BUILD_MODES.LEGACY
-    ? buildLegacyProductionEnvironment(config)
-    : buildUniversalProductionEnvironment();
+  const config = null;
+  const env = buildUniversalProductionEnvironment();
   const viteBin = path.resolve(cwd, 'node_modules', 'vite', 'bin', 'vite.js');
-  const viteMode = buildMode === SITE_BUILD_MODES.LEGACY ? 'production' : 'universal-production';
+  const viteMode = 'universal-production';
   const staging = createBuildStaging({ projectRoot: cwd, buildMode, buildId });
-  const canonicalDist = path.resolve(cwd, 'dist');
+  const canonicalDist = path.resolve(cwd, 'dist-universal');
   let phase = 'vite-build';
   try {
     const result = spawn(process.execPath, [viteBin, 'build', '--mode', viteMode, '--outDir', staging.distRoot, ...argv], {
@@ -140,10 +100,8 @@ export function runProductionBuild({
     }
 
     phase = 'generate-manifest';
-    const artifacts = buildMode === SITE_BUILD_MODES.UNIVERSAL
-      ? writeReleaseArtifacts(staging.distRoot, { buildId })
-      : writeLegacyBuildArtifacts(staging.distRoot, { buildId });
-    const expectedKind = buildMode === SITE_BUILD_MODES.UNIVERSAL ? ARTIFACT_KINDS.UNIVERSAL : ARTIFACT_KINDS.LEGACY;
+    const artifacts = writeReleaseArtifacts(staging.distRoot, { buildId });
+    const expectedKind = ARTIFACT_KINDS.UNIVERSAL;
 
     phase = 'validate-staging';
     assertBuildManifest(staging.distRoot, { artifactKind: expectedKind, buildMode });
@@ -173,10 +131,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   const argv = process.argv.slice(2);
   const universal = argv.includes('--universal');
   try {
-    runProductionBuild({
-      buildMode: universal ? SITE_BUILD_MODES.UNIVERSAL : SITE_BUILD_MODES.LEGACY,
-      argv: argv.filter((argument) => argument !== '--universal'),
-    });
+    if (!universal) throw new Error('Universal build requires --universal. Use npm run build for Legacy.');
+    runProductionBuild({ buildMode: SITE_BUILD_MODES.UNIVERSAL, argv: argv.filter((argument) => argument !== '--universal') });
   } catch (error) {
     console.error(`[build-production] ${error.message}`);
     process.exit(1);

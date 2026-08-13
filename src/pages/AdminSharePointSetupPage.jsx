@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { resolveCurrentSharePointWebUrl } from '../utils/resolveCurrentSharePointWebUrl';
 import { useAuth } from '../context/AuthContext';
 import { spBootstrapLog } from '../utils/spAppLog';
@@ -10,6 +10,17 @@ import {
   normalizeAtomicBuildManifest,
   orderFilesForAtomicDeployment,
 } from '../utils/atomicDeploymentManifest';
+import {
+  LEGACY_PIPELINE_STAGES,
+  LegacyPipelineError,
+  classifyTxtSeed,
+  createLegacyStageState,
+  deriveRequiredFolders,
+  formatLegacyFailure,
+  legacyPipelineFailure,
+  normalizeLegacyFailure,
+  runFinalAssetStages,
+} from '../utils/legacyPipeline';
 
 const ODATA_ACCEPT = 'application/json;odata=verbose';
 const ODATA_CONTENT = 'application/json;odata=verbose';
@@ -51,12 +62,12 @@ async function readResponseSafely(response, context = {}) {
   }
 }
 
-const LABELS = { waiting: 'ממתין', checking: 'בבדיקה', exists: 'קיים', created: 'נוצר', copying: 'מעתיק', partial: 'הועתק חלקית', failed: 'נכשל', done: 'הושלם' };
+const LABELS = { waiting: 'ממתין', running: 'בביצוע', passed: 'עבר', checking: 'בבדיקה', exists: 'קיים', created: 'נוצר', copying: 'מעתיק', partial: 'הועתק חלקית', failed: 'נכשל', done: 'הושלם' };
 const badgeClass = (s) => {
-  if (s === 'done' || s === 'created' || s === 'exists') return 'bg-emerald-100 text-emerald-900 border-emerald-300';
+  if (s === 'done' || s === 'created' || s === 'exists' || s === 'passed') return 'bg-emerald-100 text-emerald-900 border-emerald-300';
   if (s === 'partial') return 'bg-amber-100 text-amber-900 border-amber-300';
   if (s === 'failed') return 'bg-red-100 text-red-900 border-red-300';
-  if (s === 'copying' || s === 'checking') return 'bg-blue-100 text-blue-900 border-blue-300';
+  if (s === 'copying' || s === 'checking' || s === 'running') return 'bg-blue-100 text-blue-900 border-blue-300';
   return 'bg-slate-100 text-slate-900 border-slate-300';
 };
 
@@ -67,6 +78,13 @@ export default function AdminSharePointSetupPage() {
   const [showLogs, setShowLogs] = useState(false);
   const [latestStep, setLatestStep] = useState('ממתין');
   const [errorInfo, setErrorInfo] = useState(null);
+  const activeStageRef = useRef('BOOTSTRAP_PAGE_LOAD');
+  const [stageState, setStageState] = useState(() => createLegacyStageState({
+    LEGACY_BUILD: 'passed',
+    LIBRARY_CHECK: 'passed',
+    BOOTSTRAP_UPLOAD: 'passed',
+    BOOTSTRAP_VERIFY: 'passed',
+  }));
   const [copyStats, setCopyStats] = useState({ manifestUrl: '', buildId: '', manifestCount: 0, copied: 0, verified: 0, failed: 0, mismatched: 0, finalIndex: false, finalAssets: false });
   const [details, setDetails] = useState({ copiedFiles: [], failedFiles: [], skippedFiles: [] });
   const [state, setState] = useState({
@@ -87,6 +105,10 @@ export default function AdminSharePointSetupPage() {
   const cfg = useMemo(() => {
     const {
       host, siteCode, siteRoot, siteDbFolder, siteDbRoot, usersDbFolder, usersDbRoot,
+      siteAssetsRoot, imagesRoot, widgetsFileServerRelativeUrl,
+      eventsFileServerRelativeUrl, navigationFileServerRelativeUrl, usersFileServerRelativeUrl,
+      siteContentFileServerRelativeUrl, themeFileServerRelativeUrl, externalLinksFileServerRelativeUrl,
+      ganttFileServerRelativeUrl, masterConfigFileServerRelativeUrl,
       bootstrapLibrary, bootstrapFolder, targetDistPath, finalAppUrl,
     } = SHAREPOINT_PATHS;
     const siteDbLib = resolveLibraryConfig(siteDbRoot || siteDbFolder, siteDbFolder, siteRoot);
@@ -94,7 +116,12 @@ export default function AdminSharePointSetupPage() {
     const bootstrapDistRoot = `${siteRoot}/${bootstrapLibrary}/${bootstrapFolder}/dist`;
     const finalDistRoot = targetDistPath || `${siteDbLib.rootRel}/dist`;
     return {
-      host, siteCode, siteDb: siteDbLib.title, siteDbRoot: siteDbLib.rootRel, usersDb: usersDbLib.title, usersDbRoot: usersDbLib.rootRel,
+      host, siteCode, siteRoot, bootstrapLibrary, bootstrapFolder,
+      siteDb: siteDbLib.title, siteDbRoot: siteDbLib.rootRel, usersDb: usersDbLib.title, usersDbRoot: usersDbLib.rootRel,
+      siteAssetsRoot, imagesRoot, widgetsFileServerRelativeUrl,
+      eventsFileServerRelativeUrl, navigationFileServerRelativeUrl, usersFileServerRelativeUrl,
+      siteContentFileServerRelativeUrl, themeFileServerRelativeUrl, externalLinksFileServerRelativeUrl,
+      ganttFileServerRelativeUrl, masterConfigFileServerRelativeUrl,
       bootstrapDistRoot, finalDistRoot,
       finalAppUrl: finalAppUrl || `https://${host}${finalDistRoot}/index.html`,
       manifestRel: `${bootstrapDistRoot}/sharepoint-deploy-manifest.json`,
@@ -110,6 +137,32 @@ export default function AdminSharePointSetupPage() {
     setLogs((prev) => [...prev, line]);
   };
   const addRunSeparator = () => addLog(`--- run ${new Date().toISOString()} ---`);
+  const setLegacyStage = (stage, stageStatus, details = {}) => {
+    activeStageRef.current = stage;
+    setStageState((previous) => ({ ...previous, [stage]: stageStatus }));
+    const detailText = Object.entries(details).filter(([, value]) => value !== undefined && value !== '').map(([key, value]) => `${key}=${value}`).join(' | ');
+    addLog(`${stage}: ${stageStatus.toUpperCase()}${detailText ? ` | ${detailText}` : ''}`, `legacy][${stage}`);
+    setLatestStep(stage);
+  };
+
+  const runStage = async (stage, operation, work, context = {}) => {
+    setLegacyStage(stage, 'running', context);
+    try {
+      const result = await work();
+      setLegacyStage(stage, 'passed', context);
+      return result;
+    } catch (error) {
+      setLegacyStage(stage, 'failed', context);
+      if (error instanceof LegacyPipelineError) throw error;
+      throw legacyPipelineFailure({
+        boundary: stage,
+        operation,
+        ...context,
+        reason: error.message,
+        nextAction: `Correct or retry ${stage}; completed stages are safe to recheck.`,
+      }, error);
+    }
+  };
 
   const logRequest = async ({ url, method = 'GET', purpose, headers, body }) => {
     const upperMethod = String(method || 'GET').toUpperCase();
@@ -226,10 +279,18 @@ export default function AdminSharePointSetupPage() {
   const getDigest = async (webUrl) => {
     const url = `${webUrl}/_api/contextinfo`;
     const res = await logRequest({ url, method: 'POST', purpose: 'contextinfo', headers: { Accept: ODATA_ACCEPT, 'Content-Type': ODATA_CONTENT } });
-    const parsed = await readResponseSafely(res, { url });
+    const text = await res.text();
+    let parsed;
+    try { parsed = text ? JSON.parse(text) : {}; } catch { parsed = {}; }
     const digest = parsed?.d?.GetContextWebInformation?.FormDigestValue || '';
-    if (!digest) throw new Error('contextinfo returned empty digest');
-    addLog('contextinfo success');
+    if (!res.ok || !digest) {
+      throw legacyPipelineFailure({
+        boundary: 'SHAREPOINT_CONTEXTINFO', operation: 'request-form-digest', target: url,
+        method: 'POST', status: res.status, responsePreview: text.slice(0, 500),
+        nextAction: 'Confirm the browser session is authenticated to this SharePoint web, then retry.',
+      });
+    }
+    addLog(`contextinfo success | status=${res.status} | content-type=${res.headers.get('content-type') || ''}`);
     return digest;
   };
 
@@ -257,15 +318,20 @@ export default function AdminSharePointSetupPage() {
             return { ok: true, existed: true, created: false, title };
           }
         }
-        throw new Error(`create library failed ${title} (${res.status}) ${errText.slice(0, 400)}`);
+        throw legacyPipelineFailure({
+          boundary: 'CREATE_LIBRARIES', operation: 'create-library', target: title,
+          method: 'POST', status: res.status, responsePreview: errText.slice(0, 400),
+          nextAction: `Verify permission to create the configured library "${title}", then retry.`,
+        });
       }
       const recheck = await checkLibraryExists(webUrl, title);
-      if (!recheck.exists) throw new Error(`library create verification failed: ${title}`);
+      if (!recheck.exists) throw legacyPipelineFailure({ boundary: 'CREATE_LIBRARIES', operation: 'verify-library', target: title, status: recheck.status, responsePreview: recheck.rawPreview, nextAction: 'Refresh SharePoint and retry library verification.' });
       setState((p) => ({ ...p, [key]: 'created' }));
     }
 
     const list = await getListByTitle(webUrl, title);
-    const rootRel = list?.RootFolder?.ServerRelativeUrl || `${cfg.siteDbRoot}`;
+    const configuredRoot = title === cfg.usersDb ? cfg.usersDbRoot : cfg.siteDbRoot;
+    const rootRel = list?.RootFolder?.ServerRelativeUrl || configuredRoot;
     const mergeUrl = `${webUrl}/_api/web/GetFolderByServerRelativeUrl('${esc(rootRel)}')`;
     const mergeRes = await logRequest({
       url: mergeUrl, method: 'POST', purpose: `welcome-${title}`,
@@ -278,6 +344,11 @@ export default function AdminSharePointSetupPage() {
 
   const ensureFolder = async (webUrl, rel, digest, key) => {
     if (key) setState((p) => ({ ...p, [key]: 'checking' }));
+    if (await folderExists(webUrl, rel)) {
+      if (key) setState((p) => ({ ...p, [key]: 'exists' }));
+      addLog(`folder already exists | ${rel}`);
+      return { existed: true, created: false, path: rel };
+    }
     const url = `${webUrl}/_api/web/folders`;
     const res = await logRequest({
       url, method: 'POST', purpose: `folder-${rel}`,
@@ -285,16 +356,22 @@ export default function AdminSharePointSetupPage() {
       body: JSON.stringify({ __metadata: { type: 'SP.Folder' }, ServerRelativeUrl: rel }),
     });
     if (res.ok || res.status === 409) {
+      const verified = await folderExists(webUrl, rel);
+      if (!verified) throw legacyPipelineFailure({ boundary: 'CREATE_FOLDERS', operation: 'verify-folder', target: rel, method: 'GET', status: 404, nextAction: 'Verify the parent folder/library and retry.' });
       if (key) setState((p) => ({ ...p, [key]: res.status === 409 ? 'exists' : 'created' }));
       addLog(`folder ensure result | ${rel}`);
-      return;
+      return { existed: res.status === 409, created: res.status !== 409, path: rel };
     }
     const text = await res.text();
     if (/already exists/i.test(text)) {
       if (key) setState((p) => ({ ...p, [key]: 'exists' }));
-      return;
+      return { existed: true, created: false, path: rel };
     }
-    throw new Error(`folder create failed ${rel} (${res.status}) ${text.slice(0, 200)}`);
+    throw legacyPipelineFailure({
+      boundary: 'CREATE_FOLDERS', operation: 'create-folder', target: rel,
+      method: 'POST', status: res.status, responsePreview: text.slice(0, 500),
+      nextAction: 'Verify the reported parent folder exists, then retry this deterministic setup run.',
+    });
   };
 
   const ensureTextFileIfMissing = async (webUrl, rel, content, digest) => {
@@ -302,13 +379,13 @@ export default function AdminSharePointSetupPage() {
     const readRes = await logRequest({ url: rel, purpose: `txt-read-${rel}` });
     if (readRes.ok) {
       const txt = await readRes.text();
-      if (txt.trim().length > 0) {
+      if (classifyTxtSeed({ status: readRes.status, text: txt }) === 'preserve') {
         addLog(`TXT kept | ${rel}`);
         setState((p) => ({ ...p, txtFiles: 'exists' }));
-        return;
+        return { path: rel, outcome: 'preserved' };
       }
     } else if (readRes.status !== 404) {
-      throw new Error(`txt read failed ${rel} (${readRes.status})`);
+      throw legacyPipelineFailure({ boundary: 'CREATE_TXT_SEEDS', operation: 'read-seed', target: rel, method: 'GET', status: readRes.status, nextAction: 'Check access to the configured TXT target and retry.' });
     }
     const folder = rel.slice(0, rel.lastIndexOf('/'));
     await ensureFolder(webUrl, folder, digest);
@@ -318,6 +395,7 @@ export default function AdminSharePointSetupPage() {
     await readResponseSafely(upRes, { url: upUrl });
     addLog(`TXT created | ${rel}`);
     setState((p) => ({ ...p, txtFiles: 'created' }));
+    return { path: rel, outcome: 'created' };
   };
 
   const buildFileValueUrl = (webUrl, rel, cacheKey = '') => {
@@ -329,43 +407,43 @@ export default function AdminSharePointSetupPage() {
     const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
     return Array.from(new Uint8Array(digest)).map((part) => part.toString(16).padStart(2, '0')).join('');
   };
-  const deploymentFailure = (context) => {
-    const error = new Error(`Atomic deployment verification failed: ${JSON.stringify(context)}`);
-    error.deploymentDetails = context;
-    return error;
-  };
+  const deploymentFailure = (context) => legacyPipelineFailure({
+    ...context,
+    boundary: context.boundary,
+    operation: context.operation || context.phase,
+    currentFile: context.currentFile || context.path,
+    nextAction: context.nextAction || `Retry ${context.boundary} after inspecting the reported file and response.`,
+  });
 
-  const fetchAndVerifyFile = async ({ webUrl, rootRel, entry, buildId, boundary, phase }) => {
+  const fetchAndVerifyFile = async ({ webUrl, rootRel, entry, buildId, boundary, operation }) => {
     const serverRelativePath = `${rootRel}/${entry.path}`;
     const url = buildFileValueUrl(webUrl, serverRelativePath, `${buildId}-${Date.now()}`);
-    const response = await logRequest({ url, purpose: `${boundary}-${phase}-${entry.path}` });
+    const response = await logRequest({ url, purpose: `${boundary}-${operation}-${entry.path}` });
     const contentType = response.headers.get('content-type') || '';
     if (!response.ok) {
       const preview = (await response.text()).slice(0, 500);
-      throw deploymentFailure({ boundary, phase, buildId, path: entry.path, method: 'GET', status: response.status, contentType, responsePreview: preview, expectedSize: entry.size, expectedSha256: entry.sha256 });
+      throw deploymentFailure({ boundary, operation, buildId, path: entry.path, source: serverRelativePath, target: url, method: 'GET', status: response.status, contentType, responsePreview: preview, expectedSize: entry.size, expectedSha256: entry.sha256 });
     }
     const bytes = await response.arrayBuffer();
     const actualSize = bytes.byteLength;
     const actualSha256 = await sha256Bytes(bytes);
     if (actualSize !== entry.size || actualSha256 !== entry.sha256) {
-      throw deploymentFailure({ boundary, phase, buildId, path: entry.path, method: 'GET', status: response.status, contentType, expectedSize: entry.size, actualSize, expectedSha256: entry.sha256, actualSha256 });
+      throw deploymentFailure({ boundary, operation, buildId, path: entry.path, source: serverRelativePath, target: url, method: 'GET', status: response.status, contentType, expectedSize: entry.size, actualSize, expectedSha256: entry.sha256, actualSha256 });
     }
     return bytes;
   };
 
-  const uploadAndVerifyFile = async ({ webUrl, digest, rootRel, entry, bytes, buildId, phase }) => {
+  const uploadFile = async ({ webUrl, digest, rootRel, entry, bytes, buildId, boundary, operation }) => {
     const target = `${rootRel}/${entry.path}`;
     const targetFolder = target.slice(0, target.lastIndexOf('/'));
-    await ensureFolder(webUrl, targetFolder, digest);
     const fileName = target.split('/').pop();
     const url = `${webUrl}/_api/web/GetFolderByServerRelativeUrl('${esc(targetFolder)}')/Files/add(url='${encodeURIComponent(fileName)}',overwrite=true)`;
-    const response = await logRequest({ url, method: 'POST', purpose: `boundary-b-${phase}-${entry.path}`, headers: { Accept: ODATA_ACCEPT, 'X-RequestDigest': digest }, body: bytes });
+    const response = await logRequest({ url, method: 'POST', purpose: `${boundary}-${operation}-${entry.path}`, headers: { Accept: ODATA_ACCEPT, 'X-RequestDigest': digest }, body: bytes });
     if (!response.ok) {
       const preview = (await response.text()).slice(0, 500);
-      throw deploymentFailure({ boundary: 'B', phase, buildId, path: entry.path, method: 'POST', status: response.status, contentType: response.headers.get('content-type') || '', responsePreview: preview, expectedSize: entry.size, expectedSha256: entry.sha256 });
+      throw deploymentFailure({ boundary, operation, buildId, path: entry.path, source: cfg.bootstrapDistRoot, target, method: 'POST', status: response.status, contentType: response.headers.get('content-type') || '', responsePreview: preview, expectedSize: entry.size, expectedSha256: entry.sha256 });
     }
     await readResponseSafely(response, { url });
-    await fetchAndVerifyFile({ webUrl, rootRel, entry, buildId, boundary: 'B', phase: `verify-${phase}` });
   };
 
   const preflightSource = async (webUrl) => {
@@ -376,20 +454,20 @@ export default function AdminSharePointSetupPage() {
     const manifestContentType = manifestResponse.headers.get('content-type') || '';
     const manifestText = await manifestResponse.text();
     if (!manifestResponse.ok) {
-      throw deploymentFailure({ boundary: 'B', phase: 'source-manifest', buildId: '', path: 'sharepoint-deploy-manifest.json', method: 'GET', status: manifestResponse.status, contentType: manifestContentType, responsePreview: manifestText.slice(0, 500) });
+      throw deploymentFailure({ boundary: 'BOOTSTRAP_PAGE_LOAD', operation: 'load-bootstrap-manifest', buildId: '', path: 'sharepoint-deploy-manifest.json', source: cfg.manifestRel, target: manifestUrl, method: 'GET', status: manifestResponse.status, contentType: manifestContentType, responsePreview: manifestText.slice(0, 500) });
     }
     let manifest;
     try {
       manifest = normalizeAtomicBuildManifest(JSON.parse(manifestText));
     } catch (error) {
-      throw deploymentFailure({ boundary: 'B', phase: 'source-manifest', buildId: '', path: 'sharepoint-deploy-manifest.json', method: 'GET', status: manifestResponse.status, contentType: manifestContentType, responsePreview: manifestText.slice(0, 500), reason: error.message });
+      throw deploymentFailure({ boundary: 'BOOTSTRAP_PAGE_LOAD', operation: 'parse-bootstrap-manifest', buildId: '', path: 'sharepoint-deploy-manifest.json', source: cfg.manifestRel, target: manifestUrl, method: 'GET', status: manifestResponse.status, contentType: manifestContentType, responsePreview: manifestText.slice(0, 500), reason: error.message });
     }
     addLog(`buildId=${manifest.buildId}; Source verification: 0 / ${manifest.files.length}`, 'sharepoint-final-copy');
     setCopyStats((p) => ({ ...p, buildId: manifest.buildId, manifestCount: manifest.files.length, copied: 0, verified: 0, failed: 0, mismatched: 0 }));
     const sourceBytes = new Map();
     for (let index = 0; index < manifest.files.length; index += 1) {
       const entry = manifest.files[index];
-      const bytes = await fetchAndVerifyFile({ webUrl, rootRel: cfg.bootstrapDistRoot, entry, buildId: manifest.buildId, boundary: 'B', phase: 'source-preflight' });
+      const bytes = await fetchAndVerifyFile({ webUrl, rootRel: cfg.bootstrapDistRoot, entry, buildId: manifest.buildId, boundary: 'BOOTSTRAP_PAGE_LOAD', operation: 'verify-bootstrap-file' });
       sourceBytes.set(entry.path, bytes);
       addLog(`Source verification: ${index + 1} / ${manifest.files.length} — ${entry.path}`, 'sharepoint-final-copy');
     }
@@ -399,54 +477,61 @@ export default function AdminSharePointSetupPage() {
     const requiredCss = indexReferences.filter((reference) => /\.css$/i.test(reference));
     const requiredJs = indexReferences.filter((reference) => /\.js$/i.test(reference));
     if (!requiredJs.length || !requiredCss.length) {
-      throw deploymentFailure({ boundary: 'B', phase: 'source-index-references', buildId: manifest.buildId, path: 'index.html', reason: 'index.html must reference at least one local JS and CSS asset.' });
+      throw deploymentFailure({ boundary: 'BOOTSTRAP_PAGE_LOAD', operation: 'validate-bootstrap-index-references', buildId: manifest.buildId, path: 'index.html', source: cfg.bootstrapDistRoot, reason: 'index.html must reference at least one local JS and CSS asset.' });
     }
     return { manifest, sourceBytes, indexReferences, manifestText };
   };
 
-  const copyFromBootstrapToFinal = async (webUrl, digest) => {
+  const copyFromBootstrapToFinal = async (webUrl, digest, source) => {
     setState((p) => ({ ...p, copyFiles: 'copying', finalIndex: 'waiting' }));
     setLatestStep('מאמת ומעתיק את קבצי האתר');
-    const source = await preflightSource(webUrl);
     const { manifest, sourceBytes, indexReferences, manifestText } = source;
     const copied = [];
     try {
       const orderedFiles = orderFilesForAtomicDeployment(manifest.files);
-      for (let index = 0; index < orderedFiles.length; index += 1) {
-        const entry = orderedFiles[index];
-        addLog(`Uploading: ${index + 1} / ${orderedFiles.length} — ${entry.path}`, 'sharepoint-final-copy');
-        await uploadAndVerifyFile({ webUrl, digest, rootRel: cfg.finalDistRoot, entry, bytes: sourceBytes.get(entry.path), buildId: manifest.buildId, phase: 'non-entry' });
-        copied.push(entry.path);
-        setCopyStats((p) => ({ ...p, copied: copied.length, verified: copied.length }));
-      }
-
       const manifestBytes = new TextEncoder().encode(manifestText).buffer;
       const manifestEntry = { path: 'sharepoint-deploy-manifest.json', size: manifestBytes.byteLength, sha256: await sha256Bytes(manifestBytes) };
-      await uploadAndVerifyFile({ webUrl, digest, rootRel: cfg.finalDistRoot, entry: manifestEntry, bytes: manifestBytes, buildId: manifest.buildId, phase: 'manifest' });
-      const finalManifestResponse = await logRequest({ url: buildFileValueUrl(webUrl, `${cfg.finalDistRoot}/sharepoint-deploy-manifest.json`, `${manifest.buildId}-${Date.now()}`), purpose: 'boundary-b-verify-final-manifest' });
-      const finalManifestText = await finalManifestResponse.text();
-      let finalManifest;
-      try {
-        finalManifest = finalManifestResponse.ok ? normalizeAtomicBuildManifest(JSON.parse(finalManifestText)) : null;
-      } catch (error) {
-        throw deploymentFailure({ boundary: 'B', phase: 'final-manifest', buildId: manifest.buildId, path: 'sharepoint-deploy-manifest.json', method: 'GET', status: finalManifestResponse.status, contentType: finalManifestResponse.headers.get('content-type') || '', responsePreview: finalManifestText.slice(0, 500), reason: error.message });
-      }
-      if (!finalManifestResponse.ok || finalManifest.buildId !== manifest.buildId) {
-        throw deploymentFailure({ boundary: 'B', phase: 'final-manifest', buildId: manifest.buildId, path: 'sharepoint-deploy-manifest.json', method: 'GET', status: finalManifestResponse.status, contentType: finalManifestResponse.headers.get('content-type') || '', responsePreview: finalManifestText.slice(0, 500), actualBuildId: finalManifest?.buildId || '' });
-      }
-
       const indexEntry = manifest.files.find((entry) => entry.path === 'index.html');
-      addLog(`Committing index.html last for buildId=${manifest.buildId}`, 'sharepoint-final-copy');
-      await uploadAndVerifyFile({ webUrl, digest, rootRel: cfg.finalDistRoot, entry: indexEntry, bytes: sourceBytes.get('index.html'), buildId: manifest.buildId, phase: 'commit-index-last' });
-
-      for (let index = 0; index < indexReferences.length; index += 1) {
-        const path = indexReferences[index];
-        const entry = manifest.files.find((file) => file.path === path);
-        addLog(`Verifying final: ${index + 1} / ${indexReferences.length} — ${path}`, 'sharepoint-final-copy');
-        await fetchAndVerifyFile({ webUrl, rootRel: cfg.finalDistRoot, entry, buildId: manifest.buildId, boundary: 'B', phase: 'final-index-reference' });
-      }
-      setDetails((p) => ({ ...p, copiedFiles: [...p.copiedFiles, ...copied, 'sharepoint-deploy-manifest.json', 'index.html'] }));
-      setCopyStats((p) => ({ ...p, copied: copied.length + 2, verified: copied.length + 2, finalIndex: true, finalAssets: true }));
+      sourceBytes.set(manifestEntry.path, manifestBytes);
+      const deploymentEntries = [...orderedFiles, manifestEntry, indexEntry];
+      const stagedManifest = { ...manifest, targetRoot: cfg.finalDistRoot };
+      await runFinalAssetStages({
+        manifest: stagedManifest,
+        deploymentEntries,
+        skipFolderStage: true,
+        ensureFolder: (folder) => ensureFolder(webUrl, folder, digest),
+        uploadFile: async (entry) => {
+          await uploadFile({ webUrl, digest, rootRel: cfg.finalDistRoot, entry, bytes: sourceBytes.get(entry.path), buildId: manifest.buildId, boundary: 'FINAL_ASSET_COPY', operation: 'upload-final-asset' });
+          copied.push(entry.path);
+          setCopyStats((p) => ({ ...p, copied: copied.length }));
+        },
+        verifyFile: async (entry) => {
+          await fetchAndVerifyFile({ webUrl, rootRel: cfg.finalDistRoot, entry, buildId: manifest.buildId, boundary: 'FINAL_ASSET_VERIFY', operation: 'verify-final-asset' });
+          setCopyStats((p) => ({ ...p, verified: p.verified + 1 }));
+        },
+        commitIndex: async (entry) => uploadFile({ webUrl, digest, rootRel: cfg.finalDistRoot, entry, bytes: sourceBytes.get(entry.path), buildId: manifest.buildId, boundary: 'FINAL_INDEX_COMMIT', operation: 'commit-index-last' }),
+        verifyIndex: async (entry) => {
+          const finalIndexBytes = await fetchAndVerifyFile({ webUrl, rootRel: cfg.finalDistRoot, entry, buildId: manifest.buildId, boundary: 'FINAL_INDEX_VERIFY', operation: 'verify-final-index' });
+          const finalReferences = assertIndexReferencesMatchManifest(manifest, new TextDecoder().decode(finalIndexBytes));
+          for (const reference of finalReferences) {
+            const referencedEntry = manifest.files.find((file) => file.path === reference);
+            await fetchAndVerifyFile({ webUrl, rootRel: cfg.finalDistRoot, entry: referencedEntry, buildId: manifest.buildId, boundary: 'FINAL_INDEX_VERIFY', operation: 'verify-index-reference' });
+          }
+        },
+        smoke: async () => {
+          const smokeUrl = `${cfg.finalAppUrl}?siteBuilderBuild=${encodeURIComponent(manifest.buildId)}-${Date.now()}`;
+          const response = await logRequest({ url: smokeUrl, purpose: 'final-app-static-smoke' });
+          if (!response.ok) {
+            throw deploymentFailure({ boundary: 'FINAL_APP_SMOKE', operation: 'fetch-final-app', target: smokeUrl, method: 'GET', status: response.status, responsePreview: (await response.text()).slice(0, 500), buildId: manifest.buildId });
+          }
+          addLog(`FINAL_APP_SMOKE: STATIC PASS | finalUrl=${cfg.finalAppUrl} | references=${indexReferences.length}`, 'legacy][FINAL_APP_SMOKE');
+          return 'STATIC PASS';
+        },
+        onStage: (stage, stageStatus) => setLegacyStage(stage, stageStatus, { buildId: manifest.buildId }),
+        onProgress: (stage, current, total, currentFile) => addLog(`${stage}: ${current}/${total} ${currentFile}`, `legacy][${stage}`),
+      });
+      setDetails((p) => ({ ...p, copiedFiles: [...p.copiedFiles, ...copied, 'index.html'] }));
+      setCopyStats((p) => ({ ...p, finalIndex: true, finalAssets: true }));
       setState((p) => ({ ...p, copyFiles: 'done', finalIndex: 'done', dist: 'done' }));
       return { complete: true, buildId: manifest.buildId };
     } catch (error) {
@@ -456,7 +541,7 @@ export default function AdminSharePointSetupPage() {
         copied: copied.length,
         verified: copied.length,
         failed: p.failed + 1,
-        mismatched: p.mismatched + (error?.deploymentDetails?.actualSha256 || error?.deploymentDetails?.actualSize !== undefined ? 1 : 0),
+        mismatched: p.mismatched + (error?.legacyFailure?.actualSha256 || error?.legacyFailure?.actualSize !== undefined ? 1 : 0),
       }));
       setState((p) => ({ ...p, copyFiles: copied.length ? 'partial' : 'failed', finalIndex: 'failed' }));
       throw error;
@@ -471,49 +556,80 @@ export default function AdminSharePointSetupPage() {
     try {
       await refreshSetupStatus();
       const webUrl = resolveCurrentSharePointWebUrl();
-      const digest = await getDigest(webUrl);
+      const source = await runStage('BOOTSTRAP_PAGE_LOAD', 'load-and-verify-bootstrap-page', () => preflightSource(webUrl), {
+        source: window.location.href,
+        target: cfg.bootstrapDistRoot,
+      });
+      addLog(`BOOTSTRAP_PAGE_LOAD: SUCCESS | browserUrl=${window.location.href} | canonicalSiteRoot=${cfg.siteRoot} | bootstrapRoot=${cfg.bootstrapDistRoot} | buildId=${source.manifest.buildId}`, 'legacy][BOOTSTRAP_PAGE_LOAD');
 
-      await ensureLibrary(webUrl, cfg.siteDb, digest, 'siteDb');
-      await refreshSetupStatus();
-      await ensureLibrary(webUrl, cfg.usersDb, digest, 'usersDb');
-      await refreshSetupStatus();
+      const digest = await runStage('SHAREPOINT_CONTEXTINFO', 'request-form-digest', () => getDigest(webUrl), { target: `${webUrl}/_api/contextinfo`, method: 'POST', buildId: source.manifest.buildId });
 
-      await ensureFolder(webUrl, cfg.finalDistRoot, digest, 'dist');
-      await ensureFolder(webUrl, `${cfg.siteDbRoot}/siteAssets`, digest, 'siteAssets');
-      await ensureFolder(webUrl, `${cfg.siteDbRoot}/images`, digest, 'images');
-      await refreshSetupStatus();
+      await runStage('CREATE_LIBRARIES', 'ensure-configured-libraries', async () => {
+        await ensureLibrary(webUrl, cfg.siteDb, digest, 'siteDb');
+        await ensureLibrary(webUrl, cfg.usersDb, digest, 'usersDb');
+      }, { source: cfg.siteRoot, target: `${cfg.siteDbRoot},${cfg.usersDbRoot}`, buildId: source.manifest.buildId });
 
-      await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/bihs_master_config_v1.txt`, JSON.stringify(buildInitialMasterConfig(), null, 2), digest);
-      await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/users_data.txt`, JSON.stringify([], null, 2), digest);
-      await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/events_data.txt`, JSON.stringify({ displayCount: 3, displayMode: 'default', events: [] }, null, 2), digest);
-      await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/nav_data.txt`, JSON.stringify([], null, 2), digest);
-      await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/site_content_data.txt`, JSON.stringify({}, null, 2), digest);
-      await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/theme_data.txt`, JSON.stringify({}, null, 2), digest);
-      await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/external_links_data.txt`, JSON.stringify([], null, 2), digest);
-      await ensureTextFileIfMissing(webUrl, `${cfg.siteDbRoot}/siteAssets/gantt_data.txt`, JSON.stringify(DEFAULT_GANTT_DATA, null, 2), digest);
-      await ensureTextFileIfMissing(webUrl, `${cfg.usersDbRoot}/widgets_data.txt`, JSON.stringify({}, null, 2), digest);
-      await refreshSetupStatus();
+      await runStage('CREATE_FOLDERS', 'ensure-configured-and-manifest-folders', async () => {
+        await ensureFolder(webUrl, cfg.siteAssetsRoot, digest, 'siteAssets');
+        await ensureFolder(webUrl, cfg.imagesRoot, digest, 'images');
+        for (const folder of deriveRequiredFolders(cfg.finalDistRoot, source.manifest.files)) {
+          await ensureFolder(webUrl, folder, digest, folder === cfg.finalDistRoot ? 'dist' : undefined);
+        }
+      }, { source: cfg.siteDbRoot, target: cfg.finalDistRoot, buildId: source.manifest.buildId });
 
-      await copyFromBootstrapToFinal(webUrl, digest);
+      await runStage('CREATE_TXT_SEEDS', 'create-missing-seeds', async () => {
+        const seeds = [
+          [cfg.masterConfigFileServerRelativeUrl, JSON.stringify(buildInitialMasterConfig(), null, 2)],
+          [cfg.usersFileServerRelativeUrl, JSON.stringify([], null, 2)],
+          [cfg.eventsFileServerRelativeUrl, JSON.stringify({ displayCount: 3, displayMode: 'default', events: [] }, null, 2)],
+          [cfg.navigationFileServerRelativeUrl, JSON.stringify([], null, 2)],
+          [cfg.siteContentFileServerRelativeUrl, JSON.stringify({}, null, 2)],
+          [cfg.themeFileServerRelativeUrl, JSON.stringify({}, null, 2)],
+          [cfg.externalLinksFileServerRelativeUrl, JSON.stringify([], null, 2)],
+          [cfg.ganttFileServerRelativeUrl, JSON.stringify(DEFAULT_GANTT_DATA, null, 2)],
+          [cfg.widgetsFileServerRelativeUrl, JSON.stringify({}, null, 2)],
+        ];
+        const outcomes = [];
+        for (const [path, content] of seeds) outcomes.push(await ensureTextFileIfMissing(webUrl, path, content, digest));
+        addLog(`CREATE_TXT_SEEDS summary | created=${outcomes.filter((item) => item.outcome === 'created').length} | preserved=${outcomes.filter((item) => item.outcome === 'preserved').length} | failed=0`, 'legacy][CREATE_TXT_SEEDS');
+      }, { target: `${cfg.siteAssetsRoot},${cfg.usersDbRoot}`, buildId: source.manifest.buildId });
+
+      await copyFromBootstrapToFinal(webUrl, digest, source);
       await refreshSetupStatus();
 
       setStatus('done');
       setLatestStep('הקמה הושלמה');
+      setLegacyStage('COMPLETE', 'passed', { buildId: source.manifest.buildId, finalAppUrl: cfg.finalAppUrl });
+      addLog(`LEGACY PIPELINE: COMPLETE | FINAL APP URL: ${cfg.finalAppUrl}`, 'legacy][COMPLETE');
       addLog(`final URL: ${cfg.finalAppUrl}`);
     } catch (error) {
       setStatus('error');
       if (/manifest/i.test(String(error?.message || ''))) {
         setState((p) => ({ ...p, copyFiles: 'failed', finalIndex: 'failed' }));
       }
-      setErrorInfo({ title: 'ההקמה נכשלה', step: latestStep, reason: error.message });
-      addLog(`setup failure | step=${latestStep} | reason=${error.message}`);
+      const failure = error instanceof LegacyPipelineError
+        ? error.legacyFailure
+        : normalizeLegacyFailure({ boundary: activeStageRef.current, operation: 'browser-setup-stage', reason: error.message, nextAction: `Retry ${activeStageRef.current} after inspecting this diagnostic.` });
+      setStageState((previous) => ({ ...previous, [failure.boundary]: 'failed' }));
+      const diagnostic = formatLegacyFailure(failure);
+      setErrorInfo({ title: 'ההקמה נכשלה', step: failure.boundary, reason: failure.reason || error.message, diagnostic });
+      addLog(`setup failure\n${diagnostic}`, `legacy][${failure.boundary}`);
       await refreshSetupStatus().catch(() => {});
     }
   };
 
   useEffect(() => {
     if (authLoading || !isAdmin) return;
-    refreshSetupStatus().catch((error) => addLog(`status refresh failed: ${error.message}`));
+    const webUrl = resolveCurrentSharePointWebUrl();
+    refreshSetupStatus()
+      .then(() => runStage('BOOTSTRAP_PAGE_LOAD', 'initial-bootstrap-page-load', () => preflightSource(webUrl), { source: window.location.href, target: cfg.bootstrapDistRoot }))
+      .then((source) => addLog(`BOOTSTRAP_PAGE_LOAD: SUCCESS | browserUrl=${window.location.href} | canonicalSiteRoot=${cfg.siteRoot} | bootstrapRoot=${cfg.bootstrapDistRoot} | buildId=${source.manifest.buildId}`, 'legacy][BOOTSTRAP_PAGE_LOAD'))
+      .catch((error) => {
+        const failure = error instanceof LegacyPipelineError ? error.legacyFailure : normalizeLegacyFailure({ boundary: 'BOOTSTRAP_PAGE_LOAD', operation: 'initial-page-load', reason: error.message });
+        setErrorInfo({ title: 'טעינת Bootstrap נכשלה', step: failure.boundary, reason: failure.reason || error.message, diagnostic: formatLegacyFailure(failure) });
+      });
+  // The bootstrap artifact is deliberately validated once when authorization becomes ready.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, isAdmin]);
 
   const copyLogs = async () => {
@@ -567,6 +683,18 @@ export default function AdminSharePointSetupPage() {
           </div>
         </div>
 
+        <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3" dir="ltr">
+          <h2 className="text-lg font-semibold">Legacy pipeline stages</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {LEGACY_PIPELINE_STAGES.map((stage) => (
+              <div key={stage} className={`border rounded-md p-2 ${badgeClass(stageState[stage])}`}>
+                <div className="font-mono text-xs font-semibold">{stage}</div>
+                <div className="text-xs">{stageState[stage]}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div className="bg-white border border-slate-200 rounded-lg p-5 text-sm space-y-1">
           <h2 className="text-lg font-semibold">פרטי יעד</h2>
           <div>Web URL: {state.webUrl || '...'}</div>
@@ -590,6 +718,7 @@ export default function AdminSharePointSetupPage() {
               <div className="font-semibold">{errorInfo.title}</div>
               <div>שלב שנכשל: {errorInfo.step}</div>
               <div>סיבה: {errorInfo.reason}</div>
+              {errorInfo.diagnostic && <pre dir="ltr" className="mt-2 whitespace-pre-wrap text-xs">{errorInfo.diagnostic}</pre>}
             </DismissibleNotice>
           )}
         </div>

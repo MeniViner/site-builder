@@ -42,4 +42,18 @@ describe('verifyUniversalDist', () => {
 
     expect(() => verifyUniversalDist(dist)).toThrow('npm run build:universal');
   });
+
+  it('rejects a Universal asset containing the configured Legacy site root', () => {
+    const dist = fs.mkdtempSync(path.join(os.tmpdir(), 'sitebuilder-contaminated-universal-test-'));
+    roots.push(dist);
+    const envText = fs.readFileSync(path.resolve('.env.production'), 'utf8');
+    const siteCode = envText.match(/^VITE_SP_SITE_CODE=(.+)$/m)?.[1]?.trim();
+    expect(siteCode).toBeTruthy();
+    fs.mkdirSync(path.join(dist, 'assets'));
+    fs.writeFileSync(path.join(dist, 'index.html'), '<script type="module" src="./assets/app.js"></script>');
+    fs.writeFileSync(path.join(dist, 'assets', 'app.js'), `const legacyTarget = '/sites/${siteCode}';`);
+    writeReleaseArtifacts(dist);
+
+    expect(() => verifyUniversalDist(dist)).toThrow('contains the Legacy deployment target');
+  });
 });

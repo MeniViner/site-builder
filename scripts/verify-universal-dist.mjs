@@ -32,6 +32,38 @@ const hashReleaseAssets = (distRoot) => {
   return hashes;
 };
 
+const readLegacyIdentityNeedles = (envPath = path.resolve('.env.production')) => {
+  if (!fs.existsSync(envPath)) return [];
+  const values = Object.fromEntries(fs.readFileSync(envPath, 'utf8').split(/\r?\n/).flatMap((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) return [];
+    const separator = trimmed.indexOf('=');
+    return [[trimmed.slice(0, separator), trimmed.slice(separator + 1).trim()]];
+  }));
+  const host = String(values.VITE_SP_HOST || '').replace(/^https?:\/\//i, '').replace(/\/+$/g, '');
+  const siteCode = String(values.VITE_SP_SITE_CODE || '').replace(/^\/+|\/+$/g, '');
+  const siteRoot = siteCode ? `/sites/${siteCode}` : '';
+  return [...new Set([
+    siteRoot,
+    host && siteRoot ? `${host}${siteRoot}` : '',
+    String(values.VITE_SP_USERS_DB_FOLDER || '').startsWith('/sites/') ? values.VITE_SP_USERS_DB_FOLDER : '',
+    String(values.VITE_SITE_BASE_URL || ''),
+  ].filter(Boolean))];
+};
+
+const assertNoLegacyTargetIdentity = (distRoot) => {
+  const needles = readLegacyIdentityNeedles();
+  if (!needles.length) return 0;
+  const assetsRoot = path.join(distRoot, 'assets');
+  const files = fs.readdirSync(assetsRoot).filter((filename) => /\.(?:js|css)$/i.test(filename));
+  for (const filename of files) {
+    const contents = fs.readFileSync(path.join(assetsRoot, filename), 'utf8');
+    const match = needles.find((needle) => contents.includes(needle));
+    if (match) throw new Error(`Universal asset ${filename} contains the Legacy deployment target ${match}.`);
+  }
+  return needles.length;
+};
+
 export function verifyUniversalDist(distRoot) {
   const source = path.resolve(distRoot);
   if (!fs.existsSync(path.join(source, 'index.html'))) {
@@ -46,6 +78,7 @@ export function verifyUniversalDist(distRoot) {
     throw new Error('dist is not a universal Release Manager artifact. Run npm run build:universal first.');
   }
   assertBuildManifest(source, { artifactKind: ARTIFACT_KINDS.UNIVERSAL, buildMode: 'universal' });
+  const checkedIdentityNeedles = assertNoLegacyTargetIdentity(source);
   for (const overlayFile of SITE_SPECIFIC_OVERLAY_FILES) {
     if (fs.existsSync(path.join(source, overlayFile))) {
       throw new Error(`Universal dist is contaminated by site-specific ${overlayFile}. Rebuild before deployment.`);
@@ -93,6 +126,7 @@ export function verifyUniversalDist(distRoot) {
       universalAssetHash: crypto.createHash('sha256').update(JSON.stringify(hashesA)).digest('hex'),
       targetA: siteA.runtimeConfig,
       targetB: siteB.runtimeConfig,
+      checkedIdentityNeedles,
     };
   } finally {
     removeUniversalDeploymentStaging(siteA);
@@ -103,9 +137,10 @@ export function verifyUniversalDist(distRoot) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   try {
-    const result = verifyUniversalDist(process.argv[2] || 'dist');
+    const result = verifyUniversalDist(process.argv[2] || 'dist-universal');
     console.log(`[verify-universal-dist] PASS ${Object.keys(result.assetHashes).length} JS/CSS assets are byte-identical.`);
     console.log(`[verify-universal-dist] Universal JS/CSS hash: ${result.universalAssetHash}`);
+    console.log(`[verify-universal-dist] PASS no Legacy target identity found (${result.checkedIdentityNeedles} target marker(s) checked).`);
     console.log(`[verify-universal-dist] Target A: ${result.targetA.finalAppUrl}`);
     console.log(`[verify-universal-dist] Target B: ${result.targetB.finalAppUrl}`);
   } catch (error) {

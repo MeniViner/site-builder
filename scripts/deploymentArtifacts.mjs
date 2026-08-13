@@ -18,7 +18,6 @@ export const DEPLOY_MANIFEST_FILE = 'sharepoint-deploy-manifest.json';
 export const BUILD_MANIFEST_SCHEMA_VERSION = 4;
 export const BUILD_ENTRY_POINT = 'index.html';
 export const ARTIFACT_KINDS = Object.freeze({
-  LEGACY: 'site-builder-legacy-frontend',
   UNIVERSAL: 'site-builder-universal-frontend',
 });
 
@@ -417,39 +416,6 @@ export function writeReleaseArtifacts(distRoot, { buildId = createBuildId() } = 
       requiresRuntimeConfig: true,
     }),
   };
-}
-
-/** A legacy dist is site-specific but still requires the same complete-build proof. */
-export function writeLegacyBuildArtifacts(distRoot, { buildId = createBuildId() } = {}) {
-  if (!fs.existsSync(distRoot)) throw new Error(`dist directory not found: ${distRoot}`);
-  removeSiteSpecificOverlays(distRoot);
-  return {
-    manifest: writeDeployManifest(distRoot, {
-      buildId,
-      buildMode: 'legacy',
-      artifactKind: ARTIFACT_KINDS.LEGACY,
-      requiresRuntimeConfig: false,
-    }),
-  };
-}
-
-/** Prevent the traditional deploy command from publishing a Release Manager artifact. */
-export function assertLegacyDeployableDist(distRoot) {
-  const manifestPath = path.join(distRoot, DEPLOY_MANIFEST_FILE);
-  if (!fs.existsSync(manifestPath)) {
-    throw new Error(`Legacy deploy refused a dist without ${DEPLOY_MANIFEST_FILE}. Run npm run build before npm run deploy.`);
-  }
-  let manifest;
-  try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); } catch {
-    throw new Error(`Legacy deploy refused unreadable ${DEPLOY_MANIFEST_FILE}; rebuild with npm run build.`);
-  }
-  if (manifest?.artifactKind === ARTIFACT_KINDS.UNIVERSAL) {
-    throw new Error('Legacy deploy refused a universal Release Manager artifact. Run npm run build before npm run deploy.');
-  }
-  return assertBuildManifest(distRoot, {
-    artifactKind: ARTIFACT_KINDS.LEGACY,
-    buildMode: 'legacy',
-  });
 }
 
 export function assertDeploymentOverlay(rootDir) {
