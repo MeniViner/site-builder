@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runLegacyBuild } from './build-legacy.mjs';
-import { commitFinalIndex, runLegacyDeploy, runRobocopy } from './deploy-legacy.mjs';
+import { commitFinalIndex, commitIndexLast, runLegacyDeploy, runRobocopy } from './deploy-legacy.mjs';
 import {
   assertLegacyManifestFilesVerified,
   readLegacyDeployManifest,
@@ -163,6 +163,59 @@ describe('Bootstrap WebDAV Boundary A transport', () => {
 
     expect(operation).toBe(2);
     expect(fs.existsSync(path.join(transport.bootstrapTargetDir, 'index.html'))).toBe(false);
+  });
+
+  it('continues Bootstrap index commit after Robocopy 9 when the remote index independently verifies', async () => {
+    const root = makeRoot();
+    const legacyDist = path.join(root, 'dist');
+    const deploymentConfig = config(path.join(root, 'webdav'));
+    const transport = resolveBootstrapWebDavTransport(deploymentConfig, { cwd: root, buildId: 'build-b' });
+    writeBuild(legacyDist, 'B');
+    fs.mkdirSync(transport.bootstrapAnchorDir, { recursive: true });
+    let operation = 0;
+
+    const result = await runLegacyDeploy({
+      cwd: root,
+      cli: { force: true, mode: 'bootstrap' },
+      config: deploymentConfig,
+      execute() {
+        operation += 1;
+        if (operation === 1) copyWithoutIndex(transport.stagingRoot, transport.bootstrapAnchorDir);
+        if (operation === 2) mirrorWithoutIndex(transport.stagedDistRoot, transport.bootstrapTargetDir);
+        if (operation === 3) {
+          fs.copyFileSync(path.join(transport.stagedDistRoot, 'index.html'), path.join(transport.bootstrapTargetDir, 'index.html'));
+          throw Object.assign(new Error('destination scan warning'), { status: 9, stdout: '100% New File index.html', stderr: 'ERROR 2' });
+        }
+      },
+    });
+
+    expect(result.bootstrapIndexCommit).toMatchObject({ status: 'SUCCESS_WITH_TRANSPORT_WARNING', exitCode: 9 });
+    expect(result.completeReport.verifiedFiles).toBe(result.completeReport.expectedFiles);
+  });
+
+  it.each([
+    ['missing', () => {}],
+    ['hash mismatch', (source, target) => fs.writeFileSync(path.join(target, 'index.html'), `stale ${path.basename(source)}`)],
+  ])('fails BOOTSTRAP_INDEX_COMMIT on Robocopy 9 with %s remote index', (label, prepareTarget) => {
+    const root = makeRoot();
+    const source = path.join(root, 'source');
+    const target = path.join(root, 'target');
+    writeBuild(source, 'B');
+    copyWithoutIndex(source, target);
+
+    expect(() => commitIndexLast({
+      buildDir: source,
+      targetDir: target,
+      buildManifest: readLegacyDeployManifest(source),
+      stage: 'BOOTSTRAP_INDEX_COMMIT',
+      boundary: 'BOOTSTRAP_INDEX_COMMIT',
+      execute() {
+        prepareTarget(source, target);
+        throw Object.assign(new Error('destination scan warning'), { status: 9, stderr: 'ERROR 2' });
+      },
+    })).toThrowError(expect.objectContaining({
+      legacyDetails: expect.objectContaining({ boundary: 'BOOTSTRAP_INDEX_COMMIT' }),
+    }));
   });
 });
 

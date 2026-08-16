@@ -6,6 +6,11 @@ import { DEFAULT_GANTT_DATA } from '../utils/ganttData';
 import DismissibleNotice from '../components/DismissibleNotice';
 import { SHAREPOINT_PATHS } from '../config/sharepointPaths';
 import {
+  classifySharePointLibraryResponse,
+  normalizeSharePointLibraryRecord,
+  unwrapSharePointODataRecord,
+} from '../utils/sharePointLibraryClassifier';
+import {
   assertIndexReferencesMatchManifest,
   normalizeAtomicBuildManifest,
   orderFilesForAtomicDeployment,
@@ -187,7 +192,7 @@ export default function AdminSharePointSetupPage() {
     const res = await logRequest({ url, purpose: `list-${title}` });
     if (res.status === 404) return null;
     const parsed = await readResponseSafely(res, { url });
-    return parsed?.d || null;
+    return normalizeSharePointLibraryRecord(unwrapSharePointODataRecord(parsed).record);
   };
 
   const checkLibraryExists = async (webUrl, title) => {
@@ -227,8 +232,15 @@ export default function AdminSharePointSetupPage() {
       if (parsedAs === 'xml') {
         addLog('Library exists but SharePoint returned Atom/XML instead of JSON');
       }
-      addLog(`library check result ${JSON.stringify({ title, endpoint, status, statusText, contentType, parsedAs, exists: true, rawPreview: parsedAs === 'json' ? undefined : rawPreview })}`);
-      return { exists: true, status, contentType, parsedAs, data, rawPreview };
+      const classification = classifySharePointLibraryResponse({
+        status,
+        payload: data,
+        title,
+        expectedRootUrl: title === cfg.usersDb ? cfg.usersDbRoot : cfg.siteDbRoot,
+        parsedAs,
+      });
+      addLog(`library check result ${JSON.stringify({ title, endpoint, status, statusText, contentType, parsedAs, exists: classification.exists, BaseTemplate: classification.baseTemplate, RootFolder: classification.rootFolder, isDocumentLibrary: classification.isDocumentLibrary, readinessReason: classification.reason, rawPreview: parsedAs === 'json' ? undefined : rawPreview })}`);
+      return { ...classification, status, contentType, parsedAs, rawPreview };
     }
 
     throw new Error(`Library check failed for ${title}: HTTP ${status} ${statusText}. Preview: ${rawPreview}`);
@@ -298,8 +310,18 @@ export default function AdminSharePointSetupPage() {
     setState((p) => ({ ...p, [key]: 'checking' }));
     const check = await checkLibraryExists(webUrl, title);
     if (check.exists) {
+      if (!check.ready) {
+        throw legacyPipelineFailure({
+          boundary: 'CREATE_LIBRARIES',
+          operation: 'classify-existing-library',
+          target: title,
+          status: check.status,
+          responsePreview: `${check.reason} | BaseTemplate=${check.baseTemplate ?? 'unknown'} | RootFolder=${check.rootFolder || 'unknown'}`,
+          nextAction: 'Inspect the configured SharePoint list metadata; the list exists but is not a usable configured document library.',
+        });
+      }
       setState((p) => ({ ...p, [key]: 'exists' }));
-      addLog(`library already exists ${JSON.stringify({ title, status: check.status, contentType: check.contentType, parsedAs: check.parsedAs })}`);
+      addLog(`library already exists ${JSON.stringify({ title, status: check.status, contentType: check.contentType, parsedAs: check.parsedAs, BaseTemplate: check.baseTemplate, RootFolder: check.rootFolder, readinessReason: check.reason })}`);
       return { ok: true, existed: true, created: false, title };
     }
 
@@ -325,7 +347,7 @@ export default function AdminSharePointSetupPage() {
         });
       }
       const recheck = await checkLibraryExists(webUrl, title);
-      if (!recheck.exists) throw legacyPipelineFailure({ boundary: 'CREATE_LIBRARIES', operation: 'verify-library', target: title, status: recheck.status, responsePreview: recheck.rawPreview, nextAction: 'Refresh SharePoint and retry library verification.' });
+      if (!recheck.ready) throw legacyPipelineFailure({ boundary: 'CREATE_LIBRARIES', operation: 'verify-library', target: title, status: recheck.status, responsePreview: `${recheck.reason} | ${recheck.rawPreview || ''}`, nextAction: 'Refresh SharePoint and retry library verification.' });
       setState((p) => ({ ...p, [key]: 'created' }));
     }
 

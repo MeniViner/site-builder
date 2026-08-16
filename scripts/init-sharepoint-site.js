@@ -1,7 +1,9 @@
 import fs from 'fs';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import { parseCliArgs, resolveConfig, writeEnvProduction } from './sp-env.js';
 import { DEFAULT_GANTT_DATA } from '../src/utils/ganttData.js';
+import { classifySharePointLibraryResponse } from '../src/utils/sharePointLibraryClassifier.js';
 
 const cli = parseCliArgs();
 const envPath = cli.env ? path.resolve(process.cwd(), String(cli.env)) : path.resolve(process.cwd(), '.env.production');
@@ -44,14 +46,60 @@ const defaultFiles = [
   { key: 'gantt', content: JSON.stringify(DEFAULT_GANTT_DATA, null, 2) },
 ];
 
-const checkLibrary = (title, rel) => {
-  const rootPath = config.toWebDav(rel);
-  const exists = fs.existsSync(rootPath);
-  const formsAllItemsPath = path.win32.join(rootPath, 'Forms', 'AllItems.aspx');
-  const hasFormsView = fs.existsSync(formsAllItemsPath);
-  const isDocumentLibrary = exists && hasFormsView;
-  log(`library check: ${title} | rel=${rel} | exists=${exists} | formsAllItems=${hasFormsView} | isDocumentLibrary=${isDocumentLibrary}`);
-  return { title, rel, exists, hasFormsView, isDocumentLibrary, rootPath };
+const escapeOData = (value) => String(value ?? '').replace(/'/g, "''");
+const libraryCheckEndpoint = (title, { host = config.host, siteApiRootRel = config.siteApiRootRel } = {}) => `https://${host}${siteApiRootRel}/_api/web/lists/GetByTitle('${escapeOData(title)}')?$select=Id,Title,BaseTemplate,BaseType,RootFolder/ServerRelativeUrl&$expand=RootFolder`;
+
+const parseJson = (value) => {
+  try { return value ? JSON.parse(value) : null; } catch { return null; }
+};
+
+export const checkLibraryReadiness = async ({ title, rel, fetchImpl = fetch, host, siteApiRootRel } = {}) => {
+  const endpoint = libraryCheckEndpoint(title, { host, siteApiRootRel });
+  let response;
+  let body = '';
+  try {
+    response = await fetchImpl(endpoint, {
+      method: 'GET',
+      headers: { Accept: 'application/json;odata=verbose, application/json;odata=minimalmetadata, application/json;odata=nometadata' },
+    });
+    body = await response.text();
+  } catch (error) {
+    return {
+      title,
+      rel,
+      endpoint,
+      status: 0,
+      parsedAs: 'transport-error',
+      exists: false,
+      isDocumentLibrary: false,
+      ready: false,
+      reason: 'LIBRARY_RESPONSE_UNRECOGNIZED',
+      error: error?.message || String(error),
+    };
+  }
+  const contentType = String(response.headers?.get?.('content-type') || '');
+  const payload = parseJson(body);
+  const parsedAs = payload ? 'json' : (body ? 'unrecognized' : 'empty');
+  const classification = classifySharePointLibraryResponse({
+    status: response.status,
+    payload,
+    title,
+    expectedRootUrl: rel,
+    parsedAs,
+  });
+  return {
+    title,
+    rel,
+    endpoint,
+    contentType,
+    bodyPreview: body.slice(0, 700),
+    ...classification,
+  };
+};
+
+const logLibraryCheck = (library) => {
+  log(`LIBRARY_CHECK | title=${library.title} | rel=${library.rel} | status=${library.status} | parsed=${library.parsedAs}/${library.responseType} | exists=${library.exists} | BaseTemplate=${library.baseTemplate ?? 'unknown'} | RootFolder=${library.rootFolder || 'unknown'} | isDocumentLibrary=${library.isDocumentLibrary} | readinessReason=${library.reason}`);
+  log(`LIBRARY_READY: ${library.ready} | title=${library.title}`);
 };
 
 const ensureDir = (serverRelativeDir) => {
@@ -78,7 +126,7 @@ const ensureTextFile = (serverRelativeFilePath, content) => {
   log(`created file: ${fullPath}`);
 };
 
-const run = async () => {
+export const runInitSharePointSite = async () => {
   log(`mode=${mode}`);
   log(`site=${config.siteCode}`);
   log(`webDavRoot=${config.webDavRoot}`);
@@ -90,9 +138,11 @@ const run = async () => {
     log(`updated env file: ${outputPath}`);
   }
 
-  const siteDb = checkLibrary('VITE_SP_SITE_DB_FOLDER', siteDbRel);
-  const usersDb = checkLibrary('VITE_SP_USERS_DB_FOLDER', usersDbRel);
-  const librariesReady = siteDb.isDocumentLibrary && usersDb.isDocumentLibrary;
+  const siteDb = await checkLibraryReadiness({ title: config.siteDbFolder, rel: siteDbRel });
+  const usersDb = await checkLibraryReadiness({ title: config.usersDbFolder, rel: usersDbRel });
+  logLibraryCheck(siteDb);
+  logLibraryCheck(usersDb);
+  const librariesReady = siteDb.ready && usersDb.ready;
 
   const baseResult = { mode, librariesReady, siteDb, usersDb };
 
@@ -123,7 +173,9 @@ const run = async () => {
   resultLog({ ...baseResult, finalized: true, distRel, siteAssetsRel, imagesRel, widgetsFileRel });
 };
 
-run().catch((error) => {
-  console.error(`[init-site] Error: ${error.message}`);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  runInitSharePointSite().catch((error) => {
+    console.error(`[init-site] Error: ${error.message}`);
+    process.exit(1);
+  });
+}

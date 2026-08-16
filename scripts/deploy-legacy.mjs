@@ -38,7 +38,7 @@ const runAtBoundary = (boundary, operation, details, work) => {
   }
 };
 
-const verifyCommittedFinalIndex = (targetDir, buildManifest) => {
+const verifyCommittedIndex = (targetDir, buildManifest) => {
   const targetManifest = readLegacyDeployManifest(targetDir);
   if (targetManifest.buildId !== buildManifest.buildId) {
     throw new Error(`Legacy manifest build ID mismatch: expected ${buildManifest.buildId}, received ${targetManifest.buildId || '(missing)'}.`);
@@ -46,17 +46,20 @@ const verifyCommittedFinalIndex = (targetDir, buildManifest) => {
   return assertLegacyManifestEntryVerified(targetDir, buildManifest, LEGACY_ENTRY_POINT);
 };
 
-export function commitFinalIndex({
+export function commitIndexLast({
   buildDir,
   targetDir,
   buildManifest,
   execute = execSync,
   logPrefix = '[legacy-deploy]',
+  stage = 'FINAL_INDEX_COMMIT',
+  boundary = stage,
+  transportLabel = 'commit-index-last',
 } = {}) {
   const command = `robocopy "${buildDir}" "${targetDir}" "${LEGACY_ENTRY_POINT}" /R:3 /W:5`;
   try {
-    const exitCode = runRobocopy(command, 'commit-index-last', { execute, logPrefix });
-    logLegacyStage('FINAL_INDEX_COMMIT', 'SUCCESS', {
+    const exitCode = runRobocopy(command, transportLabel, { execute, logPrefix });
+    logLegacyStage(stage, 'SUCCESS', {
       target: targetDir,
       currentFile: LEGACY_ENTRY_POINT,
       buildId: buildManifest.buildId,
@@ -70,19 +73,19 @@ export function commitFinalIndex({
       buildId: buildManifest.buildId,
       output: [transportError.stdout, transportError.stderr].filter(Boolean).join('\n'),
     };
-    console.warn('[legacy][FINAL_INDEX_COMMIT] Robocopy transport warning; independently verifying the final index.', transportWarning);
+    console.warn(`[legacy][${stage}] Robocopy transport warning; independently verifying the committed index.`, transportWarning);
 
     let verificationReport;
     try {
-      verificationReport = verifyCommittedFinalIndex(targetDir, buildManifest);
+      verificationReport = verifyCommittedIndex(targetDir, buildManifest);
     } catch (verificationError) {
-      const failure = new Error(`Final index verification failed after Robocopy exit code ${transportWarning.exitCode}: ${verificationError.message}`);
+      const failure = new Error(`Committed index verification failed after Robocopy exit code ${transportWarning.exitCode}: ${verificationError.message}`);
       failure.exitCode = transportWarning.exitCode;
       failure.stdout = transportError.stdout || '';
       failure.stderr = transportError.stderr || '';
       failure.cause = verificationError;
       failure.legacyDetails = {
-        boundary: 'FINAL_INDEX_COMMIT',
+        boundary,
         operation: 'verify-index-after-transport-warning',
         source: buildDir,
         target: targetDir,
@@ -93,13 +96,13 @@ export function commitFinalIndex({
       throw failure;
     }
 
-    logLegacyStage('FINAL_INDEX_COMMIT', 'SUCCESS_WITH_TRANSPORT_WARNING', {
+    logLegacyStage(stage, 'SUCCESS_WITH_TRANSPORT_WARNING', {
       exitCode: transportWarning.exitCode,
       source: buildDir,
       target: targetDir,
       buildId: buildManifest.buildId,
     });
-    console.warn('Robocopy reported a transport warning, but the final index was independently verified. Continuing.');
+    console.warn('Robocopy reported a transport warning, but the committed index was independently verified. Continuing.');
     return {
       status: 'SUCCESS_WITH_TRANSPORT_WARNING',
       exitCode: transportWarning.exitCode,
@@ -107,6 +110,10 @@ export function commitFinalIndex({
       transportWarning,
     };
   }
+}
+
+export function commitFinalIndex(options = {}) {
+  return commitIndexLast({ ...options, stage: 'FINAL_INDEX_COMMIT', boundary: 'FINAL_INDEX_COMMIT' });
 }
 
 export function runRobocopy(command, label, { execute = execSync, logPrefix = '[deploy]' } = {}) {
@@ -271,17 +278,16 @@ export async function runLegacyDeploy({
       const dependencyReport = verifyBootstrapTarget(targetDir, buildManifest, { includeEntryPoint: false });
       console.log(`${logPrefix} Dependencies verified: ${dependencyReport.verifiedFiles}/${dependencyReport.expectedFiles} buildId=${buildManifest.buildId}`);
 
-      runBootstrapRobocopy(
-        {
-          command: `robocopy "${bootstrapTransport.stagedDistRoot}" "${bootstrapTransport.bootstrapTargetDir}" "${LEGACY_ENTRY_POINT}" /R:3 /W:5`,
-          operation: 'commit-index-last',
-          source: bootstrapTransport.stagedDistRoot,
-          destination: bootstrapTransport.bootstrapTargetDir,
-          transport: bootstrapTransport,
-          buildId: buildManifest.buildId,
-          options: { execute, logPrefix },
-        },
-      );
+      const bootstrapIndexCommit = commitIndexLast({
+        buildDir: bootstrapTransport.stagedDistRoot,
+        targetDir: bootstrapTransport.bootstrapTargetDir,
+        buildManifest,
+        execute,
+        logPrefix,
+        stage: 'BOOTSTRAP_INDEX_COMMIT',
+        boundary: 'BOOTSTRAP_INDEX_COMMIT',
+        transportLabel: 'commit-index-last',
+      });
       logLegacyStage('BOOTSTRAP_UPLOAD', 'SUCCESS', {
         source: bootstrapTransport.stagingRoot,
         target: bootstrapTransport.bootstrapAnchorDir,
@@ -303,6 +309,7 @@ export async function runLegacyDeploy({
         buildManifest,
         dependencyReport,
         completeReport,
+        bootstrapIndexCommit,
         bootstrapTransport,
       };
     } finally {

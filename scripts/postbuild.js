@@ -54,6 +54,10 @@ const isBootstrapVerificationFailure = (result) => (
   `${result?.stdout || ''}\n${result?.stderr || ''}`.includes('WEBDAV_BOOTSTRAP_VERIFICATION_FAILED')
 );
 
+const isBootstrapIndexCommitFailure = (result) => (
+  `${result?.stdout || ''}\n${result?.stderr || ''}`.includes('FAILURE BOUNDARY: BOOTSTRAP_INDEX_COMMIT')
+);
+
 try {
   const manifest = assertLegacyDeployableDist(distRoot);
   console.log(`[postbuild] Legacy manifest accepted (${manifest.fileCount} files, buildId=${manifest.buildId}).`);
@@ -106,6 +110,7 @@ try {
   summary.failureBoundary = 'BOOTSTRAP_UPLOAD';
   const bootstrapDeploy = runNodeCommand(deployScript, ['--env', envPath, '--force', '--mode', 'bootstrap']);
   if (bootstrapDeploy.status !== 0) {
+    if (isBootstrapIndexCommitFailure(bootstrapDeploy)) summary.failureBoundary = 'BOOTSTRAP_INDEX_COMMIT';
     if (isBootstrapVerificationFailure(bootstrapDeploy)) summary.failureBoundary = 'BOOTSTRAP_VERIFY';
     throw new Error(`bootstrap deploy failed (exit ${bootstrapDeploy.status ?? 1})`);
   }

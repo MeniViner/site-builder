@@ -1,4 +1,8 @@
 import { SHAREPOINT_PATHS } from '../config/sharepointPaths';
+import {
+  classifySharePointLibraryResponse,
+  unwrapSharePointODataRecord as unwrapODataResponse,
+} from '../utils/sharePointLibraryClassifier';
 
 const PREFIX = '[SharePointLibrarySetup]';
 const ODATA_ACCEPT = 'application/json;odata=verbose';
@@ -68,17 +72,8 @@ type LibraryDefinition = {
   expectedRootUrl: string;
 };
 
-export const unwrapSharePointODataRecord = (payload: unknown): Record<string, unknown> | null => {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
-  const candidate = payload as { d?: unknown; value?: unknown };
-  if (candidate.d && typeof candidate.d === 'object' && !Array.isArray(candidate.d)) {
-    return candidate.d as Record<string, unknown>;
-  }
-  if (candidate.value && typeof candidate.value === 'object' && !Array.isArray(candidate.value)) {
-    return candidate.value as Record<string, unknown>;
-  }
-  return payload as Record<string, unknown>;
-};
+export const unwrapSharePointODataRecord = (payload: unknown): Record<string, unknown> | null =>
+  unwrapODataResponse(payload).record as Record<string, unknown> | null;
 
 let setupOncePromise: Promise<SharePointLibrarySetupResult> | null = null;
 
@@ -315,7 +310,19 @@ const readLibrary = async (siteRoot: string, libraryTitle: string, logs: SharePo
       logs,
       headers: { Accept: ODATA_ACCEPT },
     });
-    return unwrapSharePointODataRecord(data);
+    const classification = classifySharePointLibraryResponse({
+      status: 200,
+      payload: data,
+      title: libraryTitle,
+      expectedRootUrl: `${siteRoot}/${libraryTitle}`,
+    });
+    if (classification.reason === 'LIBRARY_RESPONSE_UNRECOGNIZED') {
+      throw normalizeError('read-library', `SharePoint returned an unrecognized library response for "${libraryTitle}".`, {
+        endpoint,
+        responseBody: data,
+      });
+    }
+    return classification.record as Record<string, unknown> | null;
   } catch (error) {
     const normalized = error as NormalizedSetupError;
     if (normalized?.status === 404) return null;
@@ -415,21 +422,28 @@ const validateLibrary = (
   if (!library) {
     throw normalizeError('validate-library', `Library "${libraryTitle}" was not found after provisioning.`);
   }
-  const baseTemplate = Number(library.BaseTemplate ?? 0);
-  const actualRoot = String((library.RootFolder as { ServerRelativeUrl?: string } | undefined)?.ServerRelativeUrl || '');
-  if (baseTemplate !== 101) {
+  const classification = classifySharePointLibraryResponse({
+    status: 200,
+    payload: library,
+    title: libraryTitle,
+    expectedRootUrl,
+  });
+  if (classification.reason === 'LIBRARY_EXISTS_NOT_DOCUMENT_LIBRARY') {
     throw normalizeError(
       'validate-library',
-      `SharePoint object "${libraryTitle}" exists but is not a Document Library (BaseTemplate=${library.BaseTemplate}).`,
+      `SharePoint object "${libraryTitle}" exists but is not a Document Library (BaseTemplate=${classification.baseTemplate ?? 'unknown'}).`,
       { responseBody: library },
     );
   }
-  if (normalizeServerRelative(actualRoot).toLowerCase() !== normalizeServerRelative(expectedRootUrl).toLowerCase()) {
+  if (classification.reason === 'LIBRARY_ROOT_MISMATCH') {
     throw normalizeError(
       'validate-library',
-      `Library "${libraryTitle}" root mismatch. Expected "${expectedRootUrl}" but got "${actualRoot || '(empty)'}".`,
+      `Library "${libraryTitle}" root mismatch. Expected "${expectedRootUrl}" but got "${classification.rootFolder || '(empty)'}".`,
       { responseBody: library },
     );
+  }
+  if (!classification.ready) {
+    throw normalizeError('validate-library', `SharePoint returned insufficient document-library metadata for "${libraryTitle}" (${classification.reason}).`, { responseBody: library });
   }
 };
 
