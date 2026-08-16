@@ -5,4 +5,31 @@ archive="${PWD##*/}-source-$(date +%Y%m%d-%H%M).7z"
 7zz a "$archive" . -t7z -mx=9 -m0=lzma2 -ms=on -mmt=on -xr'!.git' -xr'!node_modules' -xr'!.env*' -xr'!.idea' -xr'!.vscode' -xr'!.DS_Store' -xr'!__MACOSX' -xr'!test' -xr'!tests' -xr'!__tests__' -xr'!fixtures' -xr'!*.test.*' -xr'!*.spec.*' -xr'!docs' -xr'!documentation' -xr'!dist' -xr'!dist-universal' -xr'!.tmp-build' -xr'!.tmp-deploy' -xr'!build' -xr'!out' -xr'!coverage' -xr'!.cache' -xr'!.vite' -xr'!.turbo' -xr'!offline-artifacts' -xr'!*.log' -xr'!*.map' -xr'!*.zip' -xr'!*.7z' -xr'!*.rar' -xr'!*.tar' -xr'!*.gz'
 
 # Real .env files remain excluded. Add back only tracked configuration examples.
+
+
 git ls-files -z -- '.env*.example' '**/.env*.example' | xargs -0 7zz a "$archive"
+
+
+# Also archive the active recovery worktree so these changes are included too.
+cd /Users/meni/dev/site-builder.worktrees/browser-provisioning-fix-and-isolation
+archive="${PWD##*/}-source-$(date +%Y%m%d-%H%M).7z"
+7zz a "$archive" . -t7z -mx=9 -m0=lzma2 -ms=on -mmt=on -xr'!.git' -xr'!node_modules' -xr'!.env*' -xr'!.idea' -xr'!.vscode' -xr'!.DS_Store' -xr'!__MACOSX' -xr'!test' -xr'!tests' -xr'!__tests__' -xr'!fixtures' -xr'!*.test.*' -xr'!*.spec.*' -xr'!docs' -xr'!documentation' -xr'!dist' -xr'!dist-universal' -xr'!.tmp-build' -xr'!.tmp-deploy' -xr'!build' -xr'!out' -xr'!coverage' -xr'!.cache' -xr'!.vite' -xr'!.turbo' -xr'!offline-artifacts' -xr'!*.log' -xr'!*.map' -xr'!*.zip' -xr'!*.7z' -xr'!*.rar' -xr'!*.tar' -xr'!*.gz'
+git ls-files -z -- '.env*.example' '**/.env*.example' | xargs -0 7zz a "$archive"
+
+
+# Create a drop-in archive of only the workstream files, preserving paths for direct extraction.
+archive="${PWD##*/}-workstream-files-$(date +%Y%m%d-%H%M).7z"
+7zz a "$archive" \
+  "src/context/AuthContext.jsx" \
+  "src/pages/AdminSharePointSetupPage.jsx" \
+  "src/services/sharePointDocumentLibrariesSetup.ts" \
+  "src/services/sharePointDocumentLibrariesSetup.test.ts" \
+  "src/utils/legacyPipeline.js" \
+  "src/utils/legacyPipeline.test.js" \
+  "src/utils/sharePointExactLibraryProvisioning.js" \
+  "src/utils/sharePointExactLibraryProvisioning.test.js" \
+  "src/utils/sharePointLibraryClassifier.js" \
+  "src/utils/sharePointSetupContext.js" \
+  "src/utils/sharePointSetupContext.test.js" \
+  "CREATE_SOURCE_ARCHIVE.txt" \
+  -t7z -mx=9 -m0=lzma2 -ms=on -mmt=on
