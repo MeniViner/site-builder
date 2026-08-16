@@ -5,6 +5,7 @@ import { spLog } from '../utils/spAppLog';
 import { ensureRecentBackup } from '../utils/sharepointUtils';
 import { fetchSharePointAdmins } from '../utils/sharepointAdmins';
 import { isMongoStorageBackend, isSharePointReadonlyBackend } from '../services/storage/storageBackend';
+import { shouldSuppressAutomaticBackup } from '../utils/sharePointSetupContext';
 import {
     closeBackupProgressToast,
     showBackupCompletedToast,
@@ -483,6 +484,10 @@ export const AuthProvider = ({ children }) => {
         if (loading || !currentUser || !isAdmin || SHAREPOINT_CONFIG.useMock || isMongoStorageBackend() || isSharePointReadonlyBackend()) {
             return undefined;
         }
+        if (shouldSuppressAutomaticBackup({ routePath: getHashPathname() })) {
+            spLog.system('דילוג על גיבוי אוטומטי בזמן Bootstrap או הקמת SharePoint');
+            return undefined;
+        }
 
         const elapsedSinceBootMs = Date.now() - appBootTimestamp;
         const waitMs = Math.max(0, AUTO_BACKUP_CHECK_DELAY_MS - elapsedSinceBootMs);
@@ -491,6 +496,10 @@ export const AuthProvider = ({ children }) => {
         spLog.system(`תתבצע בדיקת גיבוי אוטומטי (24 שעות) עבור "${userLabel}" בעוד ${Math.ceil(waitMs / 1000)} שניות`);
 
         backupCheckTimerRef.current = window.setTimeout(async () => {
+            if (shouldSuppressAutomaticBackup({ routePath: getHashPathname() })) {
+                spLog.system('בדיקת הגיבוי האוטומטי בוטלה משום שהאתר עדיין במצב Bootstrap/הקמה');
+                return;
+            }
             const shouldShowBackupToasts = isAdminPath();
             const toastId = `backup:auto:${Date.now()}`;
             const guardResult = await ensureRecentBackup({

@@ -5,6 +5,7 @@ import {
   NEW_SITE_STAGE_ORDER,
   classifyTxtSeed,
   deriveRequiredFolders,
+  executeBrowserStage,
   formatLegacyFailure,
   runFinalAssetStages,
 } from './legacyPipeline';
@@ -119,6 +120,58 @@ describe('Legacy pipeline contract', () => {
   it('formats only applicable normalized diagnostic fields', () => {
     expect(formatLegacyFailure({ boundary: 'CREATE_FOLDERS', operation: 'ensure-folder', target: '/nested', status: 404, responsePreview: 'DirectoryNotFoundException' }))
       .toContain('FAILURE BOUNDARY: CREATE_FOLDERS');
+  });
+
+  it.each([
+    ['synchronous throw', () => { throw new Error('sync failure'); }],
+    ['promise rejection', () => Promise.reject(new Error('async failure'))],
+    ['JSOM failure', () => Promise.reject(Object.assign(new Error('query failed'), { code: 'JSOM_QUERY_FAILED' }))],
+  ])('%s cannot leave a Browser stage running', async (_label, work) => {
+    const statuses = [];
+    await expect(executeBrowserStage({
+      stage: 'CREATE_LIBRARIES',
+      operation: 'ensure-configured-libraries',
+      work,
+      onStatus: (_stage, status) => statuses.push(status),
+    })).rejects.toMatchObject({ legacyFailure: expect.objectContaining({ boundary: 'CREATE_LIBRARIES' }) });
+    expect(statuses).toEqual(['running', 'failed']);
+  });
+
+  it('turns an unresolved Browser operation into STAGE_TIMEOUT', async () => {
+    vi.useFakeTimers();
+    const statuses = [];
+    try {
+      const pending = executeBrowserStage({
+        stage: 'CREATE_FOLDERS',
+        operation: 'ensure-folder',
+        work: () => new Promise(() => {}),
+        timeoutMs: 180_000,
+        onStatus: (_stage, status) => statuses.push(status),
+      });
+      const rejection = expect(pending).rejects.toMatchObject({
+        legacyFailure: expect.objectContaining({
+          boundary: 'CREATE_FOLDERS',
+          operation: 'ensure-folder',
+          error: 'STAGE_TIMEOUT',
+        }),
+      });
+      await vi.advanceTimersByTimeAsync(180_000);
+      await rejection;
+      expect(statuses).toEqual(['running', 'failed']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('marks a successful Browser stage passed', async () => {
+    const statuses = [];
+    await expect(executeBrowserStage({
+      stage: 'CREATE_TXT_SEEDS',
+      operation: 'create-missing-seeds',
+      work: async () => 'ok',
+      onStatus: (_stage, status) => statuses.push(status),
+    })).resolves.toBe('ok');
+    expect(statuses).toEqual(['running', 'passed']);
   });
 
   it('preserves existing non-empty TXT data and creates only missing or empty seeds', () => {

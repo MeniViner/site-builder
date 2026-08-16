@@ -32,7 +32,6 @@ export type SharePointLibrarySetupLogEntry = {
 type SharePointLibrarySnapshot = {
   title: string;
   expectedRootUrl: string;
-  defaultViewUrl: string;
   rootServerRelativeUrl: string;
   welcomePage: string;
   onQuickLaunch: boolean | null;
@@ -70,6 +69,7 @@ type SpFetchOptions = RequestInit & {
   purpose: string;
   step: string;
   logs: SharePointLibrarySetupLogEntry[];
+  expectedStatuses?: number[];
 };
 
 type LibraryDefinition = {
@@ -185,7 +185,7 @@ const buildSiteApiEndpoint = (siteRoot: string, apiPath: string) => {
 };
 
 const spFetchWithLogs = async (endpoint: string, options: SpFetchOptions) => {
-  const { purpose, step, logs, ...fetchOptions } = options;
+  const { purpose, step, logs, expectedStatuses = [], ...fetchOptions } = options;
   const method = String(fetchOptions.method || 'GET').toUpperCase();
   const startedAt = performance.now();
 
@@ -203,7 +203,7 @@ const spFetchWithLogs = async (endpoint: string, options: SpFetchOptions) => {
     });
     const durationMs = Math.round(performance.now() - startedAt);
 
-    if (response.ok) {
+    if (response.ok || expectedStatuses.includes(response.status)) {
       recordLog(logs, 'info', step, 'SharePoint REST request succeeded', {
         method,
         endpoint,
@@ -308,17 +308,23 @@ const readLibrary = async (siteRoot: string, libraryTitle: string, logs: SharePo
   const encodedTitle = escapeODataString(libraryTitle);
   const endpoint = buildSiteApiEndpoint(
     siteRoot,
-    `/_api/web/lists/GetByTitle('${encodedTitle}')?$select=Id,Title,BaseTemplate,DefaultViewUrl,RootFolder/ServerRelativeUrl,RootFolder/WelcomePage,OnQuickLaunch&$expand=RootFolder`,
+    `/_api/web/lists/GetByTitle('${encodedTitle}')?$select=Id,Title,BaseTemplate,RootFolder/ServerRelativeUrl,RootFolder/WelcomePage,OnQuickLaunch&$expand=RootFolder`,
   );
 
   try {
-    const data = await fetchJson<Record<string, unknown>>(endpoint, {
+    const response = await spFetchWithLogs(endpoint, {
       method: 'GET',
       purpose: `Read library "${libraryTitle}"`,
       step,
       logs,
+      expectedStatuses: [404],
       headers: { Accept: ODATA_ACCEPT },
     });
+    if (response.status === 404) {
+      recordLog(logs, 'info', step, 'LIBRARY_NOT_FOUND', { libraryTitle, endpoint, status: 404 });
+      return null;
+    }
+    const data = await response.json() as Record<string, unknown>;
     const classification = classifySharePointLibraryResponse({
       status: 200,
       payload: data,
@@ -343,7 +349,7 @@ const readAllLibraries = async (siteRoot: string, logs: SharePointLibrarySetupLo
   const step = 'read-library-roots';
   const endpoint = buildSiteApiEndpoint(
     siteRoot,
-    '/_api/web/lists?$select=Id,Title,BaseTemplate,DefaultViewUrl,RootFolder/ServerRelativeUrl,RootFolder/WelcomePage,OnQuickLaunch&$expand=RootFolder',
+    '/_api/web/lists?$select=Id,Title,BaseTemplate,RootFolder/ServerRelativeUrl,RootFolder/WelcomePage,OnQuickLaunch&$expand=RootFolder',
   );
   const data = await fetchJson<unknown>(endpoint, {
     method: 'GET',
@@ -464,9 +470,6 @@ const validateLibrary = (
   }
 };
 
-const buildFolderViewUrl = (defaultViewUrl: string, folderServerRelativeUrl: string) =>
-  `${defaultViewUrl}?RootFolder=${encodeURIComponent(folderServerRelativeUrl)}`;
-
 const ensureDocumentLibraryBrowserView = async (
   siteRoot: string,
   libraryTitle: string,
@@ -479,15 +482,10 @@ const ensureDocumentLibraryBrowserView = async (
   validateLibrary(library, libraryTitle, expectedRootUrl);
 
   const welcomeBefore = String((library?.RootFolder as { WelcomePage?: string } | undefined)?.WelcomePage || '');
-  const defaultViewBefore = String(library?.DefaultViewUrl || '');
-  if (!defaultViewBefore) {
-    throw normalizeError(step, `Library "${libraryTitle}" has no DefaultViewUrl.`, { responseBody: library });
-  }
 
   recordLog(logs, 'info', step, 'Library browser-view state before update', {
     libraryTitle,
     expectedRootUrl,
-    DefaultViewUrl: defaultViewBefore,
     RootFolderWelcomePageBefore: welcomeBefore || '(empty)',
   });
 
@@ -497,29 +495,20 @@ const ensureDocumentLibraryBrowserView = async (
     validateLibrary(library, libraryTitle, expectedRootUrl);
   }
 
-  const defaultViewUrl = String(library?.DefaultViewUrl || '');
   const rootUrl = String((library?.RootFolder as { ServerRelativeUrl?: string } | undefined)?.ServerRelativeUrl || '');
   const welcomePage = String((library?.RootFolder as { WelcomePage?: string } | undefined)?.WelcomePage || '');
   const onQuickLaunchRaw = library?.OnQuickLaunch;
   const onQuickLaunch = typeof onQuickLaunchRaw === 'boolean' ? onQuickLaunchRaw : null;
 
-  if (!defaultViewUrl) {
-    throw normalizeError(step, `Library "${libraryTitle}" still has no DefaultViewUrl after WelcomePage update.`, {
-      responseBody: library,
-    });
-  }
-
   recordLog(logs, 'info', step, 'Library browser-view state after update', {
     libraryTitle,
     BaseTemplate: library?.BaseTemplate,
-    DefaultViewUrl: defaultViewUrl,
     RootFolderServerRelativeUrl: rootUrl,
     RootFolderWelcomePageAfter: welcomePage || '(empty)',
     OnQuickLaunch: onQuickLaunch,
-    generatedRootViewUrl: buildFolderViewUrl(defaultViewUrl, expectedRootUrl),
   });
 
-  return { defaultViewUrl, rootUrl, welcomePage, onQuickLaunch };
+  return { rootUrl, welcomePage, onQuickLaunch };
 };
 
 const ensureSingleLibrary = async (
@@ -562,7 +551,6 @@ const ensureSingleLibrary = async (
   recordLog(logs, 'info', 'library-ready', 'Library ready for SharePoint UI/browser navigation', {
     libraryTitle: def.title,
     expectedRootUrl: def.expectedRootUrl,
-    DefaultViewUrl: browserView.defaultViewUrl,
     RootFolderServerRelativeUrl: browserView.rootUrl,
     RootFolderWelcomePage: browserView.welcomePage,
     createdNow: wasCreated,
@@ -571,7 +559,6 @@ const ensureSingleLibrary = async (
   return {
     title: def.title,
     expectedRootUrl: def.expectedRootUrl,
-    defaultViewUrl: browserView.defaultViewUrl,
     rootServerRelativeUrl: browserView.rootUrl || def.expectedRootUrl,
     welcomePage: browserView.welcomePage || '',
     onQuickLaunch: browserView.onQuickLaunch,

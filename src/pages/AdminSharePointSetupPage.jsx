@@ -29,8 +29,13 @@ import {
   formatLegacyFailure,
   legacyPipelineFailure,
   normalizeLegacyFailure,
+  executeBrowserStage,
   runFinalAssetStages,
 } from '../utils/legacyPipeline';
+import {
+  LEGACY_PROVISIONING_STATUSES,
+  writeLegacyProvisioningStatus,
+} from '../utils/sharePointSetupContext';
 
 const ODATA_ACCEPT = 'application/json;odata=verbose';
 const ODATA_CONTENT = 'application/json;odata=verbose';
@@ -156,22 +161,13 @@ export default function AdminSharePointSetupPage() {
   };
 
   const runStage = async (stage, operation, work, context = {}) => {
-    setLegacyStage(stage, 'running', context);
-    try {
-      const result = await work();
-      setLegacyStage(stage, 'passed', context);
-      return result;
-    } catch (error) {
-      setLegacyStage(stage, 'failed', context);
-      if (error instanceof LegacyPipelineError) throw error;
-      throw legacyPipelineFailure({
-        boundary: stage,
-        operation,
-        ...context,
-        reason: error.message,
-        nextAction: `Correct or retry ${stage}; completed stages are safe to recheck.`,
-      }, error);
-    }
+    return executeBrowserStage({
+      stage,
+      operation,
+      work,
+      context,
+      onStatus: setLegacyStage,
+    });
   };
 
   const logRequest = async ({ url, method = 'GET', purpose, headers, body }) => {
@@ -193,7 +189,7 @@ export default function AdminSharePointSetupPage() {
   };
 
   const checkLibraryExists = async (webUrl, title) => {
-    const endpoint = `${webUrl}/_api/web/lists/GetByTitle('${esc(title)}')?$select=Id,Title,BaseTemplate,DefaultViewUrl,RootFolder/ServerRelativeUrl,RootFolder/WelcomePage,OnQuickLaunch&$expand=RootFolder`;
+    const endpoint = `${webUrl}/_api/web/lists/GetByTitle('${esc(title)}')?$select=Id,Title,BaseTemplate,RootFolder/ServerRelativeUrl,RootFolder/WelcomePage,OnQuickLaunch&$expand=RootFolder`;
     const res = await logRequest({ url: endpoint, purpose: `library-check-${title}` });
     const contentType = res.headers.get('content-type') || '';
     const status = res.status;
@@ -258,7 +254,7 @@ export default function AdminSharePointSetupPage() {
   };
 
   const readAllLibraries = async (webUrl) => {
-    const url = `${webUrl}/_api/web/lists?$select=Id,Title,BaseTemplate,DefaultViewUrl,RootFolder/ServerRelativeUrl,RootFolder/WelcomePage,OnQuickLaunch&$expand=RootFolder`;
+    const url = `${webUrl}/_api/web/lists?$select=Id,Title,BaseTemplate,RootFolder/ServerRelativeUrl,RootFolder/WelcomePage,OnQuickLaunch&$expand=RootFolder`;
     const res = await logRequest({ url, purpose: 'library-root-collision-check' });
     const parsed = await readResponseSafely(res, { url });
     return unwrapSharePointODataCollection(parsed);
@@ -378,7 +374,7 @@ export default function AdminSharePointSetupPage() {
       body: JSON.stringify({ __metadata: { type: 'SP.Folder' }, WelcomePage: 'Forms/AllItems.aspx' }),
     });
     await readResponseSafely(mergeRes, { url: mergeUrl });
-    addLog(`library create/check result | ${title} | outcome=${exact.outcome || EXACT_LIBRARY_OUTCOMES.REUSE} | BaseTemplate=${list?.BaseTemplate ?? 'unknown'} | DefaultViewUrl=${list?.DefaultViewUrl ?? 'unknown'} | RootFolder.ServerRelativeUrl=${rootRel}`);
+    addLog(`library create/check result | ${title} | outcome=${exact.outcome || EXACT_LIBRARY_OUTCOMES.REUSE} | Id=${list?.Id ?? 'unknown'} | Title=${list?.Title ?? title} | BaseTemplate=${list?.BaseTemplate ?? 'unknown'} | RootFolder.ServerRelativeUrl=${rootRel}`);
     return { ok: true, existed: !exact.created, created: exact.created, title, rootRel, listId: list?.Id };
   };
 
@@ -568,6 +564,7 @@ export default function AdminSharePointSetupPage() {
           return 'STATIC PASS';
         },
         onStage: (stage, stageStatus) => setLegacyStage(stage, stageStatus, { buildId: manifest.buildId }),
+        stageRunner: runStage,
         onProgress: (stage, current, total, currentFile) => addLog(`${stage}: ${current}/${total} ${currentFile}`, `legacy][${stage}`),
       });
       setDetails((p) => ({ ...p, copiedFiles: [...p.copiedFiles, ...copied, 'index.html'] }));
@@ -594,6 +591,7 @@ export default function AdminSharePointSetupPage() {
     setErrorInfo(null);
     setLatestStep('מתחיל הקמה');
     try {
+      writeLegacyProvisioningStatus(LEGACY_PROVISIONING_STATUSES.IN_PROGRESS);
       await refreshSetupStatus();
       const webUrl = resolveCurrentSharePointWebUrl();
       const source = await runStage('BOOTSTRAP_PAGE_LOAD', 'load-and-verify-bootstrap-page', () => preflightSource(webUrl), {
@@ -637,9 +635,11 @@ export default function AdminSharePointSetupPage() {
       await copyFromBootstrapToFinal(webUrl, digest, source);
       await refreshSetupStatus();
 
+      setLegacyStage('COMPLETE', 'running', { buildId: source.manifest.buildId, finalAppUrl: cfg.finalAppUrl });
+      writeLegacyProvisioningStatus(LEGACY_PROVISIONING_STATUSES.COMPLETE);
+      setLegacyStage('COMPLETE', 'passed', { buildId: source.manifest.buildId, finalAppUrl: cfg.finalAppUrl });
       setStatus('done');
       setLatestStep('הקמה הושלמה');
-      setLegacyStage('COMPLETE', 'passed', { buildId: source.manifest.buildId, finalAppUrl: cfg.finalAppUrl });
       addLog(`LEGACY PIPELINE: COMPLETE | FINAL APP URL: ${cfg.finalAppUrl}`, 'legacy][COMPLETE');
       addLog(`final URL: ${cfg.finalAppUrl}`);
     } catch (error) {

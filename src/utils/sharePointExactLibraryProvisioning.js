@@ -14,6 +14,8 @@ export const EXACT_LIBRARY_ERRORS = Object.freeze({
   ALLOCATION_FAILED: 'LIBRARY_URL_ALLOCATION_FAILED',
   NOT_DOCUMENT_LIBRARY: 'LIBRARY_EXISTS_NOT_DOCUMENT_LIBRARY',
   JSOM_UNAVAILABLE: 'SHAREPOINT_JSOM_UNAVAILABLE',
+  JSOM_PROPERTY_NOT_LOADED: 'JSOM_PROPERTY_NOT_LOADED',
+  JSOM_QUERY_FAILED: 'JSOM_QUERY_FAILED',
 });
 
 const normalizeTitle = (value) => String(value ?? '').trim();
@@ -48,6 +50,17 @@ export class ExactLibraryProvisioningError extends Error {
     this.code = code;
     this.step = 'ensure-exact-library-root';
     Object.assign(this, details, { expectedRoot: expected, actualRoot: actual });
+  }
+}
+
+export class SharePointJsomError extends Error {
+  constructor(code, { operation, property = '', target = '', message = '' } = {}, cause) {
+    super(message || `${code}: ${operation || 'SharePoint JSOM operation failed'}`, { cause });
+    this.name = 'SharePointJsomError';
+    this.code = code;
+    this.operation = operation;
+    this.property = property;
+    this.target = target;
   }
 }
 
@@ -218,23 +231,38 @@ export async function createDocumentLibraryWithExactUrl({
   if (typeof list.set_onQuickLaunch === 'function') list.set_onQuickLaunch(true);
   if (typeof list.update === 'function') list.update();
   const rootFolder = list.get_rootFolder();
-  context.load(list);
-  context.load(rootFolder);
+  context.load(list, 'Id', 'Title', 'BaseTemplate', 'OnQuickLaunch');
+  context.load(rootFolder, 'ServerRelativeUrl', 'WelcomePage');
 
   return new Promise((resolve, reject) => {
     context.executeQueryAsync(
-      () => resolve(normalizeSharePointLibraryRecord({
-        Id: String(list.get_id?.()?.toString?.() ?? list.get_id?.() ?? ''),
-        Title: list.get_title?.() ?? title,
-        BaseTemplate: list.get_baseTemplate?.() ?? null,
-        DefaultViewUrl: list.get_defaultViewUrl?.() ?? '',
-        OnQuickLaunch: list.get_onQuickLaunch?.() ?? true,
-        RootFolder: {
-          ServerRelativeUrl: rootFolder.get_serverRelativeUrl?.() ?? '',
-          WelcomePage: rootFolder.get_welcomePage?.() ?? '',
-        },
+      () => {
+        try {
+          resolve(normalizeSharePointLibraryRecord({
+            Id: String(list.get_id?.()?.toString?.() ?? list.get_id?.() ?? ''),
+            Title: list.get_title?.() ?? title,
+            BaseTemplate: list.get_baseTemplate?.() ?? null,
+            OnQuickLaunch: list.get_onQuickLaunch?.() ?? true,
+            RootFolder: {
+              ServerRelativeUrl: rootFolder.get_serverRelativeUrl?.() ?? '',
+              WelcomePage: rootFolder.get_welcomePage?.() ?? '',
+            },
+          }));
+        } catch (error) {
+          const propertyMatch = String(error?.message || '').match(/['"]([^'"]+)['"].*not been initialized/i);
+          reject(new SharePointJsomError(EXACT_LIBRARY_ERRORS.JSOM_PROPERTY_NOT_LOADED, {
+            operation: 'verify-created-library',
+            property: propertyMatch?.[1] || 'unknown',
+            target: title,
+            message: error?.message,
+          }, error));
+        }
+      },
+      (_sender, args) => reject(new SharePointJsomError(EXACT_LIBRARY_ERRORS.JSOM_QUERY_FAILED, {
+        operation: 'create-library',
+        target: title,
+        message: args?.get_message?.() || 'SharePoint JSOM library creation failed.',
       })),
-      (_sender, args) => reject(new Error(args?.get_message?.() || 'SharePoint JSOM library creation failed.')),
     );
   });
 }

@@ -143,6 +143,31 @@ describe('deterministic exact SharePoint library creation', () => {
     expect(createWithExactUrl).toHaveBeenCalledTimes(1);
   });
 
+  it('reuses both exact configured libraries without creating duplicates', async () => {
+    const createWithExactUrl = vi.fn();
+    const records = [
+      library(),
+      library({ id: 'users-id', title: 'siteUsersDB', root: '/sites/schedule/siteUsersDB' }),
+    ];
+    const siteDb = await ensure({
+      readByTitle: async () => records[0],
+      readAllLibraries: async () => records,
+      createWithExactUrl,
+    });
+    const usersDb = await ensure({
+      configuredTitle: 'siteUsersDB',
+      expectedRoot: '/sites/schedule/siteUsersDB',
+      readByTitle: async () => records[1],
+      readAllLibraries: async () => records,
+      createWithExactUrl,
+    });
+    expect([siteDb.outcome, usersDb.outcome]).toEqual([
+      EXACT_LIBRARY_OUTCOMES.REUSE,
+      EXACT_LIBRARY_OUTCOMES.REUSE,
+    ]);
+    expect(createWithExactUrl).not.toHaveBeenCalled();
+  });
+
   it('is idempotent after successful creation and does not create a duplicate on retry', async () => {
     const records = [];
     const createWithExactUrl = vi.fn(async ({ title, expectedRoot }) => {
@@ -191,7 +216,7 @@ describe('deterministic exact SharePoint library creation', () => {
       get_id: () => ({ toString: () => 'created-guid' }),
       get_title: () => 'siteDBFresh1608',
       get_baseTemplate: () => 101,
-      get_defaultViewUrl: () => '/sites/schedule/siteDBFresh1608/Forms/AllItems.aspx',
+      get_defaultViewUrl: vi.fn(() => { throw new Error("The property or field 'DefaultViewUrl' has not been initialized."); }),
       get_onQuickLaunch: () => true,
     };
     class ListCreationInformation {
@@ -201,7 +226,7 @@ describe('deterministic exact SharePoint library creation', () => {
     }
     class ClientContext {
       get_web() { return { get_lists: () => ({ add: (info) => { captured.info = info; return createdList; } }) }; }
-      load(value) { captured.loaded = [...(captured.loaded || []), value]; }
+      load(value, ...properties) { captured.loaded = [...(captured.loaded || []), [value, properties]]; }
       executeQueryAsync(success) { success(); }
     }
     const result = await createDocumentLibraryWithExactUrl({
@@ -211,12 +236,86 @@ describe('deterministic exact SharePoint library creation', () => {
       sp: { ClientContext, ListCreationInformation },
     });
     expect(captured).toMatchObject({ title: 'siteDBFresh1608', templateType: 101, url: 'siteDBFresh1608' });
-    expect(captured.loaded).toEqual([createdList, rootFolder]);
+    expect(captured.loaded).toEqual([
+      [createdList, ['Id', 'Title', 'BaseTemplate', 'OnQuickLaunch']],
+      [rootFolder, ['ServerRelativeUrl', 'WelcomePage']],
+    ]);
+    expect(createdList.get_defaultViewUrl).not.toHaveBeenCalled();
     expect(result).toMatchObject({
       Id: 'created-guid',
       Title: 'siteDBFresh1608',
       BaseTemplate: 101,
       RootFolder: { ServerRelativeUrl: '/sites/schedule/siteDBFresh1608' },
     });
+  });
+
+  it('normalizes executeQueryAsync failure as a JSOM query failure', async () => {
+    class ListCreationInformation {
+      set_title() {}
+      set_templateType() {}
+      set_url() {}
+    }
+    class ClientContext {
+      get_web() {
+        return {
+          get_lists: () => ({
+            add: () => ({
+              get_rootFolder: () => ({}),
+              update() {},
+            }),
+          }),
+        };
+      }
+      load() {}
+      executeQueryAsync(_success, failure) {
+        failure(null, { get_message: () => 'Access denied by SharePoint' });
+      }
+    }
+    await expect(createDocumentLibraryWithExactUrl({
+      webUrl: 'https://portal.army.idf/sites/schedule',
+      title: 'siteDBFresh1608',
+      siteRelativeUrl: 'siteDBFresh1608',
+      sp: { ClientContext, ListCreationInformation },
+    })).rejects.toEqual(expect.objectContaining({
+      code: EXACT_LIBRARY_ERRORS.JSOM_QUERY_FAILED,
+      operation: 'create-library',
+      target: 'siteDBFresh1608',
+    }));
+  });
+
+  it('normalizes a synchronous post-query ClientObject property error', async () => {
+    const propertyError = new Error("The property or field 'ServerRelativeUrl' has not been initialized.");
+    const rootFolder = {
+      get_serverRelativeUrl: () => { throw propertyError; },
+      get_welcomePage: () => '',
+    };
+    const createdList = {
+      get_rootFolder: () => rootFolder,
+      get_id: () => 'id',
+      get_title: () => 'siteDB',
+      get_baseTemplate: () => 101,
+      get_onQuickLaunch: () => true,
+      update() {},
+    };
+    class ListCreationInformation {
+      set_title() {}
+      set_templateType() {}
+      set_url() {}
+    }
+    class ClientContext {
+      get_web() { return { get_lists: () => ({ add: () => createdList }) }; }
+      load() {}
+      executeQueryAsync(success) { success(); }
+    }
+    await expect(createDocumentLibraryWithExactUrl({
+      webUrl: 'https://portal.army.idf/sites/schedule',
+      title: 'siteDB',
+      siteRelativeUrl: 'siteDB',
+      sp: { ClientContext, ListCreationInformation },
+    })).rejects.toEqual(expect.objectContaining({
+      code: EXACT_LIBRARY_ERRORS.JSOM_PROPERTY_NOT_LOADED,
+      operation: 'verify-created-library',
+      property: 'ServerRelativeUrl',
+    }));
   });
 });

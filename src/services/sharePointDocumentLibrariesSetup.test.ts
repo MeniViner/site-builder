@@ -27,6 +27,16 @@ describe('SharePoint document-library response parsing', () => {
     expect(unwrapSharePointODataRecord({ value: library })).toEqual(library);
   });
 
+  it('does not require DefaultViewUrl when normalizing authoritative library identity', () => {
+    const { DefaultViewUrl: _ignored, ...withoutDefaultViewUrl } = library;
+    expect(unwrapSharePointODataRecord({ d: withoutDefaultViewUrl })).toMatchObject({
+      Id: 'library-id',
+      Title: 'RecordsDb',
+      BaseTemplate: 101,
+      RootFolder: { ServerRelativeUrl: '/sites/custom/RecordsDb' },
+    });
+  });
+
   it('does not reinterpret Atom/XML or other non-object payloads as a valid library', () => {
     expect(unwrapSharePointODataRecord('<feed>...</feed>')).toBeNull();
     expect(unwrapSharePointODataRecord(null)).toBeNull();

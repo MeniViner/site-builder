@@ -37,10 +37,10 @@ export function normalizeSharePointLibraryRecord(record) {
     : null;
   return {
     ...record,
+    Id: field(record, 'Id') ?? '',
     Title: field(record, 'Title') ?? '',
     BaseTemplate: field(record, 'BaseTemplate') ?? null,
     BaseType: field(record, 'BaseType') ?? null,
-    DefaultViewUrl: field(record, 'DefaultViewUrl') ?? '',
     OnQuickLaunch: field(record, 'OnQuickLaunch') ?? null,
     RootFolder: normalizedRoot,
   };

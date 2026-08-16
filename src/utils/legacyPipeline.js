@@ -18,6 +18,11 @@ export const LEGACY_PIPELINE_STAGES = Object.freeze([
 ]);
 
 export const NEW_SITE_STAGE_ORDER = LEGACY_PIPELINE_STAGES;
+export const BROWSER_STAGE_TIMEOUT_MS = 5 * 60 * 1000;
+export const BROWSER_STAGE_TIMEOUTS = Object.freeze({
+  FINAL_ASSET_COPY: 30 * 60 * 1000,
+  FINAL_ASSET_VERIFY: 30 * 60 * 1000,
+});
 export const EXISTING_SITE_STAGE_ORDER = Object.freeze([
   'LEGACY_BUILD',
   'LIBRARY_CHECK',
@@ -38,6 +43,9 @@ const FAILURE_FIELDS = Object.freeze([
   ['currentFile', 'CURRENT FILE'],
   ['method', 'HTTP METHOD'],
   ['status', 'HTTP STATUS'],
+  ['error', 'ERROR'],
+  ['property', 'PROPERTY'],
+  ['elapsedTime', 'ELAPSED TIME'],
   ['robocopyExitCode', 'ROBOCOPY EXIT CODE'],
   ['expectedSize', 'EXPECTED SIZE'],
   ['actualSize', 'ACTUAL SIZE'],
@@ -53,7 +61,8 @@ const present = (value) => value !== undefined && value !== null && String(value
 export class LegacyPipelineError extends Error {
   constructor(details, cause) {
     const normalized = normalizeLegacyFailure(details);
-    super(`${normalized.boundary}: ${normalized.operation || normalized.reason || 'Legacy pipeline operation failed'}`, { cause });
+    const summary = [normalized.operation, normalized.reason].filter(Boolean).join(' — ') || 'Legacy pipeline operation failed';
+    super(`${normalized.boundary}: ${summary}`, { cause });
     this.name = 'LegacyPipelineError';
     this.legacyFailure = normalized;
   }
@@ -69,6 +78,9 @@ export function normalizeLegacyFailure(details = {}) {
     currentFile: details.currentFile || details.path || '',
     method: details.method || '',
     status: details.status,
+    error: details.error || details.code || '',
+    property: details.property || '',
+    elapsedTime: details.elapsedTime || '',
     robocopyExitCode: details.robocopyExitCode ?? details.exitCode,
     expectedSize: details.expectedSize,
     actualSize: details.actualSize,
@@ -96,6 +108,55 @@ export function formatLegacyFailure(details) {
 
 export function createLegacyStageState(initial = {}) {
   return Object.freeze(Object.fromEntries(LEGACY_PIPELINE_STAGES.map((stage) => [stage, initial[stage] || 'waiting'])));
+}
+
+export async function executeBrowserStage({
+  stage,
+  operation,
+  work,
+  context = {},
+  timeoutMs = BROWSER_STAGE_TIMEOUTS[stage] || BROWSER_STAGE_TIMEOUT_MS,
+  onStatus = () => {},
+  now = () => Date.now(),
+} = {}) {
+  const startedAt = now();
+  onStatus(stage, 'running', context);
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      const elapsedMs = Math.max(0, now() - startedAt);
+      reject(legacyPipelineFailure({
+        boundary: stage,
+        operation,
+        ...context,
+        error: 'STAGE_TIMEOUT',
+        reason: 'STAGE_TIMEOUT',
+        elapsedTime: `${elapsedMs}ms`,
+        nextAction: `Retry ${stage}; completed stages are safe to recheck.`,
+      }));
+    }, timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([Promise.resolve().then(work), timeout]);
+    onStatus(stage, 'passed', context);
+    return result;
+  } catch (error) {
+    onStatus(stage, 'failed', context);
+    if (error instanceof LegacyPipelineError) throw error;
+    throw legacyPipelineFailure({
+      boundary: stage,
+      operation: error?.operation || operation,
+      ...context,
+      error: error?.code || '',
+      property: error?.property || '',
+      reason: error?.message || String(error),
+      elapsedTime: `${Math.max(0, now() - startedAt)}ms`,
+      nextAction: `Correct or retry ${stage}; completed stages are safe to recheck.`,
+    }, error);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 const normalizeServerRelative = (value) => `/${String(value || '').split('/').filter(Boolean).join('/')}`;
@@ -133,6 +194,7 @@ export async function runFinalAssetStages({
   skipFolderStage = false,
   onStage = () => {},
   onProgress = () => {},
+  stageRunner,
 }) {
   const buildId = manifest.buildId;
   const nonIndexEntries = deploymentEntries.filter((entry) => entry.path !== 'index.html');
@@ -145,33 +207,32 @@ export async function runFinalAssetStages({
     onStage('CREATE_FOLDERS', 'passed');
   }
 
-  onStage('FINAL_ASSET_COPY', 'running');
-  for (let index = 0; index < nonIndexEntries.length; index += 1) {
-    const entry = nonIndexEntries[index];
-    onProgress('FINAL_ASSET_COPY', index + 1, nonIndexEntries.length, entry.path);
-    await uploadFile(entry);
-  }
-  onStage('FINAL_ASSET_COPY', 'passed');
+  const run = stageRunner || ((stage, operation, work, context) => executeBrowserStage({
+    stage,
+    operation,
+    work,
+    context,
+    onStatus: onStage,
+  }));
 
-  onStage('FINAL_ASSET_VERIFY', 'running');
-  for (let index = 0; index < nonIndexEntries.length; index += 1) {
-    const entry = nonIndexEntries[index];
-    onProgress('FINAL_ASSET_VERIFY', index + 1, nonIndexEntries.length, entry.path);
-    await verifyFile(entry);
-  }
-  onStage('FINAL_ASSET_VERIFY', 'passed');
+  await run('FINAL_ASSET_COPY', 'copy-final-assets', async () => {
+    for (let index = 0; index < nonIndexEntries.length; index += 1) {
+      const entry = nonIndexEntries[index];
+      onProgress('FINAL_ASSET_COPY', index + 1, nonIndexEntries.length, entry.path);
+      await uploadFile(entry);
+    }
+  }, { buildId });
 
-  onStage('FINAL_INDEX_COMMIT', 'running');
-  await commitIndex(indexEntry);
-  onStage('FINAL_INDEX_COMMIT', 'passed');
+  await run('FINAL_ASSET_VERIFY', 'verify-final-assets', async () => {
+    for (let index = 0; index < nonIndexEntries.length; index += 1) {
+      const entry = nonIndexEntries[index];
+      onProgress('FINAL_ASSET_VERIFY', index + 1, nonIndexEntries.length, entry.path);
+      await verifyFile(entry);
+    }
+  }, { buildId });
 
-  onStage('FINAL_INDEX_VERIFY', 'running');
-  await verifyIndex(indexEntry);
-  onStage('FINAL_INDEX_VERIFY', 'passed');
-
-  onStage('FINAL_APP_SMOKE', 'running');
-  const smokeResult = await smoke();
-  onStage('FINAL_APP_SMOKE', 'passed');
-  onStage('COMPLETE', 'passed');
+  await run('FINAL_INDEX_COMMIT', 'commit-final-index', () => commitIndex(indexEntry), { buildId });
+  await run('FINAL_INDEX_VERIFY', 'verify-final-index', () => verifyIndex(indexEntry), { buildId });
+  const smokeResult = await run('FINAL_APP_SMOKE', 'smoke-final-app', smoke, { buildId });
   return Object.freeze({ buildId, copied: nonIndexEntries.length, smokeResult });
 }
