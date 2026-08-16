@@ -4,7 +4,7 @@ import {
   unwrapSharePointODataRecord as unwrapODataResponse,
 } from '../utils/sharePointLibraryClassifier';
 
-const PREFIX = '[SharePointLibrarySetup]';
+const PREFIX = '[legacy][CREATE_LIBRARIES][REST]';
 const ODATA_ACCEPT = 'application/json;odata=verbose';
 const ODATA_CONTENT_TYPE = 'application/json;odata=verbose';
 const REQUIRED_WELCOME_PAGE = 'Forms/AllItems.aspx';
@@ -34,6 +34,7 @@ type SharePointLibrarySnapshot = {
 };
 
 type NormalizedSetupError = {
+  code?: string;
   step: string;
   message: string;
   endpoint?: string;
@@ -53,7 +54,7 @@ export type SharePointLibrarySetupResult =
     }
   | {
       ok: false;
-      status: 'access-denied' | 'contextinfo-failed' | 'setup-failed' | 'invalid-config';
+      status: 'access-denied' | 'sharepoint-auth-failure' | 'contextinfo-failed' | 'setup-failed' | 'invalid-config';
       userMessage: string;
       technicalError: unknown;
       logs: SharePointLibrarySetupLogEntry[];
@@ -142,6 +143,7 @@ const extractSharePointErrorMessage = (body: unknown) => {
 };
 
 const normalizeError = (step: string, message: string, partial: Partial<NormalizedSetupError> = {}): NormalizedSetupError => ({
+  code: partial.code,
   step,
   message,
   endpoint: partial.endpoint,
@@ -212,6 +214,7 @@ const spFetchWithLogs = async (endpoint: string, options: SpFetchOptions) => {
       step,
       extractSharePointErrorMessage(responseBody) || 'SharePoint REST request failed',
       {
+        code: response.status === 401 || response.status === 403 ? 'SHAREPOINT_AUTH_FAILURE' : undefined,
         endpoint,
         status: response.status,
         statusText: response.statusText,
@@ -569,8 +572,10 @@ const classifyFailure = (error: unknown): Omit<Extract<SharePointLibrarySetupRes
   if (status === 401 || status === 403 || isContextInfoStep) {
     return {
       ok: false,
-      status: isContextInfoStep ? 'contextinfo-failed' : 'access-denied',
-      userMessage: 'לא ניתן לבצע הקמת SharePoint. יש לפתוח את האתר כמשתמש בעל הרשאות בעל אתר.',
+      status: status === 401 || status === 403 ? 'sharepoint-auth-failure' : 'contextinfo-failed',
+      userMessage: status === 401 || status === 403
+        ? 'SHAREPOINT_AUTH_FAILURE: לא ניתן לבצע הקמת SharePoint ללא הפעלת הדף מתוך חיבור SharePoint מאומת.'
+        : 'לא ניתן לבצע הקמת SharePoint. יש לפתוח את האתר כמשתמש בעל הרשאות בעל אתר.',
       technicalError: normalized || error,
     };
   }

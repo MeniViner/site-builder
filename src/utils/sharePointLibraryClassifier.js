@@ -68,6 +68,20 @@ export function classifySharePointLibraryResponse({
   parsedAs = 'json',
 } = {}) {
   const numericStatus = Number(status || 0);
+  if (numericStatus === 401 || numericStatus === 403) {
+    return Object.freeze({
+      status: numericStatus,
+      parsedAs,
+      responseType: 'auth-failure',
+      exists: false,
+      isDocumentLibrary: false,
+      ready: false,
+      reason: 'SHAREPOINT_AUTH_FAILURE',
+      baseTemplate: null,
+      baseType: null,
+      rootFolder: '',
+    });
+  }
   if (numericStatus === 404) {
     return Object.freeze({
       status: numericStatus,

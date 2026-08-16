@@ -1,9 +1,13 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { pathToFileURL } from 'url';
 import { parseCliArgs, resolveConfig, writeEnvProduction } from './sp-env.js';
 import { DEFAULT_GANTT_DATA } from '../src/utils/ganttData.js';
-import { classifySharePointLibraryResponse } from '../src/utils/sharePointLibraryClassifier.js';
+import {
+  decideLegacyLibraryDeployment,
+  probeLegacyWebDavLibrary,
+} from './legacyWebDavLibraryProbe.mjs';
 
 const cli = parseCliArgs();
 const envPath = cli.env ? path.resolve(process.cwd(), String(cli.env)) : path.resolve(process.cwd(), '.env.production');
@@ -46,60 +50,12 @@ const defaultFiles = [
   { key: 'gantt', content: JSON.stringify(DEFAULT_GANTT_DATA, null, 2) },
 ];
 
-const escapeOData = (value) => String(value ?? '').replace(/'/g, "''");
-const libraryCheckEndpoint = (title, { host = config.host, siteApiRootRel = config.siteApiRootRel } = {}) => `https://${host}${siteApiRootRel}/_api/web/lists/GetByTitle('${escapeOData(title)}')?$select=Id,Title,BaseTemplate,BaseType,RootFolder/ServerRelativeUrl&$expand=RootFolder`;
-
-const parseJson = (value) => {
-  try { return value ? JSON.parse(value) : null; } catch { return null; }
-};
-
-export const checkLibraryReadiness = async ({ title, rel, fetchImpl = fetch, host, siteApiRootRel } = {}) => {
-  const endpoint = libraryCheckEndpoint(title, { host, siteApiRootRel });
-  let response;
-  let body = '';
-  try {
-    response = await fetchImpl(endpoint, {
-      method: 'GET',
-      headers: { Accept: 'application/json;odata=verbose, application/json;odata=minimalmetadata, application/json;odata=nometadata' },
-    });
-    body = await response.text();
-  } catch (error) {
-    return {
-      title,
-      rel,
-      endpoint,
-      status: 0,
-      parsedAs: 'transport-error',
-      exists: false,
-      isDocumentLibrary: false,
-      ready: false,
-      reason: 'LIBRARY_RESPONSE_UNRECOGNIZED',
-      error: error?.message || String(error),
-    };
-  }
-  const contentType = String(response.headers?.get?.('content-type') || '');
-  const payload = parseJson(body);
-  const parsedAs = payload ? 'json' : (body ? 'unrecognized' : 'empty');
-  const classification = classifySharePointLibraryResponse({
-    status: response.status,
-    payload,
-    title,
-    expectedRootUrl: rel,
-    parsedAs,
-  });
-  return {
-    title,
-    rel,
-    endpoint,
-    contentType,
-    bodyPreview: body.slice(0, 700),
-    ...classification,
-  };
-};
-
 const logLibraryCheck = (library) => {
-  log(`LIBRARY_CHECK | title=${library.title} | rel=${library.rel} | status=${library.status} | parsed=${library.parsedAs}/${library.responseType} | exists=${library.exists} | BaseTemplate=${library.baseTemplate ?? 'unknown'} | RootFolder=${library.rootFolder || 'unknown'} | isDocumentLibrary=${library.isDocumentLibrary} | readinessReason=${library.reason}`);
-  log(`LIBRARY_READY: ${library.ready} | title=${library.title}`);
+  const probe = library.parentProbe || library.libraryProbe;
+  console.log(`[legacy][LIBRARY_CHECK][WEBDAV] title=${library.title} | rel=${library.rel} | status=${library.status} | source=${library.source} | robocopyExitCode=${probe?.exitCode ?? 'n/a'}`);
+  if (library.status === 'TRANSPORT_ERROR') {
+    console.error(`[legacy][LIBRARY_CHECK][WEBDAV] transportError=${library.error || 'unknown WebDAV transport error'}`);
+  }
 };
 
 const ensureDir = (serverRelativeDir) => {
@@ -138,24 +94,49 @@ export const runInitSharePointSite = async () => {
     log(`updated env file: ${outputPath}`);
   }
 
-  const siteDb = await checkLibraryReadiness({ title: config.siteDbFolder, rel: siteDbRel });
-  const usersDb = await checkLibraryReadiness({ title: config.usersDbFolder, rel: usersDbRel });
+  const probeDestination = fs.mkdtempSync(path.join(os.tmpdir(), 'sitebuilder-webdav-probe-'));
+  let siteDb;
+  let usersDb;
+  try {
+    siteDb = probeLegacyWebDavLibrary({
+      title: config.siteDbFolder,
+      libraryRel: siteDbRel,
+      siteRootRel: config.siteRootRel,
+      toWebDav: config.toWebDav,
+      probeDestination,
+    });
+    usersDb = probeLegacyWebDavLibrary({
+      title: config.usersDbFolder,
+      libraryRel: usersDbRel,
+      siteRootRel: config.siteRootRel,
+      toWebDav: config.toWebDav,
+      probeDestination,
+    });
+  } finally {
+    fs.rmSync(probeDestination, { recursive: true, force: true });
+  }
   logLibraryCheck(siteDb);
   logLibraryCheck(usersDb);
-  const librariesReady = siteDb.ready && usersDb.ready;
+  const decision = decideLegacyLibraryDeployment(siteDb, usersDb);
+  const librariesReady = decision.librariesReady;
 
-  const baseResult = { mode, librariesReady, siteDb, usersDb };
+  const baseResult = { mode, librariesReady, deployMode: decision.deployMode, siteDb, usersDb };
+
+  if (decision.transportError) {
+    resultLog(baseResult);
+    throw new Error(`Legacy WebDAV library probe failed for ${decision.transportError.rel}: ${decision.transportError.error}`);
+  }
 
   if (mode === 'check-only') {
     resultLog(baseResult);
-    process.exit(0);
+    return baseResult;
   }
 
   if (!librariesReady) {
     if (mode === 'bootstrap-mode') {
       log('bootstrap mode: libraries missing is allowed, skipping final structure init.');
       resultLog(baseResult);
-      process.exit(0);
+      return baseResult;
     }
     throw new Error('Required Document Libraries are missing or not valid SharePoint libraries.');
   }
@@ -170,7 +151,9 @@ export const runInitSharePointSite = async () => {
   }
 
   log(`final init complete | siteDB=${siteDbRel} | siteUsersDb=${usersDbRel}`);
-  resultLog({ ...baseResult, finalized: true, distRel, siteAssetsRel, imagesRel, widgetsFileRel });
+  const result = { ...baseResult, finalized: true, distRel, siteAssetsRel, imagesRel, widgetsFileRel };
+  resultLog(result);
+  return result;
 };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

@@ -206,8 +206,22 @@ export default function AdminSharePointSetupPage() {
     let parsedAs = 'none';
     let data = null;
 
+    if (status === 401 || status === 403) {
+      addLog(`SHAREPOINT_AUTH_FAILURE ${JSON.stringify({ title, endpoint, status, statusText })}`, 'legacy][CREATE_LIBRARIES][REST');
+      throw legacyPipelineFailure({
+        boundary: 'CREATE_LIBRARIES',
+        operation: 'authenticate-library-read',
+        target: endpoint,
+        method: 'GET',
+        status,
+        responsePreview: `SHAREPOINT_AUTH_FAILURE | ${rawPreview}`,
+        reason: 'SHAREPOINT_AUTH_FAILURE',
+        nextAction: 'Open the Bootstrap URL in an authenticated SharePoint browser session and retry.',
+      });
+    }
+
     if (status === 404) {
-      addLog(`library check result ${JSON.stringify({ title, endpoint, status, statusText, contentType, parsedAs: 'none', exists: false })}`);
+      addLog(`library check result ${JSON.stringify({ title, endpoint, status, statusText, contentType, parsedAs: 'none', exists: false })}`, 'legacy][CREATE_LIBRARIES][REST');
       return { exists: false, status, contentType, parsedAs: 'none', rawPreview };
     }
 
@@ -239,7 +253,7 @@ export default function AdminSharePointSetupPage() {
         expectedRootUrl: title === cfg.usersDb ? cfg.usersDbRoot : cfg.siteDbRoot,
         parsedAs,
       });
-      addLog(`library check result ${JSON.stringify({ title, endpoint, status, statusText, contentType, parsedAs, exists: classification.exists, BaseTemplate: classification.baseTemplate, RootFolder: classification.rootFolder, isDocumentLibrary: classification.isDocumentLibrary, readinessReason: classification.reason, rawPreview: parsedAs === 'json' ? undefined : rawPreview })}`);
+      addLog(`library check result ${JSON.stringify({ title, endpoint, status, statusText, contentType, parsedAs, exists: classification.exists, BaseTemplate: classification.baseTemplate, RootFolder: classification.rootFolder, isDocumentLibrary: classification.isDocumentLibrary, readinessReason: classification.reason, rawPreview: parsedAs === 'json' ? undefined : rawPreview })}`, 'legacy][CREATE_LIBRARIES][REST');
       return { ...classification, status, contentType, parsedAs, rawPreview };
     }
 

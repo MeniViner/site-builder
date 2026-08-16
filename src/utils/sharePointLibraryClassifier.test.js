@@ -58,4 +58,9 @@ describe('SharePoint library readiness classifier', () => {
       parsedAs: 'xml',
     })).toMatchObject({ exists: true, ready: false, reason: 'LIBRARY_RESPONSE_UNRECOGNIZED' });
   });
+
+  it.each([401, 403])('reports browser HTTP %i as SHAREPOINT_AUTH_FAILURE', (status) => {
+    expect(classifySharePointLibraryResponse({ status, payload: { error: 'unauthorized' } }))
+      .toMatchObject({ ready: false, reason: 'SHAREPOINT_AUTH_FAILURE', responseType: 'auth-failure' });
+  });
 });

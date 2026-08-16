@@ -84,9 +84,12 @@ try {
   summary.target = deploymentPlan.targetDir;
   console.log(`[postbuild] librariesReady=${librariesReady}`);
   logLegacyStage('LIBRARY_CHECK', 'SUCCESS', {
+    transport: 'WEBDAV',
     siteDb: checkPayload.siteDb?.rel,
+    siteDbStatus: checkPayload.siteDb?.status,
     siteDbExists: checkPayload.siteDb?.exists,
     usersDb: checkPayload.usersDb?.rel,
+    usersDbStatus: checkPayload.usersDb?.status,
     usersDbExists: checkPayload.usersDb?.exists,
     deployMode: deploymentPlan.deployMode.toUpperCase(),
     buildId: manifest.buildId,
