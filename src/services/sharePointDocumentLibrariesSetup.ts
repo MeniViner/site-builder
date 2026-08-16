@@ -3,6 +3,12 @@ import {
   classifySharePointLibraryResponse,
   unwrapSharePointODataRecord as unwrapODataResponse,
 } from '../utils/sharePointLibraryClassifier';
+import {
+  EXACT_LIBRARY_ERRORS,
+  createDocumentLibraryWithExactUrl,
+  ensureExactSharePointLibrary,
+  unwrapSharePointODataCollection,
+} from '../utils/sharePointExactLibraryProvisioning';
 
 const PREFIX = '[legacy][CREATE_LIBRARIES][REST]';
 const ODATA_ACCEPT = 'application/json;odata=verbose';
@@ -54,7 +60,7 @@ export type SharePointLibrarySetupResult =
     }
   | {
       ok: false;
-      status: 'access-denied' | 'sharepoint-auth-failure' | 'contextinfo-failed' | 'setup-failed' | 'invalid-config';
+      status: 'access-denied' | 'sharepoint-auth-failure' | 'contextinfo-failed' | 'library-url-collision' | 'library-url-allocation-failed' | 'setup-failed' | 'invalid-config';
       userMessage: string;
       technicalError: unknown;
       logs: SharePointLibrarySetupLogEntry[];
@@ -333,31 +339,39 @@ const readLibrary = async (siteRoot: string, libraryTitle: string, logs: SharePo
   }
 };
 
+const readAllLibraries = async (siteRoot: string, logs: SharePointLibrarySetupLogEntry[]) => {
+  const step = 'read-library-roots';
+  const endpoint = buildSiteApiEndpoint(
+    siteRoot,
+    '/_api/web/lists?$select=Id,Title,BaseTemplate,DefaultViewUrl,RootFolder/ServerRelativeUrl,RootFolder/WelcomePage,OnQuickLaunch&$expand=RootFolder',
+  );
+  const data = await fetchJson<unknown>(endpoint, {
+    method: 'GET',
+    purpose: 'Read all library roots for exact-URL collision detection',
+    step,
+    logs,
+    headers: { Accept: ODATA_ACCEPT },
+  });
+  return unwrapSharePointODataCollection(data);
+};
+
 const createDocumentLibrary = async (
   siteRoot: string,
   libraryTitle: string,
-  digest: string,
+  siteRelativeUrl: string,
   logs: SharePointLibrarySetupLogEntry[],
 ) => {
   const step = 'create-library';
-  const endpoint = buildSiteApiEndpoint(siteRoot, '/_api/web/lists');
-  await spFetchWithLogs(endpoint, {
-    method: 'POST',
-    purpose: `Create document library "${libraryTitle}"`,
-    step,
-    logs,
-    headers: {
-      Accept: ODATA_ACCEPT,
-      'Content-Type': ODATA_CONTENT_TYPE,
-      'X-RequestDigest': digest,
-    },
-    body: JSON.stringify({
-      __metadata: { type: 'SP.List' },
-      BaseTemplate: 101,
-      Title: libraryTitle,
-      Description: 'Application data library',
-      OnQuickLaunch: true,
-    }),
+  recordLog(logs, 'info', step, 'Creating document library with deterministic JSOM URL', {
+    libraryTitle,
+    siteRelativeUrl,
+    api: 'SP.ListCreationInformation',
+  });
+  return createDocumentLibraryWithExactUrl({
+    webUrl: siteRoot,
+    title: libraryTitle,
+    siteRelativeUrl,
+    description: 'Application data library',
   });
 };
 
@@ -514,26 +528,27 @@ const ensureSingleLibrary = async (
   digest: string,
   logs: SharePointLibrarySetupLogEntry[],
 ): Promise<SharePointLibrarySnapshot> => {
-  let wasCreated = false;
-  let library = await readLibrary(siteRoot, def.title, logs);
+  const exact = await ensureExactSharePointLibrary({
+    siteRoot,
+    configuredTitle: def.title,
+    expectedRoot: def.expectedRootUrl,
+    readByTitle: () => readLibrary(siteRoot, def.title, logs),
+    readAllLibraries: () => readAllLibraries(siteRoot, logs),
+    createWithExactUrl: ({ title, siteRelativeUrl }: { title: string; siteRelativeUrl: string }) =>
+      createDocumentLibrary(siteRoot, title, siteRelativeUrl, logs),
+  });
+  const wasCreated = exact.created;
+  let library = exact.record as Record<string, unknown>;
 
-  if (!library) {
-    recordLog(logs, 'info', 'create-library', 'Library does not exist and will be created', {
-      envName: def.envName,
-      rawValue: def.rawValue,
-      libraryTitle: def.title,
-      expectedRootUrl: def.expectedRootUrl,
-    });
-    await createDocumentLibrary(siteRoot, def.title, digest, logs);
-    wasCreated = true;
-    library = await readLibrary(siteRoot, def.title, logs);
-  } else {
-    recordLog(logs, 'info', 'create-library', 'Library already exists', {
-      envName: def.envName,
-      rawValue: def.rawValue,
-      libraryTitle: def.title,
-    });
-  }
+  recordLog(logs, 'info', 'create-library', exact.outcome, {
+    envName: def.envName,
+    rawValue: def.rawValue,
+    libraryTitle: def.title,
+    expectedRootUrl: def.expectedRootUrl,
+    actualRootUrl: (library?.RootFolder as { ServerRelativeUrl?: string } | undefined)?.ServerRelativeUrl,
+    listId: library?.Id,
+    siteRelativeUrl: exact.siteRelativeUrl,
+  });
 
   validateLibrary(library, def.title, def.expectedRootUrl);
 
@@ -568,6 +583,33 @@ const classifyFailure = (error: unknown): Omit<Extract<SharePointLibrarySetupRes
   const normalized = error as NormalizedSetupError;
   const status = Number(normalized?.status || 0);
   const isContextInfoStep = normalized?.step === 'request-digest';
+
+  if (normalized?.code === EXACT_LIBRARY_ERRORS.COLLISION) {
+    return {
+      ok: false,
+      status: 'library-url-collision',
+      userMessage: `LIBRARY_URL_COLLISION: הספרייה המוגדרת אינה תואמת לכתובת הפיזית השמורה ב-SharePoint. ${normalized.message || ''}`,
+      technicalError: normalized,
+    };
+  }
+
+  if (normalized?.code === EXACT_LIBRARY_ERRORS.NOT_DOCUMENT_LIBRARY) {
+    return {
+      ok: false,
+      status: 'setup-failed',
+      userMessage: `LIBRARY_EXISTS_NOT_DOCUMENT_LIBRARY: האובייקט הקיים בכתובת המוגדרת אינו ספריית מסמכים. ${normalized.message || ''}`,
+      technicalError: normalized,
+    };
+  }
+
+  if (normalized?.code === EXACT_LIBRARY_ERRORS.ALLOCATION_FAILED) {
+    return {
+      ok: false,
+      status: 'library-url-allocation-failed',
+      userMessage: `LIBRARY_URL_ALLOCATION_FAILED: SharePoint לא הקצה את כתובת הספרייה המדויקת שהוגדרה. ${normalized.message || ''}`,
+      technicalError: normalized,
+    };
+  }
 
   if (status === 401 || status === 403 || isContextInfoStep) {
     return {

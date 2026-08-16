@@ -7,9 +7,14 @@ import DismissibleNotice from '../components/DismissibleNotice';
 import { SHAREPOINT_PATHS } from '../config/sharepointPaths';
 import {
   classifySharePointLibraryResponse,
-  normalizeSharePointLibraryRecord,
-  unwrapSharePointODataRecord,
 } from '../utils/sharePointLibraryClassifier';
+import {
+  EXACT_LIBRARY_ERRORS,
+  EXACT_LIBRARY_OUTCOMES,
+  createDocumentLibraryWithExactUrl,
+  ensureExactSharePointLibrary,
+  unwrapSharePointODataCollection,
+} from '../utils/sharePointExactLibraryProvisioning';
 import {
   assertIndexReferencesMatchManifest,
   normalizeAtomicBuildManifest,
@@ -187,14 +192,6 @@ export default function AdminSharePointSetupPage() {
     return res;
   };
 
-  const getListByTitle = async (webUrl, title) => {
-    const url = `${webUrl}/_api/web/lists/GetByTitle('${esc(title)}')?$select=BaseTemplate,RootFolder/ServerRelativeUrl,RootFolder/WelcomePage,DefaultViewUrl&$expand=RootFolder`;
-    const res = await logRequest({ url, purpose: `list-${title}` });
-    if (res.status === 404) return null;
-    const parsed = await readResponseSafely(res, { url });
-    return normalizeSharePointLibraryRecord(unwrapSharePointODataRecord(parsed).record);
-  };
-
   const checkLibraryExists = async (webUrl, title) => {
     const endpoint = `${webUrl}/_api/web/lists/GetByTitle('${esc(title)}')?$select=Id,Title,BaseTemplate,DefaultViewUrl,RootFolder/ServerRelativeUrl,RootFolder/WelcomePage,OnQuickLaunch&$expand=RootFolder`;
     const res = await logRequest({ url: endpoint, purpose: `library-check-${title}` });
@@ -260,6 +257,13 @@ export default function AdminSharePointSetupPage() {
     throw new Error(`Library check failed for ${title}: HTTP ${status} ${statusText}. Preview: ${rawPreview}`);
   };
 
+  const readAllLibraries = async (webUrl) => {
+    const url = `${webUrl}/_api/web/lists?$select=Id,Title,BaseTemplate,DefaultViewUrl,RootFolder/ServerRelativeUrl,RootFolder/WelcomePage,OnQuickLaunch&$expand=RootFolder`;
+    const res = await logRequest({ url, purpose: 'library-root-collision-check' });
+    const parsed = await readResponseSafely(res, { url });
+    return unwrapSharePointODataCollection(parsed);
+  };
+
   const folderExists = async (webUrl, rel) => {
     const url = `${webUrl}/_api/web/GetFolderByServerRelativeUrl('${esc(rel)}')?$select=ServerRelativeUrl`;
     const res = await logRequest({ url, purpose: `folder-check-${rel}` });
@@ -322,52 +326,51 @@ export default function AdminSharePointSetupPage() {
 
   const ensureLibrary = async (webUrl, title, digest, key) => {
     setState((p) => ({ ...p, [key]: 'checking' }));
-    const check = await checkLibraryExists(webUrl, title);
-    if (check.exists) {
-      if (!check.ready) {
+    const configuredRoot = title === cfg.usersDb ? cfg.usersDbRoot : cfg.siteDbRoot;
+    let exact;
+    try {
+      exact = await ensureExactSharePointLibrary({
+        siteRoot: cfg.siteRoot,
+        configuredTitle: title,
+        expectedRoot: configuredRoot,
+        readByTitle: async () => {
+          const check = await checkLibraryExists(webUrl, title);
+          return check.status === 404 ? null : check.record;
+        },
+        readAllLibraries: () => readAllLibraries(webUrl),
+        createWithExactUrl: async ({ title: exactTitle, siteRelativeUrl }) => {
+          addLog(`creating exact library ${JSON.stringify({ title: exactTitle, expectedRoot: configuredRoot, siteRelativeUrl, api: 'SP.ListCreationInformation' })}`, 'legacy][CREATE_LIBRARIES][JSOM');
+          return createDocumentLibraryWithExactUrl({ webUrl, title: exactTitle, siteRelativeUrl });
+        },
+      });
+    } catch (error) {
+      if (Object.values(EXACT_LIBRARY_ERRORS).includes(error?.code)) {
+        const allocationFailure = error.code === EXACT_LIBRARY_ERRORS.ALLOCATION_FAILED;
         throw legacyPipelineFailure({
           boundary: 'CREATE_LIBRARIES',
-          operation: 'classify-existing-library',
+          operation: 'ensure-exact-library-root',
           target: title,
-          status: check.status,
-          responsePreview: `${check.reason} | BaseTemplate=${check.baseTemplate ?? 'unknown'} | RootFolder=${check.rootFolder || 'unknown'}`,
-          nextAction: 'Inspect the configured SharePoint list metadata; the list exists but is not a usable configured document library.',
-        });
+          reason: error.code,
+          responsePreview: [
+            `CONFIGURED TITLE: ${error.configuredTitle || title}`,
+            `EXPECTED ROOT: ${error.expectedRoot || configuredRoot}`,
+            `ACTUAL ROOT: ${error.actualRoot || '(missing)'}`,
+            `BASE TEMPLATE: ${error.baseTemplate ?? 'unknown'}`,
+            `LIST ID: ${error.actualListId || '(unknown)'}`,
+            `ACTUAL TITLE: ${error.actualTitle || '(unknown)'}`,
+          ].join('\n'),
+          nextAction: allocationFailure
+            ? 'SharePoint did not allocate the explicitly requested library URL. Choose an unused library URL or remove the conflicting SharePoint object manually after confirming it is safe.'
+            : 'Choose an unused library URL or remove the conflicting SharePoint object manually after confirming it is safe.',
+        }, error);
       }
-      setState((p) => ({ ...p, [key]: 'exists' }));
-      addLog(`library already exists ${JSON.stringify({ title, status: check.status, contentType: check.contentType, parsedAs: check.parsedAs, BaseTemplate: check.baseTemplate, RootFolder: check.rootFolder, readinessReason: check.reason })}`);
-      return { ok: true, existed: true, created: false, title };
+      throw error;
     }
 
-    if (check.status === 404) {
-      const url = `${webUrl}/_api/web/lists`;
-      const createBody = JSON.stringify({ __metadata: { type: 'SP.List' }, BaseTemplate: 101, Title: title, Description: 'Application system database library', OnQuickLaunch: true });
-      const res = await logRequest({ url, method: 'POST', purpose: `create-library-${title}`, headers: { 'X-RequestDigest': digest }, body: createBody });
-      if (!res.ok) {
-        const errText = await res.text();
-        const existsLikeError = res.status === 500 && /exist|already|name|שכבר|already exists|A list/i.test(errText);
-        if (existsLikeError) {
-          const recheck = await checkLibraryExists(webUrl, title);
-          if (recheck.exists) {
-            addLog('Create returned duplicate/existing library error; continuing because library exists.');
-            setState((p) => ({ ...p, [key]: 'exists' }));
-            return { ok: true, existed: true, created: false, title };
-          }
-        }
-        throw legacyPipelineFailure({
-          boundary: 'CREATE_LIBRARIES', operation: 'create-library', target: title,
-          method: 'POST', status: res.status, responsePreview: errText.slice(0, 400),
-          nextAction: `Verify permission to create the configured library "${title}", then retry.`,
-        });
-      }
-      const recheck = await checkLibraryExists(webUrl, title);
-      if (!recheck.ready) throw legacyPipelineFailure({ boundary: 'CREATE_LIBRARIES', operation: 'verify-library', target: title, status: recheck.status, responsePreview: `${recheck.reason} | ${recheck.rawPreview || ''}`, nextAction: 'Refresh SharePoint and retry library verification.' });
-      setState((p) => ({ ...p, [key]: 'created' }));
-    }
-
-    const list = await getListByTitle(webUrl, title);
-    const configuredRoot = title === cfg.usersDb ? cfg.usersDbRoot : cfg.siteDbRoot;
+    const list = exact.record;
     const rootRel = list?.RootFolder?.ServerRelativeUrl || configuredRoot;
+    setState((p) => ({ ...p, [key]: exact.created ? 'created' : 'exists' }));
+    addLog(`${exact.outcome} ${JSON.stringify({ title, expectedRoot: configuredRoot, actualRoot: rootRel, listId: list?.Id, BaseTemplate: list?.BaseTemplate })}`, 'legacy][CREATE_LIBRARIES][REST');
     const mergeUrl = `${webUrl}/_api/web/GetFolderByServerRelativeUrl('${esc(rootRel)}')`;
     const mergeRes = await logRequest({
       url: mergeUrl, method: 'POST', purpose: `welcome-${title}`,
@@ -375,7 +378,8 @@ export default function AdminSharePointSetupPage() {
       body: JSON.stringify({ __metadata: { type: 'SP.Folder' }, WelcomePage: 'Forms/AllItems.aspx' }),
     });
     await readResponseSafely(mergeRes, { url: mergeUrl });
-    addLog(`library create/check result | ${title} | BaseTemplate=${list?.BaseTemplate ?? 'unknown'} | DefaultViewUrl=${list?.DefaultViewUrl ?? 'unknown'} | RootFolder.ServerRelativeUrl=${rootRel}`);
+    addLog(`library create/check result | ${title} | outcome=${exact.outcome || EXACT_LIBRARY_OUTCOMES.REUSE} | BaseTemplate=${list?.BaseTemplate ?? 'unknown'} | DefaultViewUrl=${list?.DefaultViewUrl ?? 'unknown'} | RootFolder.ServerRelativeUrl=${rootRel}`);
+    return { ok: true, existed: !exact.created, created: exact.created, title, rootRel, listId: list?.Id };
   };
 
   const ensureFolder = async (webUrl, rel, digest, key) => {
