@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   classifySharePointFolderProbe,
   ensureSharePointFolder,
+  isSharePointFileMissingResponse,
   probeSharePointFolder,
   readSharePointFileBytes,
   uploadSharePointFileBytes,
@@ -142,8 +143,40 @@ describe('SharePoint file reads', () => {
     expect(new TextDecoder().decode(result.bytes)).toBe('ok');
   });
 
+  it('treats old-SharePoint HTTP 400 FileNotFoundException as a missing file, not a fatal setup error', async () => {
+    expect(isSharePointFileMissingResponse({
+      status: 400,
+      payload: { error: { message: { value: 'System.IO.FileNotFoundException: The file does not exist.' } } },
+    })).toBe(true);
+
+    const request = vi.fn(async () => response(
+      { error: { message: { value: 'System.IO.FileNotFoundException: The file does not exist.' } } },
+      400,
+    ));
+    const result = await readSharePointFileBytes({
+      webUrl: runtime.webUrl,
+      siteRoot: runtime.siteRoot,
+      fileRel: '/sites/schedule/siteDB8/dist/index.html',
+      request,
+    });
+    expect(result.exists).toBe(false);
+  });
+
+  it('does not hide unrelated HTTP 400 file-read failures', async () => {
+    const request = vi.fn(async () => response(
+      { error: { message: { value: 'Invalid query syntax.' } } },
+      400,
+    ));
+    await expect(readSharePointFileBytes({
+      webUrl: runtime.webUrl,
+      siteRoot: runtime.siteRoot,
+      fileRel: '/sites/schedule/siteDB8/dist/index.html',
+      request,
+    })).rejects.toMatchObject({ code: 'FILE_READ_FAILED' });
+  });
+
   it('uses ListItemAllFields as the primary readiness probe', async () => {
-    const request = vi.fn(async () => response({ d: { Id: 4, FileSystemObjectType: 1, FileRef: '/sites/schedule/siteDB8/siteAssets' } }));
+    const request = vi.fn(async ({ url }) => response({ d: { Id: 4, FileSystemObjectType: 1, FileRef: '/sites/schedule/siteDB8/siteAssets' } }));
     await probeSharePointFolder({
       webUrl: runtime.webUrl,
       folderRel: '/sites/schedule/siteDB8/siteAssets',

@@ -292,14 +292,28 @@ export default function AdminSharePointSetupPage() {
     return probe.ready;
   };
 
+  // Bootstrap status refresh is observational only. A brand-new logical site
+  // does not have final dist/index yet, and old SharePoint can report that
+  // absence as HTTP 400 FileNotFound instead of 404. Never block provisioning
+  // on that expected pre-provisioning state. Authentication and unrelated
+  // transport failures still propagate.
   const fileExists = async (webUrl, rel) => {
-    const result = await readSharePointFileBytes({
-      ...sharePointFilesystemOptions(webUrl),
-      fileRel: rel,
-      purpose: 'file-check',
-      cacheKey: Date.now(),
-    });
-    return result.exists;
+    try {
+      const result = await readSharePointFileBytes({
+        ...sharePointFilesystemOptions(webUrl),
+        fileRel: rel,
+        purpose: 'file-check',
+        cacheKey: Date.now(),
+      });
+      return result.exists;
+    } catch (error) {
+      const status = Number(error?.details?.status || 0);
+      if (error?.code === 'FILE_READ_FAILED' && (status === 400 || status === 404)) {
+        addLog(`non-blocking Bootstrap status probe | file=${rel} | status=${status} | treatedAs=missing`, 'legacy][BOOTSTRAP_STATUS');
+        return false;
+      }
+      throw error;
+    }
   };
 
   const refreshSetupStatus = async () => {

@@ -74,6 +74,13 @@ export function isSharePointDirectoryNotReady({ status, payload, raw = '' } = {}
     || /DirectoryNotFoundException|cannot find part of the path|folder.*not found|path.*not found/i.test(message);
 }
 
+export function isSharePointFileMissingResponse({ status, payload, raw = '' } = {}) {
+  const numericStatus = Number(status || 0);
+  const message = responseMessage(payload, raw);
+  return numericStatus === 404
+    || (numericStatus === 400 && /FileNotFoundException|file\s+not\s+found|cannot find the file|does not exist|not found/i.test(message));
+}
+
 function normalizeLibraries(libraries = []) {
   return libraries
     .map((library) => ({ title: text(library?.title), rootRel: normalizeSharePointPath(library?.rootRel) }))
@@ -316,7 +323,8 @@ export async function readSharePointFileBytes({ webUrl, fileRel, siteRoot, reque
     }
     const { raw, parsed } = await readResponseBody(response);
     attempts.push({ url, status: response.status, responsePreview: raw.slice(0, 500) });
-    if (response.status === 404 || isSharePointDirectoryNotReady({ status: response.status, payload: parsed, raw })) continue;
+    if (isSharePointFileMissingResponse({ status: response.status, payload: parsed, raw })
+      || isSharePointDirectoryNotReady({ status: response.status, payload: parsed, raw })) continue;
     throw new SharePointBrowserFilesystemError('FILE_READ_FAILED', `SharePoint file read failed for "${normalizeSharePointPath(fileRel)}" with HTTP ${response.status}.`, { fileRel: normalizeSharePointPath(fileRel), url, status: response.status, responsePreview: raw.slice(0, 700) });
   }
   return Object.freeze({ exists: false, bytes: null, status: 404, url: '', attempts });
