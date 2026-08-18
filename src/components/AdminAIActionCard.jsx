@@ -44,6 +44,7 @@ export default function AdminAIActionCard({
     const [autoApplyStatus, setAutoApplyStatus] = useState('');
     const [isOpen, setIsOpen] = useState(false);
     const [activePanelView, setActivePanelView] = useState('primary');
+    const [hasAppliedResult, setHasAppliedResult] = useState(false);
     const lastAutoAppliedKeyRef = useRef('');
     const autoApplyingRef = useRef(false);
 
@@ -129,6 +130,7 @@ export default function AdminAIActionCard({
         setIsApplying(true);
         try {
             await onApply(parsedOutput, rawOutput);
+            setHasAppliedResult(true);
             if (compact && autoCloseOnApply) {
                 setIsOpen(false);
             }
@@ -159,6 +161,10 @@ export default function AdminAIActionCard({
             try {
                 await onApply(parsedOutput, rawOutput);
                 if (!cancelled) {
+                    setHasAppliedResult(true);
+                    if (compact && autoCloseOnApply) {
+                        setIsOpen(false);
+                    }
                     setAutoApplyStatus('הצעת ה-AI הוחלה אוטומטית. ניתן לחזור אחורה או קדימה עם החצים.');
                 }
             } catch (error) {
@@ -180,7 +186,7 @@ export default function AdminAIActionCard({
         return () => {
             cancelled = true;
         };
-    }, [autoApplyLatest, isEnabled, isGenerating, onApply, parseError, parsedOutput, rawOutput]);
+    }, [autoApplyLatest, autoCloseOnApply, compact, isEnabled, isGenerating, onApply, parseError, parsedOutput, rawOutput]);
 
     const panel = (
         <section className={`rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5 ${className}`}>
@@ -317,6 +323,32 @@ export default function AdminAIActionCard({
                 <Sparkles size={15} />
                 {compactLabel}
             </button>
+
+            {hasAppliedResult && (typeof onUndo === 'function' || typeof onRedo === 'function') && (
+                <div className="inline-flex h-10 items-center gap-1 rounded-xl border border-primary/25 bg-primary/5 p-1" title="שינוי AI הוחל. אפשר לדפדף אחורה וקדימה.">
+                    <button
+                        type="button"
+                        onClick={onUndo}
+                        disabled={!canUndo || isGenerating || isApplying}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-primary transition hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40"
+                        aria-label="חזור לשינוי AI קודם"
+                        title="חזור לשינוי AI קודם"
+                    >
+                        <Undo2 size={15} />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onRedo}
+                        disabled={!canRedo || isGenerating || isApplying}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-primary transition hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40"
+                        aria-label="עבור לשינוי AI הבא"
+                        title="עבור לשינוי AI הבא"
+                    >
+                        <Redo2 size={15} />
+                    </button>
+                    <span className="px-1 text-[10px] font-black text-primary">AI הוחל</span>
+                </div>
+            )}
 
             {isOpen && typeof document !== 'undefined' && createPortal(
                 <div

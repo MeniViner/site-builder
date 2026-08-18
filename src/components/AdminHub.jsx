@@ -28,6 +28,7 @@ import AdminSiteOwnersManagement from './AdminSiteOwnersManagement';
 import AdminAdminsSync from './AdminAdminsSync';
 import AdminBackupManagement from './AdminBackupManagement';
 import AdminImageGalleries from './AdminImageGalleries';
+import AdminAICopilot from './AdminAICopilot';
 import WidgetLivePreview from './WidgetLivePreview';
 import Tooltip from './Tooltip';
 import NotFoundPage from './NotFoundPage';
@@ -319,6 +320,7 @@ export default function AdminHub() {
 
     return (
         <div dir="rtl" className="flex h-screen bg-gray-100 dark:bg-[#1e212b] text-gray-900 dark:text-white font-heebo overflow-hidden">
+            {showAiUi && <AdminAICopilot activeTab={activeTab} />}
             {showKasharDraftTools && (
                 <input
                     ref={kasharImportInputRef}
@@ -613,7 +615,7 @@ export default function AdminHub() {
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 min-w-0 flex flex-col h-full bg-gray-100 dark:bg-[#1e212b] overflow-hidden">
+            <div data-admin-main-content className="flex-1 min-w-0 flex flex-col h-full bg-gray-100 dark:bg-[#1e212b] overflow-hidden">
                 {isOnWidgetPage ? (
                     <div className="flex-1 flex gap-4 w-full min-h-0 overflow-hidden px-4 py-4">
                         <div className="flex-1 min-w-0 overflow-y-auto custom-scrollbar">
