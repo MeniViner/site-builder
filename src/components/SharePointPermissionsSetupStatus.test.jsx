@@ -86,11 +86,11 @@ describe('SharePoint setup validation lifecycle ownership', () => {
     expect(screen.getAllByText('validate-library').length).toBeGreaterThan(0);
   });
 
-  it('keeps explicit sharepoint-setup route validation strict even from the final-hosted artifact', async () => {
+  it('leaves the dedicated sharepoint-setup route to the setup page instead of running duplicate global validation', async () => {
     mocks.ensureLibraries.mockResolvedValue(setupFailure);
     renderStatus('/admin/sharepoint-setup');
-    expect(await screen.findByText('BOOTSTRAP SETUP FAILURE')).toBeInTheDocument();
-    expect(mocks.ensureLibraries).toHaveBeenCalledOnce();
+    await waitFor(() => expect(mocks.ensureLibraries).not.toHaveBeenCalled());
+    expect(screen.queryByText('BOOTSTRAP SETUP FAILURE')).not.toBeInTheDocument();
   });
 
   it('uses configured non-default final and bootstrap roots without hardcoded library names', () => {

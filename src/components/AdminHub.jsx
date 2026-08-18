@@ -257,6 +257,8 @@ export default function AdminHub() {
 
     useEffect(() => {
         if (!activeSectionKey) return;
+        // Route state intentionally drives the admin accordion state here.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSectionOpen((prev) => {
             const next = openOnlySection(activeSectionKey);
             const unchanged = ADMIN_SECTION_KEYS.every((key) => prev[key] === next[key]);

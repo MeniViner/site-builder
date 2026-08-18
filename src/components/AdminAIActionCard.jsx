@@ -41,7 +41,7 @@ export default function AdminAIActionCard({
     const [parsedOutput, setParsedOutput] = useState(null);
     const [modelUsed, setModelUsed] = useState('');
     const [parseError, setParseError] = useState('');
-    const [autoApplyStatus, setAutoApplyStatus] = useState('');
+    const [, setAutoApplyStatus] = useState('');
     const [isOpen, setIsOpen] = useState(false);
     const [activePanelView, setActivePanelView] = useState('primary');
     const [hasAppliedResult, setHasAppliedResult] = useState(false);

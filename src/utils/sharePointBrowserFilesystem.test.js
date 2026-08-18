@@ -143,7 +143,7 @@ describe('SharePoint file reads', () => {
   });
 
   it('uses ListItemAllFields as the primary readiness probe', async () => {
-    const request = vi.fn(async ({ url }) => response({ d: { Id: 4, FileSystemObjectType: 1, FileRef: '/sites/schedule/siteDB8/siteAssets' } }));
+    const request = vi.fn(async () => response({ d: { Id: 4, FileSystemObjectType: 1, FileRef: '/sites/schedule/siteDB8/siteAssets' } }));
     await probeSharePointFolder({
       webUrl: runtime.webUrl,
       folderRel: '/sites/schedule/siteDB8/siteAssets',
