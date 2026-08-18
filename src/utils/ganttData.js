@@ -17,6 +17,7 @@ export const GANTT_TIME_STATUS_OPTIONS = [
 ];
 
 export const GANTT_VIEW_OPTIONS = [
+    { value: 'day', label: 'יום' },
     { value: 'week', label: 'שבוע' },
     { value: 'month', label: 'חודש' },
     { value: 'quarter', label: 'רבעון' },
@@ -199,6 +200,9 @@ export const DEFAULT_GANTT_DESIGN = {
     showOuterCard: true,
     barShadow: true,
     showProgressLabel: true,
+    showTaskNameOnBar: false,
+    showHebrewDate: false,
+    showHolidays: false,
     colors: {
         chartBackground: '#ffffff',
         cardBackground: '#ffffff',
@@ -402,6 +406,9 @@ export function normalizeGanttDesignSettings(designLike) {
         showOuterCard: normalizeBoolean(merged.showOuterCard, presetDefaults.showOuterCard),
         barShadow: normalizeBoolean(merged.barShadow, presetDefaults.barShadow),
         showProgressLabel: normalizeBoolean(merged.showProgressLabel, presetDefaults.showProgressLabel),
+        showTaskNameOnBar: normalizeBoolean(merged.showTaskNameOnBar, presetDefaults.showTaskNameOnBar ?? DEFAULT_GANTT_DESIGN.showTaskNameOnBar),
+        showHebrewDate: normalizeBoolean(merged.showHebrewDate, presetDefaults.showHebrewDate ?? DEFAULT_GANTT_DESIGN.showHebrewDate),
+        showHolidays: normalizeBoolean(merged.showHolidays, presetDefaults.showHolidays ?? DEFAULT_GANTT_DESIGN.showHolidays),
         colors: {
             chartBackground: normalizeColor(merged.colors.chartBackground, presetDefaults.colors.chartBackground),
             cardBackground: normalizeColor(merged.colors.cardBackground, presetDefaults.colors.cardBackground),

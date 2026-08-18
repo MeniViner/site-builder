@@ -283,6 +283,72 @@ describe('gantt recurrence', () => {
         }));
         expect(occurrence.milestones[0]).toEqual(expect.objectContaining({ date: '2026-01-13' }));
     });
+
+    it('keeps a recurring task as a single logical record with one stable id in the persisted items list', () => {
+        const normalized = normalizeGanttData({
+            items: [{
+                id: 'weekly-standup',
+                title: 'עמידה יומית',
+                startDate: '2026-01-05',
+                endDate: '2026-01-05',
+                recurrence: { enabled: true, frequency: 'weekly', weekdays: [1], until: '2026-02-28' },
+            }],
+        });
+
+        // Exactly one logical task is stored — recurrence never expands into
+        // multiple persisted task records, regardless of how many occurrences
+        // the rule would produce over time.
+        expect(normalized.items).toHaveLength(1);
+        expect(normalized.items[0].id).toBe('weekly-standup');
+        expect(normalized.items[0].recurrence.enabled).toBe(true);
+    });
+
+    it('recalculates occurrences correctly after the recurrence rule is modified (edit behaves predictably)', () => {
+        const buildTask = (recurrence) => normalizeGanttData({
+            items: [{
+                id: 'flexible-task',
+                title: 'משימה גמישה',
+                startDate: '2026-01-05',
+                endDate: '2026-01-05',
+                recurrence,
+            }],
+        }).items[0];
+
+        const weekly = buildTask({ enabled: true, frequency: 'weekly', weekdays: [1], until: '2026-01-31' });
+        expect(getGanttRecurringOccurrenceDates(weekly, { rangeStart: '2026-01-01', rangeEnd: '2026-01-31' })).toEqual([
+            '2026-01-05', '2026-01-12', '2026-01-19', '2026-01-26',
+        ]);
+
+        // Editing the same logical task to a monthly rule replaces the
+        // occurrence schedule without touching the task's identity.
+        const monthly = buildTask({ enabled: true, frequency: 'monthly', monthlyMode: 'dayOfMonth', dayOfMonth: 5, until: '2026-04-30' });
+        expect(monthly.id).toBe('flexible-task');
+        expect(getGanttRecurringOccurrenceDates(monthly, { rangeStart: '2026-01-01', rangeEnd: '2026-04-30' })).toEqual([
+            '2026-01-05', '2026-02-05', '2026-03-05', '2026-04-05',
+        ]);
+
+        // Disabling recurrence turns the task back into a plain one-off task.
+        const disabled = buildTask({ enabled: false });
+        expect(disabled.id).toBe('flexible-task');
+        expect(disabled.recurrence).toBeUndefined();
+        expect(getGanttRecurringOccurrenceDates(disabled, { rangeStart: '2026-01-01', rangeEnd: '2026-04-30' })).toEqual([]);
+    });
+
+    it('only returns occurrence dates that fall inside the requested visible range', () => {
+        const task = normalizeGanttData({
+            items: [{
+                id: 'ranged-task',
+                title: 'משימה עם טווח',
+                startDate: '2026-01-05',
+                endDate: '2026-01-05',
+                recurrence: { enabled: true, frequency: 'weekly', weekdays: [1], until: '2026-12-31' },
+            }],
+        }).items[0];
+
+        const marchOnly = getGanttRecurringOccurrenceDates(task, { rangeStart: '2026-03-01', rangeEnd: '2026-03-31' });
+        expect(marchOnly.every((date) => date >= '2026-03-01' && date <= '2026-03-31')).toBe(true);
+        expect(marchOnly.length).toBeGreaterThan(0);
+    });
 });
 
 describe('gantt design settings', () => {
@@ -338,6 +404,72 @@ describe('gantt design settings', () => {
             taskColumnWidth: 'wide',
             showProgressLabel: false,
         }));
+    });
+
+    it('defaults the new display toggles to off so existing saved data keeps its current look', () => {
+        const normalized = normalizeGanttDesignSettings({});
+        expect(normalized.showTaskNameOnBar).toBe(false);
+        expect(normalized.showHebrewDate).toBe(false);
+        expect(normalized.showHolidays).toBe(false);
+    });
+
+    it('can enable and disable "show task name on bar" independently of other settings', () => {
+        const enabled = normalizeGanttDesignSettings({ showTaskNameOnBar: true });
+        const disabled = normalizeGanttDesignSettings({ showTaskNameOnBar: false });
+        expect(enabled.showTaskNameOnBar).toBe(true);
+        expect(disabled.showTaskNameOnBar).toBe(false);
+    });
+
+    it('can enable and disable the Hebrew-date display option independently', () => {
+        const enabled = normalizeGanttDesignSettings({ showHebrewDate: true });
+        const disabled = normalizeGanttDesignSettings({ showHebrewDate: false });
+        expect(enabled.showHebrewDate).toBe(true);
+        expect(disabled.showHebrewDate).toBe(false);
+    });
+
+    it('can enable and disable the Israeli/Jewish holidays display option independently', () => {
+        const enabled = normalizeGanttDesignSettings({ showHolidays: true });
+        const disabled = normalizeGanttDesignSettings({ showHolidays: false });
+        expect(enabled.showHolidays).toBe(true);
+        expect(disabled.showHolidays).toBe(false);
+    });
+
+    it('persists all three new display toggles together through normalizeGanttData', () => {
+        const normalized = normalizeGanttData({
+            settings: {
+                design: {
+                    showTaskNameOnBar: true,
+                    showHebrewDate: true,
+                    showHolidays: true,
+                },
+            },
+            items: [],
+        });
+
+        expect(normalized.settings.design).toEqual(expect.objectContaining({
+            showTaskNameOnBar: true,
+            showHebrewDate: true,
+            showHolidays: true,
+        }));
+    });
+});
+
+describe('gantt default view', () => {
+    it('accepts and persists "day" alongside the existing week/month/quarter values', () => {
+        ['day', 'week', 'month', 'quarter'].forEach((defaultView) => {
+            const normalized = normalizeGanttData({ defaultView, items: [] });
+            expect(normalized.defaultView).toBe(defaultView);
+        });
+    });
+
+    it('falls back to month for an invalid or missing default view (backward compatible)', () => {
+        expect(normalizeGanttData({ items: [] }).defaultView).toBe('month');
+        expect(normalizeGanttData({ defaultView: 'not-a-view', items: [] }).defaultView).toBe('month');
+    });
+
+    it('keeps loading existing saved plans that still use week/month/quarter after the day view was added', () => {
+        const legacySavedPlan = { ...DEFAULT_GANTT_DATA, defaultView: 'quarter' };
+        expect(normalizeGanttData(legacySavedPlan).defaultView).toBe('quarter');
     });
 });
 

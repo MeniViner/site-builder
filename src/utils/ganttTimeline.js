@@ -1,6 +1,7 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const GANTT_TIMELINE_VIEW_CONFIG = {
+    day: { pixelsPerDay: 132, tickEvery: 1, minWidth: 640 },
     week: { pixelsPerDay: 64, tickEvery: 1, minWidth: 760 },
     month: { pixelsPerDay: 24, tickEvery: 7, minWidth: 820 },
     quarter: { pixelsPerDay: 10, tickEvery: 14, minWidth: 900 },
@@ -117,6 +118,12 @@ function addUtcMonths(timestamp, monthOffset) {
 function shiftTimelineRange(range, viewMode, periodOffset) {
     const offset = Number.isFinite(Number(periodOffset)) ? Math.round(Number(periodOffset)) : 0;
     if (offset === 0) return range;
+    if (viewMode === 'day') {
+        return {
+            start: addGanttDays(range.start, offset),
+            end: addGanttDays(range.end, offset),
+        };
+    }
     if (viewMode === 'week') {
         return {
             start: addGanttDays(range.start, offset * 7),
@@ -134,6 +141,14 @@ export function resolveGanttTimelineRange(items, viewMode, todayString = localDa
     const extent = resolveItemExtent(items, todayString);
     const safeViewMode = GANTT_TIMELINE_VIEW_CONFIG[viewMode] ? viewMode : 'month';
     let range;
+
+    if (safeViewMode === 'day') {
+        range = {
+            start: startOfUtcDay(extent.start),
+            end: startOfUtcDay(extent.end),
+        };
+        return shiftTimelineRange(range, safeViewMode, periodOffset);
+    }
 
     if (safeViewMode === 'week') {
         range = {

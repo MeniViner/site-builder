@@ -337,6 +337,126 @@ function MetricCard({ label, value, caption }) {
     );
 }
 
+/**
+ * Free-text category field that also surfaces existing categories as an
+ * autocomplete dropdown plus a row of quick-select chips below the input, so
+ * users can either pick an existing category or type a brand new one. Typed
+ * text that only differs from an existing category by case/whitespace snaps
+ * to the existing category's exact spelling to avoid accidental near-duplicates.
+ */
+function CategoryCombobox({ value, categories, onChange, placeholder = 'שם תחום' }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef(null);
+
+    useEffect(() => {
+        if (!isOpen) return undefined;
+        const handlePointerDown = (event) => {
+            if (!containerRef.current?.contains(event.target)) setIsOpen(false);
+        };
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape') setIsOpen(false);
+        };
+        document.addEventListener('mousedown', handlePointerDown);
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('mousedown', handlePointerDown);
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isOpen]);
+
+    const query = (value || '').trim().toLowerCase();
+    const matches = categories.filter((category) => !query || category.name.toLowerCase().includes(query));
+
+    const findCanonical = (text) => categories.find(
+        (category) => category.name.trim().toLowerCase() === text.trim().toLowerCase()
+    );
+    const selectCategory = (category) => {
+        onChange(category.name, category);
+        setIsOpen(false);
+    };
+    const commitTypedValue = () => {
+        const canonical = findCanonical(value || '');
+        if (canonical && canonical.name !== value) onChange(canonical.name, canonical);
+    };
+
+    return (
+        <div className="relative" ref={containerRef}>
+            <input
+                role="combobox"
+                aria-expanded={isOpen}
+                aria-autocomplete="list"
+                aria-controls="gantt-category-combobox-list"
+                aria-label="תחום / קטגוריה"
+                className={inputCls}
+                value={value || ''}
+                placeholder={placeholder}
+                onFocus={() => setIsOpen(true)}
+                onChange={(event) => {
+                    setIsOpen(true);
+                    onChange(event.target.value, findCanonical(event.target.value));
+                }}
+                onBlur={commitTypedValue}
+                onKeyDown={(event) => {
+                    if (event.key === 'Escape') setIsOpen(false);
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        commitTypedValue();
+                        setIsOpen(false);
+                    }
+                }}
+            />
+            {isOpen && matches.length > 0 && (
+                <ul
+                    id="gantt-category-combobox-list"
+                    role="listbox"
+                    aria-label="תחומים קיימים"
+                    className="absolute z-20 mt-1.5 max-h-52 w-full overflow-auto rounded-xl border border-gray-200 bg-white p-1 shadow-lg dark:border-white/10 dark:bg-[#1b1f2a]"
+                >
+                    {matches.map((category) => (
+                        <li key={category.id}>
+                            <button
+                                type="button"
+                                role="option"
+                                aria-selected={category.name === value}
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => selectCategory(category)}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-right text-sm font-bold text-gray-700 transition hover:bg-primary/10 hover:text-primary dark:text-gray-200 dark:hover:bg-primary/15"
+                            >
+                                <span className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/5" style={{ backgroundColor: category.color }} />
+                                <span className="truncate">{category.name}</span>
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            )}
+            {categories.length > 0 && (
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {categories.map((category) => {
+                        const isSelected = category.name.trim().toLowerCase() === (value || '').trim().toLowerCase();
+                        return (
+                            <button
+                                key={category.id}
+                                type="button"
+                                onClick={() => selectCategory(category)}
+                                aria-pressed={isSelected}
+                                title={category.name}
+                                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold transition-all duration-150 active:scale-[0.96] ${
+                                    isSelected
+                                        ? 'border-primary/40 bg-primary/10 text-primary shadow-sm'
+                                        : 'border-gray-200 bg-white text-gray-600 hover:border-primary/30 hover:bg-primary/5 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-gray-300 dark:hover:border-primary/30 dark:hover:bg-primary/10 dark:hover:text-primary'
+                                }`}
+                            >
+                                <span className="h-2 w-2 shrink-0 rounded-full ring-1 ring-black/5" style={{ backgroundColor: category.color }} />
+                                <span className="max-w-[9rem] truncate">{category.name}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
 function TaskModal({ modal, categories, onClose, onSubmit, onChange }) {
     const form = modal?.form;
     if (!form) return null;
@@ -409,12 +529,6 @@ function TaskModal({ modal, categories, onClose, onSubmit, onChange }) {
                         </DismissibleNotice>
                     )}
 
-                    <datalist id="gantt-category-options">
-                        {categories.map((category) => (
-                            <option key={category.id} value={category.name} />
-                        ))}
-                    </datalist>
-
                     <div className="grid gap-4 lg:grid-cols-2">
                         <label className={compactCardCls}>
                             <span className={labelCls}>שם משימה</span>
@@ -422,17 +536,13 @@ function TaskModal({ modal, categories, onClose, onSubmit, onChange }) {
                         </label>
                         <label className={compactCardCls}>
                             <span className={labelCls}>תחום / קטגוריה</span>
-                            <input
-                                list="gantt-category-options"
-                                className={inputCls}
+                            <CategoryCombobox
                                 value={form.category}
-                                onChange={(event) => {
-                                    const category = categories.find((item) => item.name === event.target.value);
-                                    onChange({
-                                        category: event.target.value,
-                                        ...(category ? { color: category.color } : {}),
-                                    });
-                                }}
+                                categories={categories}
+                                onChange={(nextValue, matchedCategory) => onChange({
+                                    category: nextValue,
+                                    ...(matchedCategory ? { color: matchedCategory.color } : {}),
+                                })}
                             />
                         </label>
                         <label className={compactCardCls}>
@@ -889,7 +999,7 @@ export default function AdminGantt() {
             toast.error('יש להזין שם תחום.');
             return;
         }
-        if (categoryOptions.some((category) => category.name === name)) {
+        if (categoryOptions.some((category) => category.name.trim().toLowerCase() === name.toLowerCase())) {
             toast.error('תחום בשם הזה כבר קיים.');
             return;
         }
@@ -1665,14 +1775,23 @@ export default function AdminGantt() {
                             </div>
                         ))}
 
-                        {renderSettingGroup('פסי משימות', 'צורת הפסים, צל ואחוז התקדמות על הפס.', (
+                        {renderSettingGroup('פסי משימות', 'צורת הפסים, צל, אחוז התקדמות ושם המשימה על הפס.', (
                             <div className="grid gap-3 sm:grid-cols-2">
                                 {renderDesignSelect('צורת פסי זמן', 'barStyle')}
                                 <div className={`${compactCardCls} flex flex-col gap-3`}>
                                     <span className={labelCls}>אפשרויות פסים</span>
                                     <ToggleSwitch checked={designSettings.barShadow} onChange={(barShadow) => updateDesign({ barShadow })} label="צל עדין לפסים" />
                                     <ToggleSwitch checked={designSettings.showProgressLabel} onChange={(showProgressLabel) => updateDesign({ showProgressLabel })} label="הצג אחוז על הפס" />
+                                    <ToggleSwitch checked={designSettings.showTaskNameOnBar} onChange={(showTaskNameOnBar) => updateDesign({ showTaskNameOnBar })} label="הצג שם משימה על הפס" />
                                 </div>
+                            </div>
+                        ))}
+
+                        {renderSettingGroup('לוח שנה עברי וחגים', 'הצגת תאריך עברי וחגי ישראל לצד ציר הזמן הלועזי, בנפרד או יחד.', (
+                            <div className={`${compactCardCls} flex flex-col gap-3`}>
+                                <span className={labelCls}>אפשרויות לוח שנה</span>
+                                <ToggleSwitch checked={designSettings.showHebrewDate} onChange={(showHebrewDate) => updateDesign({ showHebrewDate })} label="הצג תאריך עברי בכותרת" />
+                                <ToggleSwitch checked={designSettings.showHolidays} onChange={(showHolidays) => updateDesign({ showHolidays })} label="הצג חגים ומועדי ישראל" />
                             </div>
                         ))}
 

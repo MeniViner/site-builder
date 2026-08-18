@@ -1,14 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CalendarDays, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleHelp, Diamond, Flag, OctagonAlert, PauseCircle, Repeat2, Search, X, XCircle } from 'lucide-react';
 import {
     GANTT_STATUS_OPTIONS,
     GANTT_VIEW_OPTIONS,
     computeGanttProgress,
     computeGanttTimeStatus,
-    expandGanttRecurringTasks,
+    describeGanttRecurrence,
+    getGanttRecurringOccurrenceDates,
     normalizeGanttData,
 } from '../utils/ganttData';
 import { buildGanttTimelineModel, resolveGanttTimelineRange } from '../utils/ganttTimeline';
+import { getHebrewDateLabel, buildHolidayMapForRange } from '../utils/hebrewCalendar';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ROW_HEIGHT = 50;
@@ -19,6 +22,61 @@ const MILESTONE_HIT_AREA = 40;
 const MILESTONE_POPOVER_MIN_WIDTH = 220;
 const MILESTONE_POPOVER_MAX_WIDTH = 260;
 const MILESTONE_POPOVER_SCROLL_SPACE = 190;
+const FLOATING_OVERLAY_Z = 500;
+const TASK_HOVER_CARD_WIDTH = 272;
+const TASK_NAME_ON_BAR_MIN_WIDTH = 46;
+const PROGRESS_LABEL_MIN_WIDTH = 26;
+const BOTH_NAME_AND_PROGRESS_MIN_WIDTH = 72;
+
+/**
+ * Shared floating-position calculator used by portal-rendered overlays (legend
+ * help panel, task hover card) so they escape ancestor `overflow` clipping and
+ * stay correctly placed near viewport edges. Mirrors the pattern already used
+ * by HelpTooltipButton (src/components/AdminHelp.jsx).
+ */
+function useFloatingPosition(isOpen, anchorRef, panelRef, { gap = 8, padding = 12, preferredWidth, align = 'end' } = {}) {
+    const [style, setStyle] = useState(null);
+
+    useEffect(() => {
+        // No cleanup needed when closed: the caller only renders the portal
+        // while `isOpen` is true, so a stale style value is never displayed.
+        if (!isOpen || typeof window === 'undefined') return undefined;
+
+        const updatePosition = () => {
+            if (!anchorRef.current) return;
+            const anchorRect = anchorRef.current.getBoundingClientRect();
+            const panelRect = panelRef.current?.getBoundingClientRect();
+            const width = Math.min(preferredWidth || panelRect?.width || 280, window.innerWidth - padding * 2);
+            const height = panelRect?.height || 160;
+
+            let left = align === 'center'
+                ? anchorRect.left + anchorRect.width / 2 - width / 2
+                : anchorRect.right - width;
+            left = Math.max(padding, Math.min(left, window.innerWidth - width - padding));
+
+            const fitsBelow = anchorRect.bottom + gap + height <= window.innerHeight - padding;
+            const top = fitsBelow
+                ? anchorRect.bottom + gap
+                : Math.max(padding, anchorRect.top - height - gap);
+            const placement = fitsBelow ? 'below' : 'above';
+
+            setStyle({ top, left, width, placement });
+        };
+
+        // Compute synchronously (no rAF) so the panel is positioned and
+        // accessible in the very same commit it opens in.
+        updatePosition();
+        window.addEventListener('resize', updatePosition);
+        window.addEventListener('scroll', updatePosition, true);
+
+        return () => {
+            window.removeEventListener('resize', updatePosition);
+            window.removeEventListener('scroll', updatePosition, true);
+        };
+    }, [isOpen, anchorRef, panelRef, gap, padding, preferredWidth, align]);
+
+    return style;
+}
 
 const DENSITY_CONFIG = {
     compact: { rowHeight: 42, groupRowHeight: 30, toolbarPadding: 'p-2', barHeightClass: 'h-5', taskTextClass: 'text-xs', markerSize: 12, legendPadding: 'px-3 py-2' },
@@ -208,44 +266,12 @@ function ChartToolbar({
                     ))}
                 </select>
                 {showLegendHelp && (
-                    <div className="relative z-50">
-                        <button
-                            type="button"
-                            onClick={onToggleLegendHelp}
-                            className={`inline-flex h-9 min-w-10 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black outline-none transition-[background-color,color,transform,box-shadow] hover:shadow-sm active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-primary/40 ${presentation.controlClass}`}
-                            aria-expanded={isLegendHelpOpen}
-                            aria-haspopup="dialog"
-                            aria-controls="gantt-legend-help"
-                            title="עזרה לקריאת הגאנט"
-                        >
-                            <CircleHelp size={15} />
-                            <span>מקרא</span>
-                        </button>
-                        {isLegendHelpOpen && (
-                            <div
-                                id="gantt-legend-help"
-                                role="dialog"
-                                aria-label="עזרה לקריאת הגאנט"
-                                data-gantt-legend-help
-                                className="absolute right-[calc(100%+8px)] top-1/2 z-[80] w-[min(78vw,360px)] -translate-y-1/2 rounded-2xl border border-theme-subtle bg-theme-card p-3 text-right text-xs text-theme shadow-[0_18px_44px_rgba(15,23,42,0.18)]"
-                            >
-                                <div className="mb-2 flex items-center justify-between gap-3">
-                                    <div className="min-w-0 font-black text-theme">עזרה לקריאת הגאנט</div>
-                                    <button
-                                        type="button"
-                                        onClick={onCloseLegendHelp}
-                                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-theme-muted transition-[background-color,color,transform] hover:bg-theme-elevated hover:text-theme active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                                        aria-label="סגור עזרה לקריאת הגאנט"
-                                    >
-                                        <X size={14} />
-                                    </button>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <LegendItems presentation={presentation} />
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                    <LegendHelpButton
+                        presentation={presentation}
+                        isOpen={isLegendHelpOpen}
+                        onToggle={onToggleLegendHelp}
+                        onClose={onCloseLegendHelp}
+                    />
                 )}
             </div>
             <label className="relative block min-w-0 lg:w-72">
@@ -401,6 +427,150 @@ function LegendItems({ presentation }) {
     );
 }
 
+/**
+ * Legend trigger + panel. The panel is portal-rendered to `document.body` with
+ * viewport-clamped `position: fixed` coordinates (see `useFloatingPosition`)
+ * so it always renders above the Gantt content and is never clipped by the
+ * chart shell's `overflow-hidden` card container.
+ */
+function LegendHelpButton({ presentation, isOpen, onToggle, onClose }) {
+    const buttonRef = useRef(null);
+    const panelRef = useRef(null);
+    const panelStyle = useFloatingPosition(isOpen, buttonRef, panelRef, { preferredWidth: 320, align: 'end' });
+
+    return (
+        <div className="relative">
+            <button
+                ref={buttonRef}
+                type="button"
+                onClick={onToggle}
+                className={`inline-flex h-9 min-w-10 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black outline-none transition-[background-color,color,transform,box-shadow] hover:shadow-sm active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-primary/40 ${presentation.controlClass}`}
+                aria-expanded={isOpen}
+                aria-haspopup="dialog"
+                aria-controls="gantt-legend-help"
+                title="עזרה לקריאת הגאנט"
+            >
+                <CircleHelp size={15} />
+                <span>מקרא</span>
+            </button>
+            {isOpen && typeof document !== 'undefined' && createPortal(
+                <div
+                    ref={panelRef}
+                    id="gantt-legend-help"
+                    role="dialog"
+                    aria-label="עזרה לקריאת הגאנט"
+                    data-gantt-legend-help
+                    className="fixed w-[min(78vw,320px)] rounded-2xl border border-theme-subtle bg-theme-card p-3 text-right text-xs text-theme shadow-[0_18px_44px_rgba(15,23,42,0.22)]"
+                    style={{
+                        zIndex: FLOATING_OVERLAY_Z,
+                        top: panelStyle?.top ?? -9999,
+                        left: panelStyle?.left ?? -9999,
+                        visibility: panelStyle ? 'visible' : 'hidden',
+                    }}
+                >
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                        <div className="min-w-0 font-black text-theme">עזרה לקריאת הגאנט</div>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-theme-muted transition-[background-color,color,transform] hover:bg-theme-elevated hover:text-theme active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                            aria-label="סגור עזרה לקריאת הגאנט"
+                        >
+                            <X size={14} />
+                        </button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <LegendItems presentation={presentation} />
+                    </div>
+                </div>,
+                document.body
+            )}
+        </div>
+    );
+}
+
+/**
+ * Premium floating "glass" info panel shown while hovering/focusing a task
+ * bar. Positioned with `position: fixed` from the bar's own bounding rect
+ * (computed once on mouse/focus enter, so pointer movement within the same
+ * bar never re-triggers positioning or flicker) and portal-rendered so it can
+ * never be clipped by the scrollable Gantt body.
+ */
+function TaskHoverCard({ hoverCard, presentation, design, timeStatusLabel: timeStatusLabels }) {
+    if (!hoverCard || typeof document === 'undefined') return null;
+    const { rect, item, occStartStr, occEndStr, progress, timeStatus, recurrenceEnabled, recurrenceLabel, occurrenceIndex, milestonesCount } = hoverCard;
+    const viewportWidth = typeof window === 'undefined' ? 1280 : window.innerWidth;
+    const viewportHeight = typeof window === 'undefined' ? 800 : window.innerHeight;
+    const gap = 10;
+    const width = TASK_HOVER_CARD_WIDTH;
+    const left = clampNumber(rect.left + rect.width / 2 - width / 2, 8, Math.max(8, viewportWidth - width - 8));
+    const estimatedHeight = 172;
+    const placeAbove = rect.top - estimatedHeight - gap >= 8 || (viewportHeight - rect.bottom) < estimatedHeight + gap;
+    const top = placeAbove ? Math.max(8, rect.top - gap) : Math.min(viewportHeight - 8, rect.bottom + gap);
+    // Tailwind's opacity modifier (e.g. `bg-theme-card/75`) can't inject alpha
+    // into these theme CSS variables, so the glass tint is built explicitly
+    // from the design's own card-background color to guarantee it's actually
+    // translucent (and readable) rather than silently rendering solid/transparent.
+    const glassBackground = colorWithAlpha(design?.colors?.cardBackground || '#ffffff', 'BF');
+
+    return createPortal(
+        <div
+            role="tooltip"
+            data-gantt-hover-card={item.id}
+            className="pointer-events-none fixed"
+            style={{
+                zIndex: FLOATING_OVERLAY_Z,
+                left,
+                top,
+                width,
+                transform: placeAbove ? 'translateY(-100%)' : 'none',
+            }}
+        >
+            <div
+                className="rounded-2xl border border-theme-subtle p-3.5 text-xs leading-5 text-theme shadow-[0_22px_55px_rgba(15,23,42,0.28)] backdrop-blur-xl"
+                style={{ backgroundColor: glassBackground }}
+            >
+                <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                        <div className="truncate text-sm font-black text-theme">{item.title}</div>
+                        {item.category && (
+                            <div className="mt-1 flex items-center gap-1.5 text-[11px] font-bold text-theme-muted">
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                                <span className="truncate">{item.category}</span>
+                            </div>
+                        )}
+                    </div>
+                    <span className="shrink-0 rounded-full border border-theme-subtle bg-theme-elevated px-2 py-0.5 text-[10px] font-black text-theme-muted">
+                        {timeStatusLabels[timeStatus] || timeStatus}
+                    </span>
+                </div>
+
+                <div className="mt-2.5 flex items-center justify-between gap-3 text-[11px] font-bold text-theme-muted">
+                    <span className="tabular-nums">{formatShortDate(occStartStr)} – {formatShortDate(occEndStr)}</span>
+                    <span className="tabular-nums font-black text-theme">{progress}%</span>
+                </div>
+                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-theme-elevated">
+                    <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, backgroundColor: item.color }} />
+                </div>
+
+                {recurrenceEnabled && (
+                    <div className="mt-2.5 flex items-center gap-1.5 rounded-lg border border-theme-subtle bg-theme-elevated px-2 py-1.5 text-[11px] font-bold text-theme-muted">
+                        <Repeat2 size={12} className="shrink-0" style={{ color: presentation.accentColor }} />
+                        <span className="truncate">מופע {occurrenceIndex + 1} · {recurrenceLabel}</span>
+                    </div>
+                )}
+                {milestonesCount > 0 && (
+                    <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-bold text-theme-muted">
+                        <Diamond size={11} className="shrink-0" style={{ color: presentation.accentColor }} />
+                        {milestonesCount} אבני דרך
+                    </div>
+                )}
+            </div>
+        </div>,
+        document.body
+    );
+}
+
 export default function GanttChart({
     data,
     compact = false,
@@ -418,6 +588,7 @@ export default function GanttChart({
     const [statusFilter, setStatusFilter] = useState('all');
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedMilestone, setSelectedMilestone] = useState(null);
+    const [hoverCard, setHoverCard] = useState(null);
     const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
     const [isLegendHelpOpen, setIsLegendHelpOpen] = useState(false);
     const [todayString] = useState(() => localDateString());
@@ -449,6 +620,7 @@ export default function GanttChart({
     const closeFloatingDetails = () => {
         setSelectedMilestone(null);
         setIsLegendHelpOpen(false);
+        setHoverCard(null);
     };
     const updateSelectedViewMode = (nextViewMode) => {
         closeFloatingDetails();
@@ -486,6 +658,15 @@ export default function GanttChart({
         setSelectedMilestone(null);
         setIsLegendHelpOpen((isOpen) => !isOpen);
     };
+    const openHoverCard = (details, element) => {
+        if (!element) return;
+        const rect = element.getBoundingClientRect();
+        setHoverCard({
+            ...details,
+            rect: { top: rect.top, left: rect.left, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height },
+        });
+    };
+    const closeHoverCard = () => setHoverCard(null);
 
     const filteredItems = useMemo(() => {
         const query = searchTerm.trim().toLowerCase();
@@ -502,12 +683,9 @@ export default function GanttChart({
         return resolveGanttTimelineRange(filteredItems, viewMode, todayString, periodOffset);
     }, [filteredItems, periodOffset, todayString, viewMode]);
 
-    const displayItems = useMemo(() => (
-        expandGanttRecurringTasks(filteredItems, {
-            rangeStart: timelineRange.start,
-            rangeEnd: timelineRange.end,
-        })
-    ), [filteredItems, timelineRange.end, timelineRange.start]);
+    // Recurring tasks stay a single logical row; occurrences are calculated and
+    // rendered as multiple bars within that same row (see the task-row loop below).
+    const displayItems = filteredItems;
 
     const model = useMemo(() => {
         return buildGanttTimelineModel({
@@ -525,6 +703,11 @@ export default function GanttChart({
         });
     }, [categories, compact, displayItems, gantt.groupBy, gantt.showToday, periodOffset, taskColumnWidth, timelineRange, todayString, viewMode, viewportWidth]);
 
+    const holidayMap = useMemo(() => {
+        if (!design.showHolidays || !model) return new Map();
+        return buildHolidayMapForRange(toDateString(model.start), toDateString(model.end));
+    }, [design.showHolidays, model]);
+
     if (gantt.items.length === 0) {
         return (
             <section dir="rtl" className={`${presentation.widthClass} flex min-w-0 flex-col overflow-hidden ${presentation.shellClass} ${className}`} style={cardStyle}>
@@ -535,7 +718,7 @@ export default function GanttChart({
         );
     }
 
-    if (filteredItems.length === 0 || displayItems.length === 0) {
+    if (filteredItems.length === 0) {
         return (
             <section dir="rtl" className={`${presentation.widthClass} flex min-w-0 flex-col overflow-hidden ${presentation.shellClass} ${className}`} style={cardStyle}>
                 {!compact && showToolbar && (
@@ -619,6 +802,7 @@ export default function GanttChart({
                 data-gantt-milestone-popover-open={isMilestonePopoverOpen ? 'true' : 'false'}
                 className={`min-h-0 overflow-auto overscroll-contain custom-scrollbar [scrollbar-gutter:stable] ${fitHeightToContent ? 'flex-[1_1_auto]' : 'flex-1'}`}
                 style={isMilestonePopoverOpen ? { paddingBottom: MILESTONE_POPOVER_SCROLL_SPACE } : undefined}
+                onScroll={closeHoverCard}
             >
                 <div className="grid min-w-full" style={{ gridTemplateColumns: `${taskColumnWidth}px ${model.width}px` }}>
                     <div className="sticky right-0 top-0 z-40 flex items-center border-l border-theme-subtle bg-theme-card px-4 py-3 text-sm font-black shadow-sm" style={presentation.headerStyle}>
@@ -652,17 +836,25 @@ export default function GanttChart({
                                 </div>
                             ))}
                         </div>
-                        <div className="relative h-8">
-                            {model.ticks.map((tick) => (
-                                <div
-                                    key={tick.date}
-                                    data-gantt-tick={tick.date}
-                                    className={`absolute top-0 flex h-8 items-center border-r pr-1 text-[11px] ${tick.strong ? 'border-primary/40 text-theme' : 'border-theme-subtle text-theme-muted'}`}
-                                    style={{ right: tick.offset, borderColor: tick.strong ? presentation.accentColor : presentation.gridColor }}
-                                >
-                                    {formatShortDate(tick.date)}
-                                </div>
-                            ))}
+                        <div className={`relative ${design.showHebrewDate ? 'h-12' : 'h-8'}`}>
+                            {model.ticks.map((tick) => {
+                                const hebrewDateLabel = design.showHebrewDate ? getHebrewDateLabel(tick.date) : null;
+                                return (
+                                    <div
+                                        key={tick.date}
+                                        data-gantt-tick={tick.date}
+                                        className={`absolute top-0 border-r pr-1 text-[11px] ${design.showHebrewDate ? 'flex h-12 flex-col items-start justify-center gap-0.5' : 'flex h-8 items-center'} ${tick.strong ? 'border-primary/40 text-theme' : 'border-theme-subtle text-theme-muted'}`}
+                                        style={{ right: tick.offset, borderColor: tick.strong ? presentation.accentColor : presentation.gridColor }}
+                                    >
+                                        <span>{formatShortDate(tick.date)}</span>
+                                        {hebrewDateLabel && (
+                                            <span dir="rtl" className="whitespace-nowrap text-[9px] font-normal leading-none text-theme-muted/80">
+                                                {hebrewDateLabel}
+                                            </span>
+                                        )}
+                                    </div>
+                                );
+                            })}
                             {showToday && (
                                 <div
                                     data-gantt-today-line="header"
@@ -677,6 +869,28 @@ export default function GanttChart({
                                 />
                             )}
                         </div>
+                        {design.showHolidays && holidayMap.size > 0 && (
+                            <div className="relative h-5 border-t border-theme-subtle/60" data-gantt-holiday-row="">
+                                {[...holidayMap.entries()].map(([date, holidays]) => {
+                                    const holidayTs = parseDate(date);
+                                    if (!Number.isFinite(holidayTs)) return null;
+                                    const offset = diffDays(model.start, holidayTs) * model.dayWidth;
+                                    const label = holidays.map((holiday) => holiday.nameHe).join(' · ');
+                                    return (
+                                        <div
+                                            key={date}
+                                            data-gantt-holiday={date}
+                                            title={label}
+                                            className="absolute top-0 flex h-5 items-center gap-1 overflow-hidden px-1 text-[9px] font-bold text-amber-600"
+                                            style={{ right: offset, width: Math.max(model.dayWidth, 8) }}
+                                        >
+                                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                                            {model.dayWidth >= 46 && <span className="truncate">{label}</span>}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
 
                     {model.groups.map((group) => {
@@ -719,18 +933,42 @@ export default function GanttChart({
                                 </div>
 
                                 {!isCollapsed && group.items.map((item) => {
-                                    const start = parseDate(item.startDate) || model.start;
-                                    const end = parseDate(item.endDate) || start;
-                                    const offset = Math.max(0, diffDays(model.start, start) * model.dayWidth);
-                                    const duration = Math.max(1, diffDays(start, end) + 1);
-                                    const barWidth = Math.max(duration * model.dayWidth, 22);
                                     const meta = statusMeta[item.status] || statusMeta.planned;
                                     const Icon = meta.icon;
-                                    const progress = computeGanttProgress(item, todayString);
-                                    const timeStatus = computeGanttTimeStatus(item, todayString);
                                     const milestones = Array.isArray(item.milestones) ? item.milestones : [];
                                     const milestoneSize = density.markerSize;
-                                    const barTitle = `${item.title} | ${item.startDate} - ${item.endDate} | ${timeStatusLabel[timeStatus] || timeStatus} | ${progress}%`;
+                                    const recurrenceEnabled = Boolean(item.recurrence?.enabled);
+                                    const recurrenceLabel = recurrenceEnabled ? describeGanttRecurrence(item.recurrence, item) : '';
+                                    const baseStart = parseDate(item.startDate) || model.start;
+                                    const baseEnd = parseDate(item.endDate) || baseStart;
+                                    const baseDurationDays = Math.max(0, diffDays(baseStart, baseEnd));
+                                    const occurrenceDates = recurrenceEnabled
+                                        ? getGanttRecurringOccurrenceDates(item, { rangeStart: model.start, rangeEnd: model.end })
+                                        : [item.startDate];
+
+                                    // A recurring task keeps a single logical row; every matching
+                                    // occurrence date is rendered as its own bar inside that row
+                                    // instead of generating duplicate task rows.
+                                    const bars = occurrenceDates.map((date, occurrenceIndex) => {
+                                        const occStart = parseDate(date) || baseStart;
+                                        const occEndMs = occStart + baseDurationDays * DAY_MS;
+                                        const occStartStr = toDateString(occStart);
+                                        const occEndStr = toDateString(occEndMs);
+                                        const offset = Math.max(0, diffDays(model.start, occStart) * model.dayWidth);
+                                        const duration = Math.max(1, diffDays(occStart, occEndMs) + 1);
+                                        const barWidth = Math.max(duration * model.dayWidth, 22);
+                                        const occurrenceLike = { startDate: occStartStr, endDate: occEndStr, status: item.status };
+                                        return {
+                                            key: recurrenceEnabled ? `${item.id}__occ_${date}` : item.id,
+                                            offset,
+                                            barWidth,
+                                            occStartStr,
+                                            occEndStr,
+                                            occurrenceIndex,
+                                            progress: computeGanttProgress(occurrenceLike, todayString),
+                                            timeStatus: computeGanttTimeStatus(occurrenceLike, todayString),
+                                        };
+                                    });
 
                                     return (
                                         <React.Fragment key={item.id}>
@@ -746,10 +984,10 @@ export default function GanttChart({
                                                             {milestones.length}
                                                         </span>
                                                     )}
-                                                    {item.isRecurringOccurrence && (
+                                                    {recurrenceEnabled && (
                                                         <span
                                                             className="inline-flex shrink-0 items-center gap-1 rounded-full border border-theme-subtle px-1.5 py-0.5"
-                                                            title={item.recurrenceMeta?.ruleLabel || 'מופע חוזר'}
+                                                            title={recurrenceLabel || 'מופע חוזר'}
                                                         >
                                                             <Repeat2 size={10} style={{ color: presentation.accentColor }} />
                                                             חוזר
@@ -776,29 +1014,65 @@ export default function GanttChart({
                                                 />
                                             )}
 
-                                            <div
-                                                data-gantt-task-bar={item.id}
-                                                data-gantt-x={offset}
-                                                data-gantt-width={barWidth}
-                                                className={`absolute top-1/2 z-[3] -translate-y-1/2 overflow-hidden border ${density.barHeightClass} ${design.barStyle === 'flat' ? 'rounded-md' : 'rounded-full'} ${design.barShadow ? 'shadow-sm' : ''}`}
-                                                style={{
-                                                    right: offset,
-                                                    width: barWidth,
-                                                    borderColor: colorWithAlpha(item.color, '80'),
-                                                    backgroundColor: progress >= 100 ? item.color : colorWithAlpha(item.color, '24'),
-                                                }}
-                                                title={barTitle}
-                                            >
-                                                <div
-                                                    className={`absolute inset-y-0 right-0 transition-all ${design.barStyle === 'flat' ? 'rounded-md' : 'rounded-full'}`}
-                                                    style={{ width: `${progress}%`, backgroundColor: item.color }}
-                                                />
-                                                {!compact && design.showProgressLabel && (
-                                                    <span className={`absolute inset-0 flex items-center justify-center px-2 text-[11px] font-black ${progress >= 35 ? 'text-white' : 'text-theme'}`}>
-                                                        {progress}%
-                                                    </span>
-                                                )}
-                                            </div>
+                                            {bars.map((bar) => {
+                                                const showName = design.showTaskNameOnBar && bar.barWidth >= TASK_NAME_ON_BAR_MIN_WIDTH;
+                                                // On a narrow bar there isn't room for both the name and the
+                                                // percentage without clipping either — prefer the name (the
+                                                // newly requested option) and let the fill color keep
+                                                // conveying progress at a glance.
+                                                const showProgressLabel = !compact && design.showProgressLabel && bar.barWidth >= PROGRESS_LABEL_MIN_WIDTH
+                                                    && (!showName || bar.barWidth >= BOTH_NAME_AND_PROGRESS_MIN_WIDTH);
+                                                const barTitle = `${item.title} | ${bar.occStartStr} - ${bar.occEndStr} | ${timeStatusLabel[bar.timeStatus] || bar.timeStatus} | ${bar.progress}%`;
+                                                const handleHoverEnter = (event) => openHoverCard({
+                                                    item,
+                                                    occStartStr: bar.occStartStr,
+                                                    occEndStr: bar.occEndStr,
+                                                    progress: bar.progress,
+                                                    timeStatus: bar.timeStatus,
+                                                    occurrenceIndex: bar.occurrenceIndex,
+                                                    recurrenceEnabled,
+                                                    recurrenceLabel,
+                                                    milestonesCount: milestones.length,
+                                                }, event.currentTarget);
+
+                                                return (
+                                                    <div
+                                                        key={bar.key}
+                                                        data-gantt-task-bar={bar.key}
+                                                        data-gantt-x={bar.offset}
+                                                        data-gantt-width={bar.barWidth}
+                                                        tabIndex={0}
+                                                        role="button"
+                                                        aria-label={barTitle}
+                                                        className={`absolute top-1/2 z-[3] -translate-y-1/2 overflow-hidden border outline-none ${density.barHeightClass} ${design.barStyle === 'flat' ? 'rounded-md' : 'rounded-full'} ${design.barShadow ? 'shadow-sm' : ''} focus-visible:ring-2 focus-visible:ring-primary/50`}
+                                                        style={{
+                                                            right: bar.offset,
+                                                            width: bar.barWidth,
+                                                            borderColor: colorWithAlpha(item.color, '80'),
+                                                            backgroundColor: bar.progress >= 100 ? item.color : colorWithAlpha(item.color, '24'),
+                                                        }}
+                                                        onMouseEnter={handleHoverEnter}
+                                                        onMouseLeave={closeHoverCard}
+                                                        onFocus={handleHoverEnter}
+                                                        onBlur={closeHoverCard}
+                                                    >
+                                                        <div
+                                                            className={`absolute inset-y-0 right-0 transition-all ${design.barStyle === 'flat' ? 'rounded-md' : 'rounded-full'}`}
+                                                            style={{ width: `${bar.progress}%`, backgroundColor: item.color }}
+                                                        />
+                                                        {(showName || showProgressLabel) && (
+                                                            <span className={`absolute inset-0 flex items-center gap-1.5 px-2 text-[11px] font-black ${bar.progress >= 35 ? 'text-white' : 'text-theme'}`}>
+                                                                {showName && (
+                                                                    <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                                                                )}
+                                                                {showProgressLabel && (
+                                                                    <span className={`shrink-0 tabular-nums ${showName ? '' : 'w-full text-center'}`}>{bar.progress}%</span>
+                                                                )}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
 
                                             {milestones.map((milestone) => {
                                                 const milestoneDate = parseDate(milestone.date);
@@ -843,8 +1117,21 @@ export default function GanttChart({
                                                             ));
                                                         }}
                                                     >
-                                                        <span className={`block shadow-sm ${markerShapeClass}`} style={markerShapeStyle} aria-hidden="true">
-                                                            {design.milestoneStyle === 'flag' && <Flag size={milestoneSize + 4} fill={reached ? presentation.accentColor : 'none'} />}
+                                                        <span className="relative block" style={{ width: milestoneSize, height: milestoneSize }} aria-hidden="true">
+                                                            <span className={`absolute inset-0 shadow-sm ${markerShapeClass}`} style={markerShapeStyle}>
+                                                                {design.milestoneStyle === 'flag' && <Flag size={milestoneSize + 4} fill={reached ? presentation.accentColor : 'none'} />}
+                                                            </span>
+                                                            <span
+                                                                data-gantt-milestone-number={milestone.order}
+                                                                className="absolute -top-1.5 -right-1.5 z-[1] flex h-4 min-w-[16px] items-center justify-center rounded-full border px-1 text-[9px] font-black leading-none shadow-sm"
+                                                                style={{
+                                                                    borderColor: presentation.accentColor,
+                                                                    backgroundColor: presentation.taskCellStyle.backgroundColor || '#ffffff',
+                                                                    color: presentation.accentColor,
+                                                                }}
+                                                            >
+                                                                {milestone.order}
+                                                            </span>
                                                         </span>
                                                     </button>
                                                 );
@@ -910,6 +1197,7 @@ export default function GanttChart({
                 </div>
             </div>
 
+            <TaskHoverCard hoverCard={hoverCard} presentation={presentation} design={design} timeStatusLabel={timeStatusLabel} />
         </section>
     );
 }

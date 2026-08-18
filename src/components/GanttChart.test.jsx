@@ -299,6 +299,47 @@ describe('GanttChart', () => {
         expect(container.textContent).toContain('חוזר');
     });
 
+    it('keeps a recurring task as a single Gantt row instead of duplicating it once per occurrence', () => {
+        const { container } = render(
+            <GanttChart
+                viewportHeight="520px"
+                data={{
+                    ...baseData,
+                    items: [
+                        {
+                            id: 'weekly-briefing',
+                            title: 'פגישת סטטוס שבועית',
+                            category: 'בדיקות',
+                            status: 'planned',
+                            startDate: '2026-01-05',
+                            endDate: '2026-01-05',
+                            color: '#2563eb',
+                            recurrence: {
+                                enabled: true,
+                                frequency: 'weekly',
+                                weekdays: [1],
+                                until: '2026-01-31',
+                            },
+                        },
+                    ],
+                }}
+            />
+        );
+
+        // Four occurrence bars, but the task name/label is only rendered once —
+        // proving there is exactly one logical row, not six duplicated rows.
+        const occurrenceBars = container.querySelectorAll('[data-gantt-task-bar^="weekly-briefing__occ_"]');
+        expect(occurrenceBars).toHaveLength(4);
+        expect(container.querySelectorAll('[data-gantt-task-row="weekly-briefing"]')).toHaveLength(1);
+        expect(screen.getAllByText('פגישת סטטוס שבועית')).toHaveLength(1);
+    });
+
+    it('does not create duplicate rows for a plain, non-recurring task', () => {
+        const { container } = render(<GanttChart viewportHeight="520px" data={baseData} />);
+        expect(container.querySelectorAll('[data-gantt-task-row="task-alpha"]')).toHaveLength(1);
+        expect(container.querySelectorAll('[data-gantt-task-bar="task-alpha"]')).toHaveLength(1);
+    });
+
     it('opens milestone details on click', () => {
         const { container } = render(<GanttChart viewportHeight="520px" data={baseData} />);
         const milestone = container.querySelector('[data-gantt-milestone="ms-alpha"]');
@@ -388,5 +429,114 @@ describe('GanttChart', () => {
         expect(style).toContain('max-height: calc(100dvh - 180px)');
         expect(style).not.toMatch(/(^|;)\s*height:/);
         expect(style).not.toContain('560px');
+    });
+
+    it('includes a Day view button alongside Week/Month/Quarter and can switch to it', () => {
+        const { container } = render(<GanttChart viewportHeight="520px" data={baseData} />);
+
+        const dayButton = screen.getByRole('button', { name: 'יום', exact: true });
+        expect(dayButton).toBeTruthy();
+
+        fireEvent.click(dayButton);
+
+        expect(container.querySelector('[data-gantt-view-mode]')?.getAttribute('data-gantt-view-mode')).toBe('day');
+    });
+
+    it('shows a visible, deterministic number on each milestone marker', () => {
+        const { container } = render(
+            <GanttChart
+                viewportHeight="520px"
+                data={{
+                    ...baseData,
+                    items: [
+                        {
+                            id: 'task-milestones',
+                            title: 'משימה עם אבני דרך',
+                            category: 'בדיקות',
+                            status: 'planned',
+                            startDate: '2026-01-01',
+                            endDate: '2026-01-25',
+                            color: '#2563eb',
+                            milestones: [
+                                { id: 'ms-1', title: 'שלב א', date: '2026-01-05' },
+                                { id: 'ms-2', title: 'שלב ב', date: '2026-01-15' },
+                            ],
+                        },
+                    ],
+                }}
+            />
+        );
+
+        const firstBadge = container.querySelector('[data-gantt-milestone-number="1"]');
+        const secondBadge = container.querySelector('[data-gantt-milestone-number="2"]');
+        expect(firstBadge?.textContent).toBe('1');
+        expect(secondBadge?.textContent).toBe('2');
+    });
+
+    it('renders the task name on the bar only when "show task name on bar" is enabled', () => {
+        const dataWithNames = {
+            ...baseData,
+            settings: { design: { showTaskNameOnBar: true } },
+        };
+        const { container: enabledContainer } = render(<GanttChart viewportHeight="520px" data={dataWithNames} />);
+        const bar = enabledContainer.querySelector('[data-gantt-task-bar="task-alpha"]');
+        expect(bar?.textContent).toContain('משימת אלפא');
+
+        const { container: disabledContainer } = render(<GanttChart viewportHeight="520px" data={baseData} />);
+        const disabledBar = disabledContainer.querySelector('[data-gantt-task-bar="task-alpha"]');
+        expect(disabledBar?.textContent).not.toContain('משימת אלפא');
+    });
+
+    it('shows a polished floating hover card with task details on hover', () => {
+        const { container } = render(<GanttChart viewportHeight="520px" data={baseData} />);
+        const bar = container.querySelector('[data-gantt-task-bar="task-alpha"]');
+
+        expect(document.querySelector('[data-gantt-hover-card]')).toBeNull();
+        fireEvent.mouseEnter(bar);
+
+        const hoverCard = document.querySelector('[data-gantt-hover-card="task-alpha"]');
+        expect(hoverCard).toBeTruthy();
+        expect(hoverCard.textContent).toContain('משימת אלפא');
+        expect(hoverCard.textContent).toContain('בדיקות');
+
+        fireEvent.mouseLeave(bar);
+        expect(document.querySelector('[data-gantt-hover-card]')).toBeNull();
+    });
+
+    it('renders Hebrew calendar dates in the header only when the option is enabled', () => {
+        const { container: onContainer } = render(
+            <GanttChart viewportHeight="520px" data={{ ...baseData, settings: { design: { showHebrewDate: true } } }} />
+        );
+        const tick = onContainer.querySelector('[data-gantt-tick]');
+        expect(tick?.textContent?.length).toBeGreaterThan(0);
+
+        const { container: offContainer } = render(<GanttChart viewportHeight="520px" data={baseData} />);
+        expect(offContainer.querySelector('[data-gantt-timeline-header]')?.getAttribute('class')).toBeTruthy();
+    });
+
+    it('renders Israeli/Jewish holiday markers in the header only when the option is enabled', () => {
+        const holidayData = {
+            ...baseData,
+            defaultView: 'quarter',
+            settings: { design: { showHolidays: true } },
+            items: [
+                {
+                    id: 'task-holiday-window',
+                    title: 'משימה סביב חג',
+                    category: 'בדיקות',
+                    status: 'planned',
+                    startDate: '2026-09-01',
+                    endDate: '2026-10-15',
+                    color: '#2563eb',
+                },
+            ],
+        };
+        const { container: onContainer } = render(<GanttChart viewportHeight="520px" data={holidayData} />);
+        expect(onContainer.querySelector('[data-gantt-holiday="2026-09-21"]')).toBeTruthy();
+
+        const { container: offContainer } = render(
+            <GanttChart viewportHeight="520px" data={{ ...holidayData, settings: { design: { showHolidays: false } } }} />
+        );
+        expect(offContainer.querySelector('[data-gantt-holiday-row]')).toBeNull();
     });
 });

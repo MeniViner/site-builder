@@ -46,6 +46,7 @@
     "migrate:sharepoint-export-to-mongo:dry-run": "node server/scripts/migrateSharePointToMongo.js --dry-run"
   },
   "dependencies": {
+    "@hebcal/hdate": "^0.22.8",
     "@react-three/fiber": "^9.5.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
