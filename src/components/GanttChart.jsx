@@ -7,7 +7,7 @@ import {
     computeGanttProgress,
     computeGanttTimeStatus,
     describeGanttRecurrence,
-    getGanttRecurringOccurrenceDates,
+    expandGanttRecurringTasks,
     normalizeGanttData,
 } from '../utils/ganttData';
 import { buildGanttTimelineModel, resolveGanttTimelineRange } from '../utils/ganttTimeline';
@@ -141,7 +141,12 @@ function formatShortDate(value) {
 }
 
 function colorWithAlpha(color, alphaHex) {
-    return /^#[0-9a-fA-F]{6}$/.test(color) ? `${color}${alphaHex}` : color;
+    if (/^#[0-9a-fA-F]{6}$/.test(color)) return `${color}${alphaHex}`;
+    if (/^#[0-9a-fA-F]{3}$/.test(color)) {
+        const expanded = color.slice(1).split('').map((digit) => `${digit}${digit}`).join('');
+        return `#${expanded}${alphaHex}`;
+    }
+    return color;
 }
 
 function clampNumber(value, min, max) {
@@ -498,7 +503,7 @@ function LegendHelpButton({ presentation, isOpen, onToggle, onClose }) {
  */
 function TaskHoverCard({ hoverCard, presentation, design, timeStatusLabel: timeStatusLabels }) {
     if (!hoverCard || typeof document === 'undefined') return null;
-    const { rect, item, occStartStr, occEndStr, progress, timeStatus, recurrenceEnabled, recurrenceLabel, occurrenceIndex, milestonesCount } = hoverCard;
+    const { rect, item, occStartStr, occEndStr, progress, timeStatus, recurrenceEnabled, recurrenceLabel, occurrenceOrdinal, milestonesCount } = hoverCard;
     const viewportWidth = typeof window === 'undefined' ? 1280 : window.innerWidth;
     const viewportHeight = typeof window === 'undefined' ? 800 : window.innerHeight;
     const gap = 10;
@@ -556,7 +561,7 @@ function TaskHoverCard({ hoverCard, presentation, design, timeStatusLabel: timeS
                 {recurrenceEnabled && (
                     <div className="mt-2.5 flex items-center gap-1.5 rounded-lg border border-theme-subtle bg-theme-elevated px-2 py-1.5 text-[11px] font-bold text-theme-muted">
                         <Repeat2 size={12} className="shrink-0" style={{ color: presentation.accentColor }} />
-                        <span className="truncate">מופע {occurrenceIndex + 1} · {recurrenceLabel}</span>
+                        <span className="truncate">מופע {occurrenceOrdinal} · {recurrenceLabel}</span>
                     </div>
                 )}
                 {milestonesCount > 0 && (
@@ -940,18 +945,28 @@ export default function GanttChart({
                                     const recurrenceEnabled = Boolean(item.recurrence?.enabled);
                                     const recurrenceLabel = recurrenceEnabled ? describeGanttRecurrence(item.recurrence, item) : '';
                                     const baseStart = parseDate(item.startDate) || model.start;
-                                    const baseEnd = parseDate(item.endDate) || baseStart;
-                                    const baseDurationDays = Math.max(0, diffDays(baseStart, baseEnd));
-                                    const occurrenceDates = recurrenceEnabled
-                                        ? getGanttRecurringOccurrenceDates(item, { rangeStart: model.start, rangeEnd: model.end })
-                                        : [item.startDate];
 
-                                    // A recurring task keeps a single logical row; every matching
-                                    // occurrence date is rendered as its own bar inside that row
-                                    // instead of generating duplicate task rows.
-                                    const bars = occurrenceDates.map((date, occurrenceIndex) => {
-                                        const occStart = parseDate(date) || baseStart;
-                                        const occEndMs = occStart + baseDurationDays * DAY_MS;
+                                    // Expand from the real series start through the current range end.
+                                    // We then filter down to occurrences that intersect the visible range.
+                                    // This keeps one logical Gantt row while preserving the true occurrence
+                                    // number and the correctly shifted milestone dates for every occurrence.
+                                    const allOccurrenceTasks = recurrenceEnabled
+                                        ? expandGanttRecurringTasks([item], { rangeEnd: model.end })
+                                        : [item];
+                                    const occurrenceTasks = recurrenceEnabled
+                                        ? allOccurrenceTasks.filter((occurrenceTask) => {
+                                            const occurrenceStart = parseDate(occurrenceTask.startDate);
+                                            const occurrenceEnd = parseDate(occurrenceTask.endDate) || occurrenceStart;
+                                            return Number.isFinite(occurrenceStart)
+                                                && Number.isFinite(occurrenceEnd)
+                                                && occurrenceEnd >= model.start
+                                                && occurrenceStart <= model.end;
+                                        })
+                                        : allOccurrenceTasks;
+
+                                    const bars = occurrenceTasks.map((occurrenceTask, occurrenceIndex) => {
+                                        const occStart = parseDate(occurrenceTask.startDate) || baseStart;
+                                        const occEndMs = parseDate(occurrenceTask.endDate) || occStart;
                                         const occStartStr = toDateString(occStart);
                                         const occEndStr = toDateString(occEndMs);
                                         const offset = Math.max(0, diffDays(model.start, occStart) * model.dayWidth);
@@ -959,16 +974,35 @@ export default function GanttChart({
                                         const barWidth = Math.max(duration * model.dayWidth, 22);
                                         const occurrenceLike = { startDate: occStartStr, endDate: occEndStr, status: item.status };
                                         return {
-                                            key: recurrenceEnabled ? `${item.id}__occ_${date}` : item.id,
+                                            key: recurrenceEnabled ? `${item.id}__occ_${occStartStr}` : item.id,
                                             offset,
                                             barWidth,
                                             occStartStr,
                                             occEndStr,
-                                            occurrenceIndex,
+                                            occurrenceOrdinal: recurrenceEnabled
+                                                ? (occurrenceTask.recurrenceMeta?.occurrenceIndex || occurrenceIndex + 1)
+                                                : null,
                                             progress: computeGanttProgress(occurrenceLike, todayString),
                                             timeStatus: computeGanttTimeStatus(occurrenceLike, todayString),
                                         };
                                     });
+
+                                    const renderedMilestones = occurrenceTasks
+                                        .flatMap((occurrenceTask) => (occurrenceTask.milestones || []).map((milestone) => ({
+                                            ...milestone,
+                                            renderId: recurrenceEnabled
+                                                ? `${milestone.id}__occ_${occurrenceTask.startDate}`
+                                                : milestone.id,
+                                            occurrenceOrdinal: recurrenceEnabled
+                                                ? (occurrenceTask.recurrenceMeta?.occurrenceIndex || null)
+                                                : null,
+                                        })))
+                                        .filter((milestone) => {
+                                            const milestoneDate = parseDate(milestone.date);
+                                            return Number.isFinite(milestoneDate)
+                                                && milestoneDate >= model.start
+                                                && milestoneDate <= model.end;
+                                        });
 
                                     return (
                                         <React.Fragment key={item.id}>
@@ -1029,7 +1063,7 @@ export default function GanttChart({
                                                     occEndStr: bar.occEndStr,
                                                     progress: bar.progress,
                                                     timeStatus: bar.timeStatus,
-                                                    occurrenceIndex: bar.occurrenceIndex,
+                                                    occurrenceOrdinal: bar.occurrenceOrdinal,
                                                     recurrenceEnabled,
                                                     recurrenceLabel,
                                                     milestonesCount: milestones.length,
@@ -1074,7 +1108,7 @@ export default function GanttChart({
                                                 );
                                             })}
 
-                                            {milestones.map((milestone) => {
+                                            {renderedMilestones.map((milestone) => {
                                                 const milestoneDate = parseDate(milestone.date);
                                                 if (!Number.isFinite(milestoneDate)) return null;
                                                 const milestoneOffset = diffDays(model.start, milestoneDate) * model.dayWidth;
@@ -1083,7 +1117,7 @@ export default function GanttChart({
                                                 const hitAreaRight = clampNumber(markerCenter - MILESTONE_HIT_AREA / 2, 0, Math.max(0, model.width - MILESTONE_HIT_AREA));
                                                 const reached = milestoneDate <= parseDate(todayString);
                                                 const milestoneTitle = `אבן דרך ${milestone.order}\n${milestone.title}\n${formatShortDate(milestone.date)}\n${reached ? 'הושגה' : 'טרם הגיעה'}`;
-                                                const isSelected = selectedMilestone?.taskId === item.id && selectedMilestone?.id === milestone.id;
+                                                const isSelected = selectedMilestone?.taskId === item.id && selectedMilestone?.id === milestone.renderId;
                                                 const markerShapeStyle = {
                                                     width: milestoneSize,
                                                     height: milestoneSize,
@@ -1096,9 +1130,9 @@ export default function GanttChart({
                                                     : (design.milestoneStyle === 'flag' ? 'flex items-center justify-center rounded-full border-0 bg-transparent shadow-none' : 'rotate-45 rounded-[3px] border');
                                                 return (
                                                     <button
-                                                        key={milestone.id}
+                                                        key={milestone.renderId}
                                                         type="button"
-                                                        data-gantt-milestone={milestone.id}
+                                                        data-gantt-milestone={milestone.renderId}
                                                         data-gantt-x={markerRight}
                                                         aria-expanded={isSelected}
                                                         className={`absolute top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full outline-none transition-transform hover:scale-[1.06] active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-primary/40 ${isSelected ? 'z-[110] scale-[1.08] ring-2 ring-primary/30' : 'z-[4]'}`}
@@ -1108,10 +1142,10 @@ export default function GanttChart({
                                                         onClick={(event) => {
                                                             event.stopPropagation();
                                                             setSelectedMilestone((current) => (
-                                                                current?.taskId === item.id && current?.id === milestone.id
+                                                                current?.taskId === item.id && current?.id === milestone.renderId
                                                                     ? null
                                                                     : {
-                                                                        id: milestone.id,
+                                                                        id: milestone.renderId,
                                                                         taskId: item.id,
                                                                     }
                                                             ));
@@ -1137,7 +1171,7 @@ export default function GanttChart({
                                                 );
                                             })}
                                             {selectedMilestone?.taskId === item.id && (() => {
-                                                const milestone = milestones.find((candidate) => candidate.id === selectedMilestone.id);
+                                                const milestone = renderedMilestones.find((candidate) => candidate.renderId === selectedMilestone.id);
                                                 if (!milestone) return null;
                                                 const milestoneDate = parseDate(milestone.date);
                                                 if (!Number.isFinite(milestoneDate)) return null;
@@ -1158,6 +1192,9 @@ export default function GanttChart({
                                                             <div className="min-w-0">
                                                                 <div className="text-[11px] font-black text-theme-muted">אבן דרך {milestone.order}</div>
                                                                 <div className="mt-1 truncate text-sm font-black text-theme" title={milestone.title}>{milestone.title}</div>
+                                                                {milestone.occurrenceOrdinal && (
+                                                                    <div className="mt-0.5 text-[10px] font-bold text-theme-muted">מופע {milestone.occurrenceOrdinal}</div>
+                                                                )}
                                                             </div>
                                                             <button
                                                                 type="button"
