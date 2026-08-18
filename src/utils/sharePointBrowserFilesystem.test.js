@@ -127,11 +127,10 @@ describe('SharePoint folder creation and file upload recovery', () => {
 
 describe('SharePoint file reads', () => {
   it('falls back to a web-relative file path after a full-path 404', async () => {
-    const expected = new TextEncoder().encode('ok').buffer;
     const request = vi.fn(async ({ url }) => (
       url.includes("GetFileByServerRelativeUrl('/sites/schedule/")
         ? response('missing', 404, { 'content-type': 'text/plain' })
-        : response(expected, 200, { 'content-type': 'application/octet-stream' })
+        : response('ok', 200, { 'content-type': 'application/octet-stream' })
     ));
     const result = await readSharePointFileBytes({
       webUrl: runtime.webUrl,
