@@ -1,0 +1,22 @@
+{
+  "patch": "site-builder-sharepoint-browser-fs-v2",
+  "appliedAt": "2026-08-18T08:32:26.360Z",
+  "projectRoot": "/Users/meni/dev/site-builder",
+  "backupRoot": "/Users/meni/dev/site-builder/.site-builder-patch-backup/sharepoint-browser-fs-v2-20260818083226",
+  "changedFiles": [
+    "src/pages/AdminSharePointSetupPage.jsx",
+    "src/components/SharePointPermissionsSetupStatus.jsx",
+    "src/services/sharePointPermissionsSetup.ts",
+    "src/services/sharePointDocumentLibrariesSetup.ts",
+    "src/utils/sharePointBrowserFilesystem.js",
+    "src/utils/sharePointBrowserFilesystem.test.js"
+  ],
+  "sha256": {
+    "src/pages/AdminSharePointSetupPage.jsx": "ecf91b66954d7a84b75edafa63a9f4ac595dceeda575d41c9fbc54a36e924f6b",
+    "src/components/SharePointPermissionsSetupStatus.jsx": "8ed3c9485c460e1bb0618fd7930cc6110fc1d4a0fb483e559811170b630fe925",
+    "src/services/sharePointPermissionsSetup.ts": "a25b243d7785057d3f67b691859132a4bd1767eb1e6f841a67212dba45ac019f",
+    "src/services/sharePointDocumentLibrariesSetup.ts": "c1482572f987d983eae02a00cddabd4baba37522b3fc557ebb05b47dd7da0314",
+    "src/utils/sharePointBrowserFilesystem.js": "db130b66d62cd5f5d6eea99df0c2e9a119859def941be5f5ebacf40e27b96c6a",
+    "src/utils/sharePointBrowserFilesystem.test.js": "25224cfa7890d7b8287247ebe25f469ef59a8ed24baa88194a9fbb4ddb458773"
+  }
+}

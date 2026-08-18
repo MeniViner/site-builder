@@ -698,15 +698,7 @@ const ensureSharePointDocumentLibrariesReadyInternal = async (): Promise<SharePo
 
 export const ensureSharePointDocumentLibrariesReady = (): Promise<SharePointLibrarySetupResult> => {
   if (setupOncePromise) return setupOncePromise;
-  setupOncePromise = ensureSharePointDocumentLibrariesReadyInternal()
-    .then((result) => {
-      if (!result?.ok) setupOncePromise = null;
-      return result;
-    })
-    .catch((error) => {
-      setupOncePromise = null;
-      throw error;
-    });
+  setupOncePromise = ensureSharePointDocumentLibrariesReadyInternal();
   return setupOncePromise;
 };
 

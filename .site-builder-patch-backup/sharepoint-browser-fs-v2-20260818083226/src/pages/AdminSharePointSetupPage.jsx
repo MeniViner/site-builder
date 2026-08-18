@@ -36,14 +36,6 @@ import {
   LEGACY_PROVISIONING_STATUSES,
   writeLegacyProvisioningStatus,
 } from '../utils/sharePointSetupContext';
-import {
-  ensureSharePointFolder,
-  probeSharePointFolder,
-  readSharePointFileBytes,
-  uploadSharePointFileBytes,
-  waitForSharePointFolder,
-} from '../utils/sharePointBrowserFilesystem';
-import { ensureUsersDbFolderPermissionsReady } from '../services/sharePointPermissionsSetup';
 
 const ODATA_ACCEPT = 'application/json;odata=verbose';
 const ODATA_CONTENT = 'application/json;odata=verbose';
@@ -106,7 +98,6 @@ export default function AdminSharePointSetupPage() {
     LEGACY_BUILD: 'passed',
     LIBRARY_CHECK: 'passed',
     BOOTSTRAP_UPLOAD: 'passed',
-    BOOTSTRAP_INDEX_COMMIT: 'passed',
     BOOTSTRAP_VERIFY: 'passed',
   }));
   const [copyStats, setCopyStats] = useState({ manifestUrl: '', buildId: '', manifestCount: 0, copied: 0, verified: 0, failed: 0, mismatched: 0, finalIndex: false, finalAssets: false });
@@ -186,10 +177,7 @@ export default function AdminSharePointSetupPage() {
     if (isApi && !mergedHeaders.Accept) {
       mergedHeaders.Accept = ODATA_ACCEPT;
     }
-    const isBinaryBody = body instanceof ArrayBuffer
-      || ArrayBuffer.isView(body)
-      || (typeof Blob !== 'undefined' && body instanceof Blob);
-    if (isApi && upperMethod !== 'GET' && upperMethod !== 'HEAD' && !mergedHeaders['Content-Type'] && !isBinaryBody) {
+    if (isApi && upperMethod !== 'GET' && upperMethod !== 'HEAD' && !mergedHeaders['Content-Type']) {
       mergedHeaders['Content-Type'] = ODATA_CONTENT;
     }
     const started = Date.now();
@@ -272,34 +260,17 @@ export default function AdminSharePointSetupPage() {
     return unwrapSharePointODataCollection(parsed);
   };
 
-  const sharePointFilesystemOptions = (webUrl) => ({
-    webUrl,
-    siteRoot: cfg.siteRoot,
-    libraries: [
-      { title: cfg.siteDb, rootRel: cfg.siteDbRoot },
-      { title: cfg.usersDb, rootRel: cfg.usersDbRoot },
-    ],
-    request: logRequest,
-    log: (message) => addLog(message, 'legacy][SHAREPOINT_FILESYSTEM'),
-  });
-
   const folderExists = async (webUrl, rel) => {
-    const probe = await probeSharePointFolder({
-      ...sharePointFilesystemOptions(webUrl),
-      folderRel: rel,
-      purpose: 'folder-check',
-    });
-    return probe.ready;
+    const url = `${webUrl}/_api/web/GetFolderByServerRelativeUrl('${esc(rel)}')?$select=ServerRelativeUrl`;
+    const res = await logRequest({ url, purpose: `folder-check-${rel}` });
+    if (res.status === 404) return false;
+    await readResponseSafely(res, { url });
+    return true;
   };
 
-  const fileExists = async (webUrl, rel) => {
-    const result = await readSharePointFileBytes({
-      ...sharePointFilesystemOptions(webUrl),
-      fileRel: rel,
-      purpose: 'file-check',
-      cacheKey: Date.now(),
-    });
-    return result.exists;
+  const fileExists = async (url) => {
+    const res = await logRequest({ url, purpose: `file-check-${url}` });
+    return res.ok;
   };
 
   const refreshSetupStatus = async () => {
@@ -312,8 +283,8 @@ export default function AdminSharePointSetupPage() {
       folderExists(webUrl, cfg.finalDistRoot),
       folderExists(webUrl, `${cfg.finalDistRoot}/assets`),
       folderExists(webUrl, `${cfg.finalDistRoot}/images`),
-      fileExists(webUrl, `${cfg.finalDistRoot}/index.html`),
-      folderExists(webUrl, cfg.siteAssetsRoot),
+      fileExists(`${cfg.finalDistRoot}/index.html`),
+      folderExists(webUrl, `${cfg.siteDbRoot}/siteAssets`),
     ]);
     setState((p) => ({
       ...p,
@@ -394,11 +365,6 @@ export default function AdminSharePointSetupPage() {
 
     const list = exact.record;
     const rootRel = list?.RootFolder?.ServerRelativeUrl || configuredRoot;
-    await waitForSharePointFolder({
-      ...sharePointFilesystemOptions(webUrl),
-      folderRel: rootRel,
-      purpose: `library-rest-readiness-${title}`,
-    });
     setState((p) => ({ ...p, [key]: exact.created ? 'created' : 'exists' }));
     addLog(`${exact.outcome} ${JSON.stringify({ title, expectedRoot: configuredRoot, actualRoot: rootRel, listId: list?.Id, BaseTemplate: list?.BaseTemplate })}`, 'legacy][CREATE_LIBRARIES][REST');
     const mergeUrl = `${webUrl}/_api/web/GetFolderByServerRelativeUrl('${esc(rootRel)}')`;
@@ -414,81 +380,56 @@ export default function AdminSharePointSetupPage() {
 
   const ensureFolder = async (webUrl, rel, digest, key) => {
     if (key) setState((p) => ({ ...p, [key]: 'checking' }));
-    try {
-      const result = await ensureSharePointFolder({
-        ...sharePointFilesystemOptions(webUrl),
-        folderRel: rel,
-        digest,
-      });
-      if (key) setState((p) => ({ ...p, [key]: result.created ? 'created' : 'exists' }));
-      addLog(`folder ensure result | ${rel} | created=${result.created} | existed=${result.existed}`);
-      return result;
-    } catch (error) {
-      throw legacyPipelineFailure({
-        boundary: 'CREATE_FOLDERS',
-        operation: 'ensure-list-backed-folder',
-        target: rel,
-        reason: error?.code || error?.message || 'SharePoint folder readiness failed',
-        responsePreview: JSON.stringify(error?.details || {}).slice(0, 700),
-        nextAction: 'Retry CREATE_FOLDERS. The setup waits until SharePoint exposes the folder as a real writable list item.',
-      }, error);
+    if (await folderExists(webUrl, rel)) {
+      if (key) setState((p) => ({ ...p, [key]: 'exists' }));
+      addLog(`folder already exists | ${rel}`);
+      return { existed: true, created: false, path: rel };
     }
+    const url = `${webUrl}/_api/web/folders`;
+    const res = await logRequest({
+      url, method: 'POST', purpose: `folder-${rel}`,
+      headers: { Accept: ODATA_ACCEPT, 'Content-Type': ODATA_CONTENT, 'X-RequestDigest': digest },
+      body: JSON.stringify({ __metadata: { type: 'SP.Folder' }, ServerRelativeUrl: rel }),
+    });
+    if (res.ok || res.status === 409) {
+      const verified = await folderExists(webUrl, rel);
+      if (!verified) throw legacyPipelineFailure({ boundary: 'CREATE_FOLDERS', operation: 'verify-folder', target: rel, method: 'GET', status: 404, nextAction: 'Verify the parent folder/library and retry.' });
+      if (key) setState((p) => ({ ...p, [key]: res.status === 409 ? 'exists' : 'created' }));
+      addLog(`folder ensure result | ${rel}`);
+      return { existed: res.status === 409, created: res.status !== 409, path: rel };
+    }
+    const text = await res.text();
+    if (/already exists/i.test(text)) {
+      if (key) setState((p) => ({ ...p, [key]: 'exists' }));
+      return { existed: true, created: false, path: rel };
+    }
+    throw legacyPipelineFailure({
+      boundary: 'CREATE_FOLDERS', operation: 'create-folder', target: rel,
+      method: 'POST', status: res.status, responsePreview: text.slice(0, 500),
+      nextAction: 'Verify the reported parent folder exists, then retry this deterministic setup run.',
+    });
   };
 
   const ensureTextFileIfMissing = async (webUrl, rel, content, digest) => {
     setState((p) => ({ ...p, txtFiles: 'checking' }));
-    const filesystem = sharePointFilesystemOptions(webUrl);
-    const existing = await readSharePointFileBytes({
-      ...filesystem,
-      fileRel: rel,
-      purpose: 'txt-read',
-      cacheKey: Date.now(),
-    });
-    if (existing.exists) {
-      const txt = new TextDecoder().decode(existing.bytes);
-      if (classifyTxtSeed({ status: existing.status, text: txt }) === 'preserve') {
+    const readRes = await logRequest({ url: rel, purpose: `txt-read-${rel}` });
+    if (readRes.ok) {
+      const txt = await readRes.text();
+      if (classifyTxtSeed({ status: readRes.status, text: txt }) === 'preserve') {
         addLog(`TXT kept | ${rel}`);
         setState((p) => ({ ...p, txtFiles: 'exists' }));
         return { path: rel, outcome: 'preserved' };
       }
+    } else if (readRes.status !== 404) {
+      throw legacyPipelineFailure({ boundary: 'CREATE_TXT_SEEDS', operation: 'read-seed', target: rel, method: 'GET', status: readRes.status, nextAction: 'Check access to the configured TXT target and retry.' });
     }
-
     const folder = rel.slice(0, rel.lastIndexOf('/'));
-    const fileName = rel.split('/').pop();
     await ensureFolder(webUrl, folder, digest);
-    const bytes = new TextEncoder().encode(`${content}\n`);
-    await uploadSharePointFileBytes({
-      ...filesystem,
-      folderRel: folder,
-      fileName,
-      bytes,
-      digest,
-      contentType: 'text/plain; charset=utf-8',
-    });
-
-    const verified = await readSharePointFileBytes({
-      ...filesystem,
-      fileRel: rel,
-      purpose: 'txt-verify',
-      cacheKey: `${Date.now()}-verify`,
-    });
-    if (!verified.exists) {
-      throw legacyPipelineFailure({
-        boundary: 'CREATE_TXT_SEEDS', operation: 'verify-seed-upload', target: rel, status: 404,
-        nextAction: 'Retry CREATE_TXT_SEEDS; SharePoint did not expose the uploaded seed file yet.',
-      });
-    }
-    const expectedSha256 = await sha256Bytes(bytes);
-    const actualSha256 = await sha256Bytes(verified.bytes);
-    if (verified.bytes.byteLength !== bytes.byteLength || actualSha256 !== expectedSha256) {
-      throw legacyPipelineFailure({
-        boundary: 'CREATE_TXT_SEEDS', operation: 'verify-seed-content', target: rel,
-        expectedSize: bytes.byteLength, actualSize: verified.bytes.byteLength,
-        expectedSha256, actualSha256,
-        nextAction: 'Retry CREATE_TXT_SEEDS; SharePoint returned content different from the uploaded seed.',
-      });
-    }
-    addLog(`TXT created + verified | ${rel} | bytes=${bytes.byteLength}`);
+    const fileName = rel.split('/').pop();
+    const upUrl = `${webUrl}/_api/web/GetFolderByServerRelativeUrl('${esc(folder)}')/Files/add(url='${encodeURIComponent(fileName)}',overwrite=true)`;
+    const upRes = await logRequest({ url: upUrl, method: 'POST', purpose: `txt-upload-${rel}`, headers: { Accept: ODATA_ACCEPT, 'Content-Type': 'text/plain; charset=utf-8', 'X-RequestDigest': digest }, body: `${content}\n` });
+    await readResponseSafely(upRes, { url: upUrl });
+    addLog(`TXT created | ${rel}`);
     setState((p) => ({ ...p, txtFiles: 'created' }));
     return { path: rel, outcome: 'created' };
   };
@@ -532,23 +473,13 @@ export default function AdminSharePointSetupPage() {
     const target = `${rootRel}/${entry.path}`;
     const targetFolder = target.slice(0, target.lastIndexOf('/'));
     const fileName = target.split('/').pop();
-    try {
-      await uploadSharePointFileBytes({
-        ...sharePointFilesystemOptions(webUrl),
-        folderRel: targetFolder,
-        fileName,
-        bytes,
-        digest,
-        contentType: 'application/octet-stream',
-      });
-    } catch (error) {
-      throw deploymentFailure({
-        boundary, operation, buildId, path: entry.path, source: cfg.bootstrapDistRoot, target, method: 'POST',
-        responsePreview: JSON.stringify(error?.details || {}).slice(0, 700),
-        expectedSize: entry.size, expectedSha256: entry.sha256,
-        reason: error?.code || error?.message || 'SharePoint asset upload failed',
-      });
+    const url = `${webUrl}/_api/web/GetFolderByServerRelativeUrl('${esc(targetFolder)}')/Files/add(url='${encodeURIComponent(fileName)}',overwrite=true)`;
+    const response = await logRequest({ url, method: 'POST', purpose: `${boundary}-${operation}-${entry.path}`, headers: { Accept: ODATA_ACCEPT, 'X-RequestDigest': digest }, body: bytes });
+    if (!response.ok) {
+      const preview = (await response.text()).slice(0, 500);
+      throw deploymentFailure({ boundary, operation, buildId, path: entry.path, source: cfg.bootstrapDistRoot, target, method: 'POST', status: response.status, contentType: response.headers.get('content-type') || '', responsePreview: preview, expectedSize: entry.size, expectedSha256: entry.sha256 });
     }
+    await readResponseSafely(response, { url });
   };
 
   const preflightSource = async (webUrl) => {
@@ -674,19 +605,6 @@ export default function AdminSharePointSetupPage() {
       await runStage('CREATE_LIBRARIES', 'ensure-configured-libraries', async () => {
         await ensureLibrary(webUrl, cfg.siteDb, digest, 'siteDb');
         await ensureLibrary(webUrl, cfg.usersDb, digest, 'usersDb');
-        const permissionResult = await ensureUsersDbFolderPermissionsReady();
-        if (!permissionResult?.ok) {
-          throw legacyPipelineFailure({
-            boundary: 'CREATE_LIBRARIES',
-            operation: 'configure-users-db-permissions',
-            target: cfg.usersDbRoot,
-            status: permissionResult?.technicalError?.status,
-            responsePreview: JSON.stringify(permissionResult?.technicalError || permissionResult || {}).slice(0, 700),
-            reason: permissionResult?.status || 'permissions-setup-failed',
-            nextAction: 'Retry CREATE_LIBRARIES from this authenticated SharePoint setup page.',
-          });
-        }
-        addLog(`users DB permissions ready | status=${permissionResult.status} | folder=${permissionResult.folderUrl || cfg.usersDbRoot}`, 'legacy][CREATE_LIBRARIES][PERMISSIONS');
       }, { source: cfg.siteRoot, target: `${cfg.siteDbRoot},${cfg.usersDbRoot}`, buildId: source.manifest.buildId });
 
       await runStage('CREATE_FOLDERS', 'ensure-configured-and-manifest-folders', async () => {

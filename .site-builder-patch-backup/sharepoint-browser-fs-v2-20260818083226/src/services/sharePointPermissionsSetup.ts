@@ -764,15 +764,7 @@ export const ensureUsersDbFolderPermissionsReady = (): Promise<PermissionSetupRe
         return setupOncePromise;
     }
 
-    setupOncePromise = ensureUsersDbFolderPermissionsReadyInternal()
-        .then((result) => {
-            if (!result?.ok) setupOncePromise = null;
-            return result;
-        })
-        .catch((error) => {
-            setupOncePromise = null;
-            throw error;
-        });
+    setupOncePromise = ensureUsersDbFolderPermissionsReadyInternal();
     return setupOncePromise;
 };
 

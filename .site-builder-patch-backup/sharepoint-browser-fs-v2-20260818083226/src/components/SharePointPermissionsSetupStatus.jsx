@@ -38,19 +38,18 @@ export default function SharePointPermissionsSetupStatus() {
   const [showRunning, setShowRunning] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
   const isOnAdminRoute = location.pathname.startsWith('/admin');
-  const isDedicatedProvisioningRoute = location.pathname.replace(/\/+$/g, '') === '/admin/sharepoint-setup';
   const ownsStrictSetupValidation = shouldRunBlockingSharePointSetupValidation({ routePath: location.pathname });
 
   useEffect(() => {
-    if (!isOnAdminRoute || isDedicatedProvisioningRoute || !ownsStrictSetupValidation) return;
+    if (!isOnAdminRoute || !ownsStrictSetupValidation) return;
     setIsDismissed(false);
-  }, [isDedicatedProvisioningRoute, isOnAdminRoute, ownsStrictSetupValidation]);
+  }, [isOnAdminRoute, ownsStrictSetupValidation]);
 
   useEffect(() => {
     if (SHAREPOINT_CONFIG.useMock) {
       return undefined;
     }
-    if (!isOnAdminRoute || isDedicatedProvisioningRoute) {
+    if (!isOnAdminRoute) {
       return undefined;
     }
     if (!ownsStrictSetupValidation) {
@@ -108,7 +107,7 @@ export default function SharePointPermissionsSetupStatus() {
       alive = false;
       if (delayTimer) window.clearTimeout(delayTimer);
     };
-  }, [authLoading, isAdmin, isDedicatedProvisioningRoute, isOnAdminRoute, ownsStrictSetupValidation]);
+  }, [authLoading, isAdmin, isOnAdminRoute, ownsStrictSetupValidation]);
 
   const latestLogs = useMemo(() => {
     const logs = Array.isArray(result?.logs) ? result.logs : [];
@@ -116,7 +115,7 @@ export default function SharePointPermissionsSetupStatus() {
   }, [result]);
 
   if (SHAREPOINT_CONFIG.useMock) return null;
-  if (!isOnAdminRoute || isDedicatedProvisioningRoute) return null;
+  if (!isOnAdminRoute) return null;
   if (!ownsStrictSetupValidation) return null;
   if (authLoading || !isAdmin) return null;
   if (isDismissed) return null;
