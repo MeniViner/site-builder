@@ -16,17 +16,23 @@ function parseBoolean(rawValue, defaultValue) {
   return ['1', 'true', 'yes', 'on'].includes(String(rawValue).toLowerCase());
 }
 
+function parsePositiveNumber(rawValue, defaultValue) {
+  const parsed = Number(rawValue);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
+}
+
 const defaultFallbackModels = ['gpt-4o', 'gemini-1.5-pro', 'claude-3-haiku-20240307'];
 const parsedFallbackModels = parseCsv(process.env.FALLBACK_MODELS);
+const nodeEnv = process.env.NODE_ENV || 'development';
 
 module.exports = {
   port: Number(process.env.PORT) || 3000,
-  env: process.env.NODE_ENV || 'development',
+  env: nodeEnv,
   security: {
     frontendDomain: process.env.FRONTEND_DOMAIN || '*',
     allowAllOrigins: parseBoolean(process.env.ALLOW_ALL_ORIGINS, true),
     apiSecretToken: (process.env.API_SECRET_TOKEN || '').trim(),
-    disableAuthGuard: parseBoolean(process.env.DISABLE_AUTH_GUARD, true),
+    disableAuthGuard: parseBoolean(process.env.DISABLE_AUTH_GUARD, nodeEnv !== 'production'),
     trustProxy: parseBoolean(process.env.TRUST_PROXY, true),
   },
   ai: {
@@ -36,5 +42,8 @@ module.exports = {
     fallbackModels: parsedFallbackModels.length ? parsedFallbackModels : defaultFallbackModels,
     defaultTimeoutMs: Number(process.env.DEFAULT_TIMEOUT_MS) || 15000,
     streamTimeoutMs: Number(process.env.STREAM_TIMEOUT_MS) || 45000,
+    fileImportMaxMb: parsePositiveNumber(process.env.AI_FILE_IMPORT_MAX_MB, 20),
+    fileImportTimeoutMs: parsePositiveNumber(process.env.AI_FILE_IMPORT_TIMEOUT_MS, 90000),
+    fileExtractedTextMaxChars: parsePositiveNumber(process.env.AI_FILE_EXTRACTED_TEXT_MAX_CHARS, 200000),
   },
 };

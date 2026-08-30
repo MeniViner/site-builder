@@ -5,6 +5,8 @@ const authGuard = require('../middlewares/authGuard');
 const rateLimiter = require('../middlewares/rateLimiter');
 const validator = require('../middlewares/validator');
 const config = require('../config');
+const fileUpload = require('../middlewares/fileUpload');
+const fileAnalysisController = require('../controllers/fileAnalysisController');
 
 // GET /api/health - JSON Health Check
 router.get('/health', (req, res) => {
@@ -21,11 +23,14 @@ router.get('/init', (req, res) => {
       availableModels: config.ai.fallbackModels,
       defaultModel: config.ai.fallbackModels[0] || null,
       streamEnabled: true,
+      fileImportMaxMb: config.ai.fileImportMaxMb,
+      fileImportExtensions: ['.png', '.jpg', '.jpeg', '.webp', '.pdf', '.docx', '.xlsx', '.json', '.txt', '.md', '.markdown', '.csv'],
       endpoints: {
         health: '/api/health',
         init: '/api/init',
         direct: '/api/ai/direct/:model',
         stream: '/api/ai/stream',
+        fileAnalysis: '/api/ai/files/analyze',
       },
     },
   });
@@ -41,5 +46,9 @@ router.post('/ai/direct/:model', validator, aiController.handleDirect);
 // POST /api/ai/stream
 // SSE streaming (includes AbortController & validation).
 router.post('/ai/stream', validator, aiController.handleStream);
+
+// POST /api/ai/files/analyze
+// Memory-only multipart intake for reusable file-aware AI analysis.
+router.post('/ai/files/analyze', fileUpload, fileAnalysisController.handleFileAnalysis);
 
 module.exports = router;

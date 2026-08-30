@@ -55,8 +55,12 @@ export const AI_CONFIG = Object.freeze({
     fallbackModels,
     streamModel: String(import.meta.env.VITE_ALPHA_AI_STREAM_MODEL || 'any').trim(),
     streamEndpoint: String(import.meta.env.VITE_ALPHA_AI_STREAM_ENDPOINT || '/ai/stream').trim(),
+    fileEndpoint: String(import.meta.env.VITE_ALPHA_AI_FILE_ENDPOINT || '/ai/files/analyze').trim(),
+    fileModel: String(import.meta.env.VITE_ALPHA_AI_FILE_MODEL || '').trim(),
+    fileMaxMb: 20,
     requestTimeoutMs: parseNumber(import.meta.env.VITE_ALPHA_AI_TIMEOUT_MS, 30000),
     streamTimeoutMs: parseNumber(import.meta.env.VITE_ALPHA_AI_STREAM_TIMEOUT_MS, 120000),
+    fileTimeoutMs: parseNumber(import.meta.env.VITE_ALPHA_AI_FILE_TIMEOUT_MS, 120000),
     debug: parseBoolean(import.meta.env.VITE_ALPHA_AI_DEBUG, false),
 });
 

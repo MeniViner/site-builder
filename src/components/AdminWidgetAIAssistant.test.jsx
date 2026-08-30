@@ -1,5 +1,5 @@
-import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import React, { createRef } from 'react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminWidgetAIAssistant from './AdminWidgetAIAssistant';
 import AIService from '../services/AIService';
@@ -91,5 +91,51 @@ describe('AdminWidgetAIAssistant', () => {
 
         expect(await screen.findByText('מצאתי שני מבזקים דומים. מומלץ לאחד אותם.')).toBeVisible();
         expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('records external AI imports in the same before-AI history', async () => {
+        const onChange = vi.fn();
+        const ref = createRef();
+        const before = [{ id: 'before', text: 'לפני', isUrgent: false }];
+        const after = [{ id: 'after', text: 'אחרי', isUrgent: false }];
+        render(
+            <AdminWidgetAIAssistant
+                ref={ref}
+                widgetKey="news"
+                value={before}
+                onChange={onChange}
+            />
+        );
+
+        await act(() => ref.current.applyExternalResult(after, { label: 'ייבוא עם AI' }));
+        expect(onChange).toHaveBeenLastCalledWith(after);
+
+        fireEvent.click(screen.getByRole('button', { name: 'לפני AI' }));
+        await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(before));
+        fireEvent.click(screen.getByRole('button', { name: 'הבא' }));
+        await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(after));
+    });
+
+    it('uses the explicit current baseline for an in-flight external import', async () => {
+        const onChange = vi.fn();
+        const ref = createRef();
+        const renderedValue = [{ id: 'stale', text: 'ישן', isUrgent: false }];
+        const currentValue = [{ id: 'current', text: 'עריכה בזמן הניתוח', isUrgent: false }];
+        const after = [{ id: 'after', text: 'תוצאת AI', isUrgent: false }];
+        render(
+            <AdminWidgetAIAssistant
+                ref={ref}
+                widgetKey="news"
+                value={renderedValue}
+                onChange={onChange}
+            />
+        );
+
+        await act(() => ref.current.applyExternalResult(after, {
+            label: 'ייבוא עם AI',
+            baseline: currentValue,
+        }));
+        fireEvent.click(screen.getByRole('button', { name: 'לפני AI' }));
+        await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(currentValue));
     });
 });

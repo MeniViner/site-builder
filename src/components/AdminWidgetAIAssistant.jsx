@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { forwardRef, useCallback, useImperativeHandle, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, Bot, Loader2, Redo2, RotateCcw, Sparkles, Undo2, Wand2, X } from 'lucide-react';
 import { toast } from 'react-toastify';
@@ -41,7 +41,7 @@ function uniqueCandidates(candidates, baseline) {
     });
 }
 
-export default function AdminWidgetAIAssistant({ widgetKey, value, onChange }) {
+const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({ widgetKey, value, onChange }, ref) {
     const capability = useMemo(() => getAdminAiCapability(widgetKey), [widgetKey]);
     const [isOpen, setIsOpen] = useState(false);
     const [selectedActionId, setSelectedActionId] = useState(capability.actions[0]?.id || '');
@@ -64,13 +64,44 @@ export default function AdminWidgetAIAssistant({ widgetKey, value, onChange }) {
     );
     const aiEnabled = AIService.isEnabled();
 
-    if (!UI_FEATURES.showAiUi || !UI_FEATURES.showWidgetAiButtons) return null;
-
-    const applyValue = async (nextValue) => {
+    const applyValue = useCallback(async (nextValue) => {
         const result = onChange?.(clone(nextValue));
         const resolved = result && typeof result.then === 'function' ? await result : result;
         if (resolved === false) throw new Error('שמירת שינוי ה-AI נכשלה');
-    };
+    }, [onChange]);
+
+    const recordAndApply = useCallback(async (candidates, baseline, label) => {
+        await applyValue(candidates[0]);
+        setHistory((currentHistory) => {
+            const currentHistoryValue = currentHistory?.entries?.[currentHistory.index]?.value;
+            const baseEntries = currentHistory && stableStringify(currentHistoryValue) === stableStringify(baseline)
+                ? currentHistory.entries.slice(0, currentHistory.index + 1)
+                : [{ value: clone(baseline), label: 'לפני AI', createdAt: Date.now() }];
+            const firstCandidateIndex = baseEntries.length;
+            const entries = [
+                ...baseEntries,
+                ...candidates.map((candidate, index) => ({
+                    value: clone(candidate),
+                    label: candidates.length > 1 ? `חלופה ${index + 1}` : label || 'שינוי AI',
+                    createdAt: Date.now() + index + 1,
+                })),
+            ];
+            return { entries, index: firstCandidateIndex };
+        });
+        setHistoryVisible(true);
+    }, [applyValue]);
+
+    useImperativeHandle(ref, () => ({
+        async applyExternalResult(nextValue, options = {}) {
+            const baseline = clone(options.baseline === undefined ? value : options.baseline);
+            const candidate = clone(nextValue);
+            if (stableStringify(candidate) === stableStringify(baseline)) return false;
+            await recordAndApply([candidate], baseline, options.label || 'ייבוא עם AI');
+            return true;
+        },
+    }), [recordAndApply, value]);
+
+    if (!UI_FEATURES.showAiUi || (!UI_FEATURES.showWidgetAiButtons && !historyVisible)) return null;
 
     const applyHistoryIndex = async (nextIndex) => {
         if (!history?.entries?.length) return;
@@ -145,22 +176,7 @@ export default function AdminWidgetAIAssistant({ widgetKey, value, onChange }) {
                 return;
             }
 
-            const currentHistoryValue = history?.entries?.[history.index]?.value;
-            const baseEntries = history && stableStringify(currentHistoryValue) === stableStringify(baseline)
-                ? history.entries.slice(0, history.index + 1)
-                : [{ value: clone(baseline), label: 'לפני AI', createdAt: Date.now() }];
-            const firstCandidateIndex = baseEntries.length;
-            const entries = [
-                ...baseEntries,
-                ...candidates.map((candidate, index) => ({
-                    value: clone(candidate),
-                    label: candidates.length > 1 ? `חלופה ${index + 1}` : selectedAction?.label || 'שינוי AI',
-                    createdAt: Date.now() + index + 1,
-                })),
-            ];
-            await applyValue(candidates[0]);
-            setHistory({ entries, index: firstCandidateIndex });
-            setHistoryVisible(true);
+            await recordAndApply(candidates, baseline, selectedAction?.label || 'שינוי AI');
             setInstruction('');
             setIsOpen(false);
         } catch (error) {
@@ -224,9 +240,11 @@ export default function AdminWidgetAIAssistant({ widgetKey, value, onChange }) {
     return (
         <>
             <div className="inline-flex items-center gap-1">
-                <button type="button" onClick={() => setIsOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-xl border border-black/20 bg-white px-3 text-sm font-bold text-black transition hover:bg-black hover:text-white dark:border-white/20 dark:bg-[#111] dark:text-white" title={`AI — ${capability.title}`}>
-                    <Sparkles size={15} />AI
-                </button>
+                {UI_FEATURES.showWidgetAiButtons && (
+                    <button type="button" onClick={() => setIsOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-xl border border-black/20 bg-white px-3 text-sm font-bold text-black transition hover:bg-black hover:text-white dark:border-white/20 dark:bg-[#111] dark:text-white" title={`AI — ${capability.title}`}>
+                        <Sparkles size={15} />AI
+                    </button>
+                )}
                 {historyVisible && history?.entries?.length > 1 && (
                     <div className="inline-flex h-10 items-center gap-0.5 rounded-xl border border-primary/25 bg-primary/5 p-1">
                         <button type="button" onClick={() => applyHistoryIndex(0)} disabled={historyBusy || index === 0} className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-[10px] font-bold text-primary disabled:opacity-35" title="לפני AI"><RotateCcw size={13} />לפני AI</button>
@@ -240,4 +258,6 @@ export default function AdminWidgetAIAssistant({ widgetKey, value, onChange }) {
             {modal}
         </>
     );
-}
+});
+
+export default AdminWidgetAIAssistant;
