@@ -17,6 +17,12 @@ dist-ssr
 server/.env.local
 server/.env.test
 
+# DEV AI developer secret source. The canonical location is
+# ~/.config/site-builder/dev-ai.env (outside the repository); this guards
+# against a stray copy ever being committed.
+dev-ai.env
+**/dev-ai.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

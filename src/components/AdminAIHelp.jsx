@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { AlertTriangle, Bot, Copy, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import AIService from '../services/AIService';
-import { getSafeAiRuntimeConfig } from '../config/ai.config';
+import { formatAiEngineLabel, getSafeAiRuntimeConfig } from '../config/ai.config';
 
 const DEFAULT_QUESTION = 'איך נכון לעבוד עם שמירה אוטומטית במסכי הניהול בלי לאבד שינויים?';
 const QUICK_PROMPTS = [
@@ -62,7 +62,7 @@ export default function AdminAIHelp({ embedded = false }) {
             });
             const content = response?.content || streamed || '';
             setAnswer(String(content).trim());
-            setModelUsed(response?.modelUsed || response?.model || '');
+            setModelUsed(formatAiEngineLabel(response));
             setHistory((prev) => [trimmed, ...prev.filter((item) => item !== trimmed)].slice(0, 5));
         } catch (error) {
             toast.error(error?.message || 'שליחת השאלה ל-AI נכשלה');

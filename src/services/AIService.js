@@ -92,6 +92,12 @@ export class AIService {
         }
 
         const modelUsed = response.headers.get('x-proxy-model') || model;
+        // Safe transport metadata. Present only when the DEV AI gateway answered;
+        // the production AI path simply leaves these empty, so existing callers
+        // that only read `modelUsed`/`content` are unaffected.
+        const providerUsed = response.headers.get('x-dev-ai-provider') || '';
+        const requestId = response.headers.get('x-request-id') || '';
+        const streamMeta = { modelUsed, providerUsed, requestId };
         const reader = response.body.getReader();
         const decoder = new TextDecoder('utf-8');
         let pending = '';
@@ -106,7 +112,7 @@ export class AIService {
 
             if (rawPayload === '[DONE]') {
                 if (onDone) {
-                    onDone({ modelUsed, content });
+                    onDone({ ...streamMeta, content });
                 }
                 return true;
             }
@@ -118,12 +124,12 @@ export class AIService {
             if (token) {
                 content += token;
                 if (onToken) {
-                    onToken(token, { modelUsed, raw: rawPayload, parsed });
+                    onToken(token, { ...streamMeta, raw: rawPayload, parsed });
                 }
             }
 
             if (onEvent) {
-                onEvent(rawPayload, { modelUsed, token, parsed });
+                onEvent(rawPayload, { ...streamMeta, token, parsed });
             }
 
             if (parsed?.error) {
@@ -149,7 +155,7 @@ export class AIService {
                 for (const chunk of chunks) {
                     const shouldStop = handleEventChunk(chunk);
                     if (shouldStop) {
-                        return { modelUsed, content, eventsCount };
+                        return { ...streamMeta, content, eventsCount };
                     }
                 }
             }
@@ -157,15 +163,15 @@ export class AIService {
             if (pending.trim()) {
                 const shouldStop = handleEventChunk(pending);
                 if (shouldStop) {
-                    return { modelUsed, content, eventsCount };
+                    return { ...streamMeta, content, eventsCount };
                 }
             }
 
             if (onDone) {
-                onDone({ modelUsed, content });
+                onDone({ ...streamMeta, content });
             }
 
-            return { modelUsed, content, eventsCount };
+            return { ...streamMeta, content, eventsCount };
         } catch (error) {
             throw this._normalizeNetworkError(error, timeoutMs);
         } finally {

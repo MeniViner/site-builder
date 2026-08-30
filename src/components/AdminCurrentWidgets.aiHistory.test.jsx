@@ -40,6 +40,9 @@ vi.mock('../config/uiFeatures.config', () => ({
 
 vi.mock('../config/ai.config', () => ({
     getSafeAiRuntimeConfig: () => ({ defaultModel: 'test-model' }),
+    // Mirrors the production behaviour: outside a DEV AI runtime the badge is
+    // just the model name.
+    formatAiEngineLabel: (result) => String(result?.modelUsed || result?.model || ''),
 }));
 
 vi.mock('../services/AIService', () => ({

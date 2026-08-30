@@ -15,7 +15,7 @@ import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import AIService from '../services/AIService';
 import { parseJsonFromModel } from '../utils/aiJson';
 import DismissibleNotice from './DismissibleNotice';
-import { getSafeAiRuntimeConfig } from '../config/ai.config';
+import { formatAiEngineLabel, getSafeAiRuntimeConfig } from '../config/ai.config';
 import { UI_FEATURES } from '../config/uiFeatures.config';
 
 const AI_DESIGN_SECTION_ID = 'aiDesignAssistant';
@@ -834,7 +834,7 @@ export default function AdminTheme() {
             });
             const content = String(result?.content || streamed || '').trim();
             setAiRawOutput(content);
-            setAiModelUsed(result?.modelUsed || result?.model || '');
+            setAiModelUsed(formatAiEngineLabel(result));
 
             const parsed = parseJsonFromModel(content);
             const resolvedPayload = resolveThemePayload(parsed);

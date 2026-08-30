@@ -2,6 +2,7 @@ import express from 'express';
 import { createApiKeyGuard } from './auth/apiKey.js';
 import { createCorsMiddleware } from './api/cors.js';
 import { createSiteRouter } from './routes/siteRoutes.js';
+import { createDevAiRuntime, devAiStartupBanner } from './devAi/index.js';
 import { serviceUnavailable, toErrorResponse } from './utils/errors.js';
 
 export function createApp({
@@ -10,6 +11,7 @@ export function createApp({
   backupRepository = null,
   config,
   readinessCheck = async () => ({ ok: true, missingCollections: [] }),
+  devAiRuntime = createDevAiRuntime({ nodeEnv: config.nodeEnv }),
 }) {
   const app = express();
 
@@ -31,6 +33,17 @@ export function createApp({
 
   app.get('/healthz', health);
   app.get('/api/healthz', health);
+
+  // DEV-only AI gateway. `createDevAiRuntime` returns null in production, so the
+  // route is never registered there even if DEV_AI_ENABLED is accidentally set.
+  // It is mounted before the API-key guard because the browser reaches it
+  // same-origin from the local development server only.
+  if (devAiRuntime) {
+    app.use(devAiRuntime.mountPath, devAiRuntime.middleware);
+    if (config.nodeEnv !== 'test') {
+      console.log(devAiStartupBanner(devAiRuntime));
+    }
+  }
 
   app.use('/api', createApiKeyGuard({
     adminApiKey: config.adminApiKey,

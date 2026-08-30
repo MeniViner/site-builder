@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import AIService from '../services/AIService';
-import { getSafeAiRuntimeConfig } from '../config/ai.config';
+import { formatAiEngineLabel, getSafeAiRuntimeConfig } from '../config/ai.config';
 import { parseJsonFromModel } from '../utils/aiJson';
 import { useSiteContent } from '../context/SiteContentContext';
 import { useNavigation } from '../context/NavigationContext';
@@ -432,7 +432,7 @@ export default function AdminAICopilot({ activeTab }) {
         },
       });
       const content = String(result?.content || streamed || '').trim();
-      setModelUsed(result?.modelUsed || result?.model || RUNTIME_CONFIG.defaultModel || '');
+      setModelUsed(formatAiEngineLabel(result) || RUNTIME_CONFIG.defaultModel || '');
 
       if (readOnly) {
         setAnswer(content);

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { AlertTriangle, Bot, Loader2, Redo2, RotateCcw, Sparkles, Undo2, Wand2, X } from 'lucide-react';
 import { toast } from 'react-toastify';
 import AIService from '../services/AIService';
-import { getSafeAiRuntimeConfig } from '../config/ai.config';
+import { formatAiEngineLabel, getSafeAiRuntimeConfig } from '../config/ai.config';
 import { isWidgetAiButtonEnabled, UI_FEATURES } from '../config/uiFeatures.config';
 import { useAdminAiHistory } from '../hooks/useAdminAiHistory';
 import { parseJsonFromModel } from '../utils/aiJson';
@@ -150,7 +150,7 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
                 },
             });
             const content = String(result?.content || streamed || '').trim();
-            setModelUsed(result?.modelUsed || result?.model || RUNTIME_CONFIG.defaultModel || '');
+            setModelUsed(formatAiEngineLabel(result) || RUNTIME_CONFIG.defaultModel || '');
 
             if (readOnly) {
                 setAnswer(content || 'לא התקבלה תשובה מה-AI.');

@@ -4,7 +4,7 @@ import { AlertTriangle, Bot, Redo2, Sparkles, Undo2, Wand2, X } from 'lucide-rea
 import { toast } from 'react-toastify';
 import AIService from '../services/AIService';
 import { parseJsonFromModel } from '../utils/aiJson';
-import { getSafeAiRuntimeConfig } from '../config/ai.config';
+import { formatAiEngineLabel, getSafeAiRuntimeConfig } from '../config/ai.config';
 import DismissibleNotice from './DismissibleNotice';
 
 export default function AdminAIActionCard({
@@ -113,7 +113,7 @@ export default function AdminAIActionCard({
             const content = String(result?.content || streamed || '').trim();
 
             setRawOutput(content);
-            setModelUsed(result?.modelUsed || result?.model || '');
+            setModelUsed(formatAiEngineLabel(result));
 
             if (readOnlyRequest || mode !== 'json') {
                 setParsedOutput(content);
