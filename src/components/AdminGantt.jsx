@@ -41,6 +41,7 @@ import { confirmToast } from '../utils/confirmToast';
 import GanttChart from './GanttChart';
 import DismissibleNotice from './DismissibleNotice';
 import TaskManagementTable, { TASK_STATUS_META } from './TaskManagementTable';
+import { AdminAddonTabs, AdminAddonToggle } from './AdminAddonControls';
 
 const TABS = [
     { id: 'basic', label: 'הגדרות בסיס' },
@@ -222,21 +223,8 @@ function WeekdaySelector({ value, onChange }) {
     );
 }
 
-function ToggleSwitch({ checked, onChange, label }) {
-    return (
-        <button
-            type="button"
-            role="switch"
-            aria-checked={checked}
-            onClick={() => onChange(!checked)}
-            className="inline-flex items-center gap-3 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-700 shadow-sm transition hover:border-primary/40 dark:border-white/10 dark:bg-white/5 dark:text-gray-200"
-        >
-            <span className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${checked ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-white/20'}`}>
-                <span className={`h-5 w-5 rounded-full bg-white shadow-sm transition ${checked ? '-translate-x-5' : '-translate-x-1'}`} />
-            </span>
-            <span>{label}</span>
-        </button>
-    );
+function ToggleSwitch(props) {
+    return <AdminAddonToggle {...props} />;
 }
 
 function IconButton({ label, onClick, children, danger = false }) {
@@ -528,7 +516,7 @@ function TaskModal({ modal, categories, onClose, onSubmit, onChange }) {
                                 <h3 className="text-lg font-black text-gray-900 dark:text-white">מופע חוזר</h3>
                                 <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">המשימה המקורית משמשת כתבנית, והמופעים נוצרים אוטומטית לפי הכלל.</p>
                             </div>
-                            <ToggleSwitch
+                            <AdminAddonToggle
                                 checked={recurrence.enabled}
                                 onChange={(enabled) => updateRecurrence({ enabled })}
                                 label={recurrence.enabled ? 'מופע חוזר פעיל' : 'חד פעמי'}
@@ -1071,7 +1059,7 @@ export default function AdminGantt() {
                         <h2 className="text-2xl font-black text-gray-900 dark:text-white">הגדרות בסיס</h2>
                         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">הגדרות כלליות לעמוד הגאנט ולכפתור הציבורי, עם תצוגה חיה בצד.</p>
                     </div>
-                    <ToggleSwitch
+                    <AdminAddonToggle
                         checked={draft.enabled}
                         onChange={(enabled) => updateDraft({ enabled })}
                         label={draft.enabled ? 'מוצג באתר' : 'לא מוצג באתר'}
@@ -1699,22 +1687,7 @@ export default function AdminGantt() {
                     </div>
                 </div>
 
-                <nav className="flex w-full items-center gap-2 overflow-x-auto p-1 custom-scrollbar">
-                    {TABS.map((tab) => (
-                        <button
-                            key={tab.id}
-                            type="button"
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-bold transition ${
-                                activeTab === tab.id
-                                    ? 'bg-primary-600 text-white shadow-md ring-2 ring-primary-500/30 ring-offset-2 ring-offset-gray-50 dark:ring-offset-[#12141a]'
-                                    : 'border border-gray-200 bg-white text-gray-600 shadow-sm hover:bg-gray-100 hover:text-gray-900 dark:border-transparent dark:bg-white/5 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white'
-                            }`}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
-                </nav>
+                <AdminAddonTabs tabs={TABS} activeTab={activeTab} onChange={setActiveTab} ariaLabel="לשוניות ניהול גאנט" />
             </div>
 
             {error && (

@@ -29,7 +29,20 @@ const initialBoom = {
     buttonLabel: 'בום',
     pageTitle: 'חדר מצב',
     description: 'תיאור',
-    design: { preset: 'operational' },
+    design: {
+        preset: 'operational',
+        showDashboard: true,
+        dashboardTitle: 'תמונת מצב',
+        dashboardSubtitle: '',
+        dashboardWidgets: ['overview', 'status', 'owners', 'upcoming', 'categories', 'insights'],
+        dashboardDensity: 'comfortable',
+        tableDensity: 'comfortable',
+        showCategoryColors: true,
+        showSummaryChips: true,
+        accent: 'primary',
+        cardEmphasis: 'soft',
+        headerStyle: 'standard',
+    },
     categories: [{ id: 'general', name: 'כללי', color: '#2563eb', order: 1 }],
     items: [{
         id: 'task-1',
@@ -140,7 +153,45 @@ describe('AdminBoom', () => {
         expect(screen.getByTestId('boom-presentation')).toHaveAttribute('data-preset', 'command-center');
 
         await waitFor(() => expect(mocks.saveBoom).toHaveBeenCalledWith(
-            expect.objectContaining({ design: { preset: 'command-center' } })
+            expect.objectContaining({ design: expect.objectContaining({ preset: 'command-center' }) })
+        ), { timeout: 1800 });
+    });
+
+    it('updates the live dashboard preview and persists its visibility and widgets', async () => {
+        render(<MemoryRouter><AdminBoom /></MemoryRouter>);
+        fireEvent.click(screen.getByRole('tab', { name: 'עיצוב' }));
+
+        expect(screen.getByTestId('boom-dashboard')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('switch', { name: 'הצגת לוח הבקרה' }));
+        expect(screen.queryByTestId('boom-dashboard')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('checkbox', { name: /התפלגות סטטוסים/ }));
+
+        await waitFor(() => expect(mocks.saveBoom).toHaveBeenCalledWith(
+            expect.objectContaining({
+                design: expect.objectContaining({
+                    showDashboard: false,
+                    dashboardWidgets: expect.not.arrayContaining(['status']),
+                }),
+            })
+        ), { timeout: 1800 });
+    });
+
+    it('manages categories and safely reassigns affected tasks on deletion', async () => {
+        render(<MemoryRouter><AdminBoom /></MemoryRouter>);
+        fireEvent.click(screen.getByRole('tab', { name: 'קטגוריות' }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'קטגוריה חדשה' }));
+        const nameField = screen.getByLabelText('שם קטגוריה תחום 2');
+        fireEvent.change(nameField, { target: { value: 'כשירות' } });
+        fireEvent.blur(nameField);
+        fireEvent.change(screen.getByLabelText('צבע עבור כשירות'), { target: { value: '#0f766e' } });
+        fireEvent.click(screen.getAllByRole('button', { name: 'מחיקה' })[0]);
+
+        await waitFor(() => expect(mocks.saveBoom).toHaveBeenCalledWith(
+            expect.objectContaining({
+                categories: [expect.objectContaining({ name: 'כשירות', color: '#0f766e' })],
+                items: [expect.objectContaining({ category: 'כשירות', color: '#0f766e' })],
+            })
         ), { timeout: 1800 });
     });
 });

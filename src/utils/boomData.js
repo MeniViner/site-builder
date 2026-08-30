@@ -16,6 +16,48 @@ export const BOOM_DESIGN_PRESETS = Object.freeze([
 
 const VALID_DESIGN_PRESETS = new Set(BOOM_DESIGN_PRESETS.map((preset) => preset.id));
 
+export const BOOM_DASHBOARD_WIDGETS = Object.freeze([
+    { id: 'overview', label: 'תמונת מצב', description: 'מדדים מרכזיים והיקף העבודה.' },
+    { id: 'status', label: 'התפלגות סטטוסים', description: 'חלוקת המשימות לפי מצב ביצוע.' },
+    { id: 'owners', label: 'עומס אחראים', description: 'האנשים עם הכי הרבה משימות פתוחות.' },
+    { id: 'upcoming', label: 'קרוב ודחוף', description: 'משימות שמתקרבות ליעד או באיחור.' },
+    { id: 'categories', label: 'תחומים', description: 'היקף המשימות לפי קטגוריה וצבעיה.' },
+    { id: 'insights', label: 'תובנות תפעוליות', description: 'חסמים, איחורים ומשימות ללא אחראי.' },
+]);
+
+export const BOOM_DASHBOARD_DENSITIES = Object.freeze([
+    { value: 'compact', label: 'קומפקטי' },
+    { value: 'comfortable', label: 'מאוזן' },
+]);
+
+export const BOOM_TABLE_DENSITIES = Object.freeze([
+    { value: 'compact', label: 'קומפקטי' },
+    { value: 'comfortable', label: 'מאוזן' },
+]);
+
+export const BOOM_ACCENT_OPTIONS = Object.freeze([
+    { value: 'primary', label: 'צבע האתר' },
+    { value: 'sky', label: 'כחול פיקודי' },
+    { value: 'emerald', label: 'ירוק תפעולי' },
+]);
+
+export const BOOM_CARD_EMPHASIS_OPTIONS = Object.freeze([
+    { value: 'soft', label: 'רך' },
+    { value: 'outlined', label: 'מודגש' },
+]);
+
+export const BOOM_HEADER_STYLES = Object.freeze([
+    { value: 'standard', label: 'רגיל' },
+    { value: 'minimal', label: 'מינימלי' },
+]);
+
+const VALID_DASHBOARD_WIDGETS = new Set(BOOM_DASHBOARD_WIDGETS.map((widget) => widget.id));
+const VALID_DASHBOARD_DENSITIES = new Set(BOOM_DASHBOARD_DENSITIES.map((option) => option.value));
+const VALID_TABLE_DENSITIES = new Set(BOOM_TABLE_DENSITIES.map((option) => option.value));
+const VALID_ACCENTS = new Set(BOOM_ACCENT_OPTIONS.map((option) => option.value));
+const VALID_CARD_EMPHASIS = new Set(BOOM_CARD_EMPHASIS_OPTIONS.map((option) => option.value));
+const VALID_HEADER_STYLES = new Set(BOOM_HEADER_STYLES.map((option) => option.value));
+
 export const BOOM_COLOR_OPTIONS = Object.freeze([
     '#2563eb',
     '#0891b2',
@@ -31,7 +73,20 @@ export const DEFAULT_BOOM_DATA = Object.freeze({
     buttonLabel: 'בום',
     pageTitle: 'BOOM - תמונת מצב',
     description: 'מערכת שליטה ובקרה למשימות, אחריות והתקדמות.',
-    design: { preset: 'operational' },
+    design: {
+        preset: 'operational',
+        showDashboard: true,
+        dashboardTitle: 'תמונת מצב',
+        dashboardSubtitle: '',
+        dashboardWidgets: BOOM_DASHBOARD_WIDGETS.map((widget) => widget.id),
+        dashboardDensity: 'comfortable',
+        tableDensity: 'comfortable',
+        showCategoryColors: true,
+        showSummaryChips: true,
+        accent: 'primary',
+        cardEmphasis: 'soft',
+        headerStyle: 'standard',
+    },
     categories: [
         { id: 'boom-category-general', name: 'כללי', color: BOOM_COLOR_OPTIONS[0], order: 1 },
     ],
@@ -67,6 +122,41 @@ function todayDateString() {
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+}
+
+function normalizeDashboardWidgets(value) {
+    const widgets = Array.isArray(value)
+        ? value.filter((widget) => VALID_DASHBOARD_WIDGETS.has(widget))
+        : DEFAULT_BOOM_DATA.design.dashboardWidgets;
+    return [...new Set(widgets)];
+}
+
+function normalizeBoomDesign(designLike) {
+    const source = isObject(designLike) ? designLike : {};
+    return {
+        preset: VALID_DESIGN_PRESETS.has(source.preset)
+            ? source.preset
+            : DEFAULT_BOOM_DATA.design.preset,
+        showDashboard: source.showDashboard !== false,
+        dashboardTitle: text(source.dashboardTitle, DEFAULT_BOOM_DATA.design.dashboardTitle),
+        dashboardSubtitle: text(source.dashboardSubtitle, DEFAULT_BOOM_DATA.design.dashboardSubtitle),
+        dashboardWidgets: normalizeDashboardWidgets(source.dashboardWidgets),
+        dashboardDensity: VALID_DASHBOARD_DENSITIES.has(source.dashboardDensity)
+            ? source.dashboardDensity
+            : DEFAULT_BOOM_DATA.design.dashboardDensity,
+        tableDensity: VALID_TABLE_DENSITIES.has(source.tableDensity)
+            ? source.tableDensity
+            : DEFAULT_BOOM_DATA.design.tableDensity,
+        showCategoryColors: source.showCategoryColors !== false,
+        showSummaryChips: source.showSummaryChips !== false,
+        accent: VALID_ACCENTS.has(source.accent) ? source.accent : DEFAULT_BOOM_DATA.design.accent,
+        cardEmphasis: VALID_CARD_EMPHASIS.has(source.cardEmphasis)
+            ? source.cardEmphasis
+            : DEFAULT_BOOM_DATA.design.cardEmphasis,
+        headerStyle: VALID_HEADER_STYLES.has(source.headerStyle)
+            ? source.headerStyle
+            : DEFAULT_BOOM_DATA.design.headerStyle,
+    };
 }
 
 export function isValidBoomColor(value) {
@@ -152,11 +242,7 @@ export function normalizeBoomData(dataLike) {
         buttonLabel: text(source.buttonLabel, DEFAULT_BOOM_DATA.buttonLabel),
         pageTitle: text(source.pageTitle, DEFAULT_BOOM_DATA.pageTitle),
         description: text(source.description, DEFAULT_BOOM_DATA.description),
-        design: {
-            preset: VALID_DESIGN_PRESETS.has(source.design?.preset)
-                ? source.design.preset
-                : DEFAULT_BOOM_DATA.design.preset,
-        },
+        design: normalizeBoomDesign(source.design),
         categories,
         items: items.map((task) => {
             const category = categoryByName.get(task.category.toLocaleLowerCase('he'));
@@ -187,6 +273,72 @@ export function createBoomTask(overrides = {}) {
         color: BOOM_COLOR_OPTIONS[0],
         order: Date.now(),
         ...overrides,
+    });
+}
+
+export function createBoomCategory(overrides = {}, categories = []) {
+    const highestOrder = (Array.isArray(categories) ? categories : [])
+        .reduce((max, category) => Math.max(max, Number(category?.order) || 0), 0);
+    const index = Math.max(0, highestOrder);
+    return {
+        id: text(overrides.id, `boom-category-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`),
+        name: text(overrides.name, `תחום ${index + 1}`),
+        color: isValidBoomColor(overrides.color) ? overrides.color : BOOM_COLOR_OPTIONS[index % BOOM_COLOR_OPTIONS.length],
+        order: integer(overrides.order, 0, Number.MAX_SAFE_INTEGER, index + 1),
+    };
+}
+
+export function updateBoomCategory(dataLike, categoryId, patch = {}) {
+    const current = normalizeBoomData(dataLike);
+    const target = current.categories.find((category) => category.id === categoryId);
+    if (!target) return current;
+
+    const name = text(patch.name, target.name);
+    const hasDuplicateName = current.categories.some((category) => (
+        category.id !== categoryId && category.name.localeCompare(name, 'he', { sensitivity: 'accent' }) === 0
+    ));
+    if (!name || hasDuplicateName) return current;
+
+    const color = isValidBoomColor(patch.color) ? patch.color : target.color;
+    const categories = current.categories.map((category) => (
+        category.id === categoryId ? { ...category, name, color } : category
+    ));
+    const items = current.items.map((task) => (
+        task.category === target.name ? { ...task, category: name, color } : task
+    ));
+    return normalizeBoomData({ ...current, categories, items });
+}
+
+export function deleteBoomCategory(dataLike, categoryId, replacementCategoryId) {
+    const current = normalizeBoomData(dataLike);
+    const target = current.categories.find((category) => category.id === categoryId);
+    if (!target) return current;
+
+    const alternatives = current.categories.filter((category) => category.id !== categoryId);
+    if (alternatives.length === 0) {
+        throw new Error('לא ניתן למחוק את הקטגוריה האחרונה. יש להוסיף קטגוריה חלופית תחילה.');
+    }
+    const replacement = alternatives.find((category) => category.id === replacementCategoryId) || alternatives[0];
+    const categories = alternatives.map((category, index) => ({ ...category, order: index + 1 }));
+    const items = current.items.map((task) => (
+        task.category === target.name
+            ? { ...task, category: replacement.name, color: replacement.color }
+            : task
+    ));
+    return normalizeBoomData({ ...current, categories, items });
+}
+
+export function reorderBoomCategory(dataLike, categoryId, direction) {
+    const current = normalizeBoomData(dataLike);
+    const index = current.categories.findIndex((category) => category.id === categoryId);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= current.categories.length) return current;
+
+    const categories = [...current.categories];
+    [categories[index], categories[nextIndex]] = [categories[nextIndex], categories[index]];
+    return normalizeBoomData({
+        ...current,
+        categories: categories.map((category, order) => ({ ...category, order: order + 1 })),
     });
 }
 

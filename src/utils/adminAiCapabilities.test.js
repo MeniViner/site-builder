@@ -68,4 +68,50 @@ describe('adminAiCapabilities', () => {
     expect(next[0].options[0].votes).toBe(4);
     expect(next[0].options[0].voters).toEqual([{ id: 'u1', name: 'א' }]);
   });
+
+  it('normalizes BOOM task and dashboard updates through the BOOM contract', () => {
+    const current = {
+      enabled: true,
+      pageTitle: 'BOOM',
+      design: { preset: 'operational', showDashboard: true },
+      categories: [{ id: 'general', name: 'כללי', color: '#2563eb', order: 1 }],
+      items: [],
+    };
+    const next = normalizeAdminAiCandidate('boom', {
+      boom: {
+        design: {
+          preset: 'command-center',
+          showDashboard: false,
+          dashboardWidgets: ['overview', 'categories', 'invalid'],
+          tableDensity: 'compact',
+        },
+        categories: [{ id: 'ops', name: 'מבצעים', color: '#0f766e' }],
+        items: [{
+          id: 'task-1',
+          title: 'עדכון מצב',
+          owner: 'חדר מבצעים',
+          category: 'מבצעים',
+          status: 'active',
+          startDate: '2026-06-20',
+          endDate: '2026-06-10',
+          progress: 77,
+        }],
+      },
+    }, current);
+
+    expect(next.design).toMatchObject({
+      preset: 'command-center',
+      showDashboard: false,
+      dashboardWidgets: ['overview', 'categories'],
+      tableDensity: 'compact',
+    });
+    expect(next.items[0]).toMatchObject({
+      title: 'עדכון מצב',
+      owner: 'חדר מבצעים',
+      category: 'מבצעים',
+      color: '#0f766e',
+      endDate: '2026-06-20',
+    });
+    expect(next.items[0]).not.toHaveProperty('progress');
+  });
 });

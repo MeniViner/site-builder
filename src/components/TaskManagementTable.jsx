@@ -122,6 +122,7 @@ export default function TaskManagementTable({
     onDelete,
     readOnly = false,
     density = 'comfortable',
+    showCategoryColors = true,
 }) {
     const showActions = !readOnly && [onEdit, onDuplicate, onDelete].some((handler) => typeof handler === 'function');
     const compact = density === 'compact';
@@ -182,7 +183,7 @@ export default function TaskManagementTable({
                             <tr key={task.id} className="transition-colors hover:bg-gray-50/80 dark:hover:bg-white/[0.03]">
                                 <td className={`${bodyCellClass} text-right`}>
                                     <div className="flex items-center gap-2">
-                                        <span className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-gray-200 dark:ring-white/10" style={{ backgroundColor: task.color }} title={task.color} />
+                                        {showCategoryColors && <span className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-gray-200 dark:ring-white/10" style={{ backgroundColor: getCategoryColor(categories, task) }} title={task.color} />}
                                         {renderTaskIndicators?.(task, false)}
                                         <div className="min-w-0">
                                             <div className="truncate font-black text-gray-900 dark:text-white" title={task.title}>{task.title}</div>
@@ -194,7 +195,7 @@ export default function TaskManagementTable({
                                 </td>
                                 <td className={`${bodyCellClass} text-right`}>
                                     <TaskTablePill className="max-w-full border-gray-200 bg-gray-50 text-gray-700 dark:border-white/10 dark:bg-white/5 dark:text-gray-200">
-                                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: getCategoryColor(categories, task) }} />
+                                        {showCategoryColors && <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: getCategoryColor(categories, task) }} />}
                                         <span className="truncate">{task.category}</span>
                                     </TaskTablePill>
                                 </td>
@@ -216,7 +217,7 @@ export default function TaskManagementTable({
                         <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                                 <div className="flex min-w-0 items-center gap-2">
-                                    <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-gray-200 dark:ring-white/10" style={{ backgroundColor: task.color }} />
+                                    {showCategoryColors && <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-gray-200 dark:ring-white/10" style={{ backgroundColor: getCategoryColor(categories, task) }} />}
                                     {renderTaskIndicators?.(task, true)}
                                     <h3 className="truncate text-base font-black text-gray-900 dark:text-white">{task.title}</h3>
                                 </div>
@@ -228,7 +229,7 @@ export default function TaskManagementTable({
                         </div>
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                             <TaskTablePill className="border-gray-200 bg-white text-gray-700 dark:border-white/10 dark:bg-white/5 dark:text-gray-200">
-                                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: getCategoryColor(categories, task) }} />
+                                {showCategoryColors && <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: getCategoryColor(categories, task) }} />}
                                 {task.category}
                             </TaskTablePill>
                             <TaskBadges task={task} statusMeta={statusMeta} timingMeta={timingMeta} getTimingStatus={getTimingStatus} />
