@@ -29,6 +29,7 @@ import OrgChartFlow from './OrgChartFlow';
 import OrgChartLivePreview from './OrgChartLivePreview';
 import OrgChartMailLink from './OrgChartMailLink';
 import { isValidPersonalNumber, personalNumberToArmyMailto } from '../utils/personalNumber';
+import AdminWidgetAIAssistant from './AdminWidgetAIAssistant';
 
 const ROOT_NODE_ID = '__org_chart_root__';
 const RANK_DATALIST_ID = 'org-chart-rank-options';
@@ -2547,6 +2548,7 @@ export default function AdminOrgChart() {
                     </div>
                     <div className="flex items-center gap-3">
                         <AdminPageHelpButton pageId="org-chart" />
+                        <AdminWidgetAIAssistant widgetKey="org-chart" value={draft} onChange={(next) => { setDraft(cloneOrgChart(next)); setActiveNodeId(null); }} />
                         {isSaving && (
                             <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 shadow-sm dark:border-white/10 dark:bg-white/5">
                                 <div className="h-3.5 w-3.5 animate-spin rounded-full border-[2px] border-primary border-t-transparent" />

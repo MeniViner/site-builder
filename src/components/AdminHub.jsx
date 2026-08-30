@@ -322,7 +322,7 @@ export default function AdminHub() {
 
     return (
         <div dir="rtl" className="flex h-screen bg-gray-100 dark:bg-[#1e212b] text-gray-900 dark:text-white font-heebo overflow-hidden">
-            {showAiUi && <AdminAICopilot activeTab={activeTab} />}
+            {showAiUi && UI_FEATURES.showGlobalAiCopilot && <AdminAICopilot activeTab={activeTab} />}
             {showKasharDraftTools && (
                 <input
                     ref={kasharImportInputRef}

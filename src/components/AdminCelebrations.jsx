@@ -4,6 +4,7 @@ import { useWidget } from '../context/WidgetContext';
 import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
 import { AdminPageHelpButton, HelpTooltipButton } from './AdminHelp';
 import DismissibleNotice from './DismissibleNotice';
+import AdminWidgetAIAssistant from './AdminWidgetAIAssistant';
 
 const panelCls = 'bg-themeBg-card bg-white dark:bg-[#232733] text-themeText-primary text-gray-900 dark:text-white border border-gray-200 dark:border-white/10';
 const inputCls = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20 dark:border-white/10 dark:bg-[#1a1d24] dark:text-white';
@@ -69,6 +70,15 @@ export default function AdminCelebrations() {
         if (editingId === id) cancelEdit();
     };
 
+    const applyAiList = async (next) => {
+        const nextList = Array.isArray(next) ? next : [];
+        setList(nextList);
+        setEditingId(null);
+        const success = await saveWidgetConfig({ ...widgetConfig, celebrations: nextList });
+        if (success) lastSavedRef.current = JSON.stringify(nextList);
+        return success;
+    };
+
     return (
         <div dir="rtl" className="min-h-screen p-8 font-heebo text-gray-900 dark:text-white">
             <div className="mb-8 border-b border-gray-300 pb-4 dark:border-white/10">
@@ -82,6 +92,7 @@ export default function AdminCelebrations() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                         <AdminPageHelpButton pageId="celebrations" />
+                        <AdminWidgetAIAssistant widgetKey="celebrations" value={list} onChange={applyAiList} />
                         <button onClick={openNew} className="h-10 inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-bold text-white transition hover:bg-primary-700">
                             <Plus size={16} />
                             הוסף אירוע

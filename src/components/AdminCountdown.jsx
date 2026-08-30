@@ -3,6 +3,7 @@ import { useWidget } from '../context/WidgetContext';
 import { Timer, AlignLeft, Clock, Plus, Check, X, Pencil, Trash2, AlertTriangle, Info } from 'lucide-react';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import DismissibleNotice from './DismissibleNotice';
+import AdminWidgetAIAssistant from './AdminWidgetAIAssistant';
 
 const inputCls = 'w-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition';
 const labelCls = 'block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide';
@@ -110,6 +111,26 @@ export default function AdminCountdown() {
         [list, activeItemId]
     );
 
+    const applyAiCountdown = async (next) => {
+        const nextItems = Array.isArray(next?.items) ? next.items : [];
+        const nextActiveId = next?.activeItemId || nextItems[0]?.id || null;
+        const active = nextItems.find((item) => item.id === nextActiveId) || nextItems[0] || null;
+        const countdownPayload = {
+            title: active?.title || '',
+            targetDate: active?.targetDate || '',
+            showDetails: active?.showDetails || false,
+            details: active?.details || '',
+            activeItemId: nextActiveId,
+            items: nextItems,
+        };
+        setList(nextItems);
+        setActiveItemId(nextActiveId);
+        setEditingId(null);
+        const success = await saveWidgetConfig({ ...widgetConfig, countdown: countdownPayload });
+        if (success) lastSavedRef.current = JSON.stringify({ items: nextItems, activeItemId: nextActiveId });
+        return success;
+    };
+
     const timeLeftText = useMemo(() => {
         if (!activeCountdown?.targetDate) return '';
         const ms = new Date(activeCountdown.targetDate) - Date.now();
@@ -181,6 +202,11 @@ export default function AdminCountdown() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                         <AdminPageHelpButton pageId="countdown" />
+                        <AdminWidgetAIAssistant
+                            widgetKey="countdown"
+                            value={{ items: list, activeItemId }}
+                            onChange={applyAiCountdown}
+                        />
                         <button onClick={openNew} className={primaryBtnCls}>
                             <Plus size={16} />
                             הוסף ספירה
