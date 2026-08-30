@@ -173,56 +173,6 @@ export class AIService {
         }
     }
 
-    async analyzeFile(file, options = {}) {
-        if (!(file instanceof File)) {
-            throw new TypeError('file must be a File');
-        }
-        const model = hasText(options.model) ? options.model.trim() : this.config.fileModel;
-        if (!hasText(model)) {
-            const error = new Error('A dedicated file-capable AI model is not configured');
-            error.code = 'FILE_MODEL_NOT_CONFIGURED';
-            throw error;
-        }
-
-        const maxBytes = this.config.fileMaxMb * 1024 * 1024;
-        if (file.size > maxBytes) {
-            const error = new Error(`File exceeds the ${this.config.fileMaxMb} MB upload limit`);
-            error.code = 'FILE_TOO_LARGE';
-            throw error;
-        }
-
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('model', model);
-        if (hasText(options.instruction)) {
-            formData.append('instruction', options.instruction.trim());
-        }
-
-        const timeoutMs = options.timeoutMs || this.config.fileTimeoutMs;
-        const merged = this._createSignal(timeoutMs, options.signal);
-        const path = hasText(options.filePath) ? options.filePath.trim() : this.config.fileEndpoint;
-        const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-        let response;
-        try {
-            response = await fetch(`${this.config.apiBase}${normalizedPath}`, {
-                method: 'POST',
-                headers: this._createAuthHeaders(),
-                body: formData,
-                signal: merged.signal,
-            });
-        } catch (error) {
-            merged.cleanup();
-            throw this._normalizeNetworkError(error, timeoutMs);
-        }
-
-        const payload = await this._parseResponseBody(response);
-        merged.cleanup();
-        if (!response.ok) {
-            throw this._createHttpError(response, payload);
-        }
-        return payload;
-    }
-
     _resolveStreamPath(streamPath) {
         const resolved = hasText(streamPath)
             ? streamPath.trim()
@@ -286,14 +236,6 @@ export class AIService {
             headers['x-api-token'] = this.config.apiToken;
         }
 
-        return headers;
-    }
-
-    _createAuthHeaders(extraHeaders = {}) {
-        const headers = { ...extraHeaders };
-        if (hasText(this.config.apiToken)) {
-            headers['x-api-token'] = this.config.apiToken;
-        }
         return headers;
     }
 
@@ -386,8 +328,6 @@ export class AIService {
         const error = new Error(`AI API error ${response.status}: ${serverErrorText}`);
         error.status = response.status;
         error.payload = payload;
-        error.code = serverError?.code;
-        error.requestId = serverError?.requestId;
         return error;
     }
 

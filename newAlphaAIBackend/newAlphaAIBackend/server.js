@@ -5,6 +5,7 @@ const routes = require('./routes');
 const { globalErrorHandler, notFoundHandler } = require('./middlewares/errorHandler');
 const logger = require('./utils/logger');
 
+// Initialize the Express app
 const app = express();
 
 // Ignore noisy legacy Buffer constructor warnings from 3rd-party deps.
@@ -41,14 +42,10 @@ app.use(notFoundHandler);
 app.use(globalErrorHandler);
 
 // Start server
-if (require.main === module) {
-  app.listen(config.port, () => {
-    logger.info(`AI Proxy Server listening on API endpoints at port ${config.port}`);
-    logger.info(
-      `CORS mode: ${config.security.allowAllOrigins ? 'OPEN(*)' : config.security.frontendDomain}`,
-    );
-    logger.info(`Auth guard: ${config.security.disableAuthGuard ? 'DISABLED' : 'ENABLED'}`);
-  });
-}
-
-module.exports = app;
+app.listen(config.port, () => {
+  logger.info(`AI Proxy Server listening on API endpoints at port ${config.port}`);
+  logger.info(
+    `CORS mode: ${config.security.allowAllOrigins ? 'OPEN(*)' : config.security.frontendDomain}`,
+  );
+  logger.info(`Auth guard: ${config.security.disableAuthGuard ? 'DISABLED' : 'ENABLED'}`);
+});

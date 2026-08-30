@@ -6,69 +6,67 @@ function createService(overrides = {}) {
         enabled: true,
         apiBase: 'https://ai.example/api',
         apiToken: 'token-value',
-        fileModel: 'gpt-4o',
-        fileEndpoint: '/ai/files/analyze',
-        fileMaxMb: 20,
-        fileTimeoutMs: 5000,
+        defaultModel: 'gpt-4o',
+        streamModel: 'any',
+        streamEndpoint: '/ai/stream',
+        streamTimeoutMs: 5000,
         ...overrides,
     });
 }
 
-describe('AIService analyzeFile', () => {
+function createSseResponse(content = '{"nodes":[]}') {
+    const token = JSON.stringify({ choices: [{ delta: { content } }] });
+    return new Response(`data: ${token}\n\ndata: [DONE]\n\n`, {
+        status: 200,
+        headers: {
+            'content-type': 'text/event-stream',
+            'x-proxy-model': 'gpt-4o',
+        },
+    });
+}
+
+describe('AIService working stream transport', () => {
     afterEach(() => vi.unstubAllGlobals());
 
-    it('creates a multipart request with auth and the dedicated model', async () => {
-        const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ result: { nodes: [] } }), {
-            status: 200,
-            headers: { 'content-type': 'application/json' },
-        }));
+    it('sends the established JSON/SSE request with model and auth token', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(createSseResponse());
         vi.stubGlobal('fetch', fetchMock);
-        const file = new File(['org data'], 'org.txt', { type: 'text/plain' });
 
-        await createService().analyzeFile(file, { instruction: 'חלץ את המחלקות' });
+        const result = await createService().ask('extract locally prepared text', { model: 'gpt-4o' });
 
-        const [, options] = fetchMock.mock.calls[0];
-        expect(fetchMock.mock.calls[0][0]).toBe('https://ai.example/api/ai/files/analyze');
-        expect(options.headers).toEqual({ 'x-api-token': 'token-value' });
-        expect(options.headers['Content-Type']).toBeUndefined();
-        expect(options.body).toBeInstanceOf(FormData);
-        expect(options.body.get('file')).toBe(file);
-        expect(options.body.get('model')).toBe('gpt-4o');
-        expect(options.body.get('instruction')).toBe('חלץ את המחלקות');
-    });
-
-    it('requires a dedicated file model without text-model fallback', async () => {
-        const file = new File(['org data'], 'org.txt', { type: 'text/plain' });
-        await expect(createService({ fileModel: '' }).analyzeFile(file)).rejects.toMatchObject({
-            code: 'FILE_MODEL_NOT_CONFIGURED',
+        const [url, options] = fetchMock.mock.calls[0];
+        expect(url).toBe('https://ai.example/api/ai/stream');
+        expect(options.headers).toEqual({
+            'Content-Type': 'application/json',
+            'x-api-token': 'token-value',
         });
-    });
-
-    it('preserves structured server errors and request IDs', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
-            error: { code: 'MALFORMED_FILE', message: 'bad file', requestId: 'req-123' },
-        }), {
-            status: 422,
-            headers: { 'content-type': 'application/json' },
-        })));
-        const file = new File(['bad'], 'org.txt', { type: 'text/plain' });
-        await expect(createService().analyzeFile(file)).rejects.toMatchObject({
-            code: 'MALFORMED_FILE',
-            requestId: 'req-123',
-            status: 422,
+        expect(JSON.parse(options.body)).toEqual({
+            messages: [{ role: 'user', content: 'extract locally prepared text' }],
+            stream: true,
+            model: 'gpt-4o',
         });
+        expect(result).toMatchObject({ modelUsed: 'gpt-4o', content: '{"nodes":[]}' });
     });
 
-    it('supports caller cancellation', async () => {
+    it('supports caller cancellation on the existing stream request', async () => {
         vi.stubGlobal('fetch', vi.fn((url, options) => new Promise((resolve, reject) => {
             options.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
         })));
         const controller = new AbortController();
-        const promise = createService().analyzeFile(
-            new File(['org data'], 'org.txt', { type: 'text/plain' }),
-            { signal: controller.signal },
-        );
+        const promise = createService().ask('extract text', { signal: controller.signal });
         controller.abort();
         await expect(promise).rejects.toMatchObject({ code: 'TIMEOUT' });
+    });
+
+    it('surfaces object-shaped errors from the working AI boundary clearly', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+            error: { message: 'model unavailable', code: 'UPSTREAM_ERROR' },
+        }), {
+            status: 503,
+            headers: { 'content-type': 'application/json' },
+        })));
+        await expect(createService().ask('extract text')).rejects.toThrow(
+            'AI API error 503: model unavailable',
+        );
     });
 });

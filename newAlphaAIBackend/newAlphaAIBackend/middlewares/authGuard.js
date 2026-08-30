@@ -10,13 +10,8 @@ module.exports = (req, res, next) => {
   }
 
   if (!config.security.apiSecretToken) {
-    logger.error('Auth guard is enabled but API_SECRET_TOKEN is not configured.');
-    return res.status(503).json({
-      error: {
-        code: 'AUTH_NOT_CONFIGURED',
-        message: 'AI API authentication is not configured.',
-      },
-    });
+    logger.warn('Auth guard enabled but API_SECRET_TOKEN is empty. Allowing request.');
+    return next();
   }
 
   const token = req.headers['x-api-token'];

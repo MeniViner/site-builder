@@ -6,6 +6,8 @@ import AdminOrgChart from './AdminOrgChart';
 import AIService from '../services/AIService';
 import { confirmToast } from '../utils/confirmToast';
 import { UI_FEATURES } from '../config/uiFeatures.config';
+import { AI_CONFIG } from '../config/ai.config';
+import { spLog } from '../utils/spAppLog';
 
 const saveOrgChart = vi.fn(async () => true);
 const sourceOrgChart = {
@@ -35,6 +37,7 @@ vi.mock('../context/OrgChartContext', async (importOriginal) => ({
 
 vi.mock('../config/ai.config', () => ({
     AI_CONFIG: {
+        apiBase: 'https://alphaai.example/api',
         fileModel: 'gpt-4o',
         fileMaxMb: 20,
     },
@@ -50,7 +53,17 @@ vi.mock('../config/uiFeatures.config', () => ({
 
 vi.mock('../services/AIService', () => ({
     default: {
-        analyzeFile: vi.fn(),
+        ask: vi.fn(),
+        isEnabled: vi.fn(() => true),
+    },
+}));
+
+vi.mock('../utils/spAppLog', () => ({
+    spLog: {
+        info: vi.fn(),
+        warn: vi.fn(),
+        success: vi.fn(),
+        error: vi.fn(),
     },
 }));
 
@@ -89,6 +102,7 @@ describe('AdminOrgChart AI file import', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         UI_FEATURES.showOrgChartAiImport = true;
+        AI_CONFIG.fileModel = 'gpt-4o';
     });
 
     afterEach(() => cleanup());
@@ -110,11 +124,9 @@ describe('AdminOrgChart AI file import', () => {
     });
 
     it('shows selected metadata and applies successful extraction to the real draft', async () => {
-        AIService.analyzeFile.mockResolvedValue({
-            requestId: 'req-success',
+        AIService.ask.mockResolvedValue({
             modelUsed: 'gpt-4o',
-            source: { extension: '.csv', extractionStrategy: 'utf8-text' },
-            result: {
+            content: JSON.stringify({
                 nodes: [{
                     id: 'after',
                     name: 'אחרי AI',
@@ -125,9 +137,9 @@ describe('AdminOrgChart AI file import', () => {
                     children: [],
                 }],
                 warnings: ['ההיררכיה דורשת בדיקה'],
+                ambiguities: ['לא ברור מי המפקד הישיר'],
                 summary: 'זוהה צומת אחד',
-                nodeCount: 1,
-            },
+            }),
         });
         const { container } = render(<AdminOrgChart />);
         selectAiFile(container);
@@ -137,26 +149,52 @@ describe('AdminOrgChart AI file import', () => {
         expect(screen.getByText('gpt-4o')).toBeVisible();
         fireEvent.click(screen.getByRole('button', { name: 'ניתוח וייבוא' }));
 
-        await waitFor(() => expect(AIService.analyzeFile).toHaveBeenCalled());
+        await waitFor(() => expect(AIService.ask).toHaveBeenCalled());
+        expect(AIService.ask.mock.calls[0][0]).toContain('unit,parent\nOperations,HQ');
+        expect(AIService.ask.mock.calls[0][1]).toMatchObject({ model: 'gpt-4o' });
         expect(await screen.findByText('זוהה צומת אחד')).toBeVisible();
         expect(screen.getByText('ההיררכיה דורשת בדיקה')).toBeVisible();
+        expect(screen.getByText('לא ברור מי המפקד הישיר')).toBeVisible();
+        expect(screen.getByText(/שיטת חילוץ: CSV מקומי/)).toBeVisible();
         expect(screen.getByTestId('org-live-preview')).toHaveTextContent('אחרי AI');
         expect(screen.getByText(/העץ עודכן/)).toBeVisible();
         expect(confirmToast).toHaveBeenCalled();
+        expect(JSON.stringify(spLog.info.mock.calls)).not.toContain('Operations');
+        expect(JSON.stringify(spLog.success.mock.calls)).not.toContain('Operations');
     });
 
-    it('keeps the current draft unchanged when analysis fails', async () => {
-        AIService.analyzeFile.mockRejectedValue(Object.assign(new Error('bad file'), {
-            code: 'MALFORMED_FILE',
-            requestId: 'req-failure',
-        }));
+    it('keeps the current draft unchanged when the AI result is invalid', async () => {
+        AIService.ask.mockResolvedValue({ modelUsed: 'gpt-4o', content: '{"nodes":[]}' });
         const { container } = render(<AdminOrgChart />);
         selectAiFile(container);
         fireEvent.click(screen.getByRole('button', { name: 'ניתוח וייבוא' }));
 
-        expect(await screen.findByText('הקובץ פגום או שאי אפשר לקרוא אותו.')).toBeVisible();
-        expect(screen.getByText('מזהה תקלה: req-failure')).toBeVisible();
+        expect(await screen.findByText('המודל החזיר מבנה ארגוני לא תקין.')).toBeVisible();
         expect(screen.getByTestId('org-live-preview')).toHaveTextContent('לפני AI');
         expect(saveOrgChart).not.toHaveBeenCalled();
+    });
+
+    it('blocks execution clearly when the dedicated file model is missing', () => {
+        AI_CONFIG.fileModel = '';
+        const { container } = render(<AdminOrgChart />);
+        selectAiFile(container);
+        expect(screen.getByText(/יש להגדיר מודל AI תומך קבצים/)).toBeVisible();
+        expect(screen.getByRole('button', { name: 'ניתוח וייבוא' })).toBeDisabled();
+        expect(AIService.ask).not.toHaveBeenCalled();
+    });
+
+    it('keeps visual file metadata visible and does not call the unverified transport', () => {
+        const { container } = render(<AdminOrgChart />);
+        fireEvent.click(screen.getByRole('button', { name: 'הגדרות בסיס' }));
+        const input = container.querySelector('input[accept*=".png"]');
+        fireEvent.change(input, {
+            target: { files: [new File(['image bytes'], 'chart.png', { type: 'image/png' })] },
+        });
+
+        expect(screen.getByText('chart.png')).toBeVisible();
+        expect(screen.getByText(/ניתוח קבצים חזותיים עדיין אינו זמין/)).toBeVisible();
+        expect(screen.getByRole('button', { name: 'ניתוח וייבוא' })).toBeDisabled();
+        expect(screen.getByTestId('org-live-preview')).toHaveTextContent('לפני AI');
+        expect(AIService.ask).not.toHaveBeenCalled();
     });
 });

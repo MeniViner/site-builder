@@ -40,17 +40,22 @@ import {
     serializeOrgChartExport,
 } from '../utils/orgChartTransfer';
 import {
-    ORG_CHART_AI_ACCEPT,
     createOrgChartDraftFromExtraction,
     getOrgChartAiErrorMessage,
-    validateOrgChartAiFile,
 } from '../utils/orgChartAiImport';
+import {
+    ORG_CHART_AI_ACCEPT,
+    getOrgChartFileCapability,
+    validateOrgChartAiFile,
+} from '../utils/orgChartLocalFileExtraction';
 import AIService from '../services/AIService';
+import { analyzeOrgChartSourceFile } from '../services/OrgChartFileAIService';
 import AdminWidgetAIAssistant from './AdminWidgetAIAssistant';
 
 const ROOT_NODE_ID = '__org_chart_root__';
 const RANK_DATALIST_ID = 'org-chart-rank-options';
 const ROLE_DATALIST_ID = 'org-chart-role-options';
+const VISUAL_TRANSPORT_MESSAGE = 'ניתוח קבצים חזותיים עדיין אינו זמין בחיבור ה-AI הנוכחי. יש להגדיר חיבור למודל שתומך בקבצים/תמונות.';
 const TABS = [
     { id: 'design-basic', label: 'הגדרות בסיס', description: 'כותרת העמוד והפעלה/כיבוי של הדף למשתמשים.' },
     { id: 'build', label: 'ניהול המבנה', description: 'בניית עץ הפיקוד, הוספת כפיפים ועריכת צמתים.' },
@@ -948,16 +953,30 @@ export default function AdminOrgChart() {
         event.target.value = '';
         if (!file) return;
         try {
-            validateOrgChartAiFile(file, AI_CONFIG.fileMaxMb);
+            const capability = validateOrgChartAiFile(file, AI_CONFIG.fileMaxMb);
+            const visualTransportUnavailable = capability.kind === 'visual-unverified';
+            spLog.info('ORG_CHART_AI_FILE_SELECTED', {
+                extension: capability.extension,
+                mimeType: file.type || 'unknown',
+                byteSize: file.size,
+                extractionStrategy: capability.strategy,
+            });
             setAiImportState({
                 file,
+                capability,
                 instruction: '',
-                status: 'ready',
-                error: '',
-                requestId: '',
+                status: visualTransportUnavailable ? 'unsupported' : 'ready',
+                error: visualTransportUnavailable ? VISUAL_TRANSPORT_MESSAGE : '',
                 response: null,
             });
         } catch (error) {
+            spLog.warn('ORG_CHART_AI_FILE_SELECTION_FAILED', {
+                extension: getOrgChartFileCapability(file).extension,
+                mimeType: file.type || 'unknown',
+                byteSize: file.size,
+                failureStage: 'selection',
+                errorCode: error?.code || 'UNKNOWN',
+            });
             setSaveMessage({ type: 'error', text: getOrgChartAiErrorMessage(error) });
         }
     }, []);
@@ -970,6 +989,17 @@ export default function AdminOrgChart() {
 
     const executeAiFileImport = useCallback(async () => {
         if (!aiImportState?.file) return;
+        if (aiImportState.capability?.kind !== 'local-text') {
+            setAiImportState((current) => ({ ...current, status: 'unsupported', error: VISUAL_TRANSPORT_MESSAGE }));
+            return;
+        }
+        if (!AIService.isEnabled()) {
+            setAiImportState((current) => ({
+                ...current,
+                error: 'חיבור ה-AI כבוי. יש להפעיל את VITE_ALPHA_AI_ENABLED כדי לנתח את הטקסט שחולץ.',
+            }));
+            return;
+        }
         if (!AI_CONFIG.fileModel) {
             setAiImportState((current) => ({
                 ...current,
@@ -991,13 +1021,51 @@ export default function AdminOrgChart() {
 
         const controller = new AbortController();
         aiImportAbortRef.current = controller;
-        setAiImportState((current) => ({ ...current, status: 'processing', error: '', requestId: '', response: null }));
+        const startedAt = performance.now();
+        const safeApiBoundary = (() => {
+            try {
+                const url = new URL(AI_CONFIG.apiBase);
+                return { host: url.host, path: url.pathname };
+            } catch {
+                return { host: 'invalid', path: '' };
+            }
+        })();
+        let failureStage = 'local-extraction';
+        setAiImportState((current) => ({ ...current, status: 'extracting', error: '', response: null }));
         try {
-            const response = await AIService.analyzeFile(aiImportState.file, {
+            let completedExtraction;
+            const response = await analyzeOrgChartSourceFile(aiImportState.file, {
+                maxMb: AI_CONFIG.fileMaxMb,
                 model: AI_CONFIG.fileModel,
                 instruction: aiImportState.instruction,
                 signal: controller.signal,
+                onExtraction: (extraction) => {
+                    completedExtraction = extraction;
+                    spLog.info('ORG_CHART_AI_LOCAL_EXTRACTION_COMPLETED', {
+                        extension: extraction.extension,
+                        mimeType: aiImportState.file.type || 'unknown',
+                        byteSize: aiImportState.file.size,
+                        extractionStrategy: extraction.strategy,
+                        extractedCharacterCount: extraction.extractedCharacterCount,
+                        requestedModel: AI_CONFIG.fileModel,
+                        apiHost: safeApiBoundary.host,
+                        apiPath: safeApiBoundary.path,
+                    });
+                    setAiImportState((current) => ({
+                        ...current,
+                        status: 'analyzing',
+                        extraction: {
+                            strategy: extraction.strategy,
+                            strategyLabel: extraction.strategyLabel,
+                            extractedCharacterCount: extraction.extractedCharacterCount,
+                            ...extraction.metadata,
+                        },
+                    }));
+                },
+                onStage: (stage) => { failureStage = stage; },
             });
+            response.durationMs = Math.round(performance.now() - startedAt);
+            failureStage = 'state-application';
             const beforeAi = latestDraftRef.current;
             const nextDraft = createOrgChartDraftFromExtraction(beforeAi, response.result);
             const applied = await aiAssistantRef.current?.applyExternalResult(nextDraft, {
@@ -1014,15 +1082,36 @@ export default function AdminOrgChart() {
                 ...current,
                 status: 'success',
                 response,
-                requestId: response.requestId || '',
             }));
+            spLog.success('ORG_CHART_AI_IMPORT_COMPLETED', {
+                extension: completedExtraction.extension,
+                extractionStrategy: completedExtraction.strategy,
+                extractedCharacterCount: completedExtraction.extractedCharacterCount,
+                requestedModel: AI_CONFIG.fileModel,
+                resolvedModel: response.modelUsed,
+                durationMs: response.durationMs,
+                nodeCount: countNodes(response.result.nodes),
+                warningCount: response.result.warnings.length,
+                ambiguityCount: response.result.ambiguities.length,
+            });
         } catch (error) {
             if (controller.signal.aborted) return;
+            spLog.warn('ORG_CHART_AI_IMPORT_FAILED', {
+                extension: aiImportState.capability?.extension || '',
+                mimeType: aiImportState.file.type || 'unknown',
+                byteSize: aiImportState.file.size,
+                extractionStrategy: aiImportState.capability?.strategy || 'unknown',
+                requestedModel: AI_CONFIG.fileModel,
+                apiHost: safeApiBoundary.host,
+                apiPath: safeApiBoundary.path,
+                durationMs: Math.round(performance.now() - startedAt),
+                failureStage,
+                errorCode: error?.code || 'UNKNOWN',
+            });
             setAiImportState((current) => ({
                 ...current,
                 status: 'error',
                 error: getOrgChartAiErrorMessage(error),
-                requestId: error?.requestId || error?.payload?.error?.requestId || '',
             }));
         } finally {
             if (aiImportAbortRef.current === controller) aiImportAbortRef.current = null;
@@ -1483,7 +1572,7 @@ export default function AdminOrgChart() {
                                     </button>
                                     <HelpTooltipButton
                                         title="ייבוא עם AI — ניסיוני"
-                                        description="ייבוא ניסיוני שמאפשר לבחור תמונה, PDF, Excel, Word, JSON או קובץ טקסט. הקובץ יישלח למודל AI כדי לנסות לזהות ממנו את מבנה העץ. התוצאה עלולה להיות חלקית או לא מדויקת ויש לבדוק אותה."
+                                        description="ייבוא ניסיוני שמחלץ בדפדפן טקסט מ-PDF, Excel, Word, JSON וקובצי טקסט ושולח את הטקסט דרך חיבור ה-AI הקיים. תמונות וקבצים סרוקים ממתינים לחיבור חזותי מאומת."
                                     />
                                 </div>
                             )}
@@ -2718,7 +2807,7 @@ export default function AdminOrgChart() {
             </div>
 
             {aiImportState && (
-                <div className="fixed inset-0 z-[12000] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" onClick={() => aiImportState.status !== 'processing' && closeAiImportModal()}>
+                <div className="fixed inset-0 z-[12000] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" onClick={() => !['extracting', 'analyzing'].includes(aiImportState.status) && closeAiImportModal()}>
                     <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[30px] border border-violet-200 bg-white shadow-2xl dark:border-violet-400/20 dark:bg-[#151922]" onClick={(event) => event.stopPropagation()}>
                         <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-6 py-5 dark:border-white/10">
                             <div>
@@ -2727,7 +2816,7 @@ export default function AdminOrgChart() {
                                     <h2 className="text-xl font-black text-gray-950 dark:text-white">ייבוא עץ עם AI</h2>
                                     <span className="rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-black text-violet-800 dark:bg-violet-500/15 dark:text-violet-200">ניסיוני</span>
                                 </div>
-                                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">הקובץ נשלח לשירות ה-AI שהוגדר במערכת לצורך הניתוח.</p>
+                                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">בקבצים נתמכים התוכן הטקסטואלי מחולץ בדפדפן ורק הטקסט שחולץ נשלח דרך חיבור ה-AI הקיים.</p>
                             </div>
                             <button type="button" onClick={closeAiImportModal} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:text-gray-900 dark:border-white/10 dark:text-gray-300" aria-label="סגירה">
                                 <X size={17} />
@@ -2747,11 +2836,21 @@ export default function AdminOrgChart() {
                                 <div><dt className="text-xs font-bold text-gray-500">סוג</dt><dd className="mt-1 font-semibold text-gray-900 dark:text-white">{aiImportState.file.type || 'לא זוהה'}</dd></div>
                                 <div><dt className="text-xs font-bold text-gray-500">גודל</dt><dd className="mt-1 font-semibold text-gray-900 dark:text-white">{(aiImportState.file.size / 1024 / 1024).toFixed(2)} MB</dd></div>
                                 <div><dt className="text-xs font-bold text-gray-500">מודל קבצים</dt><dd className="mt-1 break-all font-mono text-xs font-semibold text-gray-900 dark:text-white">{AI_CONFIG.fileModel || 'לא הוגדר'}</dd></div>
+                                <div className="sm:col-span-2"><dt className="text-xs font-bold text-gray-500">יכולת ניתוח</dt><dd className="mt-1 font-semibold text-gray-900 dark:text-white">{aiImportState.capability?.label}</dd></div>
                             </dl>
+
+                            <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-xs leading-6 text-sky-900 dark:border-sky-500/25 dark:bg-sky-500/10 dark:text-sky-100">
+                                נתמך כעת באמצעות חילוץ מקומי: TXT, Markdown, CSV, JSON, XLSX, DOCX ו-PDF שמכיל טקסט. תמונות ו-PDF סרוק אינם נשלחים כקובץ או כתמונה עד לאימות חיבור AI חזותי.
+                            </div>
 
                             {!AI_CONFIG.fileModel && (
                                 <div className="rounded-2xl border border-red-300 bg-red-50 p-4 text-sm font-bold text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
                                     יש להגדיר מודל AI תומך קבצים באמצעות VITE_ALPHA_AI_FILE_MODEL לפני הפעלת הניתוח.
+                                </div>
+                            )}
+                            {!AIService.isEnabled() && (
+                                <div className="rounded-2xl border border-red-300 bg-red-50 p-4 text-sm font-bold text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+                                    חיבור ה-AI כבוי. יש להפעיל את VITE_ALPHA_AI_ENABLED כדי לנתח את הטקסט שחולץ.
                                 </div>
                             )}
 
@@ -2759,7 +2858,7 @@ export default function AdminOrgChart() {
                                 <span className="mb-2 block text-sm font-bold text-gray-800 dark:text-gray-200">הנחיה נוספת (אופציונלי)</span>
                                 <textarea
                                     value={aiImportState.instruction}
-                                    disabled={aiImportState.status === 'processing'}
+                                    disabled={['extracting', 'analyzing'].includes(aiImportState.status)}
                                     onChange={(event) => setAiImportState((current) => ({ ...current, instruction: event.target.value }))}
                                     maxLength={4000}
                                     rows={3}
@@ -2768,17 +2867,26 @@ export default function AdminOrgChart() {
                                 />
                             </label>
 
-                            {aiImportState.status === 'processing' && (
+                            {['extracting', 'analyzing'].includes(aiImportState.status) && (
                                 <div className="flex items-center gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4 text-sm font-bold text-violet-800 dark:border-violet-400/20 dark:bg-violet-500/10 dark:text-violet-100">
                                     <Loader2 className="animate-spin" size={19} />
-                                    הקובץ מועלה ומנותח. התהליך עשוי להימשך מספר דקות.
+                                    {aiImportState.status === 'extracting'
+                                        ? 'התוכן מחולץ מקומית בדפדפן...'
+                                        : 'הטקסט שחולץ נשלח לניתוח דרך חיבור ה-AI הקיים...'}
                                 </div>
                             )}
 
                             {aiImportState.error && (
                                 <div className="rounded-2xl border border-red-300 bg-red-50 p-4 text-sm text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
                                     <div className="font-bold">{aiImportState.error}</div>
-                                    {aiImportState.requestId && <div className="mt-2 font-mono text-xs">מזהה תקלה: {aiImportState.requestId}</div>}
+                                </div>
+                            )}
+
+                            {aiImportState.extraction && (
+                                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-xs text-gray-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
+                                    שיטת חילוץ: {aiImportState.extraction.strategyLabel} · תווים שחולצו: {aiImportState.extraction.extractedCharacterCount.toLocaleString('he-IL')}
+                                    {aiImportState.extraction.pageCount ? ` · עמודים: ${aiImportState.extraction.pageCount}` : ''}
+                                    {aiImportState.extraction.sheetCount ? ` · גיליונות: ${aiImportState.extraction.sheetCount}` : ''}
                                 </div>
                             )}
 
@@ -2799,21 +2907,29 @@ export default function AdminOrgChart() {
                                             </ul>
                                         </div>
                                     )}
+                                    {aiImportState.response.result?.ambiguities?.length > 0 && (
+                                        <div className="rounded-xl border border-sky-300/70 bg-sky-50 p-3 text-sky-900 dark:border-sky-400/25 dark:bg-sky-500/10 dark:text-sky-100">
+                                            <div className="mb-2 font-black">נקודות שאינן חד-משמעיות</div>
+                                            <ul className="list-disc space-y-1 pr-5">
+                                                {aiImportState.response.result.ambiguities.map((ambiguity, index) => <li key={`${ambiguity}-${index}`}>{ambiguity}</li>)}
+                                            </ul>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
                             <div className="flex flex-wrap justify-end gap-3 border-t border-gray-200 pt-5 dark:border-white/10">
                                 <button type="button" onClick={closeAiImportModal} className="rounded-xl border border-gray-300 bg-white px-5 py-2.5 text-sm font-bold text-gray-700 dark:border-white/10 dark:bg-white/5 dark:text-gray-200">
-                                    {aiImportState.status === 'processing' ? 'ביטול הניתוח' : 'סגירה'}
+                                    {['extracting', 'analyzing'].includes(aiImportState.status) ? 'ביטול הניתוח' : 'סגירה'}
                                 </button>
                                 {aiImportState.status !== 'success' && (
                                     <button
                                         type="button"
                                         onClick={executeAiFileImport}
-                                        disabled={!AI_CONFIG.fileModel || aiImportState.status === 'processing'}
+                                        disabled={!AIService.isEnabled() || !AI_CONFIG.fileModel || aiImportState.capability?.kind !== 'local-text' || ['extracting', 'analyzing'].includes(aiImportState.status)}
                                         className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-black text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-45"
                                     >
-                                        {aiImportState.status === 'processing' ? <Loader2 className="animate-spin" size={17} /> : <Sparkles size={17} />}
+                                        {['extracting', 'analyzing'].includes(aiImportState.status) ? <Loader2 className="animate-spin" size={17} /> : <Sparkles size={17} />}
                                         ניתוח וייבוא
                                     </button>
                                 )}
