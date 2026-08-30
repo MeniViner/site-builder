@@ -1,7 +1,14 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useMemo, useContext, useCallback } from 'react';
 import { useConfig } from './ConfigProvider';
 import { normalizeLinkTarget } from '../utils/linkTargets';
-import { createNavigationNodeId, getNavigationChildren, getNavigationKind, getNavigationUrl } from '../utils/navigationModel';
+import {
+    createNavigationNodeId,
+    getNavigationChildren,
+    getNavigationKind,
+    getNavigationUrl,
+    normalizeNavigationTargetBinding,
+} from '../utils/navigationModel';
 import { useOptimisticBranchPersistence } from './useOptimisticBranchPersistence';
 
 const NavigationContext = createContext();
@@ -28,6 +35,11 @@ function pickText(...values) {
     return '';
 }
 
+function withTargetBinding(node) {
+    const targetBinding = normalizeNavigationTargetBinding(node?.targetBinding);
+    return targetBinding ? { targetBinding } : {};
+}
+
 function toLegacyNavItems(items) {
     const source = Array.isArray(items) ? items : [];
 
@@ -42,6 +54,7 @@ function toLegacyNavItems(items) {
             icon: asText(l1?.icon),
             iconUrl: pickText(l1?.iconUrl, l1?.imageUrl, l1?.image),
             url: normalizeLinkTarget(getNavigationUrl(l1)),
+            ...withTargetBinding(l1),
             children: l1Children.map((l2, l2Index) => {
                 const l2Id = resolveNodeId(l2?.id) || `${l1Id}_sub_${l2Index + 1}`;
                 const l2Children = getNavigationChildren(l2);
@@ -55,6 +68,7 @@ function toLegacyNavItems(items) {
                     icon: asText(l2?.icon),
                     iconUrl: pickText(l2?.iconUrl, l2?.imageUrl, l2?.image),
                     url: normalizeLinkTarget(getNavigationUrl(l2)),
+                    ...withTargetBinding(l2),
                     subLinks: l2Children.map((l3, l3Index) => ({
                         id: resolveNodeId(l3?.id) || `${l2Id}_link_${l3Index + 1}`,
                         label: pickText(l3?.label, l3?.title),
@@ -62,6 +76,7 @@ function toLegacyNavItems(items) {
                         icon: asText(l3?.icon),
                         iconUrl: pickText(l3?.iconUrl, l3?.imageUrl, l3?.image),
                         url: normalizeLinkTarget(getNavigationUrl(l3)),
+                        ...withTargetBinding(l3),
                     })),
                 };
             }),
@@ -83,6 +98,7 @@ function toV1NavItems(legacyItems) {
             icon: asText(l1?.icon),
             iconUrl: pickText(l1?.iconUrl, l1?.imageUrl, l1?.image),
             url: normalizeLinkTarget(getNavigationUrl(l1)),
+            ...withTargetBinding(l1),
             children: l1Children.map((l2) => {
                 const l2Id = resolveNodeId(l2?.id) || createNavigationNodeId('nav_l2');
                 const l2Children = getNavigationChildren(l2);
@@ -94,6 +110,7 @@ function toV1NavItems(legacyItems) {
                     icon: asText(l2?.icon),
                     iconUrl: pickText(l2?.iconUrl, l2?.imageUrl, l2?.image),
                     url: normalizeLinkTarget(getNavigationUrl(l2)),
+                    ...withTargetBinding(l2),
                     children: l2Children.map((l3) => ({
                         id: resolveNodeId(l3?.id) || createNavigationNodeId('nav_l3'),
                         label: pickText(l3?.label, l3?.title),
@@ -101,6 +118,7 @@ function toV1NavItems(legacyItems) {
                         icon: asText(l3?.icon),
                         iconUrl: pickText(l3?.iconUrl, l3?.imageUrl, l3?.image),
                         url: normalizeLinkTarget(getNavigationUrl(l3)),
+                        ...withTargetBinding(l3),
                         children: [],
                     })),
                 };

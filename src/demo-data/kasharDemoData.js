@@ -1,5 +1,6 @@
 import { DEFAULT_CONFIG_V1, validateAndNormalize } from '../config/AppSchema';
 import { normalizeGanttData } from '../utils/ganttData';
+import { createBoomDemoData, normalizeBoomData } from '../utils/boomData';
 
 function clone(value) {
     if (Array.isArray(value)) return value.map(clone);
@@ -420,6 +421,13 @@ export const kasharDemoGanttData = deepFreeze(normalizeGanttData({
     ],
 }));
 
+/** Independent BOOM command-and-control fixture for the Kashar profile. */
+export const kasharDemoBoomData = deepFreeze(normalizeBoomData({
+    ...createBoomDemoData(),
+    enabled: true,
+    description: 'מעקב שליטה ובקרה אחר משימות מרכזיות.',
+}));
+
 /** The complete schema-v1 master configuration used by the Kashar Vite profile. */
 export const kasharDemoData = deepFreeze(validateAndNormalize(kasharDemoConfigSource));
 
@@ -429,6 +437,10 @@ export function cloneKasharDemoData() {
 
 export function cloneKasharDemoGanttData() {
     return clone(kasharDemoGanttData);
+}
+
+export function cloneKasharDemoBoomData() {
+    return clone(kasharDemoBoomData);
 }
 
 /** Legacy WidgetService still owns the shared poll response. */

@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     Copy,
     Diamond,
-    Edit3,
     ExternalLink,
     Loader2,
     Plus,
@@ -10,7 +9,6 @@ import {
     RotateCcw,
     Search,
     Trash2,
-    UserRound,
     X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -42,6 +40,7 @@ import {
 import { confirmToast } from '../utils/confirmToast';
 import GanttChart from './GanttChart';
 import DismissibleNotice from './DismissibleNotice';
+import TaskManagementTable, { TASK_STATUS_META } from './TaskManagementTable';
 
 const TABS = [
     { id: 'basic', label: 'הגדרות בסיס' },
@@ -132,13 +131,7 @@ const DESIGN_SELECT_OPTIONS = {
     ],
 };
 
-const statusMeta = {
-    planned: { label: 'מתוכנן', className: 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-500/30 dark:bg-slate-500/10 dark:text-slate-200' },
-    blocked: { label: 'חסום', className: 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200' },
-    completed: { label: 'הושלם', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200' },
-    cancelled: { label: 'בוטל', className: 'border-gray-300 bg-gray-100 text-gray-600 dark:border-white/10 dark:bg-white/5 dark:text-gray-300' },
-    onHold: { label: 'בהמתנה', className: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200' },
-};
+const statusMeta = TASK_STATUS_META;
 
 const timingMeta = {
     upcoming: { label: 'עתידי', className: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200' },
@@ -154,8 +147,6 @@ const inputCls = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 
 const labelCls = 'mb-1.5 block text-xs font-bold text-gray-600 dark:text-gray-300';
 const panelCls = 'rounded-[32px] border border-gray-200 bg-white/90 shadow-sm dark:border-white/10 dark:bg-white/[0.04]';
 const compactCardCls = 'rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-[#1b1f2a]';
-const headerCellCls = 'px-4 py-3 align-middle text-xs font-black text-gray-500 dark:text-gray-300';
-const bodyCellCls = 'px-4 py-3 align-middle text-sm text-gray-700 dark:text-gray-200';
 
 function reorderByDate(items) {
     return [...items].sort((a, b) => {
@@ -167,15 +158,6 @@ function reorderByDate(items) {
 
 function compareText(a, b) {
     return String(a || '').localeCompare(String(b || ''), 'he');
-}
-
-function formatDate(value) {
-    if (!value) return '-';
-    try {
-        return new Intl.DateTimeFormat('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' }).format(new Date(`${value}T00:00:00`));
-    } catch {
-        return value;
-    }
 }
 
 function createCategory(name, color, order) {
@@ -201,37 +183,6 @@ function sortTasks(items, sortBy) {
     if (sortBy === 'status') return next.sort((a, b) => compareText(statusMeta[a.status]?.label, statusMeta[b.status]?.label));
     if (sortBy === 'progress') return next.sort((a, b) => computeGanttProgress(b) - computeGanttProgress(a));
     return reorderByDate(next);
-}
-
-function TaskBadges({ task }) {
-    const status = statusMeta[task.status] || statusMeta.planned;
-    const timing = timingMeta[computeGanttTimeStatus(task)] || timingMeta.invalidDate;
-    return (
-        <div className="flex flex-wrap items-center gap-1">
-            <GanttPill className={status.className}>{status.label}</GanttPill>
-            <GanttPill className={timing.className}>{timing.label}</GanttPill>
-        </div>
-    );
-}
-
-function GanttPill({ children, className = '' }) {
-    return (
-        <span className={`inline-flex h-6 min-w-0 items-center gap-1.5 rounded-full border px-2 text-[11px] font-black leading-none ${className}`}>
-            {children}
-        </span>
-    );
-}
-
-function ProgressMeter({ value }) {
-    const progress = Math.min(100, Math.max(0, Number(value) || 0));
-    return (
-        <div className="mx-auto w-[86px]">
-            <div className="mb-0.5 text-center text-xs font-black text-gray-700 dark:text-gray-200">{progress}%</div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-gray-300 dark:bg-white/20">
-                <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
-            </div>
-        </div>
-    );
 }
 
 function WeekdaySelector({ value, onChange }) {
@@ -300,29 +251,6 @@ function IconButton({ label, onClick, children, danger = false }) {
             }`}
         >
             {children}
-        </button>
-    );
-}
-
-function AssigneeCell({ task, onAssign }) {
-    if (task.owner) {
-        return (
-            <span className="block truncate text-gray-600 dark:text-gray-300" title={task.owner}>
-                {task.owner}
-            </span>
-        );
-    }
-
-    return (
-        <button
-            type="button"
-            onClick={onAssign}
-            className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-bold text-gray-500 transition hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-gray-300"
-            title="לא שויך אחראי"
-            aria-label="הוסף אחראי למשימה"
-        >
-            <UserRound size={13} />
-            + אחראי
         </button>
     );
 }
@@ -1444,134 +1372,29 @@ export default function AdminGantt() {
                     לא נמצאו משימות בהתאם לסינון הנוכחי.
                 </div>
             ) : (
-                <>
-                    <div className="hidden overflow-x-auto lg:block">
-                        <table className="w-full min-w-[980px] table-fixed divide-y divide-gray-200 text-right text-sm dark:divide-white/10">
-                            <colgroup>
-                                <col className="w-[24%]" />
-                                <col className="w-[14%]" />
-                                <col className="w-[9%]" />
-                                <col className="w-[9%]" />
-                                <col className="w-[12%]" />
-                                <col className="w-[14%]" />
-                                <col className="w-[8%]" />
-                                <col className="w-[10%]" />
-                            </colgroup>
-                            <thead className="bg-gray-50 text-xs font-black text-gray-500 dark:bg-[#1e212b] dark:text-gray-300">
-                                <tr>
-                                    <th className={`${headerCellCls} text-right`}>שם משימה</th>
-                                    <th className={`${headerCellCls} text-right`}>תחום / קטגוריה</th>
-                                    <th className={`${headerCellCls} text-center`}>התחלה</th>
-                                    <th className={`${headerCellCls} text-center`}>סיום</th>
-                                    <th className={`${headerCellCls} text-right`}>אחראי</th>
-                                    <th className={`${headerCellCls} text-right`}>סטטוס</th>
-                                    <th className={`${headerCellCls} text-center`}>%</th>
-                                    <th className={`${headerCellCls} text-center`}>פעולות</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100 dark:divide-white/5">
-                                {visibleTasks.map((task) => (
-                                    <tr key={task.id} className="transition hover:bg-gray-50/80 dark:hover:bg-white/[0.03]">
-                                        <td className={`${bodyCellCls} text-right`}>
-                                            <div className="flex items-center gap-2">
-                                                <span className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-gray-200 dark:ring-white/10" style={{ backgroundColor: task.color }} title={task.color} />
-                                                {task.milestones.length > 0 && <Diamond size={14} className="shrink-0 text-primary" title={`${task.milestones.length} אבני דרך`} />}
-                                                {task.recurrence?.enabled && <Repeat2 size={14} className="shrink-0 text-primary" title={describeGanttRecurrence(task.recurrence, task)} />}
-                                                <div className="min-w-0">
-                                                    <div className="truncate font-black text-gray-900 dark:text-white" title={task.title}>{task.title}</div>
-                                                    <div className="truncate text-xs text-gray-500 dark:text-gray-400" title={task.details || ''}>
-                                                        {task.recurrence?.enabled ? describeGanttRecurrence(task.recurrence, task) : (task.milestones.length > 0 ? `${task.milestones.length} אבני דרך` : (task.details || ''))}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className={`${bodyCellCls} text-right`}>
-                                            <GanttPill className="max-w-full border-gray-200 bg-gray-50 text-gray-700 dark:border-white/10 dark:bg-white/5 dark:text-gray-200">
-                                                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: getCategoryColor(categoryOptions, task.category, task.color) }} />
-                                                <span className="truncate">{task.category}</span>
-                                            </GanttPill>
-                                        </td>
-                                        <td className={`${bodyCellCls} whitespace-nowrap text-center text-gray-600 dark:text-gray-300`}>{formatDate(task.startDate)}</td>
-                                        <td className={`${bodyCellCls} whitespace-nowrap text-center text-gray-600 dark:text-gray-300`}>{formatDate(task.endDate)}</td>
-                                        <td className={`${bodyCellCls} text-right`}>
-                                            <AssigneeCell task={task} onAssign={() => openEditTask(task)} />
-                                        </td>
-                                        <td className={`${bodyCellCls} text-right`}>
-                                            <TaskBadges task={task} />
-                                        </td>
-                                        <td className={`${bodyCellCls} text-center`}>
-                                            <ProgressMeter value={computeGanttProgress(task)} />
-                                        </td>
-                                        <td className={`${bodyCellCls} text-center`}>
-                                            <div className="flex items-center justify-center gap-0.5">
-                                                <IconButton label="ערוך משימה" onClick={() => openEditTask(task)}>
-                                                    <Edit3 size={15} />
-                                                </IconButton>
-                                                <IconButton label="שכפל משימה" onClick={() => duplicateTask(task)}>
-                                                    <Copy size={15} />
-                                                </IconButton>
-                                                <IconButton label="מחק משימה" onClick={() => removeTask(task.id)} danger>
-                                                    <Trash2 size={15} />
-                                                </IconButton>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div className="space-y-3 p-4 lg:hidden">
-                        {visibleTasks.map((task) => (
-                            <article key={task.id} className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-[#1e212b]">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                        <div className="flex min-w-0 items-center gap-2">
-                                            <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-gray-200 dark:ring-white/10" style={{ backgroundColor: task.color }} />
-                                            {task.milestones.length > 0 && <Diamond size={14} className="shrink-0 text-primary" title={`${task.milestones.length} אבני דרך`} />}
-                                            {task.recurrence?.enabled && <Repeat2 size={14} className="shrink-0 text-primary" title={describeGanttRecurrence(task.recurrence, task)} />}
-                                            <h3 className="truncate text-base font-black text-gray-900 dark:text-white">{task.title}</h3>
-                                        </div>
-                                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                            <span>{formatDate(task.startDate)} - {formatDate(task.endDate)}</span>
-                                            <AssigneeCell task={task} onAssign={() => openEditTask(task)} />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="mt-3 flex flex-wrap items-center gap-2">
-                                    <GanttPill className="border-gray-200 bg-white text-gray-700 dark:border-white/10 dark:bg-white/5 dark:text-gray-200">
-                                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: getCategoryColor(categoryOptions, task.category, task.color) }} />
-                                        {task.category}
-                                    </GanttPill>
-                                    <TaskBadges task={task} />
-                                    {task.recurrence?.enabled && (
-                                        <GanttPill className="border-primary/20 bg-primary/10 text-primary">
-                                            <Repeat2 size={12} />
-                                            חוזר
-                                        </GanttPill>
-                                    )}
-                                </div>
-                                <div className="mt-4">
-                                            <ProgressMeter value={computeGanttProgress(task)} />
-                                </div>
-                                <div className="mt-4 flex justify-end gap-2 border-t border-gray-200 pt-3 dark:border-white/10">
-                                    <button type="button" onClick={() => openEditTask(task)} className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-600 transition hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-gray-200" aria-label="ערוך משימה">
-                                        <Edit3 size={14} />
-                                        ערוך
-                                    </button>
-                                    <button type="button" onClick={() => duplicateTask(task)} className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-600 transition hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-gray-200" aria-label="שכפל משימה">
-                                        <Copy size={14} />
-                                        שכפל
-                                    </button>
-                                    <button type="button" onClick={() => removeTask(task.id)} className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-600 transition hover:border-red-200 hover:text-red-600 dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:border-red-500/30 dark:hover:text-red-300" aria-label="מחק משימה">
-                                        <Trash2 size={14} />
-                                        מחק
-                                    </button>
-                                </div>
-                            </article>
-                        ))}
-                    </div>
-                </>
+                <TaskManagementTable
+                    tasks={visibleTasks}
+                    categories={categoryOptions}
+                    statusMeta={statusMeta}
+                    timingMeta={timingMeta}
+                    getTimingStatus={computeGanttTimeStatus}
+                    getProgress={computeGanttProgress}
+                    getTaskSubtitle={(task) => (
+                        task.recurrence?.enabled
+                            ? describeGanttRecurrence(task.recurrence, task)
+                            : (task.milestones.length > 0 ? `${task.milestones.length} אבני דרך` : (task.details || ''))
+                    )}
+                    renderTaskIndicators={(task) => (
+                        <>
+                            {task.milestones.length > 0 && <Diamond size={14} className="shrink-0 text-primary" title={`${task.milestones.length} אבני דרך`} />}
+                            {task.recurrence?.enabled && <Repeat2 size={14} className="shrink-0 text-primary" title={describeGanttRecurrence(task.recurrence, task)} />}
+                        </>
+                    )}
+                    onAssign={openEditTask}
+                    onEdit={openEditTask}
+                    onDuplicate={duplicateTask}
+                    onDelete={(task) => removeTask(task.id)}
+                />
             )}
         </section>
     );

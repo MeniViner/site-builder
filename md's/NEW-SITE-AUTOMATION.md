@@ -150,6 +150,8 @@ node deploy.js --force --no-clean-first
   - `site_content_data.txt`
   - `theme_data.txt`
   - `external_links_data.txt`
+  - `gantt_data.txt`
+  - `boom_data.txt`
 - `siteUsersDb`:
   - `widgets_data.txt` (כאשר `VITE_SP_WIDGETS_DB_TARGET=users`)
 

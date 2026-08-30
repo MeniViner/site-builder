@@ -24,6 +24,7 @@ const sampleFiles = {
   'widgets_data.txt': { activeWidgets: ['events'] },
   'external_links_data.txt': [{ id: 'link-1', title: 'Link' }],
   'gantt_data.txt': { enabled: false, items: [] },
+  'boom_data.txt': { enabled: false, items: [] },
 };
 
 async function makeDir() {
@@ -122,6 +123,6 @@ describe('SharePoint hosted export helper installer', () => {
     expect(result.manifest.siteCode).toBe('Sites/demo/subsite');
     expect(result.manifest.displayName).toBe('Demo Subsite');
     expect(result.manifest.safeForMongoDryRun).toBe(true);
-    expect(result.legacyObjects.objects).toHaveLength(9);
+    expect(result.legacyObjects.objects).toHaveLength(10);
   });
 });

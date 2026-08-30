@@ -45,6 +45,7 @@ const renderApp = async () => {
     { ConfigProvider },
     { OrgChartProvider },
     { GanttProvider },
+    { BoomProvider },
     { ImageGalleryProvider },
   ] = await Promise.all([
     import('./App.jsx'),
@@ -58,6 +59,7 @@ const renderApp = async () => {
     import('./context/ConfigProvider'),
     import('./context/OrgChartContext'),
     import('./context/GanttContext'),
+    import('./context/BoomContext'),
     import('./context/ImageGalleryContext'),
   ]);
 
@@ -87,8 +89,9 @@ const renderApp = async () => {
                 <EventsProvider>
                   <SiteContentProvider>
                     <OrgChartProvider>
-                    <GanttProvider>
-                      <ImageGalleryProvider>
+                      <GanttProvider>
+                        <BoomProvider>
+                          <ImageGalleryProvider>
                         <ThemeProvider>
                           <WidgetProvider>
                             <ExternalLinksProvider>
@@ -96,8 +99,9 @@ const renderApp = async () => {
                             </ExternalLinksProvider>
                           </WidgetProvider>
                         </ThemeProvider>
-                      </ImageGalleryProvider>
-                    </GanttProvider>
+                          </ImageGalleryProvider>
+                        </BoomProvider>
+                      </GanttProvider>
                     </OrgChartProvider>
                   </SiteContentProvider>
                 </EventsProvider>

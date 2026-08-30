@@ -25,6 +25,7 @@ export const SHAREPOINT_CONFIG = {
     widgetsMockStorageKey: 'bihs_widgets_data',
     externalLinksMockStorageKey: 'bihs_external_links_data',
     ganttMockStorageKey: 'bihs_gantt_data',
+    boomMockStorageKey: 'bihs_boom_data',
 
     // SharePoint file URLs (production mode)
     fileServerRelativeUrl: SHAREPOINT_PATHS.eventsFileServerRelativeUrl,
@@ -35,4 +36,5 @@ export const SHAREPOINT_CONFIG = {
     widgetsFileServerRelativeUrl: SHAREPOINT_PATHS.widgetsFileServerRelativeUrl,
     externalLinksFileServerRelativeUrl: SHAREPOINT_PATHS.externalLinksFileServerRelativeUrl,
     ganttFileServerRelativeUrl: SHAREPOINT_PATHS.ganttFileServerRelativeUrl,
+    boomFileServerRelativeUrl: SHAREPOINT_PATHS.boomFileServerRelativeUrl,
 };

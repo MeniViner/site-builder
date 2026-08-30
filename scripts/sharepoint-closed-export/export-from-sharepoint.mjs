@@ -31,7 +31,13 @@ async function copyFromMountedSharePoint({ config, tempInputDir }) {
 
   for (const file of plan) {
     const sourcePath = pathToMountedFile(mountedRootPath, file.serverRelativePath);
-    const text = await fs.readFile(sourcePath, 'utf8');
+    let text;
+    try {
+      text = await fs.readFile(sourcePath, 'utf8');
+    } catch (error) {
+      if (error?.code === 'ENOENT' && file.optionalWhenMissing) continue;
+      throw error;
+    }
     if (!text.trim()) {
       throw new Error(`Empty read from mounted SharePoint path: ${sourcePath}`);
     }

@@ -5,6 +5,7 @@ import {
   isSharePointFileMissingResponse,
   probeSharePointFolder,
   readSharePointFileBytes,
+  sameSharePointPath,
   uploadSharePointFileBytes,
 } from './sharePointBrowserFilesystem';
 
@@ -51,9 +52,32 @@ describe('SharePoint list-backed folder readiness', () => {
       libraryRoot: true,
     })).toMatchObject({ ready: true, reason: 'LIBRARY_ROOT_READY' });
   });
+
+  it('treats encoded and decoded SharePoint paths as the same identity', () => {
+    expect(sameSharePointPath(
+      '/sites/%D7%90%D7%AA%D7%A8%20%D7%91%D7%93%D7%99%D7%A7%D7%94',
+      '/sites/אתר בדיקה',
+    )).toBe(true);
+  });
 });
 
 describe('SharePoint folder creation and file upload recovery', () => {
+  it('reuses an existing list-backed folder without issuing a create request', async () => {
+    const request = vi.fn(async ({ url }) => {
+      if (url.includes('/ListItemAllFields')) {
+        return response({ d: { Id: 8, FileSystemObjectType: 1, FileRef: '/sites/schedule/siteDB8/existing' } });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    await expect(ensureSharePointFolder({
+      ...runtime,
+      folderRel: '/sites/schedule/siteDB8/existing',
+      request,
+    })).resolves.toMatchObject({ existed: true, created: false });
+    expect(request.mock.calls.some(([requestOptions]) => requestOptions.method === 'POST')).toBe(false);
+  });
+
   it('creates child folders through the verified parent and waits for list metadata', async () => {
     let created = false;
     const request = vi.fn(async ({ url, method }) => {
@@ -81,6 +105,106 @@ describe('SharePoint folder creation and file upload recovery', () => {
       request,
     })).resolves.toMatchObject({ created: true, path: '/sites/schedule/siteDB8/siteAssets' });
   });
+
+    it('recursively readies a missing parent before creating a nested folder', async () => {
+      const readyPaths = new Set(['/sites/schedule/siteDB8']);
+      const request = vi.fn(async ({ url, method }) => {
+        if (url.includes("GetByTitle('siteDB8')")) {
+          return response({ d: { Id: 'lib', BaseTemplate: 101, RootFolder: { ServerRelativeUrl: '/sites/schedule/siteDB8' } } });
+        }
+        const decodedUrl = decodeURIComponent(url);
+        const pathMatch = decodedUrl.match(/GetFolderByServerRelativeUrl\('([^']+)'\)/);
+        const requestedPath = pathMatch?.[1] || '';
+        if (method === 'GET' && url.includes('/ListItemAllFields')) {
+          return readyPaths.has(requestedPath)
+            ? response({ d: { Id: readyPaths.size + 10, FileSystemObjectType: 1, FileRef: requestedPath } })
+            : response({ error: { message: { value: 'not found' } } }, 404);
+        }
+        if (method === 'GET' && pathMatch) {
+          return response({ error: { message: { value: 'not found' } } }, 404);
+        }
+        if (method === 'POST' && url.includes('/Folders/add(')) {
+          const leaf = decodedUrl.match(/\/Folders\/add\('([^']+)'\)/)?.[1];
+          readyPaths.add(`${requestedPath}/${leaf}`);
+          return response({ d: { ServerRelativeUrl: `${requestedPath}/${leaf}` } });
+        }
+        throw new Error(`Unexpected URL ${url}`);
+      });
+
+      await expect(ensureSharePointFolder({
+        ...runtime,
+        folderRel: '/sites/schedule/siteDB8/parent/child',
+        request,
+      })).resolves.toMatchObject({
+        created: true,
+        path: '/sites/schedule/siteDB8/parent/child',
+        probe: { ready: true },
+      });
+      const createCalls = request.mock.calls.filter(([options]) => options.method === 'POST');
+      expect(createCalls).toHaveLength(2);
+      expect(decodeURIComponent(createCalls[0][0].url)).toContain("/Folders/add('parent')");
+      expect(decodeURIComponent(createCalls[1][0].url)).toContain("/Folders/add('child')");
+    });
+
+    it('treats a duplicate-create response as idempotent when readiness verification succeeds', async () => {
+      let duplicateVisible = false;
+      const request = vi.fn(async ({ url, method }) => {
+        if (url.includes("GetByTitle('siteDB8')")) {
+          return response({ d: { Id: 'lib', BaseTemplate: 101, RootFolder: { ServerRelativeUrl: '/sites/schedule/siteDB8' } } });
+        }
+        if (url.includes('/ListItemAllFields')) {
+          return duplicateVisible
+            ? response({ d: { Id: 31, FileSystemObjectType: 1, FileRef: '/sites/schedule/siteDB8/duplicate' } })
+            : response({ error: { message: { value: 'not found' } } }, 404);
+        }
+        if (method === 'GET') return response({ error: { message: { value: 'not found' } } }, 404);
+        if (method === 'POST' && url.includes('/Folders/add(')) {
+          duplicateVisible = true;
+          return response({ error: { message: { value: 'A folder with this name already exists' } } }, 409);
+        }
+        throw new Error(`Unexpected URL ${url}`);
+      });
+
+      await expect(ensureSharePointFolder({
+        ...runtime,
+        folderRel: '/sites/schedule/siteDB8/duplicate',
+        request,
+      })).resolves.toMatchObject({ path: '/sites/schedule/siteDB8/duplicate', probe: { ready: true } });
+    });
+
+    it('rejects a target outside the explicitly allowed parent library', async () => {
+      const request = vi.fn();
+      await expect(ensureSharePointFolder({
+        ...runtime,
+        folderRel: '/sites/schedule/otherLibrary/folder',
+        request,
+      })).rejects.toMatchObject({ code: 'FOLDER_OUTSIDE_CONFIGURED_LIBRARIES' });
+      expect(request).not.toHaveBeenCalled();
+    });
+
+    it('requests JSON metadata and safely encodes URL-significant folder characters', async () => {
+      const folderRel = '/sites/schedule/תוכן #100%/תיקייה #1%';
+      const request = vi.fn(async () => response({
+        d: {
+          Id: 17,
+          FileSystemObjectType: 1,
+          FileRef: folderRel,
+        },
+      }));
+
+      await expect(probeSharePointFolder({
+        webUrl: '/sites/schedule',
+        folderRel,
+        libraries: [{ title: 'תוכן #100%', rootRel: '/sites/schedule/תוכן #100%' }],
+        request,
+      })).resolves.toMatchObject({ ready: true, actualPath: folderRel });
+
+      expect(request).toHaveBeenCalledWith(expect.objectContaining({
+        method: 'GET',
+        headers: { Accept: 'application/json;odata=verbose' },
+        url: expect.stringMatching(/%23.*%25/),
+      }));
+    });
 
   it('falls back from server-relative upload to web-relative upload after DirectoryNotFound', async () => {
     const request = vi.fn(async ({ url, method }) => {
@@ -143,7 +267,7 @@ describe('SharePoint file reads', () => {
     expect(new TextDecoder().decode(result.bytes)).toBe('ok');
   });
 
-  it('treats old-SharePoint HTTP 400 FileNotFoundException as a missing file, not a fatal setup error', async () => {
+  it('treats old SharePoint HTTP 400 FileNotFoundException as an absent file', async () => {
     expect(isSharePointFileMissingResponse({
       status: 400,
       payload: { error: { message: { value: 'System.IO.FileNotFoundException: The file does not exist.' } } },
@@ -153,13 +277,12 @@ describe('SharePoint file reads', () => {
       { error: { message: { value: 'System.IO.FileNotFoundException: The file does not exist.' } } },
       400,
     ));
-    const result = await readSharePointFileBytes({
+    await expect(readSharePointFileBytes({
       webUrl: runtime.webUrl,
       siteRoot: runtime.siteRoot,
       fileRel: '/sites/schedule/siteDB8/dist/index.html',
       request,
-    });
-    expect(result.exists).toBe(false);
+    })).resolves.toMatchObject({ exists: false, status: 404 });
   });
 
   it('does not hide unrelated HTTP 400 file-read failures', async () => {

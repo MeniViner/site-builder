@@ -2,7 +2,11 @@ const DEFAULT_RETRY_DELAYS_MS = Object.freeze([0, 150, 350, 700, 1200, 2000, 350
 
 const text = (value) => String(value ?? '').trim();
 const sleepDefault = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
-const escOData = (value) => text(value).replace(/'/g, "''");
+const escOData = (value) => text(value)
+  .replace(/'/g, "''")
+  .replace(/%/g, '%25')
+  .replace(/#/g, '%23')
+  .replace(/\?/g, '%3F');
 
 export class SharePointBrowserFilesystemError extends Error {
   constructor(code, message, details = {}, cause) {
@@ -24,8 +28,13 @@ export function normalizeSharePointPath(value) {
       return '';
     }
   }
+  try {
+    pathname = decodeURIComponent(pathname);
+  } catch {
+    // Keep raw percent characters when the value is already a decoded path.
+  }
   const normalized = `/${pathname.replace(/^\/+|\/+$/g, '')}`.replace(/\/{2,}/g, '/');
-  return normalized === '/' ? '' : normalized;
+  return normalized === '/' ? '' : normalized.normalize('NFC');
 }
 
 export function sameSharePointPath(left, right) {
@@ -150,7 +159,12 @@ export function classifySharePointFolderProbe({ status, payload, expectedPath, l
 }
 
 async function requestProbe({ url, expectedPath, libraryRoot, request, purpose }) {
-  const response = await request({ url, method: 'GET', purpose });
+  const response = await request({
+    url,
+    method: 'GET',
+    purpose,
+    headers: { Accept: 'application/json;odata=verbose' },
+  });
   const { raw, parsed } = await readResponseBody(response);
   const result = classifySharePointFolderProbe({ status: response.status, payload: parsed, expectedPath, libraryRoot });
   return { response, raw, parsed, result };

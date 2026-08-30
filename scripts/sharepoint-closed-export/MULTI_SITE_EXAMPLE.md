@@ -20,6 +20,7 @@ sharepoint-export-input/
     widgets_data.txt
     external_links_data.txt
     gantt_data.txt
+    boom_data.txt
 
   demo-subsite-safe-folder/
     site.export.json
@@ -32,6 +33,7 @@ sharepoint-export-input/
     widgets_data.txt
     external_links_data.txt
     gantt_data.txt
+    boom_data.txt
 ```
 
 A ready-made fake example tree lives here:

@@ -147,6 +147,26 @@ export async function ensureExactSharePointLibrary({
     }));
   } catch (error) {
     if (error instanceof ExactLibraryProvisioningError) throw error;
+    try {
+      const recoveredTitleRecord = await readByTitle(configuredTitle);
+      const recoveredRootRecord = findSharePointLibraryByRoot(await readAllLibraries(), expectedRoot);
+      const recovered = classifyExactLibraryState({
+        configuredTitle,
+        expectedRoot,
+        titleRecord: recoveredTitleRecord,
+        rootRecord: recoveredRootRecord,
+      });
+      if (recovered.outcome === EXACT_LIBRARY_OUTCOMES.REUSE) {
+        return Object.freeze({
+          ...recovered,
+          created: false,
+          recoveredAfterCreateError: true,
+          siteRelativeUrl,
+        });
+      }
+    } catch (recoveryError) {
+      if (recoveryError instanceof ExactLibraryProvisioningError) throw recoveryError;
+    }
     throw new ExactLibraryProvisioningError(EXACT_LIBRARY_ERRORS.ALLOCATION_FAILED, {
       configuredTitle: normalizeTitle(configuredTitle),
       expectedRoot: normalizeServerRelativePath(expectedRoot),

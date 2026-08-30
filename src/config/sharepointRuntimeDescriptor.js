@@ -21,6 +21,7 @@ const FILE_NAMES = Object.freeze({
   widgetsFileServerRelativeUrl: 'widgets_data.txt',
   externalLinksFileServerRelativeUrl: 'external_links_data.txt',
   ganttFileServerRelativeUrl: 'gantt_data.txt',
+  boomFileServerRelativeUrl: 'boom_data.txt',
   masterConfigFileServerRelativeUrl: 'bihs_master_config_v1.txt',
 });
 
@@ -205,6 +206,7 @@ export function createSharePointRuntimeDescriptor(input = {}, { requireIdentity 
     widgetsFileServerRelativeUrl: resolveFilePath(siteAssetsRoot, usersDbRoot, FILE_NAMES.widgetsFileServerRelativeUrl, widgetsTarget),
     externalLinksFileServerRelativeUrl: resolveFilePath(siteAssetsRoot, usersDbRoot, FILE_NAMES.externalLinksFileServerRelativeUrl),
     ganttFileServerRelativeUrl: resolveFilePath(siteAssetsRoot, usersDbRoot, FILE_NAMES.ganttFileServerRelativeUrl),
+    boomFileServerRelativeUrl: resolveFilePath(siteAssetsRoot, usersDbRoot, FILE_NAMES.boomFileServerRelativeUrl),
     masterConfigFileServerRelativeUrl: resolveFilePath(siteAssetsRoot, usersDbRoot, FILE_NAMES.masterConfigFileServerRelativeUrl),
   });
 }

@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
         info: vi.fn(),
     },
     reload: vi.fn(),
+    reloadBoom: vi.fn(),
+    reloadGantt: vi.fn(),
     storageState: {
         mongo: true,
         readonly: false,
@@ -54,6 +56,14 @@ vi.mock('../context/ConfigProvider', () => ({
     }),
 }));
 
+vi.mock('../context/BoomContext', () => ({
+    useBoom: () => ({ reloadBoom: mocks.reloadBoom }),
+}));
+
+vi.mock('../context/GanttContext', () => ({
+    useGantt: () => ({ reloadGantt: mocks.reloadGantt }),
+}));
+
 vi.mock('../utils/confirmToast', () => ({
     confirmToast: mocks.confirmToast,
 }));
@@ -87,6 +97,7 @@ vi.mock('../config/sharepoint.config', () => ({
         widgetsFileServerRelativeUrl: '/sites/alpha/siteDB/siteAssets/widgets_data.txt',
         externalLinksFileServerRelativeUrl: '/sites/alpha/siteDB/siteAssets/external_links_data.txt',
         ganttFileServerRelativeUrl: '/sites/alpha/siteDB/siteAssets/gantt_data.txt',
+        boomFileServerRelativeUrl: '/sites/alpha/siteDB/siteAssets/boom_data.txt',
         usersFileServerRelativeUrl: '/sites/alpha/siteDB/siteAssets/users_data.txt',
         mockStorageKey: 'events',
         navMockStorageKey: 'nav',
@@ -95,6 +106,7 @@ vi.mock('../config/sharepoint.config', () => ({
         widgetsMockStorageKey: 'widgets',
         externalLinksMockStorageKey: 'links',
         ganttMockStorageKey: 'gantt',
+        boomMockStorageKey: 'boom',
         usersMockStorageKey: 'users',
     },
 }));
@@ -114,6 +126,7 @@ const expectedBackupFiles = [
     'widgets_data.txt',
     'external_links_data.txt',
     'gantt_data.txt',
+    'boom_data.txt',
     'users_data.txt',
 ];
 
@@ -126,6 +139,7 @@ const backupFileData = {
     'widgets_data.txt': { activeWidget: ['events'] },
     'external_links_data.txt': [],
     'gantt_data.txt': { items: [], categories: [] },
+    'boom_data.txt': { enabled: false, items: [], categories: [] },
     'users_data.txt': [{ id: 'admin-1', name: 'Admin One' }],
 };
 
@@ -134,6 +148,7 @@ function recordCountForFile(fileName) {
     if (Array.isArray(data)) return data.length;
     if (fileName === 'events_data.txt') return data.events.length;
     if (fileName === 'gantt_data.txt') return data.items.length;
+    if (fileName === 'boom_data.txt') return data.items.length;
     if (data && typeof data === 'object') return Object.keys(data).length > 0 ? 1 : 0;
     return 0;
 }
@@ -223,6 +238,9 @@ describe('AdminBackupManagement', () => {
         mocks.storageState.readonly = false;
         mocks.sharePointConfig.useMock = false;
         mocks.confirmToast.mockResolvedValue(true);
+        mocks.reload.mockResolvedValue(true);
+        mocks.reloadBoom.mockResolvedValue(true);
+        mocks.reloadGantt.mockResolvedValue(true);
         mockMongoList();
         mocks.backendApiClient.createBackup.mockResolvedValue({ ok: true, backup: listBackup });
         mocks.backendApiClient.getBackup.mockResolvedValue({ ok: true, backup: { ...listBackup, backupPackage } });
@@ -337,6 +355,8 @@ describe('AdminBackupManagement', () => {
             selectedRestoreUnitIds: expect.arrayContaining([expect.stringMatching(/^ru-/)]),
         })));
         expect(mocks.reload).toHaveBeenCalled();
+        expect(mocks.reloadBoom).toHaveBeenCalled();
+        expect(mocks.reloadGantt).toHaveBeenCalled();
         await waitFor(() => expect(mocks.backendApiClient.listBackups).toHaveBeenCalledTimes(2));
     });
 

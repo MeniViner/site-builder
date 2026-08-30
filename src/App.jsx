@@ -20,6 +20,7 @@ import { useTheme } from './context/ThemeContext';
 import { useExternalLinks } from './context/ExternalLinksContext';
 import { useOrgChart } from './context/OrgChartContext';
 import { useGantt } from './context/GanttContext';
+import { useBoom } from './context/BoomContext';
 import { useImageGalleries } from './context/ImageGalleryContext';
 import ImageGallerySection from './components/home/ImageGallerySection';
 import { normalizeBorderStyle, panelStyle } from './utils/borderStyles';
@@ -33,6 +34,7 @@ import { ALPHA_TEAM_CONFIG, getAlphaTeamLinks, getAppVersion } from './config/al
 import OrgChartPage from './pages/OrgChartPage';
 import AdminSharePointSetupPage from './pages/AdminSharePointSetupPage';
 import GanttPage from './pages/GanttPage';
+import BoomPage from './pages/BoomPage';
 import FileExplorerPage from './pages/FileExplorerPage';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -54,6 +56,7 @@ export function Home({ isPreview = false }) {
   const { externalLinks } = useExternalLinks();
   const { orgChart } = useOrgChart();
   const { gantt } = useGantt();
+  const { boom } = useBoom();
   const { activeGalleries } = useImageGalleries();
   const [widgetTitle, setWidgetTitle] = useState(() => getWidgetTitle('events'));
   const canOpenAdmin = canAccessAdminUi({ isAdmin, loading: authLoading, isPreview });
@@ -89,6 +92,7 @@ export function Home({ isPreview = false }) {
   const utilityLinks = [
     ...(orgChart?.enabled ? [{ id: 'org-chart', label: orgChart.pageTitle || 'עץ מבנה', to: '/org-chart' }] : []),
     ...(gantt?.enabled ? [{ id: 'gantt', label: 'גאנט עבודה', to: '/gantt' }] : []),
+    ...(boom?.enabled ? [{ id: 'boom', label: boom.buttonLabel || 'בום', to: '/boom' }] : []),
   ];
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -413,6 +417,7 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/org-chart" element={<OrgChartPage />} />
           <Route path="/gantt" element={<GanttPage />} />
+          <Route path="/boom" element={<BoomPage />} />
           <Route path="/file-explorer" element={<FileExplorerPage />} />
         <Route path="/admin/sharepoint-setup" element={<AdminSharePointSetupPage />} />
         <Route path="/admin/*" element={<AdminRoute />} />

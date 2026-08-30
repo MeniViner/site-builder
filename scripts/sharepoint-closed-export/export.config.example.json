@@ -34,6 +34,7 @@
     "theme_data.txt",
     "widgets_data.txt",
     "external_links_data.txt",
-    "gantt_data.txt"
+    "gantt_data.txt",
+    "boom_data.txt"
   ]
 }

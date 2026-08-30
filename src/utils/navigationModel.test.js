@@ -4,6 +4,8 @@ import {
     getNavigationKind,
     getNavigationNodeModel,
     getNavigationUrl,
+    getNavigationTargetMode,
+    normalizeNavigationTargetBinding,
     shouldExploreNavigationNode,
 } from './navigationModel';
 
@@ -46,5 +48,35 @@ describe('navigationModel', () => {
     it('infers empty nodes as folders and URL-only nodes as links', () => {
         expect(getNavigationKind({ children: [] })).toBe('folder');
         expect(getNavigationKind({ url: 'file://server/share', children: [] })).toBe('link');
+    });
+
+    it('treats legacy URL-only nodes as manual without changing their stored shape', () => {
+        const node = { id: 'legacy', label: 'Legacy', url: 'smb://server/share' };
+        expect(getNavigationTargetMode(node)).toBe('manual');
+        expect(normalizeNavigationTargetBinding(node.targetBinding)).toBeUndefined();
+        expect(node).not.toHaveProperty('targetBinding');
+    });
+
+    it('normalizes a verified SharePoint folder binding and strips an absolute host', () => {
+        expect(normalizeNavigationTargetBinding({
+            mode: 'sharepoint-auto',
+            targetKind: 'folder',
+            state: 'provisioning',
+            serverRelativeUrl: 'https://portal.example/sites/demo/library/folder',
+            listId: '{GUID}',
+            libraryTitle: 'Library',
+            libraryRootServerRelativeUrl: '/sites/demo/library',
+            provisionKey: 'node-2',
+        })).toEqual({
+            version: 1,
+            mode: 'sharepoint-auto',
+            targetKind: 'folder',
+            state: 'verified',
+            serverRelativeUrl: '/sites/demo/library/folder',
+            listId: '{GUID}',
+            libraryTitle: 'Library',
+            libraryRootServerRelativeUrl: '/sites/demo/library',
+            provisionKey: 'node-2',
+        });
     });
 });

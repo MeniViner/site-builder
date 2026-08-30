@@ -225,6 +225,7 @@ MongoDB משתמש במסד נתונים אחד לכלל האתרים:
 - `widgets_data.txt` -> `widgets:config` כסינגלטון עד נרמול בטוח יותר
 - `external_links_data.txt` -> מסמכי `externalLinks`
 - `gantt_data.txt` -> `gantt:settings`
+- `boom_data.txt` -> `boom:settings`
 
 ### Admin Backups ב-Mongo
 

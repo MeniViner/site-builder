@@ -25,6 +25,7 @@ const sampleLegacyFiles = {
   'widgets_data.txt': { polls: [{ id: 'poll-1' }] },
   'external_links_data.txt': [{ id: 'link-1', title: 'Link' }],
   'gantt_data.txt': { enabled: true, items: [] },
+  'boom_data.txt': { enabled: true, items: [] },
 };
 
 async function makeExportArtifact({ safeSiteFolder, siteCode, siteSlug = siteCode, files = sampleLegacyFiles }) {
@@ -56,6 +57,7 @@ async function makeExportArtifact({ safeSiteFolder, siteCode, siteSlug = siteCod
         'widgets_data.txt': 'widgets',
         'external_links_data.txt': 'externalLinks',
         'gantt_data.txt': 'gantt',
+        'boom_data.txt': 'boom',
       }[fileName],
       data,
     })),
@@ -85,8 +87,8 @@ describe('migrateSharePointToMongo', () => {
     });
 
     expect(report.failedKeys).toEqual([]);
-    expect(report.imported).toHaveLength(9);
-    expect(report.documentsImportedBySite.alpha).toBeGreaterThan(9);
+    expect(report.imported).toHaveLength(10);
+    expect(report.documentsImportedBySite.alpha).toBeGreaterThan(10);
 
     const users = await legacyRepository.readLegacyObject('alpha', 'users_data.txt');
     expect(users.data).toEqual([{ id: 'admin-1', name: 'Admin' }]);

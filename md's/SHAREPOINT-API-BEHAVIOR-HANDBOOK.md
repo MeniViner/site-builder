@@ -690,6 +690,21 @@ const raw = await batchRequest(
 console.log(raw);
 ```
 
+### 6.19 יצירת Document Library עבור ניווט
+
+יצירת קטגוריית תוכן אוטומטית אינה שקולה ליצירת תיקייה. יש ליצור List אמיתי מסוג Document Library (`BaseTemplate=101`) ישירות תחת ה-Web הנוכחי, באמצעות `SP.ListCreationInformation` ו-`set_url(...)` כאשר נדרש URL פיזי דטרמיניסטי.
+
+לאחר היצירה חובה לקרוא מחדש ולאמת:
+
+- `Id` קיים ויציב.
+- `Title` תואם לשם התצוגה.
+- `BaseTemplate=101`.
+- `RootFolder.ServerRelativeUrl` תואם בדיוק לנתיב המבוקש.
+- `OnQuickLaunch=true`.
+- `RootFolder.WelcomePage` שווה `Forms/AllItems.aspx`.
+
+אין ליצור או להעלות ידנית קובץ `Forms/AllItems.aspx`. הוא חלק ממבנה ספריית המסמכים של SharePoint; האפליקציה רק מגדירה את `WelcomePage` ומוודאת את התוצאה. תיקיות משנה נוצרות רק בתוך ספריית אב מאומתת, עם polling עד ש-`ListItemAllFields` מוכיח שהתיקייה מוכנה לכתיבה.
+
 ---
 
 ## 7) איך להתנהג נכון מול Lists (חשוב מאוד)
@@ -815,4 +830,3 @@ console.log(raw);
    - ניטור טוב.
 2. תתחיל קטן עם פונקציות יסוד (auth/digest/read/write), ורק אז תרחיב ל-chunks/batch/permissions.
 3. אם אתה בונה SDK פנימי, תשמור את כל זה במקום אחד, עם בדיקות יחידה ואינטגרציה.
-

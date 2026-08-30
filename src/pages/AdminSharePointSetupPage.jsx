@@ -3,6 +3,7 @@ import { resolveCurrentSharePointWebUrl } from '../utils/resolveCurrentSharePoin
 import { useAuth } from '../context/AuthContext';
 import { spBootstrapLog } from '../utils/spAppLog';
 import { DEFAULT_GANTT_DATA } from '../utils/ganttData';
+import { createInitialBoomData } from '../utils/boomData';
 import DismissibleNotice from '../components/DismissibleNotice';
 import { SHAREPOINT_PATHS } from '../config/sharepointPaths';
 import {
@@ -132,7 +133,7 @@ export default function AdminSharePointSetupPage() {
       siteAssetsRoot, imagesRoot, widgetsFileServerRelativeUrl,
       eventsFileServerRelativeUrl, navigationFileServerRelativeUrl, usersFileServerRelativeUrl,
       siteContentFileServerRelativeUrl, themeFileServerRelativeUrl, externalLinksFileServerRelativeUrl,
-      ganttFileServerRelativeUrl, masterConfigFileServerRelativeUrl,
+      ganttFileServerRelativeUrl, boomFileServerRelativeUrl, masterConfigFileServerRelativeUrl,
       bootstrapLibrary, bootstrapFolder, targetDistPath, finalAppUrl,
     } = SHAREPOINT_PATHS;
     const siteDbLib = resolveLibraryConfig(siteDbRoot || siteDbFolder, siteDbFolder, siteRoot);
@@ -145,7 +146,7 @@ export default function AdminSharePointSetupPage() {
       siteAssetsRoot, imagesRoot, widgetsFileServerRelativeUrl,
       eventsFileServerRelativeUrl, navigationFileServerRelativeUrl, usersFileServerRelativeUrl,
       siteContentFileServerRelativeUrl, themeFileServerRelativeUrl, externalLinksFileServerRelativeUrl,
-      ganttFileServerRelativeUrl, masterConfigFileServerRelativeUrl,
+      ganttFileServerRelativeUrl, boomFileServerRelativeUrl, masterConfigFileServerRelativeUrl,
       bootstrapDistRoot, finalDistRoot,
       finalAppUrl: finalAppUrl || `https://${host}${finalDistRoot}/index.html`,
       manifestRel: `${bootstrapDistRoot}/sharepoint-deploy-manifest.json`,
@@ -721,6 +722,7 @@ export default function AdminSharePointSetupPage() {
           [cfg.themeFileServerRelativeUrl, JSON.stringify({}, null, 2)],
           [cfg.externalLinksFileServerRelativeUrl, JSON.stringify([], null, 2)],
           [cfg.ganttFileServerRelativeUrl, JSON.stringify(DEFAULT_GANTT_DATA, null, 2)],
+          [cfg.boomFileServerRelativeUrl, JSON.stringify(createInitialBoomData(), null, 2)],
           [cfg.widgetsFileServerRelativeUrl, JSON.stringify({}, null, 2)],
         ];
         const outcomes = [];

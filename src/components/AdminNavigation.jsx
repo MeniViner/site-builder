@@ -6,7 +6,8 @@ import { useTheme } from '../context/ThemeContext';
 import {
     Plus, Trash2, AlertTriangle, ChevronLeft, ChevronDown,
     Folder, FolderOpen, FileText, Link as LinkIcon, Home, Search,
-    ExternalLink, GripVertical, Image as ImageIcon, Loader2, Upload, Palette
+    ExternalLink, GripVertical, Image as ImageIcon, Loader2, Upload, Palette,
+    Database, CheckCircle2, X
 } from 'lucide-react';
 import IconPickerModal from './IconPickerModal';
 import Tooltip from './Tooltip';
@@ -15,7 +16,13 @@ import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import { uploadImage } from '../utils/sharepointUtils';
 import NavVisual from './NavVisual';
 import DismissibleNotice from './DismissibleNotice';
-import { createNavigationNodeId } from '../utils/navigationModel';
+import {
+    createNavigationNodeId,
+    getNavigationTargetBinding,
+    NAVIGATION_TARGET_KINDS,
+    NAVIGATION_TARGET_MODES,
+} from '../utils/navigationModel';
+import navigationSharePointService, { buildNavigationProvisionKey } from '../services/NavigationSharePointService';
 
 function asText(value, fallback = '') {
     if (typeof value !== 'string') return fallback;
@@ -82,6 +89,119 @@ function moveArrayItem(source, fromIndex, toIndex) {
     return copy;
 }
 
+function NavigationTargetDialog({ dialog, onChange, onClose, onSubmit }) {
+    if (!dialog) return null;
+    const isAutomatic = dialog.mode === NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO;
+    const noun = dialog.level === 0 ? 'קטגוריה' : 'תת-קטגוריה';
+
+    return (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" dir="rtl">
+            <div role="dialog" aria-modal="true" aria-labelledby="navigation-target-dialog-title" className="w-full max-w-xl rounded-[28px] bg-white p-5 shadow-2xl dark:bg-[#141418] sm:p-7">
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <h2 id="navigation-target-dialog-title" className="text-2xl font-black text-gray-900 dark:text-white">יצירת {noun} חדשה</h2>
+                        <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">בחרו אם ליצור יעד SharePoint חדש או לקשר ליעד קיים.</p>
+                    </div>
+                    <button type="button" onClick={onClose} disabled={dialog.submitting} className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-gray-500 transition-[background-color,color,transform] hover:bg-gray-100 hover:text-gray-900 active:scale-[0.96] disabled:opacity-50 dark:hover:bg-white/10 dark:hover:text-white" aria-label="סגירת חלון">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                <form onSubmit={onSubmit} className="mt-6 space-y-5">
+                    <label className="block">
+                        <span className="mb-1.5 block text-sm font-black text-gray-700 dark:text-gray-200">שם תצוגה</span>
+                        <input
+                            autoFocus
+                            disabled={dialog.submitting}
+                            value={dialog.displayName}
+                            onChange={(event) => onChange({ displayName: event.target.value, error: '' })}
+                            className="min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm font-bold text-gray-900 outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-2 focus:ring-primary/15 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                            placeholder={dialog.level === 0 ? 'לדוגמה: תכניות עבודה' : 'לדוגמה: תכנון שנתי'}
+                            required
+                        />
+                    </label>
+
+                    <fieldset>
+                        <legend className="mb-2 text-sm font-black text-gray-700 dark:text-gray-200">סוג יעד</legend>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition-[border-color,background-color] ${
+                                isAutomatic ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-primary/30 dark:border-white/10'
+                            } ${!dialog.canAutomatic ? 'cursor-not-allowed opacity-55' : ''}`}>
+                                <input
+                                    type="radio"
+                                    name="navigation-target-mode"
+                                    value={NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO}
+                                    checked={isAutomatic}
+                                    disabled={!dialog.canAutomatic || dialog.submitting}
+                                    onChange={() => onChange({ mode: NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO, error: '' })}
+                                    className="mt-1 accent-primary"
+                                />
+                                <span>
+                                    <span className="flex items-center gap-2 font-black text-gray-900 dark:text-white"><Database size={17} className="text-primary" />SharePoint אוטומטי</span>
+                                    <span className="mt-1 block text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                        {dialog.level === 0 ? 'יצירת ספריית מסמכים חדשה ומאומתת.' : 'יצירת תיקייה בתוך ספריית הקטגוריה.'}
+                                    </span>
+                                </span>
+                            </label>
+                            <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition-[border-color,background-color] ${
+                                !isAutomatic ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-primary/30 dark:border-white/10'
+                            }`}>
+                                <input
+                                    type="radio"
+                                    name="navigation-target-mode"
+                                    value={NAVIGATION_TARGET_MODES.MANUAL}
+                                    checked={!isAutomatic}
+                                    disabled={dialog.submitting}
+                                    onChange={() => onChange({ mode: NAVIGATION_TARGET_MODES.MANUAL, error: '' })}
+                                    className="mt-1 accent-primary"
+                                />
+                                <span>
+                                    <span className="flex items-center gap-2 font-black text-gray-900 dark:text-white"><LinkIcon size={17} className="text-primary" />יעד קיים / ידני</span>
+                                    <span className="mt-1 block text-xs leading-5 text-gray-500 dark:text-gray-400">כתובת SharePoint, אתר, נתיב רשת, Windows או Mac.</span>
+                                </span>
+                            </label>
+                        </div>
+                        {!dialog.canAutomatic && (
+                            <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
+                                יצירה אוטומטית זמינה רק בתוך קטגוריה שמקושרת לספריית SharePoint מאומתת.
+                            </p>
+                        )}
+                    </fieldset>
+
+                    {!isAutomatic && (
+                        <label className="block">
+                            <span className="mb-1.5 block text-sm font-black text-gray-700 dark:text-gray-200">כתובת או נתיב קיים</span>
+                            <input
+                                value={dialog.manualUrl}
+                                disabled={dialog.submitting}
+                                onChange={(event) => onChange({ manualUrl: event.target.value, error: '' })}
+                                className="min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-left text-sm text-blue-700 outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-2 focus:ring-primary/15 dark:border-white/10 dark:bg-white/5 dark:text-blue-300"
+                                placeholder="https:// או z:/public או /Users/name/Documents"
+                                dir="ltr"
+                                required
+                            />
+                        </label>
+                    )}
+
+                    {dialog.error && (
+                        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold leading-6 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+                            {dialog.error}
+                        </div>
+                    )}
+
+                    <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 pt-5 dark:border-white/10">
+                        <button type="button" onClick={onClose} disabled={dialog.submitting} className="min-h-11 rounded-xl border border-gray-200 px-5 text-sm font-bold text-gray-600 transition-[background-color,transform] hover:bg-gray-50 active:scale-[0.96] disabled:opacity-50 dark:border-white/10 dark:text-gray-200 dark:hover:bg-white/5">ביטול</button>
+                        <button type="submit" disabled={dialog.submitting} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-6 text-sm font-black text-white shadow-lg shadow-primary/20 transition-[filter,transform] hover:brightness-110 active:scale-[0.96] disabled:cursor-wait disabled:opacity-60">
+                            {dialog.submitting && <Loader2 size={16} className="animate-spin" />}
+                            {dialog.submitting ? 'יוצר ומאמת...' : `יצירת ${noun}`}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
 const UUID_V4_LIKE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export default function AdminNavigation() {
@@ -90,6 +210,7 @@ export default function AdminNavigation() {
     const { navItems, loading, error, saveNavigation, saving, dirty, retrySave } = useNavigation();
     const { effectiveMode } = useTheme();
     const iconImageInputRef = useRef(null);
+    const provisioningInFlightRef = useRef(false);
     const [imageUploadTargetPath, setImageUploadTargetPath] = useState(null);
     const [uploadingIconPathKey, setUploadingIconPathKey] = useState('');
 
@@ -101,6 +222,7 @@ export default function AdminNavigation() {
     const [expandedNodes, setExpandedNodes] = useState(new Set(['root'])); // Sidebar tree expansion
     const [searchTerm, setSearchTerm] = useState('');
     const [dragState, setDragState] = useState(null);
+    const [creationDialog, setCreationDialog] = useState(null);
     const isDarkMode = effectiveMode === 'dark';
     const sidebarScrollbarColor = isDarkMode ? '#333 #0a0a0c' : '#9ca3af #f3f4f6';
     const contentScrollbarColor = isDarkMode ? '#333 #050505' : '#9ca3af #f3f4f6';
@@ -251,6 +373,135 @@ export default function AdminNavigation() {
         return guardIds.includes(candidate) ? fallbackValue : candidate;
     };
 
+    const openCreationDialog = () => {
+        const parent = selectedPath.length === 1
+            ? navItems.find((item) => item.id === selectedPath[0])
+            : null;
+        const parentBinding = getNavigationTargetBinding(parent);
+        const canAutomatic = selectedPath.length === 0
+            || (parentBinding?.mode === NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO
+                && parentBinding?.targetKind === NAVIGATION_TARGET_KINDS.LIBRARY);
+        const nodeId = createNavigationNodeId(selectedPath.length === 0 ? 'cat' : 'sub');
+        setCreationDialog({
+            level: selectedPath.length,
+            parentId: parent?.id || '',
+            parentBinding,
+            nodeId,
+            displayName: '',
+            mode: canAutomatic ? NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO : NAVIGATION_TARGET_MODES.MANUAL,
+            manualUrl: '',
+            canAutomatic,
+            submitting: false,
+            error: '',
+        });
+    };
+
+    const submitCreationDialog = async (event) => {
+        event.preventDefault();
+        if (!creationDialog || creationDialog.submitting || provisioningInFlightRef.current) return;
+        const displayName = creationDialog.displayName.trim();
+        const siblings = creationDialog.level === 0
+            ? navItems
+            : (navItems.find((item) => item.id === creationDialog.parentId)?.children || []);
+        if (siblings.some((node) => String(node.label || node.title || '').trim().toLocaleLowerCase('he') === displayName.toLocaleLowerCase('he'))) {
+            setCreationDialog((current) => ({ ...current, error: 'כבר קיים פריט בשם זה באותה רמה.' }));
+            return;
+        }
+        if (creationDialog.mode === NAVIGATION_TARGET_MODES.MANUAL && !creationDialog.manualUrl.trim()) {
+            setCreationDialog((current) => ({ ...current, error: 'יש להזין כתובת או נתיב קיים.' }));
+            return;
+        }
+
+        provisioningInFlightRef.current = true;
+        setCreationDialog((current) => ({ ...current, submitting: true, error: '' }));
+        try {
+            const targetKind = creationDialog.level === 0
+                ? NAVIGATION_TARGET_KINDS.LIBRARY
+                : NAVIGATION_TARGET_KINDS.FOLDER;
+            const provisionKey = creationDialog.mode === NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO
+                ? buildNavigationProvisionKey({
+                    displayName,
+                    targetKind,
+                    parentBinding: creationDialog.parentBinding,
+                })
+                : '';
+            const target = creationDialog.mode === NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO
+                ? await (creationDialog.level === 0
+                    ? navigationSharePointService.provisionCategory({
+                        displayName,
+                        provisionKey,
+                    })
+                    : navigationSharePointService.provisionSubcategory({
+                        displayName,
+                        provisionKey,
+                        parentBinding: creationDialog.parentBinding,
+                    }))
+                : {
+                    url: creationDialog.manualUrl.trim(),
+                    targetBinding: {
+                        version: 1,
+                        mode: NAVIGATION_TARGET_MODES.MANUAL,
+                        targetKind: NAVIGATION_TARGET_KINDS.URL,
+                        state: 'manual',
+                    },
+                };
+
+            const node = creationDialog.level === 0
+                ? {
+                    id: creationDialog.nodeId,
+                    kind: 'folder',
+                    label: displayName,
+                    icon: 'Folder',
+                    url: target.url,
+                    targetBinding: target.targetBinding,
+                    children: [],
+                }
+                : {
+                    id: creationDialog.nodeId,
+                    kind: 'folder',
+                    title: displayName,
+                    label: displayName,
+                    icon: 'FileText',
+                    url: target.url,
+                    targetBinding: target.targetBinding,
+                    subLinks: [],
+                };
+
+            const persisted = await saveNavigation((previous) => {
+                const copy = JSON.parse(JSON.stringify(previous));
+                if (creationDialog.level === 0) return [...copy, node];
+                const parent = copy.find((item) => item.id === creationDialog.parentId);
+                if (!parent) return copy;
+                parent.children = [...(parent.children || []), node];
+                return copy;
+            });
+
+            if (creationDialog.level === 0) {
+                setExpandedNodes((current) => new Set([...current, node.id]));
+                setSelectedPath([node.id]);
+            } else {
+                setExpandedNodes((current) => new Set([...current, creationDialog.parentId]));
+                setSelectedPath([creationDialog.parentId, node.id]);
+            }
+            setCreationDialog(null);
+            provisioningInFlightRef.current = false;
+            if (!persisted) {
+                toast.error('היעד אומת ונשמר כטיוטה מקומית, אך שמירת הניווט נכשלה. השתמשו בכפתור "ניסיון חוזר" בראש המסך; היעד הקיים ישמש שוב ולא תיווצר כפילות.');
+                return;
+            }
+            toast.success(creationDialog.mode === NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO
+                ? 'היעד נוצר ואומת ב-SharePoint ונוסף לניווט'
+                : 'היעד הידני נוסף לניווט');
+        } catch (creationError) {
+            provisioningInFlightRef.current = false;
+            setCreationDialog((current) => ({
+                ...current,
+                submitting: false,
+                error: creationError?.userMessage || creationError?.message || 'יצירת היעד נכשלה.',
+            }));
+        }
+    };
+
     // Adders
     const addNode = () => {
         if (selectedPath.length === 0) {
@@ -258,21 +509,9 @@ export default function AdminNavigation() {
                 toast.warning(`לא ניתן להוסיף יותר מ-${MAX_TOP_LEVEL_NAV_ITEMS} קטגוריות ראשיות.`);
                 return;
             }
-            const id = createNavigationNodeId('cat');
-            saveNavigation((prev) => [
-                ...prev,
-                { id, kind: 'folder', label: 'קטגוריה חדשה', icon: 'Folder', url: '', children: [] },
-            ]);
+            openCreationDialog();
         } else if (selectedPath.length === 1) {
-            saveNavigation(prev => {
-                const copy = JSON.parse(JSON.stringify(prev));
-                const cat = copy.find(c => c.id === selectedPath[0]);
-                if (cat) {
-                    if (!cat.children) cat.children = [];
-                    cat.children.push({ id: createNavigationNodeId('sub'), kind: 'folder', title: 'תת-קטגוריה חדשה', icon: 'FileText', url: '', subLinks: [] });
-                }
-                return copy;
-            });
+            openCreationDialog();
         } else if (selectedPath.length === 2) {
             saveNavigation(prev => {
                 const copy = JSON.parse(JSON.stringify(prev));
@@ -289,9 +528,18 @@ export default function AdminNavigation() {
 
     // Remover
     const removeNode = (path) => {
+        const category = navItems.find((item) => item.id === path[0]);
+        const target = path.length === 1
+            ? category
+            : path.length === 2
+                ? category?.children?.find((item) => item.id === path[1])
+                : category?.children?.find((item) => item.id === path[1])?.subLinks?.find((item) => (item.id || item.label) === path[2]);
+        const isSharePointBacked = getNavigationTargetBinding(target)?.mode === NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO;
         confirmToast({
             title: 'מחיקת פריט ניווט',
-            message: 'האם אתה בטוח שברצונך למחוק פריט זה?',
+            message: isSharePointBacked
+                ? 'האם למחוק את פריט הניווט? ספריית או תיקיית SharePoint והמסמכים שבה יישארו ללא שינוי.'
+                : 'האם אתה בטוח שברצונך למחוק פריט זה?',
             confirmText: 'מחק',
             cancelText: 'ביטול',
             type: 'warning',
@@ -321,6 +569,7 @@ export default function AdminNavigation() {
         });
     };
 
+    // eslint-disable-next-line no-unused-vars
     const buildNavigationAiPrompt = (instruction) => {
         const snapshot = navItems.slice(0, 12);
         return [
@@ -355,6 +604,7 @@ export default function AdminNavigation() {
         ].join('\n');
     };
 
+    // eslint-disable-next-line no-unused-vars
     const applyAiNavigation = (parsed) => {
         const normalized = normalizeAiNavigationTree(parsed);
         if (normalized.length > MAX_TOP_LEVEL_NAV_ITEMS) {
@@ -425,6 +675,8 @@ export default function AdminNavigation() {
         currentChildren = currentChildren.filter(c => c.title.toLowerCase().includes(searchTerm.toLowerCase()));
     }
     const currentUsesImageVisual = Boolean(currentModel?.iconUrl);
+    const currentTargetBinding = getNavigationTargetBinding(currentModel);
+    const currentIsAutomatic = currentTargetBinding?.mode === NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO;
 
     if (loading && !navItems.length) {
         return <div className="p-8 text-center text-gray-500 dark:text-gray-400">טוען מבנה ניווט...</div>;
@@ -603,7 +855,7 @@ export default function AdminNavigation() {
 
                 {/* Properties Panel (if not root) */}
                 {selectedPath.length > 0 && currentModel && (
-                    <div className="px-6 py-4 border-b border-gray-200 dark:border-[#1f1f22] bg-gray-50 dark:bg-[#0a0a0c] flex items-center gap-4 shrink-0 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.5)] z-20 relative">
+                    <div className="px-6 py-4 border-b border-gray-200 dark:border-[#1f1f22] bg-gray-50 dark:bg-[#0a0a0c] flex flex-wrap items-center gap-4 shrink-0 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.5)] z-20 relative">
                         <div className="w-14 h-14 bg-gray-50 dark:bg-[#141418] rounded-2xl flex items-center justify-center border border-gray-300 dark:border-[#252528] shrink-0 p-2 shadow-inner">
                             <NavVisual
                                 item={currentModel}
@@ -698,11 +950,16 @@ export default function AdminNavigation() {
                                 <input
                                     type="text"
                                     value={currentModel.url || ''}
+                                    readOnly={currentIsAutomatic}
                                     onChange={(e) => {
                                         const nextValue = restoreIfUuidLeak(e.target.value, currentModel.url || '', [currentModel.id, ...selectedPath]);
                                         updateNode(selectedPath, 'url', nextValue);
                                     }}
-                                    className="w-full bg-gray-50 dark:bg-[#141418] border border-gray-300 dark:border-[#252528] hover:border-gray-600 rounded-md px-3 py-1.5 text-blue-600 dark:text-blue-300 focus:outline-none focus:border-primary-500 focus:bg-gray-100 dark:focus:bg-[#1a1a1f] text-sm transition text-left dir-ltr placeholder-gray-500 dark:placeholder-[#333]"
+                                    className={`w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-1.5 text-left text-sm text-blue-600 outline-none transition dark:border-[#252528] dark:bg-[#141418] dark:text-blue-300 ${
+                                        currentIsAutomatic
+                                            ? 'cursor-default opacity-85'
+                                            : 'hover:border-gray-600 focus:border-primary-500 focus:bg-gray-100 dark:focus:bg-[#1a1a1f]'
+                                    }`}
                                     placeholder="https:// או z:/public או /Users/name/Documents"
                                     dir="ltr"
                                 />
@@ -711,6 +968,24 @@ export default function AdminNavigation() {
                                 </p> */}
                             </div>
                         </div>
+                        {currentTargetBinding && (
+                            <div className={`basis-full rounded-xl border px-4 py-3 text-xs ${
+                                currentIsAutomatic
+                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200'
+                                    : 'border-gray-200 bg-white text-gray-600 dark:border-white/10 dark:bg-white/5 dark:text-gray-300'
+                            }`}>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                    {currentIsAutomatic ? <CheckCircle2 size={16} /> : <LinkIcon size={16} />}
+                                    <strong>{currentIsAutomatic ? 'יעד SharePoint אוטומטי ומאומת' : 'יעד קיים / ידני'}</strong>
+                                    {currentIsAutomatic && (
+                                        <>
+                                            <span>{currentTargetBinding.targetKind === NAVIGATION_TARGET_KINDS.LIBRARY ? 'ספריית מסמכים' : 'תיקייה'}</span>
+                                            <span className="font-mono [direction:ltr]">{currentTargetBinding.serverRelativeUrl}</span>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -861,11 +1136,16 @@ export default function AdminNavigation() {
                                             <input
                                                 type="text"
                                                 value={child.url || ''}
+                                                readOnly={getNavigationTargetBinding(child)?.mode === NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO}
                                                 onChange={(e) => {
                                                     const nextValue = restoreIfUuidLeak(e.target.value, child.url || '', [...child.nodePath, child.id]);
                                                     updateNode(child.nodePath, 'url', nextValue);
                                                 }}
-                                                className="bg-transparent border border-transparent hover:border-[#333] focus:border-primary-500 focus:bg-gray-50 dark:focus:bg-[#141418] rounded-md pl-2 pr-2 py-1.5 transition w-full text-xs text-blue-600 dark:text-blue-400 outline-none dir-ltr text-left placeholder-gray-500 dark:placeholder-[#333] hover:bg-gray-100 dark:hover:bg-black/20 focus:shadow-inner"
+                                                className={`w-full rounded-md border border-transparent bg-transparent py-1.5 pl-2 pr-2 text-left text-xs text-blue-600 outline-none transition dark:text-blue-400 ${
+                                                    getNavigationTargetBinding(child)?.mode === NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO
+                                                        ? 'cursor-default opacity-80'
+                                                        : 'hover:border-[#333] hover:bg-gray-100 focus:border-primary-500 focus:bg-gray-50 focus:shadow-inner dark:hover:bg-black/20 dark:focus:bg-[#141418]'
+                                                }`}
                                                 placeholder="https:// או z:/public או /Users/name/Documents"
                                                 dir="ltr"
                                             />
@@ -897,6 +1177,15 @@ export default function AdminNavigation() {
                     )}
                 </div>
             </div>
+
+            <NavigationTargetDialog
+                dialog={creationDialog}
+                onChange={(patch) => setCreationDialog((current) => (current ? { ...current, ...patch } : current))}
+                onClose={() => {
+                    if (!creationDialog?.submitting) setCreationDialog(null);
+                }}
+                onSubmit={submitCreationDialog}
+            />
 
             {/* Icon Picker Modal */}
             <input

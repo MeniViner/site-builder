@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 360" role="img" aria-labelledby="title">
+  <title id="title">Professional commander avatar in sand</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#f3eee4"/>
+      <stop offset="1" stop-color="#dfd3bf"/>
+    </linearGradient>
+    <linearGradient id="uniform" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#786b52"/>
+      <stop offset="1" stop-color="#4d4638"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="360" rx="36" fill="url(#bg)"/>
+  <circle cx="160" cy="126" r="62" fill="#c68f70"/>
+  <path d="M101 116c5-47 28-71 61-71 38 0 59 29 59 74-17-12-38-18-61-18-22 0-42 5-59 15Z" fill="#3e392f"/>
+  <path d="M42 360c3-101 46-153 118-153s115 52 118 153H42Z" fill="url(#uniform)"/>
+  <path d="m124 216 36 38 36-38 19 18-24 126h-62l-24-126 19-18Z" fill="#fbfaf7"/>
+  <path d="m160 254 19 25-19 43-19-43 19-25Z" fill="#463f32"/>
+  <rect x="72" y="274" width="52" height="9" rx="4.5" fill="#b9aa8b"/>
+  <path d="m226 268 6 12 13 2-10 9 3 13-12-6-12 6 3-13-10-9 13-2 6-12Z" fill="#c6a347"/>
+</svg>

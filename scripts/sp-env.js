@@ -206,6 +206,7 @@ export function resolveConfig({ envFilePath = path.resolve(process.cwd(), '.env.
     widgets: `${widgetsDbTarget === 'site' ? siteAssetsRel : usersDbRel}/widgets_data.txt`,
     externalLinks: `${siteAssetsRel}/external_links_data.txt`,
     gantt: `${siteAssetsRel}/gantt_data.txt`,
+    boom: `${siteAssetsRel}/boom_data.txt`,
   };
 
   const webDavRoot = `\\\\${host}@SSL\\DavWWWRoot`;
