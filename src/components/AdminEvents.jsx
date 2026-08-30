@@ -1,11 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'react-toastify';
 import { useEvents } from '../context/EventsContext';
 import { Undo2, Plus, Trash2, Edit2, AlertTriangle, Calendar, X, Settings2 } from 'lucide-react';
 import { confirmToast } from '../utils/confirmToast';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import AdminAIActionCard from './AdminAIActionCard';
-import { UI_FEATURES } from '../config/uiFeatures.config';
+import AdminAIHistoryBar from './AdminAIHistoryBar';
+import { isWidgetAiButtonEnabled } from '../config/uiFeatures.config';
+import { useAdminAiHistory } from '../hooks/useAdminAiHistory';
+import { buildAdminAiPrompt, extractAdminAiCandidates } from '../utils/adminAiCapabilities';
 import { eventColorToHex, getContrastingTextColor, normalizeEventColor } from '../utils/colorValidation';
 import {
     DEFAULT_AI_EVENTS_COUNT,
@@ -28,6 +31,22 @@ const STATUS_OPTIONS = [
     { value: 'gray', label: 'אפור (כלל משתמשי חרום)', hex: '#6B7280' },
     { value: 'red', label: 'אדום (דחוף / חשוב)', hex: '#EF4444' },
 ];
+
+const EVENTS_AI_ACTIONS = [
+    { id: 'generate', label: 'צור אירועים', prompt: 'צור 3 אירועים ברורים על בסיס הפרטים שאוסיף כאן.' },
+    { id: 'paste', label: 'לו״ז → אירועים', prompt: 'המר את לוח הזמנים הבא לאירועים: ' },
+    { id: 'add', label: 'הוסף בלי למחוק', prompt: 'הוסף אירועים חדשים לפי הפרטים הבאים בלי למחוק או לשנות אירועים קיימים: ' },
+    { id: 'improve', label: 'שפר ניסוח', prompt: 'שפר את ניסוח האירועים הקיימים בלי לשנות תאריכים או עובדות.' },
+    { id: 'audit', label: 'בדוק את הלוח', prompt: 'בדוק כפילויות, ניסוחים לא ברורים ותאריכים חשודים והצג המלצות בלבד.', readOnly: true },
+];
+
+function resolveEventsAiOperation(instruction, suggestedAction) {
+    if (suggestedAction?.id) return suggestedAction.id;
+    if (/בדוק|נתח|כפילות|כפילויות|audit|review/i.test(instruction)) return 'audit';
+    if (/הוסף|תוסיף|\badd\b/i.test(instruction)) return 'add';
+    if (/שפר|קצר|נסח מחדש|improve|rewrite/i.test(instruction)) return 'improve';
+    return 'generate';
+}
 
 function getUrlPromptKeys(token) {
     return [token?.raw, token?.value, token?.href, String(token?.raw || '').toLowerCase(), String(token?.href || '').toLowerCase()]
@@ -85,7 +104,7 @@ function getEventStatusLabel(color) {
 }
 
 export default function AdminEvents({ onClose, inHub = false }) {
-    const showAiUi = UI_FEATURES.showAiUi;
+    const showEventsAi = isWidgetAiButtonEnabled('events');
     const {
         events: initialEvents,
         displayCount: initialDisplayCount,
@@ -103,12 +122,13 @@ export default function AdminEvents({ onClose, inHub = false }) {
     const lastSavedRef = useRef(null);
     const [editingEvent, setEditingEvent] = useState(null);
     const [smartLinkPrompt, setSmartLinkPrompt] = useState(null);
-    const [aiHistory, setAiHistory] = useState({ past: [], future: [] });
+    const [aiHistoryBusy, setAiHistoryBusy] = useState(false);
     const promptedLinksRef = useRef(new Set());
     const queuedLinksRef = useRef(new Set());
     const smartLinkQueueRef = useRef([]);
     const subtitlePromptTimerRef = useRef(null);
     const aiRequestedEventCountRef = useRef(DEFAULT_AI_EVENTS_COUNT);
+    const aiOperationRef = useRef('generate');
     const maxDisplayCount = Math.max(1, events.length || 1);
     const plannedThisMonth = (() => {
         const now = new Date();
@@ -131,34 +151,48 @@ export default function AdminEvents({ onClose, inHub = false }) {
         intervalMs,
     });
 
-    const restoreEventsSnapshot = (snapshot) => {
+    const restoreEventsSnapshot = useCallback((snapshot) => {
         setEvents(Array.isArray(snapshot?.events) ? snapshot.events : []);
         setDisplayCount(Number.isFinite(Number(snapshot?.displayCount)) ? Number(snapshot.displayCount) : 3);
         setDisplayMode(snapshot?.displayMode || 'default');
         setIntervalMs(Math.max(2000, Number(snapshot?.intervalMs) || 6000));
         setEditingEvent(null);
-    };
+    }, []);
 
-    const handleUndoAiEvents = () => {
-        if (!aiHistory.past.length) return;
-        const target = aiHistory.past[aiHistory.past.length - 1];
-        const current = getEventsSnapshot();
-        setAiHistory((prev) => ({
-            past: prev.past.slice(0, -1),
-            future: [current, ...prev.future].slice(0, 20),
-        }));
-        restoreEventsSnapshot(target);
-    };
+    const applyEventsSnapshot = useCallback(async (snapshot) => {
+        const nextSnapshot = {
+            events: Array.isArray(snapshot?.events) ? snapshot.events : [],
+            displayCount: Number.isFinite(Number(snapshot?.displayCount)) ? Number(snapshot.displayCount) : 3,
+            displayMode: snapshot?.displayMode || 'default',
+            intervalMs: Math.max(2000, Number(snapshot?.intervalMs) || 6000),
+        };
+        restoreEventsSnapshot(nextSnapshot);
+        const success = await saveEvents(
+            nextSnapshot.events,
+            nextSnapshot.displayCount,
+            nextSnapshot.displayMode,
+            nextSnapshot.intervalMs
+        );
+        if (success) lastSavedRef.current = JSON.stringify(nextSnapshot);
+        return success;
+    }, [restoreEventsSnapshot, saveEvents]);
 
-    const handleRedoAiEvents = () => {
-        if (!aiHistory.future.length) return;
-        const target = aiHistory.future[0];
-        const current = getEventsSnapshot();
-        setAiHistory((prev) => ({
-            past: [...prev.past, current].slice(-20),
-            future: prev.future.slice(1),
-        }));
-        restoreEventsSnapshot(target);
+    const {
+        history: aiHistory,
+        recordAndApply: recordAndApplyAiEvents,
+        applyIndex: applyAiHistoryIndex,
+        hide: hideAiHistory,
+    } = useAdminAiHistory('widget:events', applyEventsSnapshot);
+
+    const navigateAiHistory = async (nextIndex) => {
+        setAiHistoryBusy(true);
+        try {
+            await applyAiHistoryIndex(nextIndex);
+        } catch (historyError) {
+            toast.error(historyError?.message || 'החזרת שינוי AI נכשלה');
+        } finally {
+            setAiHistoryBusy(false);
+        }
     };
 
     useEffect(() => {
@@ -400,9 +434,13 @@ export default function AdminEvents({ onClose, inHub = false }) {
         applySmartLinkPromptLabel(smartLinkPrompt?.raw || smartLinkPrompt?.href);
     };
 
-    const buildEventsAiPrompt = (instruction) => {
+    const buildEventsAiPrompt = (instruction, requestOptions = {}) => {
         const today = new Date().toISOString().slice(0, 10);
-        const requestedEventCount = resolveRequestedAiEventCount(instruction);
+        const operation = resolveEventsAiOperation(instruction, requestOptions.action);
+        aiOperationRef.current = operation;
+        const requestedEventCount = operation === 'improve'
+            ? Math.max(1, Math.min(6, events.length || DEFAULT_AI_EVENTS_COUNT))
+            : resolveRequestedAiEventCount(instruction);
         aiRequestedEventCountRef.current = requestedEventCount;
         const currentSnapshot = {
             displayCount,
@@ -410,37 +448,68 @@ export default function AdminEvents({ onClose, inHub = false }) {
             intervalMs,
             events: events.slice(0, 12),
         };
+        if (requestOptions.readOnly || operation === 'audit') {
+            return buildAdminAiPrompt({
+                tab: 'events',
+                actionId: 'audit',
+                instruction,
+                currentSnapshot,
+            });
+        }
+
+        const operationInstruction = operation === 'add'
+            ? `${instruction}\nהחזר רק את ${requestedEventCount} האירועים החדשים להוספה. אל תחזיר את האירועים הקיימים.`
+            : operation === 'improve'
+                ? `${instruction}\nשמור את הסדר, המזהים והתאריכים של האירועים הקיימים.`
+                : instruction;
 
         return buildEventsAiPromptText({
-            instruction,
+            instruction: operationInstruction,
             today,
             currentSnapshot,
             requestedEventCount,
         });
     };
 
-    const applyAiEvents = (parsed) => {
-        const normalized = normalizeAiEventsPayload(parsed, {
-            eventCount: aiRequestedEventCountRef.current,
-        });
+    const applyAiEvents = async (parsed) => {
         const current = getEventsSnapshot();
-        const next = {
-            events: normalized.events,
-            displayCount: normalized.displayCount,
-            displayMode: normalized.displayMode,
-            intervalMs: normalized.intervalMs,
-        };
-        if (JSON.stringify(current) !== JSON.stringify(next)) {
-            setAiHistory((prev) => ({
-                past: [...prev.past, current].slice(-20),
-                future: [],
-            }));
-        }
-        setEvents(normalized.events);
-        setDisplayCount(normalized.displayCount);
-        setDisplayMode(normalized.displayMode);
-        setIntervalMs(normalized.intervalMs);
-        setEditingEvent(null);
+        const candidates = extractAdminAiCandidates(parsed)
+            .map((candidate) => normalizeAiEventsPayload(candidate, {
+                eventCount: aiRequestedEventCountRef.current,
+            }))
+            .map((candidate) => {
+                if (aiOperationRef.current === 'add') {
+                    const existingKeys = new Set(current.events.map((eventItem) => (
+                        `${eventItem.id || ''}|${eventItem.date || ''}|${eventItem.title || ''}`
+                    )));
+                    const additions = candidate.events.filter((eventItem) => !existingKeys.has(
+                        `${eventItem.id || ''}|${eventItem.date || ''}|${eventItem.title || ''}`
+                    ));
+                    return {
+                        ...current,
+                        events: [...current.events, ...additions],
+                    };
+                }
+                if (aiOperationRef.current === 'improve') {
+                    const improved = candidate.events.map((eventItem, index) => {
+                        const existing = current.events[index];
+                        return existing ? {
+                            ...existing,
+                            ...eventItem,
+                            id: existing.id,
+                            date: existing.date,
+                        } : eventItem;
+                    });
+                    return {
+                        ...current,
+                        events: [...improved, ...current.events.slice(improved.length)],
+                    };
+                }
+                return candidate;
+            })
+            .filter((candidate) => JSON.stringify(candidate) !== JSON.stringify(current));
+        if (!candidates.length) return;
+        await recordAndApplyAiEvents(candidates, current, 'אירועי AI');
         toast.success('הצעת AI הוחלה על אירועי החודש');
     };
 
@@ -462,7 +531,7 @@ export default function AdminEvents({ onClose, inHub = false }) {
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                             <AdminPageHelpButton pageId="events" />
-                            {showAiUi && (
+                            {showEventsAi && (
                                 <AdminAIActionCard
                                     compact
                                     compactLabel="AI"
@@ -473,12 +542,14 @@ export default function AdminEvents({ onClose, inHub = false }) {
                                     defaultInput="צור סדרת אירועים חודשית מקצועית וברורה"
                                     buildPrompt={buildEventsAiPrompt}
                                     onApply={applyAiEvents}
-                                    canUndo={aiHistory.past.length > 0}
-                                    canRedo={aiHistory.future.length > 0}
-                                    onUndo={handleUndoAiEvents}
-                                    onRedo={handleRedoAiEvents}
+                                    canUndo={aiHistory.index > 0}
+                                    canRedo={aiHistory.index < aiHistory.entries.length - 1}
+                                    onUndo={() => navigateAiHistory(aiHistory.index - 1)}
+                                    onRedo={() => navigateAiHistory(aiHistory.index + 1)}
                                     applyButtonLabel="החל על אירועים"
                                     generateButtonLabel="ייצר אירועים"
+                                    suggestedActions={EVENTS_AI_ACTIONS}
+                                    isReadOnlyRequest={(instruction) => resolveEventsAiOperation(instruction) === 'audit'}
                                 />
                             )}
                             <button
@@ -493,6 +564,19 @@ export default function AdminEvents({ onClose, inHub = false }) {
                         </div>
                     </div>
                 </div>
+
+                {showEventsAi && aiHistory.visible && (
+                    <AdminAIHistoryBar
+                        pageTitle="אירועי החודש"
+                        history={aiHistory}
+                        busy={aiHistoryBusy}
+                        onPrevious={() => navigateAiHistory(aiHistory.index - 1)}
+                        onNext={() => navigateAiHistory(aiHistory.index + 1)}
+                        onReset={() => navigateAiHistory(0)}
+                        onSelect={navigateAiHistory}
+                        onClose={hideAiHistory}
+                    />
+                )}
 
                 {error && (
                     <DismissibleNotice dismissKey={error} className="rounded-lg border border-red-500/40 bg-red-500/10 p-4 text-red-500">

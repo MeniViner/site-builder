@@ -9,7 +9,7 @@ function normalizeRole(role) {
     return normalized || 'user';
 }
 
-class AIService {
+export class AIService {
     constructor(config = AI_CONFIG) {
         this.config = config;
     }
@@ -319,8 +319,12 @@ class AIService {
     }
 
     _createHttpError(response, payload) {
+        const serverError = payload?.error;
         const serverErrorText =
-            (payload && (payload.error || payload.message || payload.raw)) || response.statusText;
+            (typeof serverError === 'string' ? serverError : serverError?.message)
+            || payload?.message
+            || payload?.raw
+            || response.statusText;
         const error = new Error(`AI API error ${response.status}: ${serverErrorText}`);
         error.status = response.status;
         error.payload = payload;

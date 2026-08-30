@@ -127,7 +127,7 @@ function normalizeFlowCanvas(flowCanvasLike, fallback = DEFAULT_ORG_CHART.flowCa
     };
 }
 
-function normalizeOrgChartInput(orgChartLike, fallback = DEFAULT_ORG_CHART) {
+export function normalizeOrgChartInput(orgChartLike, fallback = DEFAULT_ORG_CHART) {
     const source = orgChartLike && typeof orgChartLike === 'object' ? orgChartLike : {};
     const legacyLayoutDirectionMap = {
         'classic-tree': 'tree-center',

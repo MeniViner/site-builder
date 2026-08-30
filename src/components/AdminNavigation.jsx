@@ -23,63 +23,7 @@ import {
     NAVIGATION_TARGET_MODES,
 } from '../utils/navigationModel';
 import navigationSharePointService, { buildNavigationProvisionKey } from '../services/NavigationSharePointService';
-
-function asText(value, fallback = '') {
-    if (typeof value !== 'string') return fallback;
-    const trimmed = value.trim();
-    return trimmed || fallback;
-}
-
-function normalizeAiLink(link, index, parentId) {
-    const label = asText(link?.label || link?.title, `לינק ${index + 1}`);
-    return {
-        id: asText(link?.id, createNavigationNodeId(`link_${parentId}_${index}`)),
-        label,
-        icon: asText(link?.icon, 'Link'),
-        iconUrl: asText(link?.iconUrl || link?.imageUrl || link?.image, ''),
-        url: asText(link?.url, ''),
-    };
-}
-
-function normalizeAiSubCategory(subcategory, index, categoryId) {
-    const title = asText(subcategory?.title || subcategory?.label, `כרטיסייה ${index + 1}`);
-    const subLinksSource = Array.isArray(subcategory?.subLinks)
-        ? subcategory.subLinks
-        : (Array.isArray(subcategory?.children) ? subcategory.children : []);
-
-    return {
-        id: asText(subcategory?.id, createNavigationNodeId(`sub_${categoryId}_${index}`)),
-        title,
-        label: title,
-        icon: asText(subcategory?.icon, 'FileText'),
-        iconUrl: asText(subcategory?.iconUrl || subcategory?.imageUrl || subcategory?.image, ''),
-        url: asText(subcategory?.url, ''),
-        subLinks: subLinksSource.map((link, linkIndex) => normalizeAiLink(link, linkIndex, categoryId)),
-    };
-}
-
-function normalizeAiNavigationTree(payload) {
-    const source = Array.isArray(payload?.navItems) ? payload.navItems : [];
-    const normalized = source.map((category, index) => {
-        const categoryId = asText(category?.id, createNavigationNodeId(`cat_${index}`));
-        const children = Array.isArray(category?.children) ? category.children : [];
-
-        return {
-            id: categoryId,
-            label: asText(category?.label || category?.title, `קטגוריה ${index + 1}`),
-            icon: asText(category?.icon, 'Folder'),
-            iconUrl: asText(category?.iconUrl || category?.imageUrl || category?.image, ''),
-            url: asText(category?.url, ''),
-            children: children.map((subCategory, subIndex) => normalizeAiSubCategory(subCategory, subIndex, categoryId)),
-        };
-    });
-
-    if (!normalized.length) {
-        throw new Error('לא התקבל מבנה ניווט תקין מה-AI');
-    }
-
-    return normalized;
-}
+import AdminWidgetAIAssistant from './AdminWidgetAIAssistant';
 
 function moveArrayItem(source, fromIndex, toIndex) {
     if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return source;
@@ -569,55 +513,6 @@ export default function AdminNavigation() {
         });
     };
 
-    // eslint-disable-next-line no-unused-vars
-    const buildNavigationAiPrompt = (instruction) => {
-        const snapshot = navItems.slice(0, 12);
-        return [
-            'אתה ארכיטקט ניווט לפורטל ארגוני בעברית.',
-            'החזר JSON בלבד ללא טקסט נוסף.',
-            'סכימה נדרשת:',
-            '{',
-            '  "navItems": [',
-            '    {',
-            '      "label": "string",',
-            '      "icon": "Folder",',
-            '      "url": "optional-url",',
-            '      "children": [',
-            '        {',
-            '          "title": "string",',
-            '          "icon": "FileText",',
-            '          "url": "optional-url",',
-            '          "subLinks": [',
-            '            { "label": "string", "icon": "Link", "url": "https://..." }',
-            '          ]',
-            '        }',
-            '      ]',
-            '    }',
-            '  ]',
-            '}',
-            'חוקים:',
-            '- שמור על עברית ברורה וקצרה.',
-            '- אם יש url, שיהיה מלא ומתחיל ב-http/https.',
-            '- אל תחזיר שדות מיותרים.',
-            `נתונים קיימים: ${JSON.stringify(snapshot)}`,
-            `בקשת המשתמש: ${instruction}`,
-        ].join('\n');
-    };
-
-    // eslint-disable-next-line no-unused-vars
-    const applyAiNavigation = (parsed) => {
-        const normalized = normalizeAiNavigationTree(parsed);
-        if (normalized.length > MAX_TOP_LEVEL_NAV_ITEMS) {
-            toast.error(`מבנה הניווט מכיל ${normalized.length} קטגוריות ראשיות. המקסימום המותר הוא ${MAX_TOP_LEVEL_NAV_ITEMS}.`);
-            return;
-        }
-        const expanded = new Set(['root', ...normalized.map((item) => item.id)]);
-        saveNavigation(normalized);
-        setExpandedNodes(expanded);
-        setSelectedPath([]);
-        toast.success('הצעת AI הוחלה על מבנה הניווט');
-    };
-
     // Derived State
     const currentLevel = selectedPath.length; // 0 = root, 1 = cat, 2 = sub
 
@@ -821,6 +716,20 @@ export default function AdminNavigation() {
                             הגדרות עיצוב
                         </button>
                         <AdminPageHelpButton pageId="navigation" />
+                        <AdminWidgetAIAssistant
+                            widgetKey="links"
+                            value={navItems}
+                            onChange={async (next) => {
+                                if (!Array.isArray(next) || next.length > MAX_TOP_LEVEL_NAV_ITEMS) {
+                                    throw new Error(`מבנה הניווט חייב להכיל עד ${MAX_TOP_LEVEL_NAV_ITEMS} קטגוריות`);
+                                }
+                                const saved = await saveNavigation(next);
+                                if (saved === false) return false;
+                                setExpandedNodes(new Set(['root', ...next.map((item) => item.id)]));
+                                setSelectedPath([]);
+                                return true;
+                            }}
+                        />
                         <div className="relative">
                             <Search size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
                             <input

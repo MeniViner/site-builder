@@ -32,6 +32,8 @@ export default function AdminAIActionCard({
     secondaryPanelTitle = '',
     primaryPanelTabLabel = 'יצירת תוכן',
     secondaryPanelTabLabel = 'עוזר תפעולי',
+    suggestedActions = [],
+    isReadOnlyRequest,
 }) {
     const runtimeConfig = useMemo(() => getSafeAiRuntimeConfig(), []);
     const [instruction, setInstruction] = useState(defaultInput);
@@ -45,6 +47,8 @@ export default function AdminAIActionCard({
     const [isOpen, setIsOpen] = useState(false);
     const [activePanelView, setActivePanelView] = useState('primary');
     const [hasAppliedResult, setHasAppliedResult] = useState(false);
+    const [selectedSuggestedActionId, setSelectedSuggestedActionId] = useState('');
+    const [resultReadOnly, setResultReadOnly] = useState(false);
     const lastAutoAppliedKeyRef = useRef('');
     const autoApplyingRef = useRef(false);
 
@@ -87,7 +91,17 @@ export default function AdminAIActionCard({
         setParsedOutput(null);
 
         try {
-            const prompt = buildPrompt(userInstruction);
+            const selectedSuggestedAction = suggestedActions.find(
+                (action) => action.id === selectedSuggestedActionId
+            );
+            const readOnlyRequest = selectedSuggestedAction
+                ? selectedSuggestedAction.readOnly === true
+                : isReadOnlyRequest?.(userInstruction) === true;
+            setResultReadOnly(readOnlyRequest);
+            const prompt = buildPrompt(userInstruction, {
+                action: selectedSuggestedAction,
+                readOnly: readOnlyRequest,
+            });
             let streamed = '';
             const result = await AIService.ask(prompt, {
                 model: runtimeConfig.defaultModel,
@@ -101,11 +115,11 @@ export default function AdminAIActionCard({
             setRawOutput(content);
             setModelUsed(result?.modelUsed || result?.model || '');
 
-            if (mode === 'json') {
+            if (readOnlyRequest || mode !== 'json') {
+                setParsedOutput(content);
+            } else {
                 const parsed = parseJsonFromModel(content);
                 setParsedOutput(parsed);
-            } else {
-                setParsedOutput(content);
             }
         } catch (error) {
             const msg = error?.message || 'יצירת תוכן ב-AI נכשלה';
@@ -122,6 +136,7 @@ export default function AdminAIActionCard({
             toast.error('פעולת Apply לא הוגדרה למסך זה');
             return;
         }
+        if (resultReadOnly) return;
         if (parsedOutput === null || parsedOutput === undefined) {
             toast.error('אין פלט מוכן ליישום');
             return;
@@ -143,7 +158,7 @@ export default function AdminAIActionCard({
     };
 
     useEffect(() => {
-        if (!autoApplyLatest) return undefined;
+        if (!autoApplyLatest || resultReadOnly) return undefined;
         if (!isEnabled || isGenerating || autoApplyingRef.current) return undefined;
         if (typeof onApply !== 'function') return undefined;
         if (parsedOutput === null || parsedOutput === undefined) return undefined;
@@ -186,7 +201,7 @@ export default function AdminAIActionCard({
         return () => {
             cancelled = true;
         };
-    }, [autoApplyLatest, autoCloseOnApply, compact, isEnabled, isGenerating, onApply, parseError, parsedOutput, rawOutput]);
+    }, [autoApplyLatest, autoCloseOnApply, compact, isEnabled, isGenerating, onApply, parseError, parsedOutput, rawOutput, resultReadOnly]);
 
     const panel = (
         <section className={`rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5 ${className}`}>
@@ -224,6 +239,31 @@ export default function AdminAIActionCard({
             )}
 
             <div className="mt-4 space-y-3">
+                {suggestedActions.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                        {suggestedActions.map((action) => (
+                            <button
+                                key={action.id}
+                                type="button"
+                                onClick={() => {
+                                    setSelectedSuggestedActionId(action.id);
+                                    setInstruction(action.prompt);
+                                    setRawOutput('');
+                                    setParsedOutput(null);
+                                    setParseError('');
+                                    setResultReadOnly(action.readOnly === true);
+                                }}
+                                className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                                    selectedSuggestedActionId === action.id
+                                        ? 'border-primary bg-primary/10 text-primary'
+                                        : 'border-theme-subtle bg-theme-card text-theme-muted hover:border-primary/40 hover:text-primary'
+                                }`}
+                            >
+                                {action.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
                 <label className="block">
                     <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-theme-muted">
                         {inputLabel}
@@ -245,7 +285,7 @@ export default function AdminAIActionCard({
                         className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         <Wand2 size={14} />
-                        {isGenerating ? 'יוצר...' : generateButtonLabel}
+                        {isGenerating ? 'יוצר...' : resultReadOnly ? 'נתח והצג תשובה' : generateButtonLabel}
                     </button>
 
                     {autoApplyLatest ? (
@@ -299,7 +339,9 @@ export default function AdminAIActionCard({
 
                 {rawOutput && (
                     <div className="rounded-xl border border-theme-subtle bg-theme-card p-3">
-                        <div className="mb-1 text-xs font-bold uppercase tracking-wide text-theme-muted">פלט AI</div>
+                        <div className="mb-1 text-xs font-bold uppercase tracking-wide text-theme-muted">
+                            {resultReadOnly ? 'תשובת AI — ניתוח בלבד' : 'פלט AI'}
+                        </div>
                         <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words text-xs text-theme">
                             {rawOutput}
                         </pre>

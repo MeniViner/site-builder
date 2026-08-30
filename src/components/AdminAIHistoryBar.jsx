@@ -1,5 +1,5 @@
-import React from 'react';
-import { ChevronLeft, ChevronRight, History, RotateCcw, Sparkles } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChevronLeft, ChevronRight, History, RotateCcw, Sparkles, X } from 'lucide-react';
 
 export default function AdminAIHistoryBar({
   pageTitle,
@@ -9,8 +9,14 @@ export default function AdminAIHistoryBar({
   onNext,
   onReset,
   onSelect,
+  onClose,
 }) {
+  const [dismissedKey, setDismissedKey] = useState('');
   if (!history || !Array.isArray(history.entries) || history.entries.length <= 1) return null;
+
+  const lastEntry = history.entries[history.entries.length - 1];
+  const historyKey = `${history.entries.length}:${lastEntry?.createdAt || ''}`;
+  if (dismissedKey === historyKey) return null;
 
   const index = Math.max(0, Math.min(history.index || 0, history.entries.length - 1));
   const current = history.entries[index];
@@ -20,7 +26,7 @@ export default function AdminAIHistoryBar({
   return (
     <div
       dir="rtl"
-      className="fixed bottom-20 left-4 z-[11920] w-[min(520px,calc(100vw-2rem))] rounded-2xl border border-primary/25 bg-white/95 p-3 shadow-2xl backdrop-blur-xl dark:border-white/15 dark:bg-[#15171d]/95"
+      className="fixed bottom-20 left-4 z-[11920] w-[min(540px,calc(100vw-2rem))] rounded-2xl border border-primary/25 bg-white/95 p-3 shadow-2xl backdrop-blur-xl dark:border-white/15 dark:bg-[#15171d]/95"
       data-admin-ai-history
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -85,6 +91,21 @@ export default function AdminAIHistoryBar({
             title="תוצאה הבאה"
           >
             <ChevronLeft size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (onClose) {
+                onClose();
+                return;
+              }
+              setDismissedKey(historyKey);
+            }}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-700 transition hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-gray-200"
+            aria-label="הסתר את סרגל שינויי AI"
+            title="הסתר את סרגל שינויי AI"
+          >
+            <X size={15} />
           </button>
         </div>
       </div>

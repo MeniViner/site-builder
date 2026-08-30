@@ -41,6 +41,7 @@ import { confirmToast } from '../utils/confirmToast';
 import GanttChart from './GanttChart';
 import DismissibleNotice from './DismissibleNotice';
 import TaskManagementTable, { TASK_STATUS_META } from './TaskManagementTable';
+import AdminWidgetAIAssistant from './AdminWidgetAIAssistant';
 
 const TABS = [
     { id: 'basic', label: 'הגדרות בסיס' },
@@ -1677,6 +1678,7 @@ export default function AdminGantt() {
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
+                        <AdminWidgetAIAssistant widgetKey="gantt" value={draft} onChange={(next) => updateDraft(next)} />
                         <button
                             type="button"
                             onClick={openPublicPage}

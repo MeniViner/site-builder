@@ -24,7 +24,8 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
       action('restructure', 'סדר את הניווט', 'ארגן מחדש קטגוריות ותתי-קטגוריות בלי להמציא קישורים.'),
       action('rename', 'שפר שמות', 'קצר ואחד שמות של קטגוריות וכרטיסיות.'),
       action('icons', 'הצע אייקונים', 'בחר אייקוני Lucide מתאימים לפי שמות הפריטים.'),
-      action('audit', 'מצא ותקן בעיות', 'כפילויות, ענפים ריקים, שמות לא ברורים ומבנה עמוס.'),
+      action('audit', 'נתח בעיות', 'מצא כפילויות, ענפים ריקים, שמות לא ברורים ומבנה עמוס והצג המלצות בלי לשנות.', { readOnly: true }),
+      action('fix-audit', 'תקן בעיות', 'תקן כפילויות, ענפים ריקים ושמות לא ברורים תוך שמירה על כתובות קיימות.'),
       action('audience', 'ארגן לפי קהל', 'כתוב מי הקהל וה-AI יארגן את הניווט כדי שיהיה לו קל למצוא תוכן.'),
     ],
   },
@@ -37,7 +38,7 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
       action('improve', 'שפר אירועים', 'קצר כותרות ושפר תיאורים בלי לשנות תאריכים.'),
       action('links', 'שפר שמות קישורים', 'הפוך URLs בטקסט לשמות קצרים וברורים.'),
       action('reuse', 'התאם מחודש קודם', 'תאר מה לשכפל/לעדכן וה-AI יבנה חודש חדש.'),
-      action('audit', 'בדוק את הלוח', 'מצא כפילויות, טקסטים ארוכים ותאריכים חשודים והצע תיקון.'),
+      action('audit', 'נתח את הלוח', 'מצא כפילויות, טקסטים ארוכים ותאריכים חשודים והצג ממצאים בלי לשנות.', { readOnly: true }),
     ],
   },
   widgets: {
@@ -87,7 +88,7 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
       action('alt', 'צור alt משמות קבצים', 'צור טקסט חלופי רק ממה שאפשר להסיק משם הקובץ/טקסט שסיפקת.'),
       action('captions', 'צור captions', 'כתוב captions קצרים מתוך תיאור שסיפקת.'),
       action('style', 'הצע סגנון', 'בחר סגנון גלריה מתאים מתוך הסגנונות הקיימים.'),
-      action('audit', 'בדוק עקביות', 'מצא כותרות חלשות, alt חסר ותיאורים לא אחידים.'),
+      action('audit', 'בדוק עקביות', 'מצא כותרות חלשות, alt חסר ותיאורים לא אחידים והצג המלצות בלי לשנות.', { readOnly: true }),
     ],
   },
   gantt: {
@@ -99,7 +100,7 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
       action('breakdown', 'פרק משימה', 'ציין משימה גדולה וה-AI יפרק אותה לשלבים.'),
       action('milestones', 'צור אבני דרך', 'הוסף milestones הגיוניים למשימות הקיימות.'),
       action('deadline', 'התאם לדדליין חדש', 'כתוב תאריך יעד חדש וה-AI יתאים את התוכנית.'),
-      action('audit', 'מצא ותקן בעיות', 'חפיפות, משימות בלי אחראי, תאריכים בעייתיים והתקדמות לא עקבית.'),
+      action('audit', 'אתר בעיות תכנון', 'חפיפות, משימות בלי אחראי, תאריכים בעייתיים והתקדמות לא עקבית.', { readOnly: true }),
       action('status', 'סכם סטטוס', 'הכן סיכום מנהלים קצר מהגאנט בלי לשנות אותו.', { readOnly: true }),
       action('weekly', 'עדכן מדיווח שבועי', 'הדבק מה הושלם/נדחה/נחסם וה-AI יעדכן את המשימות.'),
     ],
@@ -111,8 +112,8 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
       action('text', 'טקסט → עץ', 'תאר מי כפוף למי וה-AI יבנה את העץ.'),
       action('table', 'טבלה → עץ', 'הדבק טבלה או רשימת אנשים ותפקידים.'),
       action('normalize', 'אחד דרגות ותפקידים', 'נקה ניסוחים ושמור על הערכים שסופקו.'),
-      action('audit', 'בדוק מבנה', 'מצא כפילויות, צמתים יתומים והיררכיה לא עקבית.'),
-      action('layout', 'הצע פריסה', 'בחר פריסה קיימת שמתאימה לגודל העץ.'),
+      action('audit', 'בדוק מבנה', 'מצא כפילויות, צמתים יתומים והיררכיה לא עקבית והצג ממצאים בלי לשנות.', { readOnly: true }),
+      action('layout', 'המלץ על פריסה', 'הסבר איזו פריסה קיימת מתאימה לגודל העץ בלי לשנות אותה.', { readOnly: true }),
     ],
   },
   alerts: {
@@ -120,11 +121,12 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
     description: 'ניסוח הודעות שוטפות וקריטיות.',
     actions: [
       action('draft', 'נסח הודעה', 'כתוב את העובדות וה-AI ימלא כותרת ותוכן.'),
+      action('multiple', 'צור כמה הודעות', 'הדבק מידע עם כמה נושאים וה-AI ייצור הודעה נפרדת לכל נושא.'),
       action('clear', 'יותר ברור', 'שפר בהירות בלי לשנות עובדות.'),
       action('short', 'קצר יותר', 'קצר הודעות ארוכות.'),
       action('formal', 'יותר רשמי', 'התאם לטון ארגוני.'),
       action('urgent', 'חדד דחיפות', 'הדגש פעולה נדרשת; אל תסמן קריטי אם אין לכך בסיס.'),
-      action('audit', 'בדוק את כל ההודעות', 'מצא כפילויות, חוסר בהירות ותוכן מיושן לפי המידע שסופק.'),
+      action('audit', 'בדוק את כל ההודעות', 'מצא כפילויות, חוסר בהירות ותוכן מיושן והצג ממצאים בלי לשנות.', { readOnly: true }),
     ],
   },
   news: {
@@ -134,9 +136,11 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
       action('flash', 'הפוך למבזק', 'הדבק טקסט ארוך וה-AI יהפוך אותו למשפט קצר.'),
       action('split', 'פצל למבזקים', 'הדבק הודעה עם כמה נושאים וה-AI ייצור כמה מבזקים.'),
       action('short', 'קצר', 'קצר את המבזקים הקיימים.'),
+      action('improve', 'שפר ניסוח', 'שפר בהירות וניסוח בלי לשנות את משמעות המבזקים.'),
+      action('versions', '3 גרסאות ניסוח', 'צור שלוש חלופות ניסוח לאותו תוכן בלי לשנות עובדות.', { alternatives: 3 }),
       action('plain', 'שפה פשוטה', 'הפוך ניסוח טכני לטקסט ברור למשתמש רגיל.'),
       action('translate', 'תרגם וסכם לעברית', 'הדבק מקור בשפה אחרת וקבל מבזקים בעברית.'),
-      action('audit', 'בדוק את הרשימה', 'מצא כפילויות וניסוחים שחוזרים על עצמם.'),
+      action('audit', 'בדוק את הרשימה', 'מצא כפילויות, ניסוחים לא ברורים ותוכן שנראה מיושן והצג מה כדאי לתקן בלי לשנות.', { readOnly: true }),
     ],
   },
   outstanding: {
@@ -148,6 +152,7 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
       action('personal', 'יותר אישי', 'רכך את הטון בלי להוסיף עובדות.'),
       action('formal', 'יותר רשמי', 'התאם לטון ארגוני/פיקודי.'),
       action('ceremony', 'נוסח לטקס', 'התאם את ההוקרה להקראה בטקס.'),
+      action('versions', '3 חלופות', 'צור שלוש חלופות ניסוח על בסיס העובדות הקיימות בלבד.', { alternatives: 3 }),
     ],
   },
   countdown: {
@@ -166,7 +171,8 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
     actions: [
       action('paste', 'יבוא חכם מטקסט', 'הדבק שורות של שם, מספר ומחלקה.'),
       action('departments', 'אחד שמות מחלקות', 'נרמל שמות מחלקות דומים.'),
-      action('duplicates', 'מצא כפילויות', 'זהה כפילויות על בסיס הנתונים הקיימים בלי להמציא מספרים.'),
+      action('organize', 'ארגן אנשי קשר', 'סדר את אנשי הקשר לפי מחלקה ושם בלי לשנות מספרים.'),
+      action('duplicates', 'מצא כפילויות', 'זהה כפילויות על בסיס הנתונים הקיימים והצג אותן בלי לשנות.', { readOnly: true }),
     ],
   },
   shuttles: {
@@ -175,7 +181,8 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
     actions: [
       action('paste', 'הדבק לו״ז היסעים', 'הדבק הודעת WhatsApp או רשימת נסיעות.'),
       action('normalize', 'אחד יעדים', 'אחד כתיב של יעדים ושמור על השעות.'),
-      action('audit', 'בדוק לו״ז', 'מצא כפילויות ושעות חשודות.'),
+      action('update', 'עדכן לו״ז', 'הדבק מידע חדש ועדכן רק נסיעות שניתן לזהות ממנו; שמור נסיעות לא קשורות.'),
+      action('audit', 'בדוק לו״ז', 'מצא כפילויות ושעות חשודות והצג אותן בלי לשנות.', { readOnly: true }),
       action('order', 'סדר לפי שעה', 'סדר את הרשימה כרונולוגית.'),
     ],
   },
@@ -184,8 +191,10 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
     description: 'יצירת שאלות ואפשרויות תשובה, בדיקת הטיה וסיכום תוצאות בלי להעביר זהויות מצביעים.',
     actions: [
       action('create', 'צור סקר מנושא', 'תאר מה אתה רוצה ללמוד וה-AI ייצור שאלה ואפשרויות.'),
-      action('bias', 'בדוק ותקן הטיה', 'הפוך שאלות מובילות לניטרליות.'),
-      action('options', 'בדוק תשובות', 'בדוק אם האפשרויות מכסות את התשובות הסבירות.'),
+      action('rewrite', 'שכתב שאלה ותשובות', 'שכתב במפורש את ניסוח השאלה והאפשרויות ושמור את כל נתוני ההצבעה.'),
+      action('bias', 'בדוק הטיה', 'זהה שאלות מובילות והסבר כיצד לשפר אותן בלי לשנות את הסקר.', { readOnly: true }),
+      action('rewrite-bias', 'שכתב לניטרלי', 'שכתב שאלות מובילות לניסוח ניטרלי ושמור נתוני הצבעה.'),
+      action('options', 'בדוק תשובות', 'בדוק אם האפשרויות מכסות את התשובות הסבירות והצג המלצות בלי לשנות.', { readOnly: true }),
       action('results', 'סכם תוצאות', 'סכם את המספרים הקיימים בלי לשנות את הסקר.', { readOnly: true }),
     ],
   },
@@ -217,7 +226,8 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
       action('split', 'פצל לכמה טיפים', 'הפוך מסמך אחד לסדרת טיפים.'),
       action('practical', 'יותר פרקטי', 'הפוך הסבר כללי לפעולות ברורות.'),
       action('short', 'קצר ל-2 שורות', 'קצר את הטיפים הקיימים.'),
-      action('audit', 'בדוק עקביות', 'אחד טון, אורך ומבנה.'),
+      action('titles', '3 כותרות חלופיות', 'צור שלוש חלופות לכותרות ושמור את תוכן הטיפים.', { alternatives: 3 }),
+      action('audit', 'בדוק עקביות', 'בדוק טון, אורך ומבנה והצג מה לא אחיד בלי לשנות.', { readOnly: true }),
     ],
   },
   admins: {
@@ -274,6 +284,17 @@ export function isAdminAiReadOnly(tab, actionId) {
   return capability.readOnly === true || selected?.readOnly === true;
 }
 
+export function getAdminAiInstructionIssue(tab, actionId, instruction) {
+  if (
+    tab === 'countdown'
+    && ['sentence', 'multiple', 'event'].includes(actionId)
+    && !hasDateSignal(instruction)
+  ) {
+    return 'חסר תאריך או מועד ברור. יש לציין תאריך, שעה, או מועד יחסי מדויק כמו "מחר", כדי שלא יומצא תאריך.';
+  }
+  return '';
+}
+
 function pageSchema(tab) {
   const schemas = {
     info: '{"hero":{"siteName":"","title":"","subtitle":"","description":""},"commander":{"sectionTitle":"","roleLabel":"","messages":[{"id":"existing-or-empty","text":"","signature":""}]}}',
@@ -325,6 +346,36 @@ function specialRules(tab) {
   return [...common, ...(rules[tab] || [])];
 }
 
+function actionRules(tab, actionId) {
+  const rules = {
+    'events:add': ['שמור את כל האירועים הקיימים והוסף אירועים חדשים בלבד.'],
+    'links:paste': ['שמור את כל ענפי הניווט הקיימים והוסף את הקישורים שסופקו.'],
+    'external-links:paste': ['שמור קישורים קיימים והוסף רק קישורים שסופקו.'],
+    'alerts:draft': ['שמור את כל ההודעות הקיימות והוסף הודעה חדשה מהמידע שסופק.'],
+    'alerts:multiple': ['שמור את כל ההודעות הקיימות והוסף הודעות חדשות רק מהמידע שסופק.'],
+    'news:flash': ['שמור את המבזקים הקיימים והוסף מבזק חדש מהטקסט שסופק.'],
+    'news:split': ['שמור את המבזקים הקיימים והוסף מבזקים חדשים מהטקסט שסופק.'],
+    'news:translate': ['שמור את המבזקים הקיימים והוסף מבזקים חדשים בעברית.'],
+    'outstanding:points': ['עדכן תיאור של אדם קיים; הוסף אדם רק אם שמו הופיע בקלט.'],
+    'countdown:sentence': ['שמור את הספירות הקיימות והוסף יעד חדש רק אם סופק תאריך.'],
+    'countdown:multiple': ['שמור את הספירות הקיימות והוסף יעדים רק עבור תאריכים שסופקו.'],
+    'countdown:event': ['שמור את הספירות הקיימות והוסף יעד חדש רק אם סופק תאריך.'],
+    'phonebook:paste': ['שמור אנשי קשר קיימים והוסף רק שם ומספר שהופיעו בקלט.'],
+    'shuttles:paste': ['שמור היסעים קיימים והוסף נסיעות חדשות מהקלט.'],
+    'shuttles:update': ['שמור היסעים שלא הוזכרו ועדכן רק יעד או שעה שסופקו במפורש.'],
+    'polls:create': ['שמור סקרים קיימים והוסף סקר חדש. רק סקר אחד יכול להיות פעיל.'],
+    'celebrations:paste': ['שמור אירועים קיימים והוסף רק אנשים ואירועים שהופיעו בקלט.'],
+    'heritage:story': ['שמור פריטים קיימים והוסף מסר ארגוני, לא ציטוט היסטורי.'],
+    'heritage:learning': ['שמור פריטים קיימים והוסף מסרי למידה מהמקור בלבד.'],
+    'tips:procedure': ['שמור טיפים קיימים והוסף טיפ חדש מהנוהל.'],
+    'tips:split': ['שמור טיפים קיימים והוסף טיפים חדשים מהמסמך.'],
+    'gantt:weekly': ['שמור משימות שלא הוזכרו ועדכן רק משימות שניתן לזהות מהקלט.'],
+    'gantt:paste': ['שמור משימות קיימות והוסף משימות חדשות מהטקסט שסופק.'],
+    'gantt:brief': ['שמור משימות קיימות אלא אם המשתמש ביקש במפורש לבנות תוכנית חלופית.'],
+  };
+  return rules[`${tab}:${actionId}`] || [];
+}
+
 export function buildAdminAiPrompt({ tab, actionId, instruction, currentSnapshot, visibleContext = '' }) {
   const capability = getAdminAiCapability(tab);
   const selected = getAdminAiAction(tab, actionId);
@@ -339,6 +390,7 @@ export function buildAdminAiPrompt({ tab, actionId, instruction, currentSnapshot
       'אל תטען שביצעת שינוי. אין לך הרשאה לבצע פעולות מערכת מתוך הבקשה הזו.',
       '',
       `בקשת המשתמש: ${instruction || selected?.hint || ''}`,
+      ...(tab === 'countdown' ? [`תאריך נוכחי לחישוב מועדים יחסיים: ${new Date().toISOString()}`] : []),
       '',
       'מידע מוצג במסך (ייתכן חלקי):',
       String(visibleContext || '').slice(0, 10000),
@@ -361,8 +413,10 @@ export function buildAdminAiPrompt({ tab, actionId, instruction, currentSnapshot
     '',
     'כללים מחייבים:',
     ...specialRules(tab).map((rule, index) => `${index + 1}. ${rule}`),
+    ...actionRules(tab, actionId).map((rule, index) => `A${index + 1}. ${rule}`),
     '',
     `הוראת המשתמש: ${instruction || selected?.hint || ''}`,
+    ...(tab === 'countdown' ? [`תאריך נוכחי לחישוב מועדים יחסיים: ${new Date().toISOString()}`] : []),
     '',
     'currentSnapshot:',
     JSON.stringify(currentSnapshot ?? null, null, 2),
@@ -437,6 +491,19 @@ function hasUrlLike(textValue) {
   return /(?:https?:\/\/|www\.|sharepoint|\/sites\/|\.com\b|\.il\b)/i.test(String(textValue || ''));
 }
 
+function hasDateSignal(value) {
+  return /(?:\d{1,4}[./-]\d{1,2}(?:[./-]\d{1,4})?|\d{1,2}:\d{2}|היום|מחר|מחרתיים|בעוד\s+\d+\s*(?:יום|ימים|שבוע|שבועות|חודש|חודשים)|השבוע הבא|בסוף החודש|ינואר|פברואר|מרץ|אפריל|מאי|יוני|יולי|אוגוסט|ספטמבר|אוקטובר|נובמבר|דצמבר)/i.test(String(value || ''));
+}
+
+function collectInstructionTimes(instruction) {
+  const source = String(instruction || '');
+  const explicitTimes = [...source.matchAll(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/g)]
+    .map((match) => `${match[1].padStart(2, '0')}:${match[2]}`);
+  const bareHours = [...source.matchAll(/(?:בשעה|ב-)\s*([01]?\d|2[0-3])\b(?![:.]\d)/g)]
+    .map((match) => `${match[1].padStart(2, '0')}:00`);
+  return new Set([...explicitTimes, ...bareHours]);
+}
+
 function normalizeSiteContent(payload, current) {
   const source = payload?.hero || payload?.commander ? payload : (payload?.content || {});
   const currentHero = current?.hero || {};
@@ -473,7 +540,7 @@ function normalizeSiteContent(payload, current) {
   };
 }
 
-function normalizeNavigation(payload, current, instruction) {
+function normalizeNavigation(payload, current, instruction, actionId) {
   const source = Array.isArray(payload?.navItems) ? payload.navItems : (Array.isArray(payload?.items) ? payload.items : []);
   if (!source.length) return clone(current || []);
   const topExisting = existingById(current);
@@ -481,9 +548,8 @@ function normalizeNavigation(payload, current, instruction) {
 
   const mapLink = (item, index, existing) => {
     const requestedUrl = text(item?.url);
-    const safeUrl = existing?.url
-      ? existing.url
-      : (allowNewUrls && requestedUrl && instructionContainsValue(instruction, requestedUrl) ? requestedUrl : '');
+    const explicitlySuppliedUrl = allowNewUrls && requestedUrl && instructionContainsValue(instruction, requestedUrl);
+    const safeUrl = explicitlySuppliedUrl ? requestedUrl : existing?.url || '';
     return {
       id: text(item?.id, existing?.id || makeId(`nav-link-${index}`)),
       label: bounded(item?.label || item?.title, 180, existing?.label || existing?.title || `לינק ${index + 1}`),
@@ -495,20 +561,24 @@ function normalizeNavigation(payload, current, instruction) {
   };
 
   return source.slice(0, 12).map((cat, catIndex) => {
-    const existingCat = topExisting.get(String(cat?.id || ''));
+    const existingCat = topExisting.get(String(cat?.id || ''))
+      || (!['build', 'paste'].includes(actionId) ? current?.[catIndex] : undefined);
     const existingChildren = existingById(existingCat?.children);
-    const childSource = Array.isArray(cat?.children) ? cat.children : [];
+    const childSource = Array.isArray(cat?.children) ? cat.children : (existingCat?.children || []);
     return {
       id: text(cat?.id, existingCat?.id || makeId(`nav-cat-${catIndex}`)),
       label: bounded(cat?.label || cat?.title, 180, existingCat?.label || `קטגוריה ${catIndex + 1}`),
       kind: existingCat?.kind || 'folder',
       icon: bounded(cat?.icon, 80, existingCat?.icon || 'Folder'),
       iconUrl: existingCat?.iconUrl || '',
-      url: existingCat?.url || (allowNewUrls && instructionContainsValue(instruction, cat?.url) ? text(cat?.url) : ''),
+      url: allowNewUrls && instructionContainsValue(instruction, cat?.url) ? text(cat?.url) : existingCat?.url || '',
       children: childSource.map((sub, subIndex) => {
-        const existingSub = existingChildren.get(String(sub?.id || ''));
+        const existingSub = existingChildren.get(String(sub?.id || ''))
+          || (!['build', 'paste'].includes(actionId) ? existingCat?.children?.[subIndex] : undefined);
         const existingLinks = existingById(existingSub?.subLinks || existingSub?.children);
-        const linkSource = Array.isArray(sub?.subLinks) ? sub.subLinks : (Array.isArray(sub?.children) ? sub.children : []);
+        const linkSource = Array.isArray(sub?.subLinks)
+          ? sub.subLinks
+          : (Array.isArray(sub?.children) ? sub.children : (existingSub?.subLinks || existingSub?.children || []));
         return {
           id: text(sub?.id, existingSub?.id || makeId(`nav-sub-${catIndex}-${subIndex}`)),
           title: bounded(sub?.title || sub?.label, 180, existingSub?.title || existingSub?.label || `כרטיסייה ${subIndex + 1}`),
@@ -516,8 +586,13 @@ function normalizeNavigation(payload, current, instruction) {
           kind: existingSub?.kind || 'folder',
           icon: bounded(sub?.icon, 80, existingSub?.icon || 'FileText'),
           iconUrl: existingSub?.iconUrl || '',
-          url: existingSub?.url || (allowNewUrls && instructionContainsValue(instruction, sub?.url) ? text(sub?.url) : ''),
-          subLinks: linkSource.map((link, linkIndex) => mapLink(link, linkIndex, existingLinks.get(String(link?.id || '')))),
+          url: allowNewUrls && instructionContainsValue(instruction, sub?.url) ? text(sub?.url) : existingSub?.url || '',
+          subLinks: linkSource.map((link, linkIndex) => mapLink(
+            link,
+            linkIndex,
+            existingLinks.get(String(link?.id || ''))
+              || (!['build', 'paste'].includes(actionId) ? existingSub?.subLinks?.[linkIndex] : undefined)
+          )),
         };
       }),
     };
@@ -591,16 +666,17 @@ function normalizeTheme(payload, current) {
   return next;
 }
 
-function normalizeExternalLinks(payload, current, instruction) {
+function normalizeExternalLinks(payload, current, instruction, actionId) {
   const currentItems = Array.isArray(current) ? current : [];
   const byId = existingById(currentItems);
   const allowNewUrls = hasUrlLike(instruction);
   const source = collectItems(payload);
   if (!source.length) return clone(currentItems);
   return source.slice(0, 80).map((item, index) => {
-    const existing = byId.get(String(item?.id || ''));
+    const existing = byId.get(String(item?.id || '')) || (actionId === 'paste' ? undefined : currentItems[index]);
     const requestedUrl = text(item?.url);
-    const url = existing?.url || (allowNewUrls && requestedUrl && instructionContainsValue(instruction, requestedUrl) ? requestedUrl : '');
+    const explicitlySuppliedUrl = allowNewUrls && requestedUrl && instructionContainsValue(instruction, requestedUrl);
+    const url = explicitlySuppliedUrl ? requestedUrl : existing?.url || '';
     return {
       ...(clone(existing) || {}),
       id: text(item?.id, existing?.id || makeId(`external-${index}`)),
@@ -657,7 +733,7 @@ function flattenOrgNodes(nodes, acc = []) {
   return acc;
 }
 
-function normalizeOrgChart(payload, current, instruction) {
+function normalizeOrgChart(payload, current, instruction, actionId) {
   const source = payload?.orgChart || payload || {};
   const currentFlat = flattenOrgNodes(current?.nodes || []);
   const currentById = existingById(currentFlat);
@@ -667,18 +743,27 @@ function normalizeOrgChart(payload, current, instruction) {
   const mapNodes = (nodes, path = 'root') => (Array.isArray(nodes) ? nodes : []).slice(0, 250).map((node, index) => {
     const existing = currentById.get(String(node?.id || ''));
     const requestedName = bounded(node?.name, 180, existing?.name || '');
+    const requestedRank = bounded(node?.rank, 120, existing?.rank || '');
+    const requestedRole = bounded(node?.role, 240, existing?.role || '');
     const requestedPersonalNumber = bounded(node?.personalNumber, 80, existing?.personalNumber || '');
     const safeName = existing?.name || (requestedName && instructionContainsValue(instruction, requestedName) ? requestedName : '');
+    const mayNormalizeExisting = actionId === 'normalize' && Boolean(existing);
+    const safeRank = mayNormalizeExisting
+      ? requestedRank
+      : existing?.rank || (requestedRank && instructionContainsValue(instruction, requestedRank) ? requestedRank : '');
+    const safeRole = mayNormalizeExisting
+      ? requestedRole
+      : existing?.role || (requestedRole && instructionContainsValue(instruction, requestedRole) ? requestedRole : '');
     const safePersonalNumber = existing?.personalNumber || (requestedPersonalNumber && instructionContainsValue(instruction, requestedPersonalNumber) ? requestedPersonalNumber : '');
     return {
       ...clone(existing),
       id: text(node?.id, existing?.id || makeId(`org-${path}-${index}`)),
       name: safeName,
-      rank: bounded(node?.rank, 120, existing?.rank || ''),
-      role: bounded(node?.role, 240, existing?.role || ''),
+      rank: safeRank,
+      role: safeRole,
       personalNumber: safePersonalNumber,
       imageUrl: existing?.imageUrl || existing?.image || '',
-      children: mapNodes(node?.children, `${path}-${index}`),
+      children: mapNodes(Array.isArray(node?.children) ? node.children : existing?.children, `${path}-${index}`),
     };
   }).filter((node) => node.name || node.role || node.children.length);
 
@@ -692,7 +777,7 @@ function normalizeOrgChart(payload, current, instruction) {
   };
 }
 
-function normalizeGantt(payload, current, instruction) {
+function normalizeGantt(payload, current, instruction, actionId) {
   const source = payload?.gantt || payload || {};
   const currentItems = Array.isArray(current?.items) ? current.items : [];
   const currentById = existingById(currentItems);
@@ -702,6 +787,17 @@ function normalizeGantt(payload, current, instruction) {
   const groupValues = ['category', 'owner', 'status', 'none'];
   const viewValues = ['day', 'week', 'month', 'quarter'];
   const colors = ['#2563eb', '#0891b2', '#16a34a', '#d97706', '#dc2626', '#7c3aed', '#0f766e', '#475569'];
+  const currentDates = currentItems
+    .flatMap((item) => [safeDate(item?.startDate), safeDate(item?.endDate)])
+    .filter(Boolean)
+    .sort();
+  const currentRangeStart = currentDates[0] || '';
+  const currentRangeEnd = currentDates[currentDates.length - 1] || '';
+  const instructionHasDate = hasDateSignal(instruction);
+  const dateWithinCurrentRange = (value) => {
+    const normalized = safeDate(value);
+    return Boolean(normalized && currentRangeStart && currentRangeEnd && normalized >= currentRangeStart && normalized <= currentRangeEnd);
+  };
 
   const categories = Array.isArray(source?.categories) ? source.categories.map((cat, index) => {
     const existing = categoryById.get(String(cat?.id || '')) || currentCategories.find((item) => item?.name === cat?.name);
@@ -716,16 +812,30 @@ function normalizeGantt(payload, current, instruction) {
 
   const sourceItems = Array.isArray(source?.items) ? source.items : currentItems;
   const items = sourceItems.slice(0, 250).map((item, index) => {
-    const existing = currentById.get(String(item?.id || ''));
+    const existing = currentById.get(String(item?.id || ''))
+      || currentItems.find((currentItem) => currentItem?.title && currentItem.title === item?.title);
     const requestedOwner = bounded(item?.owner, 180, existing?.owner || '');
-    const owner = existing?.owner || (requestedOwner && instructionContainsValue(instruction, requestedOwner) ? requestedOwner : '');
-    const startDate = safeDate(item?.startDate, existing?.startDate || '');
-    const endDate = safeDate(item?.endDate, existing?.endDate || startDate || '');
-    const milestones = Array.isArray(item?.milestones) ? item.milestones.slice(0, 30).map((milestone, milestoneIndex) => ({
-      id: text(milestone?.id, existing?.milestones?.[milestoneIndex]?.id || makeId(`milestone-${index}-${milestoneIndex}`)),
-      title: bounded(milestone?.title, 180, existing?.milestones?.[milestoneIndex]?.title || ''),
-      date: safeDate(milestone?.date, existing?.milestones?.[milestoneIndex]?.date || startDate),
-    })).filter((milestone) => milestone.title && milestone.date) : clone(existing?.milestones || []);
+    const ownerWasSupplied = requestedOwner && instructionContainsValue(instruction, requestedOwner);
+    const owner = ownerWasSupplied ? requestedOwner : existing?.owner || '';
+    const mayUseRequestedDates = Boolean(existing) || instructionHasDate || (
+      dateWithinCurrentRange(item?.startDate) && dateWithinCurrentRange(item?.endDate || item?.startDate)
+    );
+    const startDate = mayUseRequestedDates ? safeDate(item?.startDate, existing?.startDate || '') : '';
+    const endDate = mayUseRequestedDates ? safeDate(item?.endDate, existing?.endDate || startDate || '') : '';
+    const milestones = Array.isArray(item?.milestones) ? item.milestones.slice(0, 30).map((milestone, milestoneIndex) => {
+      const existingMilestone = existingById(existing?.milestones).get(String(milestone?.id || ''))
+        || existing?.milestones?.find((entry) => entry?.title && entry.title === milestone?.title)
+        || (actionId === 'milestones' ? undefined : existing?.milestones?.[milestoneIndex]);
+      const requestedDate = safeDate(milestone?.date);
+      const dateIsWithinTask = Boolean(requestedDate && startDate && endDate && requestedDate >= startDate && requestedDate <= endDate);
+      return {
+        id: text(milestone?.id, existingMilestone?.id || makeId(`milestone-${index}-${milestoneIndex}`)),
+        title: bounded(milestone?.title, 180, existingMilestone?.title || ''),
+        date: existingMilestone?.date || instructionHasDate || dateIsWithinTask
+          ? safeDate(milestone?.date, existingMilestone?.date || startDate)
+          : '',
+      };
+    }).filter((milestone) => milestone.title && milestone.date) : clone(existing?.milestones || []);
     return {
       ...(clone(existing) || {}),
       id: text(item?.id, existing?.id || makeId(`gantt-task-${index}`)),
@@ -741,7 +851,7 @@ function normalizeGantt(payload, current, instruction) {
       milestones,
       recurrence: clone(existing?.recurrence),
     };
-  }).filter((item) => item.title);
+  }).filter((item) => item.title && item.startDate && item.endDate);
 
   return {
     ...clone(current),
@@ -758,7 +868,7 @@ function normalizeGantt(payload, current, instruction) {
   };
 }
 
-function normalizeAlerts(payload, current) {
+function normalizeAlerts(payload, current, instruction) {
   const byId = existingById(current);
   return collectItems(payload).slice(0, 80).map((item, index) => {
     const existing = byId.get(String(item?.id || ''));
@@ -766,7 +876,11 @@ function normalizeAlerts(payload, current) {
       id: text(item?.id, existing?.id || makeId(`alert-${index}`)),
       title: bounded(item?.title, 180, existing?.title || ''),
       text: bounded(item?.text, 1600, existing?.text || ''),
-      isUrgent: typeof item?.isUrgent === 'boolean' ? item.isUrgent : existing?.isUrgent === true,
+      isUrgent: existing?.isUrgent === true || (
+        item?.isUrgent === true
+        && /דחוף|קריטי|סכנה|מייד/i.test(String(instruction || ''))
+        && !/אל תסמן[^.]{0,40}קריטי/i.test(String(instruction || ''))
+      ),
     };
   }).filter((item) => item.text);
 }
@@ -783,15 +897,17 @@ function normalizeNews(payload, current) {
   }).filter((item) => item.text);
 }
 
-function normalizeOutstanding(payload, current) {
+function normalizeOutstanding(payload, current, instruction) {
   const byId = existingById(current);
   return collectItems(payload).slice(0, 60).map((item, index) => {
     const existing = byId.get(String(item?.id || '')) || current?.find((person) => person?.name && person.name === item?.name);
+    const requestedName = bounded(item?.name, 180, existing?.name || '');
+    const requestedRole = bounded(item?.role, 240, existing?.role || '');
     return {
       ...(clone(existing) || {}),
       id: text(item?.id, existing?.id || makeId(`outstanding-${index}`)),
-      name: bounded(item?.name, 180, existing?.name || ''),
-      role: bounded(item?.role, 240, existing?.role || ''),
+      name: existing?.name || (instructionContainsValue(instruction, requestedName) ? requestedName : ''),
+      role: existing?.role || (instructionContainsValue(instruction, requestedRole) ? requestedRole : ''),
       image: existing?.image || existing?.imageUrl || '',
       imageUrl: existing?.imageUrl || existing?.image || '',
       description: bounded(item?.description, 1800, existing?.description || ''),
@@ -799,7 +915,7 @@ function normalizeOutstanding(payload, current) {
   }).filter((item) => item.name);
 }
 
-function normalizeCountdown(payload, current) {
+function normalizeCountdown(payload, current, instruction) {
   const source = payload?.countdown || payload || {};
   const currentItems = Array.isArray(current?.items) ? current.items : [];
   const byId = existingById(currentItems);
@@ -809,7 +925,7 @@ function normalizeCountdown(payload, current) {
     return {
       id: text(item?.id, existing?.id || makeId(`countdown-${index}`)),
       title: bounded(item?.title, 240, existing?.title || ''),
-      targetDate: safeDate(item?.targetDate, existing?.targetDate || ''),
+      targetDate: hasDateSignal(instruction) ? safeDate(item?.targetDate, existing?.targetDate || '') : existing?.targetDate || '',
       showDetails: typeof item?.showDetails === 'boolean' ? item.showDetails : existing?.showDetails === true,
       details: bounded(item?.details, 1600, existing?.details || ''),
     };
@@ -832,14 +948,14 @@ function normalizeCountdown(payload, current) {
 
 function normalizePhonebook(payload, current, instruction) {
   const byId = existingById(current);
-  const allowedNumbers = new Set([
-    ...(Array.isArray(current) ? current.map((item) => normalizedDigits(item?.number)).filter(Boolean) : []),
-    ...((String(instruction || '').match(/[+]?\d[\d\s\-()]{5,}\d/g) || []).map(normalizedDigits)),
-  ]);
+  const suppliedNumbers = new Set(
+    (String(instruction || '').match(/[+]?\d[\d\s\-()]{5,}\d/g) || []).map(normalizedDigits)
+  );
   return collectItems(payload).slice(0, 200).map((item, index) => {
     const existing = byId.get(String(item?.id || '')) || current?.find((contact) => contact?.name && contact.name === item?.name);
     const requestedNumber = bounded(item?.number, 80, existing?.number || '');
-    const safeNumber = existing?.number || (allowedNumbers.has(normalizedDigits(requestedNumber)) ? requestedNumber : '');
+    const requestedDigits = normalizedDigits(requestedNumber);
+    const safeNumber = suppliedNumbers.has(requestedDigits) ? requestedNumber : existing?.number || '';
     const requestedName = bounded(item?.name, 180, existing?.name || '');
     const safeName = existing?.name || (requestedName && instructionContainsValue(instruction, requestedName) ? requestedName : '');
     return {
@@ -851,14 +967,16 @@ function normalizePhonebook(payload, current, instruction) {
   }).filter((item) => item.name && item.number);
 }
 
-function normalizeShuttles(payload, current) {
+function normalizeShuttles(payload, current, instruction) {
   const byId = existingById(current);
+  const suppliedTimes = collectInstructionTimes(instruction);
   return collectItems(payload).slice(0, 100).map((item, index) => {
     const existing = byId.get(String(item?.id || ''));
+    const requestedTime = normalizeTime(item?.departureTime, '');
     return {
       id: text(item?.id, existing?.id || makeId(`shuttle-${index}`)),
       destination: bounded(item?.destination, 240, existing?.destination || ''),
-      departureTime: normalizeTime(item?.departureTime, existing?.departureTime || ''),
+      departureTime: suppliedTimes.has(requestedTime) ? requestedTime : existing?.departureTime || '',
       type: item?.type === 'minibus' ? 'minibus' : (item?.type === 'bus' ? 'bus' : existing?.type || 'bus'),
     };
   }).filter((item) => item.destination && item.departureTime)
@@ -871,14 +989,19 @@ function ensureOneActivePoll(items) {
   return items.map((item, index) => ({ ...item, active: index === activeIndex }));
 }
 
-function normalizePolls(payload, current) {
+function normalizePolls(payload, current, actionId) {
   const byId = existingById(current);
   const items = collectItems(payload).slice(0, 50).map((item, index) => {
-    const existing = byId.get(String(item?.id || '')) || current?.find((poll) => poll?.question === item?.question);
+    const existing = byId.get(String(item?.id || ''))
+      || current?.find((poll) => poll?.question === item?.question)
+      || (actionId === 'create' ? undefined : current?.[index]);
     const existingOptions = existingById(existing?.options);
     const options = (Array.isArray(item?.options) ? item.options : existing?.options || []).slice(0, 20).map((option, optionIndex) => {
-      const existingOption = existingOptions.get(String(option?.id || '')) || existing?.options?.find((entry) => entry?.text === option?.text);
+      const existingOption = existingOptions.get(String(option?.id || ''))
+        || existing?.options?.find((entry) => entry?.text === option?.text)
+        || existing?.options?.[optionIndex];
       return {
+        ...(clone(existingOption) || {}),
         id: text(option?.id, existingOption?.id || makeId(`poll-option-${index}-${optionIndex}`)),
         text: bounded(option?.text, 280, existingOption?.text || ''),
         votes: Number.isFinite(Number(existingOption?.votes)) ? Number(existingOption.votes) : 0,
@@ -886,6 +1009,7 @@ function normalizePolls(payload, current) {
       };
     }).filter((option) => option.text);
     return {
+      ...(clone(existing) || {}),
       id: text(item?.id, existing?.id || makeId(`poll-${index}`)),
       question: bounded(item?.question, 500, existing?.question || ''),
       active: typeof item?.active === 'boolean' ? item.active : existing?.active !== false,
@@ -895,15 +1019,17 @@ function normalizePolls(payload, current) {
   return ensureOneActivePoll(items);
 }
 
-function normalizeCelebrations(payload, current) {
+function normalizeCelebrations(payload, current, instruction) {
   const byId = existingById(current);
   return collectItems(payload).slice(0, 100).map((item, index) => {
     const existing = byId.get(String(item?.id || ''));
+    const requestedName = bounded(item?.name, 180, existing?.name || '');
+    const requestedType = bounded(item?.type, 180, existing?.type || '');
     return {
       id: text(item?.id, existing?.id || makeId(`celebration-${index}`)),
-      name: bounded(item?.name, 180, existing?.name || ''),
-      type: bounded(item?.type, 180, existing?.type || ''),
-      date: safeDate(item?.date, existing?.date || ''),
+      name: existing?.name || (instructionContainsValue(instruction, requestedName) ? requestedName : ''),
+      type: existing?.type || (instructionContainsValue(instruction, requestedType) ? requestedType : ''),
+      date: hasDateSignal(instruction) ? safeDate(item?.date, existing?.date || '') : existing?.date || '',
       description: bounded(item?.description, 1000, existing?.description || ''),
     };
   }).filter((item) => item.name && item.type && item.date);
@@ -916,12 +1042,17 @@ function normalizeHeritage(payload, current, instruction) {
     const requestedQuote = bounded(item?.quote, 2000, existing?.quote || '');
     const requestedAuthor = bounded(item?.author, 180, existing?.author || '');
     const isOrganizational = requestedAuthor === 'מסר ארגוני' || requestedAuthor === 'מסר למידה';
-    const quoteAllowed = Boolean(existing?.quote) || isOrganizational || instructionContainsValue(instruction, requestedQuote);
-    const authorAllowed = Boolean(existing?.author) || isOrganizational || instructionContainsValue(instruction, requestedAuthor);
+    const existingIsOrganizational = existing?.author === 'מסר ארגוני' || existing?.author === 'מסר למידה';
+    const quoteAllowed = !existing?.quote || existingIsOrganizational || isOrganizational;
+    const authorAllowed = !existing?.author || existingIsOrganizational || isOrganizational;
     return {
       id: text(item?.id, existing?.id || makeId(`heritage-${index}`)),
-      quote: quoteAllowed ? requestedQuote : '',
-      author: authorAllowed ? requestedAuthor : '',
+      quote: quoteAllowed && (isOrganizational || instructionContainsValue(instruction, requestedQuote) || existingIsOrganizational)
+        ? requestedQuote
+        : existing?.quote || '',
+      author: authorAllowed && (isOrganizational || instructionContainsValue(instruction, requestedAuthor) || existingIsOrganizational)
+        ? requestedAuthor
+        : existing?.author || '',
       role: bounded(item?.role, 240, existing?.role || ''),
     };
   }).filter((item) => item.quote && item.author);
@@ -953,7 +1084,7 @@ function normalizeCurrentWidgets(payload, current, instruction) {
     else if (widgetId === 'countdown') next.countdown = normalizeCountdown({ countdown: candidate }, current?.countdown || {});
     else if (widgetId === 'news') next.news = normalizeNews({ items: candidate }, current?.news || []);
     else if (widgetId === 'phonebook') next.phonebook = normalizePhonebook({ items: candidate }, current?.phonebook || [], instruction);
-    else if (widgetId === 'shuttles') next.shuttles = normalizeShuttles({ items: candidate }, current?.shuttles || []);
+    else if (widgetId === 'shuttles') next.shuttles = normalizeShuttles({ items: candidate }, current?.shuttles || [], instruction);
     else if (widgetId === 'polls') next.polls = normalizePolls({ items: candidate }, current?.polls || []);
     else if (widgetId === 'celebrations') next.celebrations = normalizeCelebrations({ items: candidate }, current?.celebrations || []);
     else if (widgetId === 'heritage') next.heritage = normalizeHeritage({ items: candidate }, current?.heritage || [], instruction);
@@ -962,27 +1093,154 @@ function normalizeCurrentWidgets(payload, current, instruction) {
   return next;
 }
 
+function mergeListPreservingBaseline(baseline, candidate, keyFields = ['id']) {
+  const result = Array.isArray(baseline) ? clone(baseline) : [];
+  const keyOf = (item) => {
+    for (const field of keyFields) {
+      const value = String(item?.[field] || '').trim().toLocaleLowerCase('he');
+      if (value) return `${field}:${value}`;
+    }
+    return '';
+  };
+  const indexByKey = new Map();
+  result.forEach((item, index) => {
+    const key = keyOf(item);
+    if (key) indexByKey.set(key, index);
+  });
+  (Array.isArray(candidate) ? candidate : []).forEach((item) => {
+    const key = keyOf(item);
+    const existingIndex = key ? indexByKey.get(key) : undefined;
+    if (existingIndex !== undefined) {
+      result[existingIndex] = { ...result[existingIndex], ...clone(item) };
+      return;
+    }
+    result.push(clone(item));
+    if (key) indexByKey.set(key, result.length - 1);
+  });
+  return result;
+}
+
+function findListMatch(items, candidate, keyFields) {
+  const list = Array.isArray(items) ? items : [];
+  return list.find((item) => keyFields.some((field) => {
+    const candidateValue = String(candidate?.[field] || '').trim().toLocaleLowerCase('he');
+    return candidateValue && String(item?.[field] || '').trim().toLocaleLowerCase('he') === candidateValue;
+  }));
+}
+
+function mergeNavigationPreservingBranches(baseline, candidate) {
+  const enriched = (Array.isArray(candidate) ? candidate : []).map((category) => {
+    const existingCategory = findListMatch(baseline, category, ['id', 'label']);
+    const children = (Array.isArray(category?.children) ? category.children : []).map((subcategory) => {
+      const existingSubcategory = findListMatch(existingCategory?.children, subcategory, ['id', 'title', 'label']);
+      return {
+        ...subcategory,
+        subLinks: mergeListPreservingBaseline(
+          existingSubcategory?.subLinks,
+          subcategory?.subLinks,
+          ['id', 'url', 'label']
+        ),
+      };
+    });
+    return {
+      ...category,
+      children: mergeListPreservingBaseline(existingCategory?.children, children, ['id', 'title', 'label']),
+    };
+  });
+  return mergeListPreservingBaseline(baseline, enriched, ['id', 'label']);
+}
+
+function mergeGanttPreservingMilestones(baseline, candidate) {
+  const enrichedItems = (Array.isArray(candidate?.items) ? candidate.items : []).map((item) => {
+    const existingItem = findListMatch(baseline?.items, item, ['id', 'title']);
+    return {
+      ...item,
+      milestones: mergeListPreservingBaseline(existingItem?.milestones, item?.milestones, ['id', 'title']),
+    };
+  });
+  return {
+    ...clone(baseline),
+    ...clone(candidate),
+    categories: mergeListPreservingBaseline(baseline?.categories, candidate?.categories, ['id', 'name']),
+    items: mergeListPreservingBaseline(baseline?.items, enrichedItems, ['id', 'title']),
+  };
+}
+
+export function applyAdminAiActionSemantics(tab, actionId, baseline, candidate) {
+  if (candidate === undefined || candidate === null) return candidate;
+  const key = `${tab}:${actionId}`;
+  const appendModes = new Set([
+    'alerts:draft', 'alerts:multiple',
+    'news:flash', 'news:split', 'news:translate',
+    'countdown:sentence', 'countdown:multiple', 'countdown:event',
+    'phonebook:paste', 'shuttles:paste', 'shuttles:update', 'polls:create',
+    'celebrations:paste', 'heritage:story', 'heritage:learning',
+    'tips:procedure', 'tips:split', 'external-links:paste',
+    'links:paste',
+  ]);
+
+  if (appendModes.has(key)) {
+    if (tab === 'links') {
+      return mergeNavigationPreservingBranches(baseline, candidate);
+    }
+    if (tab === 'countdown') {
+      const items = mergeListPreservingBaseline(baseline?.items, candidate?.items, ['id', 'title']);
+      const validIds = new Set(items.map((item) => String(item?.id || '')));
+      const requestedActive = String(candidate?.activeItemId || '');
+      const activeItemId = validIds.has(requestedActive) ? requestedActive : baseline?.activeItemId || items[0]?.id || null;
+      const active = items.find((item) => String(item?.id) === String(activeItemId)) || items[0] || {};
+      return { ...clone(baseline), ...clone(candidate), items, activeItemId, title: active.title || '', targetDate: active.targetDate || '', details: active.details || '', showDetails: active.showDetails || false };
+    }
+    if (tab === 'polls') {
+      const merged = mergeListPreservingBaseline(baseline, candidate, ['id', 'question']);
+      const newActiveIndex = merged.findIndex((item) => item?.active && !baseline?.some((base) => base?.id === item?.id && base?.active));
+      const activeIndex = newActiveIndex >= 0 ? newActiveIndex : Math.max(0, merged.findIndex((item) => item?.active));
+      return merged.map((item, index) => ({ ...item, active: index === activeIndex }));
+    }
+    const keyFields = tab === 'phonebook' ? ['id', 'number', 'name']
+      : tab === 'shuttles' ? ['id', 'destination']
+      : tab === 'celebrations' ? ['id', 'name']
+      : tab === 'external-links' ? ['id', 'url', 'title']
+      : tab === 'heritage' ? ['id', 'quote']
+      : tab === 'tips' ? ['id', 'title']
+      : ['id'];
+    return mergeListPreservingBaseline(baseline, candidate, keyFields);
+  }
+
+  if (key === 'outstanding:points') {
+    return mergeListPreservingBaseline(baseline, candidate, ['id', 'name']);
+  }
+  if (key === 'events:add') {
+    return { ...clone(baseline), ...clone(candidate), events: mergeListPreservingBaseline(baseline?.events, candidate?.events, ['id', 'title']) };
+  }
+  if (tab === 'gantt' && ['brief', 'paste', 'breakdown', 'milestones', 'weekly'].includes(actionId)) {
+    return mergeGanttPreservingMilestones(baseline, candidate);
+  }
+  return candidate;
+}
+
 export function normalizeAdminAiCandidate(tab, payload, currentSnapshot, options = {}) {
   const instruction = options.instruction || '';
+  const actionId = options.actionId || '';
   switch (tab) {
     case 'info': return normalizeSiteContent(payload, currentSnapshot);
-    case 'links': return normalizeNavigation(payload, currentSnapshot, instruction);
+    case 'links': return normalizeNavigation(payload, currentSnapshot, instruction, actionId);
     case 'events': return normalizeEvents(payload, currentSnapshot);
     case 'widgets': return normalizeWidgetSelection(payload, currentSnapshot);
     case 'current-widgets': return normalizeCurrentWidgets(payload, currentSnapshot, instruction);
     case 'theme': return normalizeTheme(payload, currentSnapshot);
-    case 'external-links': return normalizeExternalLinks(payload, currentSnapshot, instruction);
+    case 'external-links': return normalizeExternalLinks(payload, currentSnapshot, instruction, actionId);
     case 'galleries': return normalizeGalleries(payload, currentSnapshot);
-    case 'gantt': return normalizeGantt(payload, currentSnapshot, instruction);
-    case 'org-chart': return normalizeOrgChart(payload, currentSnapshot, instruction);
-    case 'alerts': return normalizeAlerts(payload, currentSnapshot);
+    case 'gantt': return normalizeGantt(payload, currentSnapshot, instruction, actionId);
+    case 'org-chart': return normalizeOrgChart(payload, currentSnapshot, instruction, actionId);
+    case 'alerts': return normalizeAlerts(payload, currentSnapshot, instruction);
     case 'news': return normalizeNews(payload, currentSnapshot);
-    case 'outstanding': return normalizeOutstanding(payload, currentSnapshot);
-    case 'countdown': return normalizeCountdown(payload, currentSnapshot);
+    case 'outstanding': return normalizeOutstanding(payload, currentSnapshot, instruction);
+    case 'countdown': return normalizeCountdown(payload, currentSnapshot, instruction);
     case 'phonebook': return normalizePhonebook(payload, currentSnapshot, instruction);
-    case 'shuttles': return normalizeShuttles(payload, currentSnapshot);
-    case 'polls': return normalizePolls(payload, currentSnapshot);
-    case 'celebrations': return normalizeCelebrations(payload, currentSnapshot);
+    case 'shuttles': return normalizeShuttles(payload, currentSnapshot, instruction);
+    case 'polls': return normalizePolls(payload, currentSnapshot, actionId);
+    case 'celebrations': return normalizeCelebrations(payload, currentSnapshot, instruction);
     case 'heritage': return normalizeHeritage(payload, currentSnapshot, instruction);
     case 'tips': return normalizeTips(payload, currentSnapshot);
     default: return clone(currentSnapshot);

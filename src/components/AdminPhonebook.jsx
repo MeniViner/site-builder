@@ -6,6 +6,7 @@ import { useConfig } from '../context/ConfigProvider';
 import { spLog } from '../utils/spAppLog';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import DismissibleNotice from './DismissibleNotice';
+import AdminWidgetAIAssistant from './AdminWidgetAIAssistant';
 
 const inputCls = 'w-full bg-theme-elevated border border-theme-subtle rounded-lg px-4 py-2.5 text-sm text-theme placeholder-theme-muted focus:outline-none focus:ring-2 focus:ring-violet-500/40 transition';
 const labelCls = 'block text-xs font-semibold text-theme-muted mb-1.5 uppercase tracking-wide';
@@ -91,6 +92,25 @@ export default function AdminPhonebook() {
         if (editingId === id) cancelEdit();
     };
 
+    const applyAiList = async (next) => {
+        const nextList = Array.isArray(next) ? next : [];
+        setList(nextList);
+        setEditingId(null);
+        updateConfig((prev) => ({
+            ...prev,
+            widgets: {
+                ...(prev?.widgets || {}),
+                data: {
+                    ...(prev?.widgets?.data || {}),
+                    phonebook: { ...(prev?.widgets?.data?.phonebook || {}), items: nextList },
+                },
+            },
+        }));
+        await saveNow();
+        lastSavedRef.current = JSON.stringify(nextList);
+        return true;
+    };
+
     return (
         <div dir="rtl" className="min-h-screen text-theme font-heebo p-8">
             <div className="space-y-6">
@@ -105,6 +125,7 @@ export default function AdminPhonebook() {
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                             <AdminPageHelpButton pageId="phonebook" />
+                            <AdminWidgetAIAssistant widgetKey="phonebook" value={list} onChange={applyAiList} />
                             <button onClick={openNew} className="h-10 inline-flex items-center bg-violet-600 hover:bg-violet-700 text-white px-4 rounded-lg text-sm font-bold transition">
                                 <span className="inline-flex items-center gap-2">
                                     <Plus size={16} />

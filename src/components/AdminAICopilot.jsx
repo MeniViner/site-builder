@@ -25,6 +25,7 @@ import { useGantt } from '../context/GanttContext';
 import { useOrgChart } from '../context/OrgChartContext';
 import AdminAIHistoryBar from './AdminAIHistoryBar';
 import {
+  applyAdminAiActionSemantics,
   buildAdminAiPrompt,
   extractAdminAiCandidates,
   getAdminAiAction,
@@ -364,7 +365,6 @@ export default function AdminAICopilot({ activeTab }) {
 
     const uniqueCandidates = dedupeCandidates(candidates, baseline);
     if (!uniqueCandidates.length) {
-      toast.info('ה-AI לא הציע שינוי שונה מהמצב הנוכחי');
       return false;
     }
 
@@ -433,7 +433,11 @@ export default function AdminAICopilot({ activeTab }) {
       const parsed = parseJsonFromModel(content);
       const rawCandidates = extractAdminAiCandidates(parsed);
       const normalized = rawCandidates
-        .map((candidate) => normalizeAdminAiCandidate(activeTab, candidate, baseline, { instruction: effectiveInstruction }))
+        .map((candidate) => normalizeAdminAiCandidate(activeTab, candidate, baseline, {
+          instruction: effectiveInstruction,
+          actionId: selectedActionId,
+        }))
+        .map((candidate) => applyAdminAiActionSemantics(activeTab, selectedActionId, baseline, candidate))
         .filter((candidate) => candidate !== undefined && candidate !== null);
 
       const changed = await recordCandidatesAndApply(baseline, normalized, selectedAction?.label || 'שינוי AI');
@@ -443,6 +447,8 @@ export default function AdminAICopilot({ activeTab }) {
         toast.success(normalized.length > 1
           ? `הוחלה חלופה 1. אפשר לדפדף בין ${normalized.length} תוצאות בסרגל AI.`
           : 'הצעת ה-AI הוחלה מיד. אפשר לחזור אחורה דרך סרגל AI.');
+      } else {
+        setAnswer('לא נמצא שינוי שימושי לבצע על המצב הקיים. שום דבר באתר לא שונה.');
       }
     } catch (error) {
       const message = error?.message || 'פעולת AI נכשלה';
@@ -569,7 +575,7 @@ export default function AdminAICopilot({ activeTab }) {
                 </div>
               )}
 
-              {readOnly && answer && (
+              {answer && (
                 <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
                   <div className="mb-2 flex items-center gap-2 text-xs font-black text-gray-500 dark:text-gray-400">
                     <Bot size={13} /> תשובת AI {modelUsed ? `· ${modelUsed}` : ''}
@@ -589,7 +595,7 @@ export default function AdminAICopilot({ activeTab }) {
                   className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-black text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-                  {isGenerating ? 'עובד...' : (readOnly ? 'שאל את ה-AI' : 'צור והחל מיד')}
+                  {isGenerating ? 'עובד...' : (readOnly ? 'נתח והצג תשובה' : 'צור והחל מיד')}
                 </button>
               </div>
             </div>
