@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   classifySharePointFolderProbe,
   ensureSharePointFolder,
+  isSharePointFileMissingResponse,
   probeSharePointFolder,
   readSharePointFileBytes,
   sameSharePointPath,
@@ -264,6 +265,37 @@ describe('SharePoint file reads', () => {
     });
     expect(result.exists).toBe(true);
     expect(new TextDecoder().decode(result.bytes)).toBe('ok');
+  });
+
+  it('treats old SharePoint HTTP 400 FileNotFoundException as an absent file', async () => {
+    expect(isSharePointFileMissingResponse({
+      status: 400,
+      payload: { error: { message: { value: 'System.IO.FileNotFoundException: The file does not exist.' } } },
+    })).toBe(true);
+
+    const request = vi.fn(async () => response(
+      { error: { message: { value: 'System.IO.FileNotFoundException: The file does not exist.' } } },
+      400,
+    ));
+    await expect(readSharePointFileBytes({
+      webUrl: runtime.webUrl,
+      siteRoot: runtime.siteRoot,
+      fileRel: '/sites/schedule/siteDB8/dist/index.html',
+      request,
+    })).resolves.toMatchObject({ exists: false, status: 404 });
+  });
+
+  it('does not hide unrelated HTTP 400 file-read failures', async () => {
+    const request = vi.fn(async () => response(
+      { error: { message: { value: 'Invalid query syntax.' } } },
+      400,
+    ));
+    await expect(readSharePointFileBytes({
+      webUrl: runtime.webUrl,
+      siteRoot: runtime.siteRoot,
+      fileRel: '/sites/schedule/siteDB8/dist/index.html',
+      request,
+    })).rejects.toMatchObject({ code: 'FILE_READ_FAILED' });
   });
 
   it('uses ListItemAllFields as the primary readiness probe', async () => {
