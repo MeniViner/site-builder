@@ -9,6 +9,7 @@ export default function AdminAIHistoryBar({
   onNext,
   onReset,
   onSelect,
+  onClose,
 }) {
   const [dismissedKey, setDismissedKey] = useState('');
   if (!history || !Array.isArray(history.entries) || history.entries.length <= 1) return null;
@@ -93,7 +94,13 @@ export default function AdminAIHistoryBar({
           </button>
           <button
             type="button"
-            onClick={() => setDismissedKey(historyKey)}
+            onClick={() => {
+              if (onClose) {
+                onClose();
+                return;
+              }
+              setDismissedKey(historyKey);
+            }}
             className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-700 transition hover:border-primary/40 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-gray-200"
             aria-label="הסתר את סרגל שינויי AI"
             title="הסתר את סרגל שינויי AI"

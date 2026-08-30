@@ -121,6 +121,7 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
     description: 'ניסוח הודעות שוטפות וקריטיות.',
     actions: [
       action('draft', 'נסח הודעה', 'כתוב את העובדות וה-AI ימלא כותרת ותוכן.'),
+      action('multiple', 'צור כמה הודעות', 'הדבק מידע עם כמה נושאים וה-AI ייצור הודעה נפרדת לכל נושא.'),
       action('clear', 'יותר ברור', 'שפר בהירות בלי לשנות עובדות.'),
       action('short', 'קצר יותר', 'קצר הודעות ארוכות.'),
       action('formal', 'יותר רשמי', 'התאם לטון ארגוני.'),
@@ -136,9 +137,10 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
       action('split', 'פצל למבזקים', 'הדבק הודעה עם כמה נושאים וה-AI ייצור כמה מבזקים.'),
       action('short', 'קצר', 'קצר את המבזקים הקיימים.'),
       action('improve', 'שפר ניסוח', 'שפר בהירות וניסוח בלי לשנות את משמעות המבזקים.'),
+      action('versions', '3 גרסאות ניסוח', 'צור שלוש חלופות ניסוח לאותו תוכן בלי לשנות עובדות.', { alternatives: 3 }),
       action('plain', 'שפה פשוטה', 'הפוך ניסוח טכני לטקסט ברור למשתמש רגיל.'),
       action('translate', 'תרגם וסכם לעברית', 'הדבק מקור בשפה אחרת וקבל מבזקים בעברית.'),
-      action('audit', 'בדוק את הרשימה', 'מצא כפילויות וניסוחים שחוזרים על עצמם והצג מה כדאי לתקן בלי לשנות.', { readOnly: true }),
+      action('audit', 'בדוק את הרשימה', 'מצא כפילויות, ניסוחים לא ברורים ותוכן שנראה מיושן והצג מה כדאי לתקן בלי לשנות.', { readOnly: true }),
     ],
   },
   outstanding: {
@@ -150,6 +152,7 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
       action('personal', 'יותר אישי', 'רכך את הטון בלי להוסיף עובדות.'),
       action('formal', 'יותר רשמי', 'התאם לטון ארגוני/פיקודי.'),
       action('ceremony', 'נוסח לטקס', 'התאם את ההוקרה להקראה בטקס.'),
+      action('versions', '3 חלופות', 'צור שלוש חלופות ניסוח על בסיס העובדות הקיימות בלבד.', { alternatives: 3 }),
     ],
   },
   countdown: {
@@ -168,6 +171,7 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
     actions: [
       action('paste', 'יבוא חכם מטקסט', 'הדבק שורות של שם, מספר ומחלקה.'),
       action('departments', 'אחד שמות מחלקות', 'נרמל שמות מחלקות דומים.'),
+      action('organize', 'ארגן אנשי קשר', 'סדר את אנשי הקשר לפי מחלקה ושם בלי לשנות מספרים.'),
       action('duplicates', 'מצא כפילויות', 'זהה כפילויות על בסיס הנתונים הקיימים והצג אותן בלי לשנות.', { readOnly: true }),
     ],
   },
@@ -177,6 +181,7 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
     actions: [
       action('paste', 'הדבק לו״ז היסעים', 'הדבק הודעת WhatsApp או רשימת נסיעות.'),
       action('normalize', 'אחד יעדים', 'אחד כתיב של יעדים ושמור על השעות.'),
+      action('update', 'עדכן לו״ז', 'הדבק מידע חדש ועדכן רק נסיעות שניתן לזהות ממנו; שמור נסיעות לא קשורות.'),
       action('audit', 'בדוק לו״ז', 'מצא כפילויות ושעות חשודות והצג אותן בלי לשנות.', { readOnly: true }),
       action('order', 'סדר לפי שעה', 'סדר את הרשימה כרונולוגית.'),
     ],
@@ -186,6 +191,7 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
     description: 'יצירת שאלות ואפשרויות תשובה, בדיקת הטיה וסיכום תוצאות בלי להעביר זהויות מצביעים.',
     actions: [
       action('create', 'צור סקר מנושא', 'תאר מה אתה רוצה ללמוד וה-AI ייצור שאלה ואפשרויות.'),
+      action('rewrite', 'שכתב שאלה ותשובות', 'שכתב במפורש את ניסוח השאלה והאפשרויות ושמור את כל נתוני ההצבעה.'),
       action('bias', 'בדוק הטיה', 'זהה שאלות מובילות והסבר כיצד לשפר אותן בלי לשנות את הסקר.', { readOnly: true }),
       action('rewrite-bias', 'שכתב לניטרלי', 'שכתב שאלות מובילות לניסוח ניטרלי ושמור נתוני הצבעה.'),
       action('options', 'בדוק תשובות', 'בדוק אם האפשרויות מכסות את התשובות הסבירות והצג המלצות בלי לשנות.', { readOnly: true }),
@@ -220,6 +226,7 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
       action('split', 'פצל לכמה טיפים', 'הפוך מסמך אחד לסדרת טיפים.'),
       action('practical', 'יותר פרקטי', 'הפוך הסבר כללי לפעולות ברורות.'),
       action('short', 'קצר ל-2 שורות', 'קצר את הטיפים הקיימים.'),
+      action('titles', '3 כותרות חלופיות', 'צור שלוש חלופות לכותרות ושמור את תוכן הטיפים.', { alternatives: 3 }),
       action('audit', 'בדוק עקביות', 'בדוק טון, אורך ומבנה והצג מה לא אחיד בלי לשנות.', { readOnly: true }),
     ],
   },
@@ -275,6 +282,17 @@ export function isAdminAiReadOnly(tab, actionId) {
   const capability = getAdminAiCapability(tab);
   const selected = getAdminAiAction(tab, actionId);
   return capability.readOnly === true || selected?.readOnly === true;
+}
+
+export function getAdminAiInstructionIssue(tab, actionId, instruction) {
+  if (
+    tab === 'countdown'
+    && ['sentence', 'multiple', 'event'].includes(actionId)
+    && !hasDateSignal(instruction)
+  ) {
+    return 'חסר תאריך או מועד ברור. יש לציין תאריך, שעה, או מועד יחסי מדויק כמו "מחר", כדי שלא יומצא תאריך.';
+  }
+  return '';
 }
 
 function pageSchema(tab) {
@@ -334,6 +352,7 @@ function actionRules(tab, actionId) {
     'links:paste': ['שמור את כל ענפי הניווט הקיימים והוסף את הקישורים שסופקו.'],
     'external-links:paste': ['שמור קישורים קיימים והוסף רק קישורים שסופקו.'],
     'alerts:draft': ['שמור את כל ההודעות הקיימות והוסף הודעה חדשה מהמידע שסופק.'],
+    'alerts:multiple': ['שמור את כל ההודעות הקיימות והוסף הודעות חדשות רק מהמידע שסופק.'],
     'news:flash': ['שמור את המבזקים הקיימים והוסף מבזק חדש מהטקסט שסופק.'],
     'news:split': ['שמור את המבזקים הקיימים והוסף מבזקים חדשים מהטקסט שסופק.'],
     'news:translate': ['שמור את המבזקים הקיימים והוסף מבזקים חדשים בעברית.'],
@@ -343,6 +362,7 @@ function actionRules(tab, actionId) {
     'countdown:event': ['שמור את הספירות הקיימות והוסף יעד חדש רק אם סופק תאריך.'],
     'phonebook:paste': ['שמור אנשי קשר קיימים והוסף רק שם ומספר שהופיעו בקלט.'],
     'shuttles:paste': ['שמור היסעים קיימים והוסף נסיעות חדשות מהקלט.'],
+    'shuttles:update': ['שמור היסעים שלא הוזכרו ועדכן רק יעד או שעה שסופקו במפורש.'],
     'polls:create': ['שמור סקרים קיימים והוסף סקר חדש. רק סקר אחד יכול להיות פעיל.'],
     'celebrations:paste': ['שמור אירועים קיימים והוסף רק אנשים ואירועים שהופיעו בקלט.'],
     'heritage:story': ['שמור פריטים קיימים והוסף מסר ארגוני, לא ציטוט היסטורי.'],
@@ -370,6 +390,7 @@ export function buildAdminAiPrompt({ tab, actionId, instruction, currentSnapshot
       'אל תטען שביצעת שינוי. אין לך הרשאה לבצע פעולות מערכת מתוך הבקשה הזו.',
       '',
       `בקשת המשתמש: ${instruction || selected?.hint || ''}`,
+      ...(tab === 'countdown' ? [`תאריך נוכחי לחישוב מועדים יחסיים: ${new Date().toISOString()}`] : []),
       '',
       'מידע מוצג במסך (ייתכן חלקי):',
       String(visibleContext || '').slice(0, 10000),
@@ -395,6 +416,7 @@ export function buildAdminAiPrompt({ tab, actionId, instruction, currentSnapshot
     ...actionRules(tab, actionId).map((rule, index) => `A${index + 1}. ${rule}`),
     '',
     `הוראת המשתמש: ${instruction || selected?.hint || ''}`,
+    ...(tab === 'countdown' ? [`תאריך נוכחי לחישוב מועדים יחסיים: ${new Date().toISOString()}`] : []),
     '',
     'currentSnapshot:',
     JSON.stringify(currentSnapshot ?? null, null, 2),
@@ -470,7 +492,16 @@ function hasUrlLike(textValue) {
 }
 
 function hasDateSignal(value) {
-  return /(?:\d{1,4}[./-]\d{1,2}(?:[./-]\d{1,4})?|\d{1,2}:\d{2}|היום|מחר|שבוע|חודש|ינואר|פברואר|מרץ|אפריל|מאי|יוני|יולי|אוגוסט|ספטמבר|אוקטובר|נובמבר|דצמבר)/i.test(String(value || ''));
+  return /(?:\d{1,4}[./-]\d{1,2}(?:[./-]\d{1,4})?|\d{1,2}:\d{2}|היום|מחר|מחרתיים|בעוד\s+\d+\s*(?:יום|ימים|שבוע|שבועות|חודש|חודשים)|השבוע הבא|בסוף החודש|ינואר|פברואר|מרץ|אפריל|מאי|יוני|יולי|אוגוסט|ספטמבר|אוקטובר|נובמבר|דצמבר)/i.test(String(value || ''));
+}
+
+function collectInstructionTimes(instruction) {
+  const source = String(instruction || '');
+  const explicitTimes = [...source.matchAll(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/g)]
+    .map((match) => `${match[1].padStart(2, '0')}:${match[2]}`);
+  const bareHours = [...source.matchAll(/(?:בשעה|ב-)\s*([01]?\d|2[0-3])\b(?![:.]\d)/g)]
+    .map((match) => `${match[1].padStart(2, '0')}:00`);
+  return new Set([...explicitTimes, ...bareHours]);
 }
 
 function normalizeSiteContent(payload, current) {
@@ -936,14 +967,16 @@ function normalizePhonebook(payload, current, instruction) {
   }).filter((item) => item.name && item.number);
 }
 
-function normalizeShuttles(payload, current) {
+function normalizeShuttles(payload, current, instruction) {
   const byId = existingById(current);
+  const suppliedTimes = collectInstructionTimes(instruction);
   return collectItems(payload).slice(0, 100).map((item, index) => {
     const existing = byId.get(String(item?.id || ''));
+    const requestedTime = normalizeTime(item?.departureTime, '');
     return {
       id: text(item?.id, existing?.id || makeId(`shuttle-${index}`)),
       destination: bounded(item?.destination, 240, existing?.destination || ''),
-      departureTime: normalizeTime(item?.departureTime, existing?.departureTime || ''),
+      departureTime: suppliedTimes.has(requestedTime) ? requestedTime : existing?.departureTime || '',
       type: item?.type === 'minibus' ? 'minibus' : (item?.type === 'bus' ? 'bus' : existing?.type || 'bus'),
     };
   }).filter((item) => item.destination && item.departureTime)
@@ -1051,7 +1084,7 @@ function normalizeCurrentWidgets(payload, current, instruction) {
     else if (widgetId === 'countdown') next.countdown = normalizeCountdown({ countdown: candidate }, current?.countdown || {});
     else if (widgetId === 'news') next.news = normalizeNews({ items: candidate }, current?.news || []);
     else if (widgetId === 'phonebook') next.phonebook = normalizePhonebook({ items: candidate }, current?.phonebook || [], instruction);
-    else if (widgetId === 'shuttles') next.shuttles = normalizeShuttles({ items: candidate }, current?.shuttles || []);
+    else if (widgetId === 'shuttles') next.shuttles = normalizeShuttles({ items: candidate }, current?.shuttles || [], instruction);
     else if (widgetId === 'polls') next.polls = normalizePolls({ items: candidate }, current?.polls || []);
     else if (widgetId === 'celebrations') next.celebrations = normalizeCelebrations({ items: candidate }, current?.celebrations || []);
     else if (widgetId === 'heritage') next.heritage = normalizeHeritage({ items: candidate }, current?.heritage || [], instruction);
@@ -1137,10 +1170,10 @@ export function applyAdminAiActionSemantics(tab, actionId, baseline, candidate) 
   if (candidate === undefined || candidate === null) return candidate;
   const key = `${tab}:${actionId}`;
   const appendModes = new Set([
-    'alerts:draft',
+    'alerts:draft', 'alerts:multiple',
     'news:flash', 'news:split', 'news:translate',
     'countdown:sentence', 'countdown:multiple', 'countdown:event',
-    'phonebook:paste', 'shuttles:paste', 'polls:create',
+    'phonebook:paste', 'shuttles:paste', 'shuttles:update', 'polls:create',
     'celebrations:paste', 'heritage:story', 'heritage:learning',
     'tips:procedure', 'tips:split', 'external-links:paste',
     'links:paste',
@@ -1205,7 +1238,7 @@ export function normalizeAdminAiCandidate(tab, payload, currentSnapshot, options
     case 'outstanding': return normalizeOutstanding(payload, currentSnapshot, instruction);
     case 'countdown': return normalizeCountdown(payload, currentSnapshot, instruction);
     case 'phonebook': return normalizePhonebook(payload, currentSnapshot, instruction);
-    case 'shuttles': return normalizeShuttles(payload, currentSnapshot);
+    case 'shuttles': return normalizeShuttles(payload, currentSnapshot, instruction);
     case 'polls': return normalizePolls(payload, currentSnapshot, actionId);
     case 'celebrations': return normalizeCelebrations(payload, currentSnapshot, instruction);
     case 'heritage': return normalizeHeritage(payload, currentSnapshot, instruction);

@@ -4,7 +4,8 @@ import { AlertTriangle, Bot, Loader2, Redo2, RotateCcw, Sparkles, Undo2, Wand2, 
 import { toast } from 'react-toastify';
 import AIService from '../services/AIService';
 import { getSafeAiRuntimeConfig } from '../config/ai.config';
-import { UI_FEATURES } from '../config/uiFeatures.config';
+import { isWidgetAiButtonEnabled, UI_FEATURES } from '../config/uiFeatures.config';
+import { useAdminAiHistory } from '../hooks/useAdminAiHistory';
 import { parseJsonFromModel } from '../utils/aiJson';
 import {
     applyAdminAiActionSemantics,
@@ -12,6 +13,7 @@ import {
     extractAdminAiCandidates,
     getAdminAiAction,
     getAdminAiCapability,
+    getAdminAiInstructionIssue,
     isAdminAiReadOnly,
     normalizeAdminAiCandidate,
     sanitizeAdminAiSnapshot,
@@ -41,7 +43,12 @@ function uniqueCandidates(candidates, baseline) {
     });
 }
 
-const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({ widgetKey, value, onChange }, ref) {
+const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
+    widgetKey,
+    surfaceKey = `widget:${widgetKey}`,
+    value,
+    onChange,
+}, ref) {
     const capability = useMemo(() => getAdminAiCapability(widgetKey), [widgetKey]);
     const [isOpen, setIsOpen] = useState(false);
     const [selectedActionId, setSelectedActionId] = useState(capability.actions[0]?.id || '');
@@ -50,9 +57,7 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({ widg
     const [answer, setAnswer] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
     const [modelUsed, setModelUsed] = useState('');
-    const [history, setHistory] = useState(null);
     const [historyBusy, setHistoryBusy] = useState(false);
-    const [historyVisible, setHistoryVisible] = useState(false);
 
     const selectedAction = useMemo(
         () => getAdminAiAction(widgetKey, selectedActionId),
@@ -69,27 +74,12 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({ widg
         const resolved = result && typeof result.then === 'function' ? await result : result;
         if (resolved === false) throw new Error('שמירת שינוי ה-AI נכשלה');
     }, [onChange]);
-
-    const recordAndApply = useCallback(async (candidates, baseline, label) => {
-        await applyValue(candidates[0]);
-        setHistory((currentHistory) => {
-            const currentHistoryValue = currentHistory?.entries?.[currentHistory.index]?.value;
-            const baseEntries = currentHistory && stableStringify(currentHistoryValue) === stableStringify(baseline)
-                ? currentHistory.entries.slice(0, currentHistory.index + 1)
-                : [{ value: clone(baseline), label: 'לפני AI', createdAt: Date.now() }];
-            const firstCandidateIndex = baseEntries.length;
-            const entries = [
-                ...baseEntries,
-                ...candidates.map((candidate, index) => ({
-                    value: clone(candidate),
-                    label: candidates.length > 1 ? `חלופה ${index + 1}` : label || 'שינוי AI',
-                    createdAt: Date.now() + index + 1,
-                })),
-            ];
-            return { entries, index: firstCandidateIndex };
-        });
-        setHistoryVisible(true);
-    }, [applyValue]);
+    const {
+        history,
+        recordAndApply,
+        applyIndex: applyStoredHistoryIndex,
+        hide: hideHistory,
+    } = useAdminAiHistory(surfaceKey, applyValue);
 
     useImperativeHandle(ref, () => ({
         async applyExternalResult(nextValue, options = {}) {
@@ -101,16 +91,17 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({ widg
         },
     }), [recordAndApply, value]);
 
-    if (!UI_FEATURES.showAiUi || (!UI_FEATURES.showWidgetAiButtons && !historyVisible)) return null;
+    const showAiButton = isWidgetAiButtonEnabled(widgetKey);
+    const showHistoryOnly = UI_FEATURES.showAiUi && history.visible && history.entries.length > 1;
+    if (!showAiButton && !showHistoryOnly) return null;
 
     const applyHistoryIndex = async (nextIndex) => {
-        if (!history?.entries?.length) return;
+        if (!history.entries.length) return;
         const safeIndex = Math.max(0, Math.min(Number(nextIndex) || 0, history.entries.length - 1));
         if (safeIndex === history.index) return;
         setHistoryBusy(true);
         try {
-            await applyValue(history.entries[safeIndex].value);
-            setHistory((current) => current ? { ...current, index: safeIndex } : current);
+            await applyStoredHistoryIndex(safeIndex);
         } catch (error) {
             toast.error(error?.message || 'החזרת שינוי AI נכשלה');
         } finally {
@@ -127,6 +118,13 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({ widg
         const effectiveInstruction = instruction.trim() || selectedAction?.hint || '';
         if (!effectiveInstruction) {
             toast.error('יש להזין בקשה');
+            return;
+        }
+        const instructionIssue = getAdminAiInstructionIssue(widgetKey, selectedActionId, effectiveInstruction);
+        if (instructionIssue) {
+            setAnswer(instructionIssue);
+            setErrorMessage('');
+            setModelUsed('');
             return;
         }
 
@@ -188,10 +186,10 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({ widg
         }
     };
 
-    const index = history?.index || 0;
-    const aiCount = Math.max(0, (history?.entries?.length || 1) - 1);
-    const canUndo = Boolean(history?.entries?.length && index > 0);
-    const canRedo = Boolean(history?.entries?.length && index < history.entries.length - 1);
+    const index = history.index || 0;
+    const aiCount = Math.max(0, history.entries.length - 1);
+    const canUndo = Boolean(history.entries.length && index > 0);
+    const canRedo = Boolean(history.entries.length && index < history.entries.length - 1);
 
     const modal = isOpen && typeof document !== 'undefined' ? createPortal(
         <div dir="rtl" className="fixed inset-0 z-[12100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-[2px]" onClick={() => !isGenerating && setIsOpen(false)} data-admin-ai-ui>
@@ -240,18 +238,18 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({ widg
     return (
         <>
             <div className="inline-flex items-center gap-1">
-                {UI_FEATURES.showWidgetAiButtons && (
+                {showAiButton && (
                     <button type="button" onClick={() => setIsOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-xl border border-black/20 bg-white px-3 text-sm font-bold text-black transition hover:bg-black hover:text-white dark:border-white/20 dark:bg-[#111] dark:text-white" title={`AI — ${capability.title}`}>
                         <Sparkles size={15} />AI
                     </button>
                 )}
-                {historyVisible && history?.entries?.length > 1 && (
+                {history.visible && history.entries.length > 1 && (
                     <div className="inline-flex h-10 items-center gap-0.5 rounded-xl border border-primary/25 bg-primary/5 p-1">
                         <button type="button" onClick={() => applyHistoryIndex(0)} disabled={historyBusy || index === 0} className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-[10px] font-bold text-primary disabled:opacity-35" title="לפני AI"><RotateCcw size={13} />לפני AI</button>
                         <button type="button" onClick={() => applyHistoryIndex(index - 1)} disabled={historyBusy || !canUndo} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-primary disabled:opacity-35" aria-label="הקודם"><Undo2 size={14} /></button>
                         <span className="min-w-10 text-center text-[10px] font-black text-primary">{index === 0 ? 'מקור' : `${index}/${aiCount}`}</span>
                         <button type="button" onClick={() => applyHistoryIndex(index + 1)} disabled={historyBusy || !canRedo} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-primary disabled:opacity-35" aria-label="הבא"><Redo2 size={14} /></button>
-                        <button type="button" onClick={() => setHistoryVisible(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-primary" aria-label="הסתר היסטוריית AI"><X size={13} /></button>
+                        <button type="button" onClick={hideHistory} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-primary" aria-label="הסתר היסטוריית AI"><X size={13} /></button>
                     </div>
                 )}
             </div>
