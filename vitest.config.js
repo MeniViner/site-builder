@@ -6,11 +6,16 @@ export default defineConfig({
   
   test: {
     environment: 'jsdom',
-    exclude: ['.tmp-verify/**', '.site-builder-patch-backup/**', 'dist/**', 'dist-universal/**', '.tmp-build/**', 'node_modules/**'],
+    exclude: [
+      ...configDefaults.exclude,
+      '.tmp-verify/**',
+      '.site-builder-patch-backup/**',
+      'dist/**',
+      'dist-universal/**',
+      '.tmp-build/**',
+      'scripts/server-colocation/**',
+    ],
     globals: true,
     setupFiles: ['./src/test/setupTests.js'],
-    // These are node:test release-safety suites, run explicitly with
-    // `node --test`; Vitest otherwise treats their files as empty suites.
-    exclude: [...configDefaults.exclude, 'scripts/server-colocation/**'],
   },
 });

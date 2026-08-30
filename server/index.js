@@ -15,7 +15,7 @@ import { getListenTarget, installGracefulShutdown, safeStartupErrorCode } from '
 export async function startServer(runtimeConfig = assertServerConfig(getServerConfig()), dependencies = {}) {
   const connect = dependencies.createMongoDb || createMongoDb;
   const inspectIndexes = dependencies.inspectBuilderIndexes || inspectBuilderIndexes;
-  const createIndexAdapter = dependencies.createBuilderIndexInspectionAdapter || createBuilderIndexInspectionAdapter;
+  const createInspectionAdapter = dependencies.createBuilderIndexInspectionAdapter || createBuilderIndexInspectionAdapter;
   const assertDataPlane = dependencies.assertBuilderDataPlaneReady || assertBuilderDataPlaneReady;
   const inspectDataPlane = dependencies.inspectBuilderDataPlane || inspectBuilderDataPlane;
   const appFactory = dependencies.createApp || createApp;
@@ -26,11 +26,17 @@ export async function startServer(runtimeConfig = assertServerConfig(getServerCo
   let indexValidation;
 
   try {
-    indexValidation = await inspectIndexes(await createIndexAdapter(db));
+    indexValidation = await inspectIndexes(await createInspectionAdapter(db));
     assertBuilderIndexStartupPolicy(indexValidation, runtimeConfig.nodeEnv);
-    await assertDataPlane(db, { requireCollections: runtimeConfig.requireStartupCollections });
+    if (typeof runtimeConfig.requireStartupCollections === 'boolean') {
+      await assertDataPlane(db, { requireCollections: runtimeConfig.requireStartupCollections });
+    }
   } catch (error) {
-    await client.close().catch(() => undefined);
+    try {
+      await client.close();
+    } catch (closeError) {
+      console.error(`[site-builder-api] failed to close Mongo after startup error (${safeStartupErrorCode(closeError)})`);
+    }
     throw error;
   }
 
