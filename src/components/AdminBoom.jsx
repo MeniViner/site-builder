@@ -1,5 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+    Database,
+    LayoutDashboard,
+    ListChecks,
+    Palette,
     ExternalLink,
     Loader2,
     Plus,
@@ -14,12 +18,17 @@ import { toast } from 'react-toastify';
 import { useBoom } from '../context/BoomContext';
 import {
     BOOM_COLOR_OPTIONS,
+    BOOM_DESIGN_PRESETS,
     BOOM_STATUS_OPTIONS,
+    clearBoomTasks,
     cloneBoomData,
+    computeBoomProgress,
     createBoomTask,
+    loadBoomDemoData,
     normalizeBoomData,
 } from '../utils/boomData';
 import TaskManagementTable, { TASK_STATUS_META } from './TaskManagementTable';
+import BoomPresentation from './BoomPresentation';
 
 const panelClass = 'rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-[#1b1f2a]';
 const fieldClass = 'min-h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-2 focus:ring-primary/15 dark:border-white/10 dark:bg-white/5 dark:text-white';
@@ -54,7 +63,7 @@ function BoomTaskDialog({ modal, categories, onChange, onClose, onSubmit }) {
                         <h2 id="boom-task-dialog-title" className="text-2xl font-black text-gray-900 dark:text-white">
                             {modal.mode === 'edit' ? 'עריכת משימת BOOM' : 'משימת BOOM חדשה'}
                         </h2>
-                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">הגדרת המשימה, האחריות, לוחות הזמנים והתקדמות הביצוע.</p>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">הגדרת המשימה, האחריות ולוחות הזמנים. ההתקדמות מחושבת אוטומטית.</p>
                     </div>
                     <button type="button" onClick={onClose} className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-gray-500 transition-[background-color,color,transform] hover:bg-gray-100 hover:text-gray-900 active:scale-[0.96] dark:hover:bg-white/10 dark:hover:text-white" aria-label="סגירת חלון">
                         <X size={20} />
@@ -82,13 +91,6 @@ function BoomTaskDialog({ modal, categories, onChange, onClose, onSubmit }) {
                         <select className={fieldClass} value={form.status} onChange={(event) => onChange({ status: event.target.value })}>
                             {BOOM_STATUS_OPTIONS.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
                         </select>
-                    </label>
-                    <label>
-                        <span className={labelClass}>התקדמות</span>
-                        <div className="flex min-h-11 items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 dark:border-white/10 dark:bg-white/5">
-                            <input className="min-w-0 flex-1 accent-primary" type="range" min="0" max="100" step="5" value={form.progress} onChange={(event) => onChange({ progress: Number(event.target.value) })} />
-                            <span className="w-12 text-left text-sm font-black tabular-nums text-gray-700 dark:text-gray-200">{form.progress}%</span>
-                        </div>
                     </label>
                     <label>
                         <span className={labelClass}>תאריך התחלה</span>
@@ -122,6 +124,7 @@ export default function AdminBoom() {
     const [modal, setModal] = useState(null);
     const [query, setQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [activeTab, setActiveTab] = useState('basic');
     const [autoSaveState, setAutoSaveState] = useState('saved');
     const savedSnapshotRef = useRef(JSON.stringify(normalizeBoomData(boom)));
     const draftSnapshotRef = useRef(JSON.stringify(normalizeBoomData(boom)));
@@ -268,6 +271,19 @@ export default function AdminBoom() {
         updateDraft((current) => ({ ...current, items: current.items.filter((item) => item.id !== task.id) }));
     };
 
+    const loadDemo = () => {
+        if (draft.items.length > 0 && !window.confirm('טעינת נתוני ההדגמה תחליף את משימות BOOM הקיימות. להמשיך?')) return;
+        updateDraft((current) => loadBoomDemoData(current));
+        toast.success('נתוני ההדגמה נטענו');
+    };
+
+    const clearTasks = () => {
+        if (draft.items.length === 0) return;
+        if (!window.confirm('למחוק את כל משימות BOOM? הפעולה אינה מוחקת את הגדרות העמוד.')) return;
+        updateDraft((current) => clearBoomTasks(current));
+        toast.success('משימות BOOM נוקו');
+    };
+
     const reload = async () => {
         const loaded = await reloadBoom();
         if (loaded) {
@@ -339,25 +355,95 @@ export default function AdminBoom() {
             <main className="space-y-6 p-5 sm:p-8 lg:p-10">
                 {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">{error}</div>}
 
-                <section className={`${panelClass} p-5 sm:p-6`}>
-                    <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
-                        <div className="flex min-w-0 items-start gap-3">
-                            <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"><ShieldCheck size={23} /></span>
+                <nav className="flex gap-1 overflow-x-auto rounded-2xl bg-gray-200/70 p-1 dark:bg-white/[0.06]" aria-label="לשוניות ניהול BOOM">
+                    {[
+                        { id: 'basic', label: 'הגדרות בסיסיות', icon: LayoutDashboard },
+                        { id: 'design', label: 'עיצוב', icon: Palette },
+                        { id: 'tasks', label: 'ניהול משימות', icon: ListChecks },
+                    ].map(({ id, label, icon }) => (
+                        <button
+                            key={id}
+                            type="button"
+                            role="tab"
+                            aria-selected={activeTab === id}
+                            onClick={() => setActiveTab(id)}
+                            className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 text-sm font-black transition-[background-color,color,box-shadow,transform] active:scale-[0.96] ${
+                                activeTab === id
+                                    ? 'bg-white text-primary shadow-sm dark:bg-[#252a36] dark:text-primary-300'
+                                    : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+                            }`}
+                        >
+                            {React.createElement(icon, { size: 17 })}{label}
+                        </button>
+                    ))}
+                </nav>
+
+                {activeTab === 'basic' && (
+                    <section className={`${panelClass} p-5 sm:p-6`}>
+                        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
+                            <div className="flex min-w-0 items-start gap-3">
+                                <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"><ShieldCheck size={23} /></span>
+                                <div>
+                                    <h2 className="text-lg font-black text-gray-900 dark:text-white">הפעלת BOOM באתר</h2>
+                                    <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">המידע נשמר באופן עצמאי ואינו משנה את נתוני הגאנט.</p>
+                                </div>
+                            </div>
+                            <Toggle checked={draft.enabled} onChange={(enabled) => updateDraft({ enabled })} />
+                        </div>
+                        <div className="mt-5 grid gap-4 border-t border-gray-200 pt-5 dark:border-white/10 md:grid-cols-2">
+                            <label><span className={labelClass}>שם הכפתור באתר</span><input className={fieldClass} value={draft.buttonLabel} onChange={(event) => updateDraft({ buttonLabel: event.target.value })} /></label>
+                            <label><span className={labelClass}>כותרת העמוד</span><input className={fieldClass} value={draft.pageTitle} onChange={(event) => updateDraft({ pageTitle: event.target.value })} /></label>
+                            <label className="md:col-span-2"><span className={labelClass}>תיאור קצר</span><input className={fieldClass} value={draft.description} onChange={(event) => updateDraft({ description: event.target.value })} /></label>
+                        </div>
+                        <div className="mt-6 flex flex-col gap-3 rounded-2xl bg-gray-50 p-4 dark:bg-white/[0.03] sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <h2 className="text-lg font-black text-gray-900 dark:text-white">הפעלת BOOM באתר</h2>
-                                <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">המידע נשמר באופן עצמאי ואינו משנה את נתוני הגאנט.</p>
+                                <h3 className="flex items-center gap-2 text-sm font-black text-gray-900 dark:text-white"><Database size={16} />נתוני הדגמה</h3>
+                                <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">טעינת דוגמה שימושית או ניקוי המשימות בלבד, ללא שינוי הגדרות העמוד.</p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                <button type="button" onClick={loadDemo} className="min-h-10 rounded-xl bg-primary px-4 text-sm font-black text-white transition-[filter,transform] hover:brightness-110 active:scale-[0.96]">טעינת נתוני הדגמה</button>
+                                <button type="button" onClick={clearTasks} disabled={draft.items.length === 0} className="min-h-10 rounded-xl border border-red-200 bg-white px-4 text-sm font-black text-red-600 transition-[background-color,transform] hover:bg-red-50 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-45 dark:border-red-500/30 dark:bg-white/5 dark:text-red-300 dark:hover:bg-red-500/10">ניקוי משימות BOOM</button>
                             </div>
                         </div>
-                        <Toggle checked={draft.enabled} onChange={(enabled) => updateDraft({ enabled })} />
-                    </div>
-                    <div className="mt-5 grid gap-4 border-t border-gray-200 pt-5 dark:border-white/10 md:grid-cols-2">
-                        <label><span className={labelClass}>שם הכפתור באתר</span><input className={fieldClass} value={draft.buttonLabel} onChange={(event) => updateDraft({ buttonLabel: event.target.value })} /></label>
-                        <label><span className={labelClass}>כותרת העמוד</span><input className={fieldClass} value={draft.pageTitle} onChange={(event) => updateDraft({ pageTitle: event.target.value })} /></label>
-                        <label className="md:col-span-2"><span className={labelClass}>תיאור קצר</span><input className={fieldClass} value={draft.description} onChange={(event) => updateDraft({ description: event.target.value })} /></label>
-                    </div>
-                </section>
+                    </section>
+                )}
 
-                <section className={`${panelClass} overflow-hidden`}>
+                {activeTab === 'design' && (
+                    <section className="grid gap-6 xl:grid-cols-2 xl:items-start">
+                        <div className={`${panelClass} p-5 sm:p-6`}>
+                            <h2 className="text-xl font-black text-gray-900 dark:text-white">סגנון תצוגה</h2>
+                            <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">הסגנון משנה את הצגת BOOM בלבד ואינו משנה משימות או סטטוסים.</p>
+                            <div className="mt-5 space-y-3">
+                                {BOOM_DESIGN_PRESETS.map((preset) => {
+                                    const selected = draft.design.preset === preset.id;
+                                    return (
+                                        <button
+                                            key={preset.id}
+                                            type="button"
+                                            aria-pressed={selected}
+                                            onClick={() => updateDraft((current) => ({ ...current, design: { preset: preset.id } }))}
+                                            className={`w-full rounded-2xl p-4 text-right transition-[box-shadow,transform] active:scale-[0.96] ${
+                                                selected
+                                                    ? 'bg-primary/10 text-primary shadow-[inset_0_0_0_2px_currentColor]'
+                                                    : 'bg-gray-50 text-gray-700 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)] hover:shadow-[inset_0_0_0_1px_rgba(59,130,246,0.45)] dark:bg-white/[0.03] dark:text-gray-200 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]'
+                                            }`}
+                                        >
+                                            <span className="block font-black">{preset.label}</span>
+                                            <span className={`mt-1 block text-xs leading-5 ${selected ? 'text-primary/80' : 'text-gray-500 dark:text-gray-400'}`}>{preset.description}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        <div className="min-w-0 xl:sticky xl:top-36">
+                            <div className="mb-2 text-xs font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">תצוגה חיה</div>
+                            <BoomPresentation boom={draft} preview />
+                        </div>
+                    </section>
+                )}
+
+                {activeTab === 'tasks' && (
+                    <section className={`${panelClass} overflow-hidden`}>
                     <div className="flex flex-col justify-between gap-4 border-b border-gray-200 p-5 dark:border-white/10 sm:p-6 lg:flex-row lg:items-center">
                         <div>
                             <h2 className="text-xl font-black text-gray-900 dark:text-white">משימות BOOM</h2>
@@ -386,6 +472,7 @@ export default function AdminBoom() {
                             tasks={visibleTasks}
                             categories={draft.categories}
                             statusMeta={TASK_STATUS_META}
+                            getProgress={computeBoomProgress}
                             onAssign={(task) => setModal({ mode: 'edit', taskId: task.id, form: { ...task }, error: '' })}
                             onEdit={(task) => setModal({ mode: 'edit', taskId: task.id, form: { ...task }, error: '' })}
                             onDuplicate={duplicateTask}
@@ -398,7 +485,8 @@ export default function AdminBoom() {
                             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{draft.items.length ? 'נסו לשנות את החיפוש או הסינון.' : 'הוסיפו משימה ראשונה למערכת BOOM.'}</p>
                         </div>
                     )}
-                </section>
+                    </section>
+                )}
             </main>
 
             <BoomTaskDialog

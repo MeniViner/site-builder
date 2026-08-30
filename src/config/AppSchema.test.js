@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONFIG_V1, migrateLegacyToV1, validateAndNormalize } from './AppSchema';
 import {
+    COMMANDER_BUILTIN_AVATARS,
     COMMANDER_IMAGE_OFFSET_X,
+    COMMANDER_IMAGE_OFFSET_Y,
     COMMANDER_IMAGE_SCALE,
 } from '../utils/commanderImage';
 
@@ -113,6 +115,9 @@ describe('migrateLegacyToV1', () => {
                 commander: {
                     imageScale: 187,
                     imageOffsetX: -91,
+                    imageOffsetY: 63,
+                    imageSource: 'builtin',
+                    imageAvatar: 'navy',
                 },
             },
         });
@@ -120,6 +125,10 @@ describe('migrateLegacyToV1', () => {
         expect(normalized.content.commander).toMatchObject({
             imageScale: 187,
             imageOffsetX: -91,
+            imageOffsetY: 63,
+            imageSource: 'builtin',
+            imageAvatar: 'navy',
+            imageUrl: COMMANDER_BUILTIN_AVATARS.find((avatar) => avatar.id === 'navy').path,
         });
 
         const clamped = validateAndNormalize({
@@ -127,6 +136,7 @@ describe('migrateLegacyToV1', () => {
                 commander: {
                     imageScale: COMMANDER_IMAGE_SCALE.max + 50,
                     imageOffsetX: COMMANDER_IMAGE_OFFSET_X.min - 50,
+                    imageOffsetY: COMMANDER_IMAGE_OFFSET_Y.max + 50,
                 },
             },
         });
@@ -134,6 +144,7 @@ describe('migrateLegacyToV1', () => {
         expect(clamped.content.commander).toMatchObject({
             imageScale: COMMANDER_IMAGE_SCALE.max,
             imageOffsetX: COMMANDER_IMAGE_OFFSET_X.min,
+            imageOffsetY: COMMANDER_IMAGE_OFFSET_Y.max,
         });
     });
 
@@ -158,10 +169,14 @@ describe('migrateLegacyToV1', () => {
         expect(legacyWithoutGeometry.content.commander).toMatchObject({
             imageScale: COMMANDER_IMAGE_SCALE.defaultValue,
             imageOffsetX: COMMANDER_IMAGE_OFFSET_X.defaultValue,
+            imageOffsetY: COMMANDER_IMAGE_OFFSET_Y.defaultValue,
+            imageSource: 'custom',
         });
         expect(legacyWithGeometry.content.commander).toMatchObject({
             imageScale: 164,
             imageOffsetX: 73,
+            imageOffsetY: COMMANDER_IMAGE_OFFSET_Y.defaultValue,
+            imageSource: 'custom',
         });
     });
 

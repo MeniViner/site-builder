@@ -1,8 +1,8 @@
 import React from 'react';
-import { ArrowRight, Loader2, RefreshCw, ShieldCheck, Zap } from 'lucide-react';
+import { ArrowRight, Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import NavigationBar from '../components/home/NavigationBar';
-import TaskManagementTable, { TASK_STATUS_META } from '../components/TaskManagementTable';
+import BoomPresentation from '../components/BoomPresentation';
 import { useAuth } from '../context/AuthContext';
 import { useBoom } from '../context/BoomContext';
 import { useNavigation } from '../context/NavigationContext';
@@ -81,34 +81,7 @@ export default function BoomPage() {
                 <RestrictedState />
             ) : (
                 <main className="mx-auto w-full max-w-[1600px] px-4 py-8 sm:px-7 lg:px-10">
-                    <header className="mb-6 flex flex-col gap-4 rounded-[28px] border border-theme-subtle bg-theme-card/80 p-6 shadow-sm backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0">
-                            <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-black text-primary"><Zap size={14} />Command &amp; Control</span>
-                            <h1 className="mt-3 text-3xl font-black text-balance sm:text-4xl">{boom.pageTitle}</h1>
-                            {boom.description && <p className="mt-2 max-w-3xl leading-7 text-theme-muted text-pretty">{boom.description}</p>}
-                        </div>
-                        <div className="shrink-0 rounded-2xl bg-primary/10 px-5 py-3 text-center">
-                            <div className="text-2xl font-black tabular-nums text-primary">{boom.items.length}</div>
-                            <div className="text-xs font-bold text-theme-muted">משימות</div>
-                        </div>
-                    </header>
-
-                    <section className="overflow-hidden rounded-[28px] border border-theme-subtle bg-theme-card shadow-[0_14px_44px_rgba(0,0,0,0.10)]">
-                        {boom.items.length > 0 ? (
-                            <TaskManagementTable
-                                tasks={boom.items}
-                                categories={boom.categories}
-                                statusMeta={TASK_STATUS_META}
-                                readOnly
-                            />
-                        ) : (
-                            <div className="px-6 py-20 text-center text-theme-muted">
-                                <Zap className="mx-auto opacity-40" size={42} />
-                                <h2 className="mt-4 text-xl font-black text-theme">עדיין אין משימות BOOM</h2>
-                                <p className="mt-2">משימות חדשות שיוגדרו על ידי מנהל המערכת יוצגו כאן.</p>
-                            </div>
-                        )}
-                    </section>
+                    <BoomPresentation boom={boom} />
                 </main>
             )}
         </div>

@@ -11,9 +11,11 @@ import {
 } from '../utils/navigationModel';
 import { normalizeImageGalleryBranch } from '../utils/imageGallery';
 import {
+    COMMANDER_IMAGE_OFFSET_Y,
     COMMANDER_IMAGE_OFFSET_X,
     COMMANDER_IMAGE_SCALE,
-    getCommanderImageSettings,
+    DEFAULT_COMMANDER_IMAGE_PATH,
+    normalizeCommanderImageSettings,
 } from '../utils/commanderImage';
 
 const SCHEMA_VERSION = '1.0.0';
@@ -1151,9 +1153,13 @@ export const DEFAULT_CONFIG_V1 = {
             ],
         },
         commander: {
-            imageUrl: '/images/אייל זמיר.png',
+            imageUrl: DEFAULT_COMMANDER_IMAGE_PATH,
+            imageSource: 'default',
+            imageAvatar: '',
+            customImageUrl: '',
             imageScale: COMMANDER_IMAGE_SCALE.defaultValue,
             imageOffsetX: COMMANDER_IMAGE_OFFSET_X.defaultValue,
+            imageOffsetY: COMMANDER_IMAGE_OFFSET_Y.defaultValue,
             sectionTitle: 'דבר המפקד',
             roleLabel: 'מפקד צוות אלפא ',
             decorativeElement: 'line-diamond-line',
@@ -1637,10 +1643,19 @@ export function migrateLegacyToV1(legacyData) {
         : (Array.isArray(hero.backgroundImages) ? hero.backgroundImages : migrated.content.hero.backgroundImageUrls);
 
     const commander = isObject(legacyContent.commander) ? legacyContent.commander : {};
-    const commanderImageSettings = getCommanderImageSettings(commander);
-    migrated.content.commander.imageUrl = asString(commander.imageUrl, asString(commander.image, migrated.content.commander.imageUrl));
+    const commanderImageSettings = normalizeCommanderImageSettings({
+        ...migrated.content.commander,
+        ...commander,
+        imageUrl: asString(commander.imageUrl, asString(commander.image, migrated.content.commander.imageUrl)),
+        imageSource: commander.imageSource,
+    });
+    migrated.content.commander.imageUrl = commanderImageSettings.imageUrl;
+    migrated.content.commander.imageSource = commanderImageSettings.imageSource;
+    migrated.content.commander.imageAvatar = commanderImageSettings.imageAvatar;
+    migrated.content.commander.customImageUrl = commanderImageSettings.customImageUrl;
     migrated.content.commander.imageScale = commanderImageSettings.imageScale;
     migrated.content.commander.imageOffsetX = commanderImageSettings.imageOffsetX;
+    migrated.content.commander.imageOffsetY = commanderImageSettings.imageOffsetY;
     migrated.content.commander.sectionTitle = asString(commander.sectionTitle, migrated.content.commander.sectionTitle);
     migrated.content.commander.roleLabel = asString(commander.roleLabel, migrated.content.commander.roleLabel);
     migrated.content.commander.decorativeElement = asString(
@@ -1725,9 +1740,22 @@ export function migrateLegacyToV1(legacyData) {
     return validateAndNormalize(migrated);
 }
 export function validateAndNormalize(config) {
-    const source = deepMergeReplaceArrays(DEFAULT_CONFIG_V1, isObject(config) ? config : {});
+    const input = isObject(config) ? config : {};
+    const inputCommander = isObject(input.content?.commander) ? input.content.commander : {};
+    const source = deepMergeReplaceArrays(DEFAULT_CONFIG_V1, input);
     const widgetsSource = isObject(source.widgets) ? source.widgets : {};
-    const commanderImageSettings = getCommanderImageSettings(source.content?.commander);
+    const sourceCommander = isObject(source.content?.commander) ? source.content.commander : {};
+    const commanderHasLegacyImage = Object.hasOwn(inputCommander, 'imageUrl') || Object.hasOwn(inputCommander, 'image');
+    const commanderImageSettings = normalizeCommanderImageSettings({
+        ...DEFAULT_CONFIG_V1.content.commander,
+        ...sourceCommander,
+        ...(commanderHasLegacyImage && !Object.hasOwn(inputCommander, 'imageSource')
+            ? {
+                imageSource: undefined,
+                image: asString(inputCommander.image, asString(inputCommander.imageUrl, '')),
+            }
+            : {}),
+    });
 
     const normalized = {
         schemaVersion: SCHEMA_VERSION,
@@ -1819,8 +1847,13 @@ export function validateAndNormalize(config) {
                 backgroundImageUrls: asStringArray(source.content?.hero?.backgroundImageUrls),
             },
             commander: {
-                imageUrl: asString(source.content?.commander?.imageUrl, DEFAULT_CONFIG_V1.content.commander.imageUrl),
-                ...commanderImageSettings,
+                imageUrl: commanderImageSettings.imageUrl,
+                imageSource: commanderImageSettings.imageSource,
+                imageAvatar: commanderImageSettings.imageAvatar,
+                customImageUrl: commanderImageSettings.customImageUrl,
+                imageScale: commanderImageSettings.imageScale,
+                imageOffsetX: commanderImageSettings.imageOffsetX,
+                imageOffsetY: commanderImageSettings.imageOffsetY,
                 sectionTitle: asString(source.content?.commander?.sectionTitle, DEFAULT_CONFIG_V1.content.commander.sectionTitle),
                 roleLabel: asString(source.content?.commander?.roleLabel, DEFAULT_CONFIG_V1.content.commander.roleLabel),
                 decorativeElement: asEnum(

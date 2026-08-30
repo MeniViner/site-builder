@@ -1,6 +1,6 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { buildFileValueEndpoint, upsertSharePointTextFile } from '../utils/sharepointUtils';
-import { DEFAULT_BOOM_DATA, normalizeBoomData } from '../utils/boomData';
+import { createInitialBoomData, DEFAULT_BOOM_DATA, normalizeBoomData } from '../utils/boomData';
 import { isKasharDemoProfile } from '../demo-data/demoProfile';
 import kasharDraftStore from './KasharDraftStore';
 import { createLegacyObjectStorageAdapter } from './storage/LegacyObjectStorageAdapter';
@@ -52,7 +52,7 @@ export class BoomService {
     }
 
     _getMockData() {
-        const fallback = normalizeBoomData(DEFAULT_BOOM_DATA);
+        const fallback = createInitialBoomData();
         try {
             const storage = this._getMockStorage();
             const stored = storage.getItem(this.config.boomMockStorageKey);

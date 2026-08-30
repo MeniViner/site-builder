@@ -11,6 +11,7 @@ describe('CommanderPanel image geometry', () => {
                     image: '/images/commander.png',
                     imageScale: 205,
                     imageOffsetX: -118,
+                    imageOffsetY: 74,
                     roleLabel: 'מפקד',
                     sectionTitle: 'דבר המפקד',
                 }}
@@ -20,7 +21,20 @@ describe('CommanderPanel image geometry', () => {
         );
 
         expect(screen.getByRole('img', { name: 'Commander' })).toHaveStyle({
-            transform: 'translateX(-118px) scale(2.05)',
+            transform: 'translate(-118px, 74px) scale(2.05)',
         });
+    });
+
+    it('does not render an image shell when no Commander image is selected', () => {
+        const { container } = render(
+            <CommanderPanel
+                commander={{ image: '', imageSource: 'none', roleLabel: 'מפקד', sectionTitle: 'דבר המפקד' }}
+                messages={[]}
+                borderStyle="standard"
+            />
+        );
+
+        expect(screen.queryByRole('img', { name: 'Commander' })).not.toBeInTheDocument();
+        expect(container.querySelector('[data-commander-image]')).not.toBeInTheDocument();
     });
 });

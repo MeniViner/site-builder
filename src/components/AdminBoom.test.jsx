@@ -29,6 +29,7 @@ const initialBoom = {
     buttonLabel: 'בום',
     pageTitle: 'חדר מצב',
     description: 'תיאור',
+    design: { preset: 'operational' },
     categories: [{ id: 'general', name: 'כללי', color: '#2563eb', order: 1 }],
     items: [{
         id: 'task-1',
@@ -38,7 +39,6 @@ const initialBoom = {
         status: 'active',
         startDate: '2026-01-01',
         endDate: '2026-01-10',
-        progress: 30,
         details: '',
         color: '#2563eb',
         order: 1,
@@ -57,8 +57,10 @@ describe('AdminBoom', () => {
 
     it('supports task create, edit, duplicate, and delete controls through the shared task table', async () => {
         render(<MemoryRouter><AdminBoom /></MemoryRouter>);
+        fireEvent.click(screen.getByRole('tab', { name: 'ניהול משימות' }));
 
         fireEvent.click(screen.getByRole('button', { name: 'משימה חדשה' }));
+        expect(screen.queryByText('התקדמות')).not.toBeInTheDocument();
         fireEvent.change(screen.getByLabelText('שם המשימה'), { target: { value: 'משימה חדשה' } });
         fireEvent.click(screen.getByRole('button', { name: 'הוספת משימה' }));
         expect(screen.getAllByText('משימה חדשה')).toHaveLength(3);
@@ -115,5 +117,30 @@ describe('AdminBoom', () => {
         await waitFor(() => expect(mocks.saveBoom).toHaveBeenCalledWith(
             expect.objectContaining({ pageTitle: 'חדר מצב מעודכן' })
         ));
+    });
+
+    it('loads and clears demo tasks only after deliberate actions', async () => {
+        render(<MemoryRouter><AdminBoom /></MemoryRouter>);
+
+        fireEvent.click(screen.getByRole('button', { name: 'טעינת נתוני הדגמה' }));
+        expect(window.confirm).toHaveBeenCalled();
+        await waitFor(() => expect(mocks.saveBoom).toHaveBeenCalled(), { timeout: 1800 });
+        expect(mocks.saveBoom.mock.calls.at(-1)[0].items.length).toBeGreaterThan(2);
+
+        fireEvent.click(screen.getByRole('button', { name: 'ניקוי משימות BOOM' }));
+        await waitFor(() => expect(mocks.saveBoom.mock.calls.at(-1)[0].items).toEqual([]), { timeout: 1800 });
+    });
+
+    it('persists design presets and previews them through the real BOOM presentation', async () => {
+        render(<MemoryRouter><AdminBoom /></MemoryRouter>);
+        fireEvent.click(screen.getByRole('tab', { name: 'עיצוב' }));
+
+        expect(screen.getByTestId('boom-presentation')).toHaveAttribute('data-preset', 'operational');
+        fireEvent.click(screen.getByRole('button', { name: /מרכז שליטה/ }));
+        expect(screen.getByTestId('boom-presentation')).toHaveAttribute('data-preset', 'command-center');
+
+        await waitFor(() => expect(mocks.saveBoom).toHaveBeenCalledWith(
+            expect.objectContaining({ design: { preset: 'command-center' } })
+        ), { timeout: 1800 });
     });
 });

@@ -3,7 +3,7 @@ import { resolveCurrentSharePointWebUrl } from '../utils/resolveCurrentSharePoin
 import { useAuth } from '../context/AuthContext';
 import { spBootstrapLog } from '../utils/spAppLog';
 import { DEFAULT_GANTT_DATA } from '../utils/ganttData';
-import { DEFAULT_BOOM_DATA } from '../utils/boomData';
+import { createInitialBoomData } from '../utils/boomData';
 import DismissibleNotice from '../components/DismissibleNotice';
 import { SHAREPOINT_PATHS } from '../config/sharepointPaths';
 import {
@@ -708,7 +708,7 @@ export default function AdminSharePointSetupPage() {
           [cfg.themeFileServerRelativeUrl, JSON.stringify({}, null, 2)],
           [cfg.externalLinksFileServerRelativeUrl, JSON.stringify([], null, 2)],
           [cfg.ganttFileServerRelativeUrl, JSON.stringify(DEFAULT_GANTT_DATA, null, 2)],
-          [cfg.boomFileServerRelativeUrl, JSON.stringify(DEFAULT_BOOM_DATA, null, 2)],
+          [cfg.boomFileServerRelativeUrl, JSON.stringify(createInitialBoomData(), null, 2)],
           [cfg.widgetsFileServerRelativeUrl, JSON.stringify({}, null, 2)],
         ];
         const outcomes = [];

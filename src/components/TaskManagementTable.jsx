@@ -1,8 +1,6 @@
 import React from 'react';
 import { Copy, Edit3, Trash2, UserRound } from 'lucide-react';
 
-const HEADER_CELL_CLASS = 'px-4 py-3 align-middle text-xs font-black text-gray-500 dark:text-gray-300';
-const BODY_CELL_CLASS = 'px-4 py-3 align-middle text-sm text-gray-700 dark:text-gray-200';
 const FALLBACK_CATEGORY_COLOR = '#2563eb';
 
 export const TASK_STATUS_META = Object.freeze({
@@ -123,8 +121,12 @@ export default function TaskManagementTable({
     onDuplicate,
     onDelete,
     readOnly = false,
+    density = 'comfortable',
 }) {
     const showActions = !readOnly && [onEdit, onDuplicate, onDelete].some((handler) => typeof handler === 'function');
+    const compact = density === 'compact';
+    const headerCellClass = `${compact ? 'px-3 py-2' : 'px-4 py-3'} align-middle text-xs font-black text-gray-500 dark:text-gray-300`;
+    const bodyCellClass = `${compact ? 'px-3 py-2' : 'px-4 py-3'} align-middle text-sm text-gray-700 dark:text-gray-200`;
 
     const renderActions = (task, mobile = false) => {
         if (!showActions) return null;
@@ -165,20 +167,20 @@ export default function TaskManagementTable({
                     </colgroup>
                     <thead className="bg-gray-50 text-xs font-black text-gray-500 dark:bg-[#1e212b] dark:text-gray-300">
                         <tr>
-                            <th className={`${HEADER_CELL_CLASS} text-right`}>שם משימה</th>
-                            <th className={`${HEADER_CELL_CLASS} text-right`}>תחום / קטגוריה</th>
-                            <th className={`${HEADER_CELL_CLASS} text-center`}>התחלה</th>
-                            <th className={`${HEADER_CELL_CLASS} text-center`}>סיום</th>
-                            <th className={`${HEADER_CELL_CLASS} text-right`}>אחראי</th>
-                            <th className={`${HEADER_CELL_CLASS} text-right`}>סטטוס</th>
-                            <th className={`${HEADER_CELL_CLASS} text-center`}>%</th>
-                            {showActions && <th className={`${HEADER_CELL_CLASS} text-center`}>פעולות</th>}
+                            <th className={`${headerCellClass} text-right`}>שם משימה</th>
+                            <th className={`${headerCellClass} text-right`}>תחום / קטגוריה</th>
+                            <th className={`${headerCellClass} text-center`}>התחלה</th>
+                            <th className={`${headerCellClass} text-center`}>סיום</th>
+                            <th className={`${headerCellClass} text-right`}>אחראי</th>
+                            <th className={`${headerCellClass} text-right`}>סטטוס</th>
+                            <th className={`${headerCellClass} text-center`}>%</th>
+                            {showActions && <th className={`${headerCellClass} text-center`}>פעולות</th>}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-white/5">
                         {tasks.map((task) => (
                             <tr key={task.id} className="transition-colors hover:bg-gray-50/80 dark:hover:bg-white/[0.03]">
-                                <td className={`${BODY_CELL_CLASS} text-right`}>
+                                <td className={`${bodyCellClass} text-right`}>
                                     <div className="flex items-center gap-2">
                                         <span className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-gray-200 dark:ring-white/10" style={{ backgroundColor: task.color }} title={task.color} />
                                         {renderTaskIndicators?.(task, false)}
@@ -190,27 +192,27 @@ export default function TaskManagementTable({
                                         </div>
                                     </div>
                                 </td>
-                                <td className={`${BODY_CELL_CLASS} text-right`}>
+                                <td className={`${bodyCellClass} text-right`}>
                                     <TaskTablePill className="max-w-full border-gray-200 bg-gray-50 text-gray-700 dark:border-white/10 dark:bg-white/5 dark:text-gray-200">
                                         <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: getCategoryColor(categories, task) }} />
                                         <span className="truncate">{task.category}</span>
                                     </TaskTablePill>
                                 </td>
-                                <td className={`${BODY_CELL_CLASS} whitespace-nowrap text-center text-gray-600 dark:text-gray-300`}>{formatDate(task.startDate)}</td>
-                                <td className={`${BODY_CELL_CLASS} whitespace-nowrap text-center text-gray-600 dark:text-gray-300`}>{formatDate(task.endDate)}</td>
-                                <td className={`${BODY_CELL_CLASS} text-right`}><AssigneeCell task={task} onAssign={onAssign ? () => onAssign(task) : undefined} readOnly={readOnly} /></td>
-                                <td className={`${BODY_CELL_CLASS} text-right`}><TaskBadges task={task} statusMeta={statusMeta} timingMeta={timingMeta} getTimingStatus={getTimingStatus} /></td>
-                                <td className={`${BODY_CELL_CLASS} text-center`}><TaskProgressMeter value={getProgress(task)} /></td>
-                                {showActions && <td className={`${BODY_CELL_CLASS} text-center`}>{renderActions(task)}</td>}
+                                <td className={`${bodyCellClass} whitespace-nowrap text-center text-gray-600 dark:text-gray-300`}>{formatDate(task.startDate)}</td>
+                                <td className={`${bodyCellClass} whitespace-nowrap text-center text-gray-600 dark:text-gray-300`}>{formatDate(task.endDate)}</td>
+                                <td className={`${bodyCellClass} text-right`}><AssigneeCell task={task} onAssign={onAssign ? () => onAssign(task) : undefined} readOnly={readOnly} /></td>
+                                <td className={`${bodyCellClass} text-right`}><TaskBadges task={task} statusMeta={statusMeta} timingMeta={timingMeta} getTimingStatus={getTimingStatus} /></td>
+                                <td className={`${bodyCellClass} text-center`}><TaskProgressMeter value={getProgress(task)} /></td>
+                                {showActions && <td className={`${bodyCellClass} text-center`}>{renderActions(task)}</td>}
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
 
-            <div className="space-y-3 p-4 lg:hidden">
+            <div className={`${compact ? 'space-y-2 p-3' : 'space-y-3 p-4'} lg:hidden`}>
                 {tasks.map((task) => (
-                    <article key={task.id} className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-[#1e212b]">
+                    <article key={task.id} className={`rounded-2xl border border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-[#1e212b] ${compact ? 'p-3' : 'p-4'}`}>
                         <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                                 <div className="flex min-w-0 items-center gap-2">

@@ -2,7 +2,7 @@
 import React, { createContext, useMemo, useContext, useCallback } from 'react';
 import { useConfig } from './ConfigProvider';
 import { spLog } from '../utils/spAppLog';
-import { getCommanderImageSettings } from '../utils/commanderImage';
+import { normalizeCommanderImageSettings } from '../utils/commanderImage';
 
 export const SiteContentContext = createContext();
 
@@ -39,7 +39,7 @@ function ensureLegacySiteContentContract(content) {
                 signature: typeof item.signature === 'string' ? item.signature : '',
             }))
         : [{ ...SAFE_EMPTY_MESSAGE }];
-    const commanderImageSettings = getCommanderImageSettings(commander);
+    const normalizedCommander = normalizeCommanderImageSettings(commander);
 
     return {
         hero: {
@@ -53,19 +53,20 @@ function ensureLegacySiteContentContract(content) {
             backgroundImageUrls,
         },
         commander: {
-            image: typeof commander.image === 'string'
-                ? commander.image
-                : (typeof commander.imageUrl === 'string' ? commander.imageUrl : ''),
-            imageUrl: typeof commander.imageUrl === 'string'
-                ? commander.imageUrl
-                : (typeof commander.image === 'string' ? commander.image : ''),
+            image: normalizedCommander.image,
+            imageUrl: normalizedCommander.imageUrl,
+            imageSource: normalizedCommander.imageSource,
+            imageAvatar: normalizedCommander.imageAvatar,
+            customImageUrl: normalizedCommander.customImageUrl,
             sectionTitle: typeof commander.sectionTitle === 'string' ? commander.sectionTitle : '',
             roleLabel: typeof commander.roleLabel === 'string' ? commander.roleLabel : '',
             decorativeElement: typeof commander.decorativeElement === 'string'
                 ? commander.decorativeElement
                 : 'line-diamond-line',
             messages,
-            ...commanderImageSettings,
+            imageScale: normalizedCommander.imageScale,
+            imageOffsetX: normalizedCommander.imageOffsetX,
+            imageOffsetY: normalizedCommander.imageOffsetY,
         },
         overlayImage: isObject(source.overlayImage) ? { ...source.overlayImage } : {},
     };
@@ -106,7 +107,7 @@ function toV1SiteContent(payload, previousContent = {}) {
         commander.messages,
         prevCommander.messages
     );
-    const commanderImageSettings = getCommanderImageSettings({
+    const normalizedCommander = normalizeCommanderImageSettings({
         ...prevCommander,
         ...commander,
     });
@@ -127,9 +128,10 @@ function toV1SiteContent(payload, previousContent = {}) {
             backgroundImageUrls: heroBackgroundImageUrls,
         },
         commander: {
-            imageUrl: typeof commander.image === 'string'
-                ? commander.image
-                : (typeof commander.imageUrl === 'string' ? commander.imageUrl : (prevCommander.imageUrl ?? '')),
+            imageUrl: normalizedCommander.imageUrl,
+            imageSource: normalizedCommander.imageSource,
+            imageAvatar: normalizedCommander.imageAvatar,
+            customImageUrl: normalizedCommander.customImageUrl,
             sectionTitle: typeof commander.sectionTitle === 'string'
                 ? commander.sectionTitle
                 : (prevCommander.sectionTitle ?? ''),
@@ -140,7 +142,9 @@ function toV1SiteContent(payload, previousContent = {}) {
                 ? commander.decorativeElement
                 : (prevCommander.decorativeElement ?? 'line-diamond-line'),
             messages: commanderMessages,
-            ...commanderImageSettings,
+            imageScale: normalizedCommander.imageScale,
+            imageOffsetX: normalizedCommander.imageOffsetX,
+            imageOffsetY: normalizedCommander.imageOffsetY,
         },
         overlayImage: {
             ...prevOverlayImage,
@@ -203,7 +207,21 @@ function normalizeContentPatchWithPrev(prevContent, patch) {
 function toV1FromFieldUpdate(prevContent, fieldPath, value) {
     const legacyPath = toLegacyFieldPath(fieldPath);
     const prevLegacy = toLegacyContentForEdit(prevContent);
-    const nextLegacy = setByPath(prevLegacy, legacyPath, value);
+    let nextLegacy = setByPath(prevLegacy, legacyPath, value);
+    if (fieldPath === 'commander.image' || fieldPath === 'commander.imageUrl') {
+        const imageUrl = typeof value === 'string' ? value : '';
+        nextLegacy = {
+            ...nextLegacy,
+            commander: {
+                ...nextLegacy.commander,
+                image: imageUrl,
+                imageUrl,
+                imageSource: imageUrl ? 'custom' : 'none',
+                imageAvatar: '',
+                customImageUrl: imageUrl,
+            },
+        };
+    }
     return toV1SiteContent(nextLegacy, prevContent);
 }
 

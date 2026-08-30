@@ -4,7 +4,7 @@ import path from 'path';
 import { pathToFileURL } from 'url';
 import { parseCliArgs, resolveConfig, writeEnvProduction } from './sp-env.js';
 import { DEFAULT_GANTT_DATA } from '../src/utils/ganttData.js';
-import { DEFAULT_BOOM_DATA } from '../src/utils/boomData.js';
+import { createInitialBoomData } from '../src/utils/boomData.js';
 import {
   decideLegacyLibraryDeployment,
   probeLegacyWebDavLibrary,
@@ -50,7 +50,7 @@ const defaultFiles = [
   { key: 'widgets', content: JSON.stringify({}, null, 2) },
   { key: 'externalLinks', content: JSON.stringify([], null, 2) },
   { key: 'gantt', content: JSON.stringify(DEFAULT_GANTT_DATA, null, 2) },
-  { key: 'boom', content: JSON.stringify(DEFAULT_BOOM_DATA, null, 2) },
+  { key: 'boom', content: JSON.stringify(createInitialBoomData(), null, 2) },
 ];
 
 const logLibraryCheck = (library) => {

@@ -32,7 +32,7 @@ function CommanderSection({ commander, messages }) {
   const [msgIndex, setMsgIndex] = useState(0);
   const hasMultiple = messages.length > 1;
   const decorativeElement = commander?.decorativeElement || 'line-diamond-line';
-  const { imageScale, imageOffsetX } = getCommanderImageSettings(commander);
+  const { imageScale, imageOffsetX, imageOffsetY } = getCommanderImageSettings(commander);
 
   useEffect(() => {
     if (!hasMultiple) return;
@@ -53,7 +53,7 @@ function CommanderSection({ commander, messages }) {
             source={commander.image}
             className="w-full sm:w-44 lg:w-52 xl:w-60 h-40 sm:h-full object-contain object-center relative z-[2] border-b sm:border-b-0 border-theme-subtle transition-transform duration-200 ease-out"
             style={{
-              transform: `translateX(${imageOffsetX}px) scale(${imageScale / 100})`,
+              transform: `translate(${imageOffsetX}px, ${imageOffsetY}px) scale(${imageScale / 100})`,
               transformOrigin: 'center',
             }}
             alt="Commander"

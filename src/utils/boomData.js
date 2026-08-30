@@ -1,3 +1,5 @@
+import { computeGanttProgress } from './ganttData';
+
 export const BOOM_STATUS_OPTIONS = Object.freeze([
     { value: 'planned', label: 'מתוכנן' },
     { value: 'active', label: 'בביצוע' },
@@ -5,6 +7,14 @@ export const BOOM_STATUS_OPTIONS = Object.freeze([
     { value: 'onHold', label: 'בהמתנה' },
     { value: 'completed', label: 'הושלם' },
 ]);
+
+export const BOOM_DESIGN_PRESETS = Object.freeze([
+    { id: 'operational', label: 'טבלה תפעולית', description: 'תצוגה בהירה ומאוזנת לעבודה שוטפת.' },
+    { id: 'command-center', label: 'מרכז שליטה', description: 'מסגרת מודגשת וסיכום מצב לפיקוח מהיר.' },
+    { id: 'compact', label: 'ניהול קומפקטי', description: 'צפיפות גבוהה יותר להצגת משימות רבות.' },
+]);
+
+const VALID_DESIGN_PRESETS = new Set(BOOM_DESIGN_PRESETS.map((preset) => preset.id));
 
 export const BOOM_COLOR_OPTIONS = Object.freeze([
     '#2563eb',
@@ -21,6 +31,7 @@ export const DEFAULT_BOOM_DATA = Object.freeze({
     buttonLabel: 'בום',
     pageTitle: 'BOOM - תמונת מצב',
     description: 'מערכת שליטה ובקרה למשימות, אחריות והתקדמות.',
+    design: { preset: 'operational' },
     categories: [
         { id: 'boom-category-general', name: 'כללי', color: BOOM_COLOR_OPTIONS[0], order: 1 },
     ],
@@ -82,7 +93,6 @@ export function normalizeBoomTask(taskLike, index = 0) {
         status: normalizeBoomStatus(source.status),
         startDate,
         endDate,
-        progress: integer(source.progress, 0, 100, 0),
         details: text(source.details ?? source.description ?? source.notes),
         color: isValidBoomColor(source.color) ? source.color : BOOM_COLOR_OPTIONS[0],
         order: integer(source.order, 0, Number.MAX_SAFE_INTEGER, index + 1),
@@ -142,6 +152,11 @@ export function normalizeBoomData(dataLike) {
         buttonLabel: text(source.buttonLabel, DEFAULT_BOOM_DATA.buttonLabel),
         pageTitle: text(source.pageTitle, DEFAULT_BOOM_DATA.pageTitle),
         description: text(source.description, DEFAULT_BOOM_DATA.description),
+        design: {
+            preset: VALID_DESIGN_PRESETS.has(source.design?.preset)
+                ? source.design.preset
+                : DEFAULT_BOOM_DATA.design.preset,
+        },
         categories,
         items: items.map((task) => {
             const category = categoryByName.get(task.category.toLocaleLowerCase('he'));
@@ -168,10 +183,109 @@ export function createBoomTask(overrides = {}) {
         status: 'planned',
         startDate: now,
         endDate: now,
-        progress: 0,
         details: '',
         color: BOOM_COLOR_OPTIONS[0],
         order: Date.now(),
         ...overrides,
     });
+}
+
+function addDays(date, days) {
+    const next = new Date(date);
+    next.setHours(0, 0, 0, 0);
+    next.setDate(next.getDate() + days);
+    return [
+        next.getFullYear(),
+        String(next.getMonth() + 1).padStart(2, '0'),
+        String(next.getDate()).padStart(2, '0'),
+    ].join('-');
+}
+
+export function computeBoomProgress(taskLike, today = new Date()) {
+    return computeGanttProgress(taskLike, today);
+}
+
+export function createBoomDemoData(today = new Date()) {
+    const categories = [
+        { id: 'boom-category-operations', name: 'מבצעים', color: '#2563eb', order: 1 },
+        { id: 'boom-category-readiness', name: 'כשירות', color: '#0f766e', order: 2 },
+        { id: 'boom-category-community', name: 'קהילה', color: '#7c3aed', order: 3 },
+    ];
+    const items = [
+        {
+            id: 'boom-demo-completed',
+            title: 'סיכום תמונת מצב קודמת',
+            category: 'מבצעים',
+            owner: 'חדר מבצעים',
+            status: 'completed',
+            startDate: addDays(today, -18),
+            endDate: addDays(today, -8),
+            details: 'סיכום המשימות והפקת לקחים מהתקופה שהסתיימה.',
+            color: '#2563eb',
+            order: 1,
+        },
+        {
+            id: 'boom-demo-active',
+            title: 'עדכון תמונת מצב יומית',
+            category: 'מבצעים',
+            owner: 'קצין תורן',
+            status: 'active',
+            startDate: addDays(today, -5),
+            endDate: addDays(today, 5),
+            details: 'איסוף תמונת מצב, חסמים והחלטות לביצוע.',
+            color: '#2563eb',
+            order: 2,
+        },
+        {
+            id: 'boom-demo-blocked',
+            title: 'השלמת כשירות צוותים',
+            category: 'כשירות',
+            owner: 'רכז כשירות',
+            status: 'blocked',
+            startDate: addDays(today, -3),
+            endDate: addDays(today, 9),
+            details: 'מעקב אחר פערי הכשרה וציוד הדורשים טיפול.',
+            color: '#0f766e',
+            order: 3,
+        },
+        {
+            id: 'boom-demo-planned',
+            title: 'היערכות לפעילות קהילתית',
+            category: 'קהילה',
+            owner: 'רכזת קהילה',
+            status: 'planned',
+            startDate: addDays(today, 7),
+            endDate: addDays(today, 21),
+            details: 'תיאום בעלי תפקידים, תשתיות ופרסום.',
+            color: '#7c3aed',
+            order: 4,
+        },
+    ];
+
+    return normalizeBoomData({
+        ...DEFAULT_BOOM_DATA,
+        categories,
+        items,
+    });
+}
+
+export function createInitialBoomData(today = new Date()) {
+    return createBoomDemoData(today);
+}
+
+export function loadBoomDemoData(current, today = new Date()) {
+    const demo = createBoomDemoData(today);
+    const normalizedCurrent = normalizeBoomData(current);
+    return {
+        ...normalizedCurrent,
+        categories: demo.categories,
+        items: demo.items,
+    };
+}
+
+export function clearBoomTasks(current) {
+    return {
+        ...normalizeBoomData(current),
+        items: [],
+    };
 }

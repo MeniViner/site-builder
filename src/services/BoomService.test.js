@@ -47,11 +47,12 @@ describe('BoomService', () => {
         storageState.adapterFactory.mockClear();
     });
 
-    it('seeds an independent disabled BOOM document in explicit mock mode', async () => {
+    it('seeds an independent disabled BOOM demo document in explicit mock mode', async () => {
         const loaded = await new BoomService(mockConfig).getBoom();
 
-        expect(loaded).toEqual(DEFAULT_BOOM_DATA);
-        expect(JSON.parse(localStorage.getItem(mockConfig.boomMockStorageKey))).toEqual(DEFAULT_BOOM_DATA);
+        expect(loaded).toMatchObject({ enabled: false, design: { preset: 'operational' } });
+        expect(loaded.items.length).toBeGreaterThan(0);
+        expect(JSON.parse(localStorage.getItem(mockConfig.boomMockStorageKey))).toEqual(loaded);
     });
 
     it('round-trips BOOM task data through the local development store', async () => {
@@ -75,8 +76,9 @@ describe('BoomService', () => {
         await expect(service.getBoom()).resolves.toMatchObject({
             enabled: true,
             pageTitle: 'חדר מצב',
-            items: [{ id: 'task-1', progress: 45 }],
+            items: [{ id: 'task-1' }],
         });
+        expect((await service.getBoom()).items[0]).not.toHaveProperty('progress');
     });
 
     it('uses the dedicated BOOM TXT path in production mode', async () => {

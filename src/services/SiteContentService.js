@@ -1,7 +1,13 @@
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
 import { buildFileValueEndpoint, upsertSharePointTextFile } from '../utils/sharepointUtils';
 import { DEFAULT_OVERLAY_IMAGE, normalizeOverlayImageConfig } from '../utils/overlayImageConfig';
-import { normalizeCommanderImageSettings } from '../utils/commanderImage';
+import {
+    COMMANDER_IMAGE_OFFSET_X,
+    COMMANDER_IMAGE_OFFSET_Y,
+    COMMANDER_IMAGE_SCALE,
+    DEFAULT_COMMANDER_IMAGE_PATH,
+    normalizeCommanderImageSettings,
+} from '../utils/commanderImage';
 import { createLegacyObjectStorageAdapter } from './storage/LegacyObjectStorageAdapter';
 import { isMongoStorageBackend, isSharePointReadonlyBackend } from './storage/storageBackend';
 import {
@@ -30,9 +36,13 @@ const DEFAULT_SITE_CONTENT = {
         ]
     },
     commander: {
-        image: '/images/אייל זמיר.png',
-        imageScale: 100,
-        imageOffsetX: 0,
+        image: DEFAULT_COMMANDER_IMAGE_PATH,
+        imageSource: 'default',
+        imageAvatar: '',
+        customImageUrl: '',
+        imageScale: COMMANDER_IMAGE_SCALE.defaultValue,
+        imageOffsetX: COMMANDER_IMAGE_OFFSET_X.defaultValue,
+        imageOffsetY: COMMANDER_IMAGE_OFFSET_Y.defaultValue,
         sectionTitle: 'דבר המפקד',
         roleLabel: 'שם מפקד היחידה',
         decorativeElement: 'line-diamond-line',
