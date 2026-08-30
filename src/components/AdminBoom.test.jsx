@@ -29,7 +29,17 @@ const initialBoom = {
     buttonLabel: 'בום',
     pageTitle: 'חדר מצב',
     description: 'תיאור',
-    design: { preset: 'operational' },
+    design: {
+        preset: 'operational',
+        showSummaryStrip: true,
+        summaryMetrics: ['total', 'active', 'blocked', 'overdue'],
+        tableDensity: 'comfortable',
+        showCategoryColors: true,
+        showSummaryChips: true,
+        accent: 'primary',
+        cardEmphasis: 'soft',
+        headerStyle: 'standard',
+    },
     categories: [{ id: 'general', name: 'כללי', color: '#2563eb', order: 1 }],
     items: [{
         id: 'task-1',
@@ -140,7 +150,45 @@ describe('AdminBoom', () => {
         expect(screen.getByTestId('boom-presentation')).toHaveAttribute('data-preset', 'command-center');
 
         await waitFor(() => expect(mocks.saveBoom).toHaveBeenCalledWith(
-            expect.objectContaining({ design: { preset: 'command-center' } })
+            expect.objectContaining({ design: expect.objectContaining({ preset: 'command-center' }) })
+        ), { timeout: 1800 });
+    });
+
+    it('updates the live summary preview and persists its visibility and selected metrics', async () => {
+        render(<MemoryRouter><AdminBoom /></MemoryRouter>);
+        fireEvent.click(screen.getByRole('tab', { name: 'עיצוב' }));
+
+        expect(screen.getByTestId('boom-summary-strip')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('switch', { name: 'הצגת שורת סטטוס' }));
+        expect(screen.queryByTestId('boom-summary-strip')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('checkbox', { name: /חסומות/ }));
+
+        await waitFor(() => expect(mocks.saveBoom).toHaveBeenCalledWith(
+            expect.objectContaining({
+                design: expect.objectContaining({
+                    showSummaryStrip: false,
+                    summaryMetrics: expect.not.arrayContaining(['blocked']),
+                }),
+            })
+        ), { timeout: 1800 });
+    });
+
+    it('manages categories and safely reassigns affected tasks on deletion', async () => {
+        render(<MemoryRouter><AdminBoom /></MemoryRouter>);
+        fireEvent.click(screen.getByRole('tab', { name: 'קטגוריות' }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'קטגוריה חדשה' }));
+        const nameField = screen.getByLabelText('שם קטגוריה תחום 2');
+        fireEvent.change(nameField, { target: { value: 'כשירות' } });
+        fireEvent.blur(nameField);
+        fireEvent.change(screen.getByLabelText('צבע עבור כשירות'), { target: { value: '#0f766e' } });
+        fireEvent.click(screen.getAllByRole('button', { name: 'מחיקה' })[0]);
+
+        await waitFor(() => expect(mocks.saveBoom).toHaveBeenCalledWith(
+            expect.objectContaining({
+                categories: [expect.objectContaining({ name: 'כשירות', color: '#0f766e' })],
+                items: [expect.objectContaining({ category: 'כשירות', color: '#0f766e' })],
+            })
         ), { timeout: 1800 });
     });
 });

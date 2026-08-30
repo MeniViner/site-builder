@@ -4,9 +4,12 @@ import {
     clearBoomTasks,
     computeBoomProgress,
     createInitialBoomData,
+    deleteBoomCategory,
     loadBoomDemoData,
     createBoomTask,
     normalizeBoomData,
+    reorderBoomCategory,
+    updateBoomCategory,
 } from './boomData';
 
 describe('boomData', () => {
@@ -108,5 +111,57 @@ describe('boomData', () => {
 
         expect(normalized.items[0]).not.toHaveProperty('progress');
         expect(computeBoomProgress(normalized.items[0], new Date('2026-06-15T12:00:00'))).toBe(50);
+    });
+
+    it('normalizes persisted summary-strip settings to supported values', () => {
+        const normalized = normalizeBoomData({
+            design: {
+                preset: 'command-center',
+                showSummaryStrip: false,
+                summaryMetrics: ['total', 'active', 'invalid', 'total'],
+                tableDensity: 'compact',
+                showCategoryColors: false,
+                accent: 'emerald',
+            },
+        });
+
+        expect(normalized.design).toMatchObject({
+            preset: 'command-center',
+            showSummaryStrip: false,
+            summaryMetrics: ['total', 'active'],
+            tableDensity: 'compact',
+            showCategoryColors: false,
+            accent: 'emerald',
+        });
+    });
+
+    it('renames and recolors categories without leaving task references behind', () => {
+        const current = normalizeBoomData({
+            categories: [
+                { id: 'ops', name: 'מבצעים', color: '#2563eb' },
+                { id: 'ready', name: 'כשירות', color: '#0f766e' },
+            ],
+            items: [{ id: 'task', title: 'עדכון', category: 'מבצעים', color: '#2563eb' }],
+        });
+        const updated = updateBoomCategory(current, 'ops', { name: 'פעילות', color: '#dc2626' });
+
+        expect(updated.categories.find((category) => category.id === 'ops')).toMatchObject({ name: 'פעילות', color: '#dc2626' });
+        expect(updated.items[0]).toMatchObject({ category: 'פעילות', color: '#dc2626' });
+    });
+
+    it('safely reassigns tasks when deleting a category and preserves category order', () => {
+        const current = normalizeBoomData({
+            categories: [
+                { id: 'ops', name: 'מבצעים', color: '#2563eb' },
+                { id: 'ready', name: 'כשירות', color: '#0f766e' },
+            ],
+            items: [{ id: 'task', title: 'עדכון', category: 'מבצעים', color: '#2563eb' }],
+        });
+        const reordered = reorderBoomCategory(current, 'ready', -1);
+        const deleted = deleteBoomCategory(reordered, 'ops', 'ready');
+
+        expect(deleted.categories).toEqual([expect.objectContaining({ id: 'ready', order: 1 })]);
+        expect(deleted.items[0]).toMatchObject({ category: 'כשירות', color: '#0f766e' });
+        expect(() => deleteBoomCategory(deleted, 'ready')).toThrow('לא ניתן למחוק את הקטגוריה האחרונה');
     });
 });

@@ -1,3 +1,5 @@
+import { isValidBoomColor, normalizeBoomData } from './boomData';
+
 const WIDGET_IDS = ['events', 'alerts', 'outstanding', 'countdown', 'news', 'phonebook', 'shuttles', 'polls', 'celebrations', 'heritage', 'tips'];
 
 const action = (id, label, hint, options = {}) => ({ id, label, hint, ...options });
@@ -103,6 +105,17 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
       action('audit', 'אתר בעיות תכנון', 'חפיפות, משימות בלי אחראי, תאריכים בעייתיים והתקדמות לא עקבית.', { readOnly: true }),
       action('status', 'סכם סטטוס', 'הכן סיכום מנהלים קצר מהגאנט בלי לשנות אותו.', { readOnly: true }),
       action('weekly', 'עדכן מדיווח שבועי', 'הדבק מה הושלם/נדחה/נחסם וה-AI יעדכן את המשימות.'),
+    ],
+  },
+  boom: {
+    title: 'ניהול BOOM',
+    description: 'יצירה ועדכון של משימות, קטגוריות ולוח הבקרה דרך חוזה BOOM המאומת.',
+    actions: [
+      action('brief', 'צור משימות מבריף', 'תאר מצב, אחריות ותאריכים וה-AI יבנה משימות BOOM מסודרות.'),
+      action('update', 'עדכן משימות', 'הדבק עדכון מצב וה-AI יעדכן כותרות, פרטים, אחראים, תאריכים וסטטוסים.'),
+      action('categories', 'סדר קטגוריות', 'תאר את התחומים הרצויים וה-AI יציע שמות וצבעים תקינים.'),
+      action('summary', 'עדכן שורת סטטוס', 'תאר מה חשוב לראות וה-AI יבחר מדדים תמציתיים מתוך האפשרויות הקיימות.'),
+      action('audit', 'בדוק תמונת מצב', 'זהה משימות חסומות, ללא אחראי או חריגות תאריך ועדכן רק לפי המידע שסופק.'),
     ],
   },
   'org-chart': {
@@ -306,6 +319,7 @@ function pageSchema(tab) {
     'external-links': '{"items":[{"id":"","title":"","url":"","icon":"","iconUrl":""}]}',
     galleries: '{"items":[{"id":"","title":"","description":"","active":true,"style":"magal-strips|classic-carousel|center-carousel|coverflow|masonry","order":0,"images":[{"id":"","mediaRef":"PRESERVE","alt":"","caption":"","media":{"fileName":""}}]}]}',
     gantt: '{"gantt":{"enabled":true,"buttonLabel":"","pageTitle":"","description":"","groupBy":"category|owner|status|none","defaultView":"day|week|month|quarter","showLegend":true,"showToday":true,"categories":[{"id":"","name":"","color":"#2563eb","order":1}],"items":[{"id":"","title":"","owner":"","category":"","status":"planned|blocked|completed|cancelled|onHold","startDate":"YYYY-MM-DD","endDate":"YYYY-MM-DD","color":"#2563eb","details":"","dependsOn":[],"milestones":[{"id":"","title":"","date":"YYYY-MM-DD"}]}]}}',
+    boom: '{"boom":{"enabled":true,"buttonLabel":"","pageTitle":"","description":"","design":{"preset":"operational|command-center|compact","showSummaryStrip":true,"summaryMetrics":["total|active|blocked|completed|overdue|upcoming|owners|categories"],"tableDensity":"compact|comfortable","showCategoryColors":true,"showSummaryChips":true,"accent":"primary|sky|emerald"},"categories":[{"id":"","name":"","color":"#2563eb","order":1}],"items":[{"id":"","title":"","owner":"","category":"","status":"planned|active|blocked|onHold|completed","startDate":"YYYY-MM-DD","endDate":"YYYY-MM-DD","details":""}]}}',
     'org-chart': '{"orgChart":{"enabled":true,"pageTitle":"","layoutDirection":"tree-center|step-rtl|step-ltr|3d-graph|flow-canvas","cardStyle":"classic|horizontal|large-avatar|compact","nodes":[{"id":"","name":"","rank":"","role":"","personalNumber":"","imageUrl":"PRESERVE","children":[]}]}}',
     alerts: '{"items":[{"id":"","title":"","text":"","isUrgent":false}]}',
     news: '{"items":[{"id":"","text":"","isUrgent":false}]}',
@@ -340,6 +354,7 @@ function specialRules(tab) {
     heritage: ['לעולם אל תמציא ציטוט או ייחוס.', 'אם אתה יוצר takeaway מסיפור, סמן אותו כמסר ארגוני ולא כציטוט היסטורי.'],
     'org-chart': ['אל תמציא אנשים, מספרים אישיים או דרגות.', 'שמור imageUrl קיים.'],
     gantt: ['אל תמציא זהות של אחראי. אם לא סופק אחראי, השאר owner ריק.', 'תאריכים חדשים חייבים להיות נגזרים מהקלט או מטווח/תאריך יעד שסופק; אם אין בסיס, שמור תאריכים קיימים.'],
+    boom: ['אפשר ליצור או לעדכן משימות BOOM רק עם נתונים מהבקשה או מהמצב הקיים.', 'השתמש רק בסטטוסים, הגדרות עיצוב וערכי לוח בקרה שמופיעים בסכימה.', 'ההתקדמות מחושבת אוטומטית מתאריכי ההתחלה והסיום; אל תחזיר שדה progress.', 'כל משימה חייבת להפנות לקטגוריה קיימת. אפשר ליצור קטגוריה חדשה עם צבע hex תקין כשנדרש.'],
     'current-widgets': ['עדכן בעיקר את הווידג׳טים הפעילים שמופיעים ב-currentSnapshot.activeWidgets.', 'אל תמחוק מידע קיים שלא נדרש למחוק.'],
   };
 
@@ -868,6 +883,65 @@ function normalizeGantt(payload, current, instruction, actionId) {
   };
 }
 
+function normalizeBoom(payload, current) {
+  const source = payload?.boom || payload || {};
+  const baseline = normalizeBoomData(current);
+  const currentTasks = existingById(baseline.items);
+  const currentCategories = baseline.categories;
+  const categoryById = existingById(currentCategories);
+
+  const categories = Array.isArray(source.categories)
+    ? source.categories.slice(0, 80).map((category, index) => {
+      const existing = categoryById.get(String(category?.id || ''))
+        || currentCategories.find((item) => item.name.toLocaleLowerCase('he') === text(category?.name).toLocaleLowerCase('he'));
+      return {
+        ...(clone(existing) || {}),
+        id: text(category?.id, existing?.id || makeId(`boom-category-${index}`)),
+        name: bounded(category?.name, 160, existing?.name || `תחום ${index + 1}`),
+        color: isValidBoomColor(category?.color) ? category.color : (existing?.color || '#2563eb'),
+        order: index + 1,
+      };
+    }).filter((category) => category.name)
+    : clone(currentCategories);
+
+  const categoryByName = new Map(categories.map((category) => [category.name.toLocaleLowerCase('he'), category]));
+  const items = Array.isArray(source.items)
+    ? source.items.slice(0, 250).map((item, index) => {
+      const existing = currentTasks.get(String(item?.id || ''));
+      const requestedCategory = bounded(item?.category, 160, existing?.category || categories[0]?.name || 'כללי');
+      const matchedCategory = categoryByName.get(requestedCategory.toLocaleLowerCase('he'));
+      const startDate = safeDate(item?.startDate, existing?.startDate || '');
+      const requestedEndDate = safeDate(item?.endDate, existing?.endDate || startDate);
+      const endDate = startDate && requestedEndDate && requestedEndDate < startDate ? startDate : requestedEndDate;
+      return {
+        ...(clone(existing) || {}),
+        id: text(item?.id, existing?.id || makeId(`boom-task-${index}`)),
+        title: bounded(item?.title, 240, existing?.title || ''),
+        owner: bounded(item?.owner, 180, existing?.owner || ''),
+        category: matchedCategory?.name || requestedCategory,
+        status: ['planned', 'active', 'blocked', 'onHold', 'completed'].includes(item?.status)
+          ? item.status
+          : (existing?.status || 'planned'),
+        startDate,
+        endDate,
+        details: bounded(item?.details, 3000, existing?.details || ''),
+        color: matchedCategory?.color || (isValidBoomColor(item?.color) ? item.color : existing?.color || '#2563eb'),
+      };
+    }).filter((item) => item.title)
+    : clone(baseline.items);
+
+  return normalizeBoomData({
+    ...baseline,
+    enabled: typeof source.enabled === 'boolean' ? source.enabled : baseline.enabled,
+    buttonLabel: bounded(source.buttonLabel, 120, baseline.buttonLabel),
+    pageTitle: bounded(source.pageTitle, 180, baseline.pageTitle),
+    description: bounded(source.description, 1200, baseline.description),
+    design: { ...baseline.design, ...(source.design && typeof source.design === 'object' ? source.design : {}) },
+    categories,
+    items,
+  });
+}
+
 function normalizeAlerts(payload, current, instruction) {
   const byId = existingById(current);
   return collectItems(payload).slice(0, 80).map((item, index) => {
@@ -1233,6 +1307,7 @@ export function normalizeAdminAiCandidate(tab, payload, currentSnapshot, options
     case 'galleries': return normalizeGalleries(payload, currentSnapshot);
     case 'gantt': return normalizeGantt(payload, currentSnapshot, instruction, actionId);
     case 'org-chart': return normalizeOrgChart(payload, currentSnapshot, instruction, actionId);
+    case 'boom': return normalizeBoom(payload, currentSnapshot);
     case 'alerts': return normalizeAlerts(payload, currentSnapshot, instruction);
     case 'news': return normalizeNews(payload, currentSnapshot);
     case 'outstanding': return normalizeOutstanding(payload, currentSnapshot, instruction);

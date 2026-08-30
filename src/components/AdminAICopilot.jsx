@@ -23,6 +23,7 @@ import { useExternalLinks } from '../context/ExternalLinksContext';
 import { useImageGalleries } from '../context/ImageGalleryContext';
 import { useGantt } from '../context/GanttContext';
 import { useOrgChart } from '../context/OrgChartContext';
+import { useBoom } from '../context/BoomContext';
 import AdminAIHistoryBar from './AdminAIHistoryBar';
 import {
   applyAdminAiActionSemantics,
@@ -156,6 +157,7 @@ export default function AdminAICopilot({ activeTab }) {
   const { galleries, saveGalleries } = useImageGalleries();
   const { gantt, saveGantt } = useGantt();
   const { orgChart, saveOrgChart } = useOrgChart();
+  const { boom, saveBoom } = useBoom();
 
   const selectedAction = useMemo(
     () => getAdminAiAction(activeTab, selectedActionId),
@@ -204,6 +206,7 @@ export default function AdminAICopilot({ activeTab }) {
     if (activeTab === 'galleries') return clone(galleries || []);
     if (activeTab === 'gantt') return clone(gantt || {});
     if (activeTab === 'org-chart') return clone(orgChart || {});
+    if (activeTab === 'boom') return clone(boom || {});
     if (SMALL_WIDGET_TABS.has(activeTab)) return getSafeSmallWidgetValue(activeTab, widgetConfig || {});
     return null;
   }, [
@@ -217,6 +220,7 @@ export default function AdminAICopilot({ activeTab }) {
     intervalMs,
     navItems,
     orgChart,
+    boom,
     siteContent,
     theme,
     widgetConfig,
@@ -296,6 +300,10 @@ export default function AdminAICopilot({ activeTab }) {
       ensureSuccess(await saveOrgChart(snapshot || {}), 'שמירת עץ המבנה נכשלה');
       return;
     }
+    if (activeTab === 'boom') {
+      ensureSuccess(await saveBoom(snapshot || {}), 'שמירת BOOM נכשלה');
+      return;
+    }
     if (SMALL_WIDGET_TABS.has(activeTab)) {
       ensureSuccess(
         await saveWidgetConfig({ ...widgetConfig, [activeTab]: snapshot }),
@@ -311,6 +319,7 @@ export default function AdminAICopilot({ activeTab }) {
     saveGantt,
     saveNavigation,
     saveOrgChart,
+    saveBoom,
     saveSiteContent,
     saveTheme,
     saveWidgetConfig,

@@ -51,6 +51,7 @@ import {
 import AIService from '../services/AIService';
 import { analyzeOrgChartSourceFile } from '../services/OrgChartFileAIService';
 import AdminWidgetAIAssistant from './AdminWidgetAIAssistant';
+import { AdminAddonTabs, AdminAddonToggle } from './AdminAddonControls';
 
 const ROOT_NODE_ID = '__org_chart_root__';
 const RANK_DATALIST_ID = 'org-chart-rank-options';
@@ -1483,18 +1484,13 @@ export default function AdminOrgChart() {
                                 {draft.enabled ? 'פעיל' : 'כבוי'}
                             </span>
                         </div>
-                        <button
-                            type="button"
-                            role="switch"
-                            aria-checked={draft.enabled}
-                            onClick={() => updateDraftField('enabled', !draft.enabled)}
-                            className="group flex w-full items-center justify-between rounded-2xl border border-gray-200 bg-white px-4 py-3 text-right transition hover:border-primary/40 hover:bg-primary/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 dark:border-white/10 dark:bg-[#202532] dark:hover:border-primary/40 dark:hover:bg-primary/10"
-                        >
-                            <span className="text-sm font-bold text-gray-900 dark:text-white">{draft.enabled ? 'הדף פעיל' : 'הדף כבוי'}</span>
-                            <span className={`relative inline-flex h-7 w-12 rounded-full transition ${draft.enabled ? 'bg-green-500/80' : 'bg-gray-300 dark:bg-white/10'}`}>
-                                <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition ${draft.enabled ? 'right-0.5' : 'right-[1.55rem]'}`} />
-                            </span>
-                        </button>
+                        <AdminAddonToggle
+                            checked={draft.enabled}
+                            onChange={(enabled) => updateDraftField('enabled', enabled)}
+                            label={draft.enabled ? 'הדף פעיל' : 'הדף כבוי'}
+                            ariaLabel="הפעלת עמוד עץ המבנה"
+                            className="flex w-full justify-between rounded-2xl px-4 py-3 text-right"
+                        />
                     </div>
 
                     <div className="rounded-2xl border border-gray-200 bg-gradient-to-b from-gray-50 to-white p-4 shadow-sm dark:border-white/10 dark:from-[#1b1f2a] dark:to-[#171b24]">
@@ -2735,22 +2731,7 @@ export default function AdminOrgChart() {
                     </div>
                 </div>
 
-                <nav className="flex w-full items-center gap-2 overflow-x-auto p-1 custom-scrollbar">
-                    {TABS.map((tab) => (
-                        <button
-                            key={tab.id}
-                            type="button"
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`rounded-lg px-4 py-2 text-sm font-bold whitespace-nowrap transition ${
-                                activeTab === tab.id
-                                    ? 'bg-primary-600 text-white shadow-md ring-2 ring-primary-500/30 ring-offset-2 ring-offset-gray-50 dark:ring-offset-[#12141a]'
-                                    : 'border border-gray-200 bg-white text-gray-600 shadow-sm hover:bg-gray-100 hover:text-gray-900 dark:border-transparent dark:bg-white/5 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white'
-                            }`}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
-                </nav>
+                <AdminAddonTabs tabs={TABS} activeTab={activeTab} onChange={setActiveTab} ariaLabel="לשוניות ניהול עץ המבנה" />
                 {/* <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{TABS.find((tab) => tab.id === activeTab)?.description}</p> */}
             </div>
 

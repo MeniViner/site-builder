@@ -4,12 +4,14 @@ import {
     LayoutDashboard,
     ListChecks,
     Palette,
+    Tag,
     ExternalLink,
     Loader2,
     Plus,
     RefreshCw,
     Search,
     ShieldCheck,
+    Trash2,
     X,
     Zap,
 } from 'lucide-react';
@@ -18,15 +20,23 @@ import { toast } from 'react-toastify';
 import { useBoom } from '../context/BoomContext';
 import {
     BOOM_COLOR_OPTIONS,
+    BOOM_ACCENT_OPTIONS,
     BOOM_DESIGN_PRESETS,
+    BOOM_SUMMARY_METRICS,
     BOOM_STATUS_OPTIONS,
+    BOOM_TABLE_DENSITIES,
     clearBoomTasks,
     cloneBoomData,
     computeBoomProgress,
+    createBoomCategory,
     createBoomTask,
+    deleteBoomCategory,
     loadBoomDemoData,
     normalizeBoomData,
+    reorderBoomCategory,
+    updateBoomCategory,
 } from '../utils/boomData';
+import { AdminAddonTabs, AdminAddonToggle } from './AdminAddonControls';
 import TaskManagementTable, { TASK_STATUS_META } from './TaskManagementTable';
 import BoomPresentation from './BoomPresentation';
 
@@ -34,21 +44,13 @@ const panelClass = 'rounded-3xl border border-gray-200 bg-white shadow-sm dark:b
 const fieldClass = 'min-h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-2 focus:ring-primary/15 dark:border-white/10 dark:bg-white/5 dark:text-white';
 const labelClass = 'mb-1.5 block text-xs font-black text-gray-600 dark:text-gray-300';
 
-function Toggle({ checked, onChange }) {
-    return (
-        <button
-            type="button"
-            role="switch"
-            aria-checked={checked}
-            onClick={() => onChange(!checked)}
-            className={`relative inline-flex h-10 w-[68px] shrink-0 items-center rounded-full p-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 active:scale-[0.96] ${
-                checked ? 'bg-primary' : 'bg-gray-300 dark:bg-white/20'
-            }`}
-        >
-            <span className={`h-8 w-8 rounded-full bg-white shadow-md transition-transform ${checked ? '-translate-x-7' : 'translate-x-0'}`} />
-            <span className="sr-only">הפעלת עמוד BOOM</span>
-        </button>
-    );
+function reorderMetric(metrics, metricId, direction) {
+    const current = Array.isArray(metrics) ? [...metrics] : [];
+    const index = current.indexOf(metricId);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
+    [current[index], current[nextIndex]] = [current[nextIndex], current[index]];
+    return current;
 }
 
 function BoomTaskDialog({ modal, categories, onChange, onClose, onSubmit }) {
@@ -125,6 +127,7 @@ export default function AdminBoom() {
     const [query, setQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [activeTab, setActiveTab] = useState('basic');
+    const [categoryNameDrafts, setCategoryNameDrafts] = useState({});
     const [autoSaveState, setAutoSaveState] = useState('saved');
     const savedSnapshotRef = useRef(JSON.stringify(normalizeBoomData(boom)));
     const draftSnapshotRef = useRef(JSON.stringify(normalizeBoomData(boom)));
@@ -199,6 +202,10 @@ export default function AdminBoom() {
                 ? updater(current)
                 : { ...current, ...updater }
         ));
+    };
+
+    const updateDesign = (patch) => {
+        updateDraft((current) => ({ ...current, design: { ...current.design, ...patch } }));
     };
 
     const visibleTasks = useMemo(() => {
@@ -284,6 +291,44 @@ export default function AdminBoom() {
         toast.success('משימות BOOM נוקו');
     };
 
+    const addCategory = () => {
+        updateDraft((current) => ({
+            ...current,
+            categories: [...current.categories, createBoomCategory({}, current.categories)],
+        }));
+    };
+
+    const editCategory = (category, patch) => {
+        const nextName = typeof patch.name === 'string' ? patch.name.trim() : category.name;
+        if (!nextName) {
+            toast.error('יש להזין שם לקטגוריה.');
+            return;
+        }
+        const hasDuplicate = draft.categories.some((item) => (
+            item.id !== category.id && item.name.toLocaleLowerCase('he') === nextName.toLocaleLowerCase('he')
+        ));
+        if (hasDuplicate) {
+            toast.error('כבר קיימת קטגוריה בשם זה.');
+            return;
+        }
+        updateDraft((current) => updateBoomCategory(current, category.id, patch));
+    };
+
+    const removeCategory = (category) => {
+        if (draft.categories.length === 1) {
+            toast.error('לא ניתן למחוק את הקטגוריה האחרונה. יש להוסיף קטגוריה חלופית תחילה.');
+            return;
+        }
+        const replacement = draft.categories.find((item) => item.id !== category.id);
+        const affectedCount = draft.items.filter((task) => task.category === category.name).length;
+        const message = affectedCount
+            ? `מחיקת "${category.name}" תעביר ${affectedCount} משימות אל "${replacement.name}". להמשיך?`
+            : `למחוק את הקטגוריה "${category.name}"?`;
+        if (!window.confirm(message)) return;
+        updateDraft((current) => deleteBoomCategory(current, category.id, replacement.id));
+        toast.success(affectedCount ? `הקטגוריה נמחקה והמשימות הועברו אל "${replacement.name}"` : 'הקטגוריה נמחקה');
+    };
+
     const reload = async () => {
         const loaded = await reloadBoom();
         if (loaded) {
@@ -355,28 +400,17 @@ export default function AdminBoom() {
             <main className="space-y-6 p-5 sm:p-8 lg:p-10">
                 {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">{error}</div>}
 
-                <nav className="flex gap-1 overflow-x-auto rounded-2xl bg-gray-200/70 p-1 dark:bg-white/[0.06]" aria-label="לשוניות ניהול BOOM">
-                    {[
+                <AdminAddonTabs
+                    tabs={[
                         { id: 'basic', label: 'הגדרות בסיסיות', icon: LayoutDashboard },
                         { id: 'design', label: 'עיצוב', icon: Palette },
+                        { id: 'categories', label: 'קטגוריות', icon: Tag },
                         { id: 'tasks', label: 'ניהול משימות', icon: ListChecks },
-                    ].map(({ id, label, icon }) => (
-                        <button
-                            key={id}
-                            type="button"
-                            role="tab"
-                            aria-selected={activeTab === id}
-                            onClick={() => setActiveTab(id)}
-                            className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 text-sm font-black transition-[background-color,color,box-shadow,transform] active:scale-[0.96] ${
-                                activeTab === id
-                                    ? 'bg-white text-primary shadow-sm dark:bg-[#252a36] dark:text-primary-300'
-                                    : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
-                            }`}
-                        >
-                            {React.createElement(icon, { size: 17 })}{label}
-                        </button>
-                    ))}
-                </nav>
+                    ]}
+                    activeTab={activeTab}
+                    onChange={setActiveTab}
+                    ariaLabel="לשוניות ניהול BOOM"
+                />
 
                 {activeTab === 'basic' && (
                     <section className={`${panelClass} p-5 sm:p-6`}>
@@ -388,7 +422,12 @@ export default function AdminBoom() {
                                     <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">המידע נשמר באופן עצמאי ואינו משנה את נתוני הגאנט.</p>
                                 </div>
                             </div>
-                            <Toggle checked={draft.enabled} onChange={(enabled) => updateDraft({ enabled })} />
+                            <AdminAddonToggle
+                                checked={draft.enabled}
+                                onChange={(enabled) => updateDraft({ enabled })}
+                                label={draft.enabled ? 'הדף פעיל' : 'הדף כבוי'}
+                                ariaLabel="הפעלת עמוד BOOM"
+                            />
                         </div>
                         <div className="mt-5 grid gap-4 border-t border-gray-200 pt-5 dark:border-white/10 md:grid-cols-2">
                             <label><span className={labelClass}>שם הכפתור באתר</span><input className={fieldClass} value={draft.buttonLabel} onChange={(event) => updateDraft({ buttonLabel: event.target.value })} /></label>
@@ -411,8 +450,24 @@ export default function AdminBoom() {
                 {activeTab === 'design' && (
                     <section className="grid gap-6 xl:grid-cols-2 xl:items-start">
                         <div className={`${panelClass} p-5 sm:p-6`}>
-                            <h2 className="text-xl font-black text-gray-900 dark:text-white">סגנון תצוגה</h2>
-                            <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">הסגנון משנה את הצגת BOOM בלבד ואינו משנה משימות או סטטוסים.</p>
+                            <h2 className="text-xl font-black text-gray-900 dark:text-white">תצוגת תמונת מצב</h2>
+                            <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">כל שינוי מוצג מיד בתצוגה החיה ונשמר כחלק מהגדרות BOOM.</p>
+                            <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                                    <div>
+                                        <h3 className="text-sm font-black text-gray-900 dark:text-white">הצגת שורת סטטוס</h3>
+                                        <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">שורה תמציתית מעל טבלת המשימות. כאשר היא כבויה, העמוד מתחיל בטבלה.</p>
+                                    </div>
+                                    <AdminAddonToggle
+                                        checked={draft.design.showSummaryStrip}
+                                        onChange={(showSummaryStrip) => updateDesign({ showSummaryStrip })}
+                                        label={draft.design.showSummaryStrip ? 'מוצג' : 'מוסתר'}
+                                        ariaLabel="הצגת שורת סטטוס"
+                                    />
+                                </div>
+                            </div>
+
+                            <h3 className="mt-6 text-sm font-black text-gray-900 dark:text-white">סגנון תצוגה</h3>
                             <div className="mt-5 space-y-3">
                                 {BOOM_DESIGN_PRESETS.map((preset) => {
                                     const selected = draft.design.preset === preset.id;
@@ -421,7 +476,7 @@ export default function AdminBoom() {
                                             key={preset.id}
                                             type="button"
                                             aria-pressed={selected}
-                                            onClick={() => updateDraft((current) => ({ ...current, design: { preset: preset.id } }))}
+                                            onClick={() => updateDesign({ preset: preset.id })}
                                             className={`w-full rounded-2xl p-4 text-right transition-[box-shadow,transform] active:scale-[0.96] ${
                                                 selected
                                                     ? 'bg-primary/10 text-primary shadow-[inset_0_0_0_2px_currentColor]'
@@ -434,10 +489,97 @@ export default function AdminBoom() {
                                     );
                                 })}
                             </div>
+                            <div className="mt-6">
+                                <h3 className="text-sm font-black text-gray-900 dark:text-white">מדדים בשורת הסטטוס</h3>
+                                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                    {BOOM_SUMMARY_METRICS.map((metric) => {
+                                        const checked = draft.design.summaryMetrics.includes(metric.id);
+                                        return (
+                                            <label key={metric.id} className={`flex items-center justify-between gap-3 rounded-xl border p-3 transition ${checked ? 'border-primary/35 bg-primary/5' : 'border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/[0.03]'}`}>
+                                                <span className="flex items-center gap-2">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={checked}
+                                                        onChange={() => updateDesign({
+                                                            summaryMetrics: checked
+                                                                ? draft.design.summaryMetrics.filter((id) => id !== metric.id)
+                                                                : [...draft.design.summaryMetrics, metric.id],
+                                                        })}
+                                                        className="h-4 w-4 rounded border-primary/30 accent-primary"
+                                                    />
+                                                    <span className="text-sm font-black text-gray-800 dark:text-gray-100">{metric.label}</span>
+                                                </span>
+                                                {checked && (
+                                                    <span className="flex gap-1">
+                                                        <button type="button" aria-label={`העבר את ${metric.label} ימינה`} onClick={() => updateDesign({ summaryMetrics: reorderMetric(draft.design.summaryMetrics, metric.id, -1) })} disabled={draft.design.summaryMetrics.indexOf(metric.id) === 0} className="rounded border border-gray-200 px-1.5 py-0.5 text-xs disabled:opacity-35 dark:border-white/10">ימינה</button>
+                                                        <button type="button" aria-label={`העבר את ${metric.label} שמאלה`} onClick={() => updateDesign({ summaryMetrics: reorderMetric(draft.design.summaryMetrics, metric.id, 1) })} disabled={draft.design.summaryMetrics.indexOf(metric.id) === draft.design.summaryMetrics.length - 1} className="rounded border border-gray-200 px-1.5 py-0.5 text-xs disabled:opacity-35 dark:border-white/10">שמאלה</button>
+                                                    </span>
+                                                )}
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                                <label><span className={labelClass}>צפיפות טבלת המשימות</span><select className={fieldClass} value={draft.design.tableDensity} onChange={(event) => updateDesign({ tableDensity: event.target.value })}>{BOOM_TABLE_DENSITIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+                                <label><span className={labelClass}>צבע מוביל</span><select className={fieldClass} value={draft.design.accent} onChange={(event) => updateDesign({ accent: event.target.value })}>{BOOM_ACCENT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+                                <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm font-bold text-gray-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-gray-200">
+                                    <label className="flex items-center gap-2"><input type="checkbox" checked={draft.design.showCategoryColors} onChange={(event) => updateDesign({ showCategoryColors: event.target.checked })} className="h-4 w-4 rounded border-primary/30 accent-primary" />הדגש צבעי קטגוריות</label>
+                                    <label className="flex items-center gap-2"><input type="checkbox" checked={draft.design.showSummaryChips} onChange={(event) => updateDesign({ showSummaryChips: event.target.checked })} className="h-4 w-4 rounded border-primary/30 accent-primary" />הצג תגי סיכום בטבלה</label>
+                                </div>
+                            </div>
                         </div>
                         <div className="min-w-0 xl:sticky xl:top-36">
                             <div className="mb-2 text-xs font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">תצוגה חיה</div>
                             <BoomPresentation boom={draft} preview />
+                        </div>
+                    </section>
+                )}
+
+                {activeTab === 'categories' && (
+                    <section className={`${panelClass} overflow-hidden`}>
+                        <div className="flex flex-col justify-between gap-4 border-b border-gray-200 p-5 dark:border-white/10 sm:flex-row sm:items-center sm:p-6">
+                            <div>
+                                <h2 className="text-xl font-black text-gray-900 dark:text-white">ניהול קטגוריות</h2>
+                                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">צבעים ושמות מתעדכנים מיד במשימות ובלוח הבקרה.</p>
+                            </div>
+                            <button type="button" onClick={addCategory} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-black text-white shadow-lg shadow-primary/20 transition-[filter,transform] hover:brightness-110 active:scale-[0.96]"><Plus size={18} />קטגוריה חדשה</button>
+                        </div>
+                        <div className="divide-y divide-gray-200 dark:divide-white/10">
+                            {draft.categories.map((category, index) => {
+                                const taskCount = draft.items.filter((task) => task.category === category.name).length;
+                                return (
+                                    <div key={category.id} className="grid gap-3 p-5 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto] sm:items-end sm:p-6">
+                                        <label>
+                                            <span className={labelClass}>צבע</span>
+                                            <input aria-label={`צבע עבור ${category.name}`} type="color" value={category.color} onChange={(event) => editCategory(category, { color: event.target.value })} className="h-11 w-14 cursor-pointer rounded-xl border border-gray-200 bg-white p-1 dark:border-white/10 dark:bg-white/5" />
+                                        </label>
+                                        <label>
+                                            <span className={labelClass}>שם הקטגוריה</span>
+                                            <input
+                                                aria-label={`שם קטגוריה ${category.name}`}
+                                                className={fieldClass}
+                                                value={categoryNameDrafts[category.id] ?? category.name}
+                                                onChange={(event) => setCategoryNameDrafts((current) => ({ ...current, [category.id]: event.target.value }))}
+                                                onBlur={(event) => {
+                                                    editCategory(category, { name: event.target.value });
+                                                    setCategoryNameDrafts((current) => {
+                                                        const next = { ...current };
+                                                        delete next[category.id];
+                                                        return next;
+                                                    });
+                                                }}
+                                            />
+                                        </label>
+                                        <div className="text-sm font-bold text-gray-500 dark:text-gray-400">{taskCount} משימות</div>
+                                        <button type="button" onClick={() => removeCategory(category)} disabled={draft.categories.length === 1} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-200 px-3 text-sm font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-red-500/30 dark:text-red-300 dark:hover:bg-red-500/10"><Trash2 size={16} />מחיקה</button>
+                                        <div className="flex gap-2 sm:col-span-4">
+                                            <button type="button" onClick={() => updateDraft((current) => reorderBoomCategory(current, category.id, -1))} disabled={index === 0} className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-bold disabled:opacity-40 dark:border-white/10">העבר למעלה</button>
+                                            <button type="button" onClick={() => updateDraft((current) => reorderBoomCategory(current, category.id, 1))} disabled={index === draft.categories.length - 1} className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-bold disabled:opacity-40 dark:border-white/10">העבר למטה</button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </section>
                 )}

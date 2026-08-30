@@ -39,7 +39,7 @@ vi.mock('../context/GanttContext', () => ({
 
 function openTaskModal() {
     render(<AdminGantt />);
-    fireEvent.click(screen.getByRole('button', { name: 'ניהול הגאנט' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'ניהול הגאנט' }));
     fireEvent.click(screen.getAllByRole('button', { name: 'הוסף משימה' })[0]);
     return screen.getByRole('dialog');
 }
