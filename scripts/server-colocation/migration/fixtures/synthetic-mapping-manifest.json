@@ -1,0 +1,32 @@
+{
+  "rows": [
+    {
+      "hubSiteId": "hub-001",
+      "siteIdentityKey": "identity-a",
+      "siteCode": "DUPLICATE-CODE",
+      "builderSiteId": "builder-a",
+      "runtimeSiteId": "runtime-a",
+      "sourceDatabase": "synthetic_site_builder_source",
+      "targetDatabase": "synthetic_site_builder_target",
+      "safeCollectionName": "site_demo_a",
+      "physicalCollection": "site_demo_a",
+      "sharePointSiteUrl": "https://example.invalid/sites/a",
+      "migrationState": "approved-for-validation",
+      "evidenceHash": "synthetic-evidence-a"
+    },
+    {
+      "hubSiteId": "hub-002",
+      "siteIdentityKey": "identity-b",
+      "siteCode": "DUPLICATE-CODE",
+      "builderSiteId": "builder-b",
+      "runtimeSiteId": "runtime-b",
+      "sourceDatabase": "synthetic_site_builder_source",
+      "targetDatabase": "synthetic_site_builder_target",
+      "safeCollectionName": "site_demo_b",
+      "physicalCollection": "site_demo_b",
+      "sharePointSiteUrl": "https://example.invalid/sites/b",
+      "migrationState": "approved-for-validation",
+      "evidenceHash": "synthetic-evidence-b"
+    }
+  ]
+}

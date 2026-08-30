@@ -1,0 +1,19 @@
+{
+  "formatVersion": 1,
+  "generatedAt": "2026-07-21T00:00:00.000Z",
+  "database": "synthetic_site_builder_source",
+  "endpoint": "mongodb://127.0.0.1:27017/synthetic_site_builder_source",
+  "collections": [
+    { "name": "sites", "type": "collection", "options": {}, "documentCount": 2, "idTypeSummary": { "objectId": 2 }, "indexes": [{ "name": "_id_", "key": { "_id": 1 }}]},
+    { "name": "site_demo_a", "type": "collection", "options": {}, "documentCount": 3, "idTypeSummary": { "string": 3 }, "indexes": [{ "name": "_id_", "key": { "_id": 1 }}]},
+    { "name": "site_demo_b", "type": "collection", "options": {}, "documentCount": 2, "idTypeSummary": { "string": 2 }, "indexes": [{ "name": "_id_", "key": { "_id": 1 }}]},
+    { "name": "site_data_revisions", "type": "collection", "options": {}, "documentCount": 5, "idTypeSummary": { "objectId": 5 }, "indexes": [{ "name": "_id_", "key": { "_id": 1 }}]},
+    { "name": "site_data_audit_logs", "type": "collection", "options": {}, "documentCount": 4, "idTypeSummary": { "objectId": 4 }, "indexes": [{ "name": "_id_", "key": { "_id": 1 }}]}
+  ],
+  "registry": [
+    { "builderSiteId": "builder-a", "safeCollectionName": "site_demo_a", "physicalCollection": "site_demo_a", "exists": true },
+    { "builderSiteId": "builder-b", "safeCollectionName": "site_demo_b", "physicalCollection": "site_demo_b", "exists": true }
+  ],
+  "totals": { "collections": 5, "documents": 16, "physicalSiteCollections": 2, "revisionDocuments": 5, "auditDocuments": 4 },
+  "canonicalHash": "synthetic-fixture-recomputed-by-tests"
+}

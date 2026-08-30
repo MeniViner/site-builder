@@ -28,6 +28,5 @@ server/.env.test
 *.sln
 *.sw?
 offline-artifacts/docker/*.tar
-
-
 .site-builder-source
+tmp/agent-runs/

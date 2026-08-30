@@ -11,8 +11,10 @@ const splitCsv = (value) =>
 export function getServerConfig(env = process.env) {
   return {
     mongodbUri: env.MONGODB_URI || '',
-    mongodbDbName: env.MONGODB_DB_NAME || 'site_builder',
-    serverPort: Number(env.SERVER_PORT || 4000),
+    // The database name must be explicit.  Falling back to the historical
+    // development database makes an accidental deployment especially risky.
+    mongodbDbName: env.MONGODB_DB_NAME || '',
+    serverPort: Number(env.SERVER_PORT || 3001),
     corsOrigins: splitCsv(env.CORS_ORIGINS),
     storageBackend: env.STORAGE_BACKEND || 'mongo',
     legacySharePointReadonlyFallback: String(env.LEGACY_SHAREPOINT_READONLY_FALLBACK || 'false') === 'true',
@@ -21,6 +23,10 @@ export function getServerConfig(env = process.env) {
     siteCollectionPrefix: env.SITE_COLLECTION_PREFIX || 'site_',
     nodeEnv: env.NODE_ENV || 'development',
     serverHost: env.SERVER_HOST || '0.0.0.0',
+    requireStartupCollections: String(
+      env.REQUIRE_STARTUP_COLLECTIONS ?? (env.NODE_ENV === 'production' ? 'true' : 'false'),
+    ).toLowerCase() === 'true',
+    shutdownTimeoutMs: Number(env.SHUTDOWN_TIMEOUT_MS || 30000),
   };
 }
 
@@ -35,6 +41,14 @@ export function validateServerConfig(config) {
     if (!String(config.mongodbDbName || '').trim()) {
       errors.push('MONGODB_DB_NAME is required when STORAGE_BACKEND=mongo.');
     }
+  }
+
+  if (!Number.isInteger(config.serverPort) || config.serverPort < 1 || config.serverPort > 65535) {
+    errors.push('SERVER_PORT must be an integer between 1 and 65535.');
+  }
+
+  if (!Number.isInteger(config.shutdownTimeoutMs) || config.shutdownTimeoutMs < 1000 || config.shutdownTimeoutMs > 300000) {
+    errors.push('SHUTDOWN_TIMEOUT_MS must be an integer between 1000 and 300000.');
   }
 
   return errors;
