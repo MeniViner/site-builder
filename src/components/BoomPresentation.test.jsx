@@ -8,16 +8,12 @@ const boom = {
     description: 'בקרה שוטפת',
     design: {
         preset: 'command-center',
-        showDashboard: true,
-        dashboardTitle: 'לוח בקרה',
-        dashboardWidgets: ['overview', 'categories'],
-        dashboardDensity: 'comfortable',
+        showSummaryStrip: true,
+        summaryMetrics: ['total', 'active', 'categories'],
         tableDensity: 'compact',
         showCategoryColors: true,
         showSummaryChips: true,
         accent: 'sky',
-        cardEmphasis: 'outlined',
-        headerStyle: 'standard',
     },
     categories: [{ id: 'ops', name: 'מבצעים', color: '#2563eb', order: 1 }],
     items: [{
@@ -35,20 +31,30 @@ const boom = {
 };
 
 describe('BoomPresentation', () => {
-    it('renders dashboard and task table as separate public sections', () => {
+    it('renders a compact, ordered summary strip above the task table', () => {
         render(<BoomPresentation boom={boom} />);
 
-        expect(screen.getByTestId('boom-dashboard')).toBeInTheDocument();
+        const strip = screen.getByTestId('boom-summary-strip');
         expect(screen.getByTestId('boom-task-table')).toBeInTheDocument();
-        expect(screen.getByText('לוח בקרה')).toBeInTheDocument();
-        expect(screen.queryByText('התפלגות סטטוסים')).not.toBeInTheDocument();
+        expect(strip).toHaveTextContent('1משימות');
+        expect(strip).toHaveTextContent('1בביצוע');
+        expect(strip).toHaveTextContent('1תחומים');
+        expect(screen.queryByTestId('boom-summary-blocked')).not.toBeInTheDocument();
+        expect(strip.children[0]).toHaveAttribute('data-testid', 'boom-summary-total');
+        expect(strip.children[1]).toHaveAttribute('data-testid', 'boom-summary-active');
     });
 
-    it('starts directly with the task section when the dashboard is hidden', () => {
-        render(<BoomPresentation boom={{ ...boom, design: { ...boom.design, showDashboard: false } }} />);
+    it('omits the summary strip when it is hidden', () => {
+        render(<BoomPresentation boom={{ ...boom, design: { ...boom.design, showSummaryStrip: false } }} />);
 
-        expect(screen.queryByTestId('boom-dashboard')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('boom-summary-strip')).not.toBeInTheDocument();
         expect(screen.getByTestId('boom-task-table')).toBeInTheDocument();
         expect(screen.getByRole('heading', { name: 'תמונת מצב' })).toBeInTheDocument();
+    });
+
+    it('uses normal utility-page title sizing rather than a hero heading', () => {
+        render(<BoomPresentation boom={boom} />);
+
+        expect(screen.getByRole('heading', { name: 'תמונת מצב' })).toHaveClass('text-xl', 'sm:text-2xl');
     });
 });

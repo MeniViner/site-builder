@@ -113,33 +113,25 @@ describe('boomData', () => {
         expect(computeBoomProgress(normalized.items[0], new Date('2026-06-15T12:00:00'))).toBe(50);
     });
 
-    it('normalizes persisted dashboard design settings to supported values', () => {
+    it('normalizes persisted summary-strip settings to supported values', () => {
         const normalized = normalizeBoomData({
             design: {
                 preset: 'command-center',
-                showDashboard: false,
-                dashboardTitle: '  תמונת מצב מבצעית  ',
-                dashboardWidgets: ['overview', 'status', 'unknown', 'overview'],
-                dashboardDensity: 'compact',
+                showSummaryStrip: false,
+                summaryMetrics: ['total', 'active', 'invalid', 'total'],
                 tableDensity: 'compact',
                 showCategoryColors: false,
                 accent: 'emerald',
-                cardEmphasis: 'outlined',
-                headerStyle: 'minimal',
             },
         });
 
         expect(normalized.design).toMatchObject({
             preset: 'command-center',
-            showDashboard: false,
-            dashboardTitle: 'תמונת מצב מבצעית',
-            dashboardWidgets: ['overview', 'status'],
-            dashboardDensity: 'compact',
+            showSummaryStrip: false,
+            summaryMetrics: ['total', 'active'],
             tableDensity: 'compact',
             showCategoryColors: false,
             accent: 'emerald',
-            cardEmphasis: 'outlined',
-            headerStyle: 'minimal',
         });
     });
 

@@ -69,11 +69,11 @@ describe('adminAiCapabilities', () => {
     expect(next[0].options[0].voters).toEqual([{ id: 'u1', name: 'א' }]);
   });
 
-  it('normalizes BOOM task and dashboard updates through the BOOM contract', () => {
+  it('normalizes BOOM task and summary-strip updates through the BOOM contract', () => {
     const current = {
       enabled: true,
       pageTitle: 'BOOM',
-      design: { preset: 'operational', showDashboard: true },
+      design: { preset: 'operational', showSummaryStrip: true },
       categories: [{ id: 'general', name: 'כללי', color: '#2563eb', order: 1 }],
       items: [],
     };
@@ -81,8 +81,8 @@ describe('adminAiCapabilities', () => {
       boom: {
         design: {
           preset: 'command-center',
-          showDashboard: false,
-          dashboardWidgets: ['overview', 'categories', 'invalid'],
+          showSummaryStrip: false,
+          summaryMetrics: ['total', 'categories', 'invalid'],
           tableDensity: 'compact',
         },
         categories: [{ id: 'ops', name: 'מבצעים', color: '#0f766e' }],
@@ -101,8 +101,8 @@ describe('adminAiCapabilities', () => {
 
     expect(next.design).toMatchObject({
       preset: 'command-center',
-      showDashboard: false,
-      dashboardWidgets: ['overview', 'categories'],
+      showSummaryStrip: false,
+      summaryMetrics: ['total', 'categories'],
       tableDensity: 'compact',
     });
     expect(next.items[0]).toMatchObject({

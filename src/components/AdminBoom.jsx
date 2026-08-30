@@ -21,11 +21,8 @@ import { useBoom } from '../context/BoomContext';
 import {
     BOOM_COLOR_OPTIONS,
     BOOM_ACCENT_OPTIONS,
-    BOOM_CARD_EMPHASIS_OPTIONS,
-    BOOM_DASHBOARD_DENSITIES,
-    BOOM_DASHBOARD_WIDGETS,
     BOOM_DESIGN_PRESETS,
-    BOOM_HEADER_STYLES,
+    BOOM_SUMMARY_METRICS,
     BOOM_STATUS_OPTIONS,
     BOOM_TABLE_DENSITIES,
     clearBoomTasks,
@@ -46,6 +43,15 @@ import BoomPresentation from './BoomPresentation';
 const panelClass = 'rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-[#1b1f2a]';
 const fieldClass = 'min-h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-2 focus:ring-primary/15 dark:border-white/10 dark:bg-white/5 dark:text-white';
 const labelClass = 'mb-1.5 block text-xs font-black text-gray-600 dark:text-gray-300';
+
+function reorderMetric(metrics, metricId, direction) {
+    const current = Array.isArray(metrics) ? [...metrics] : [];
+    const index = current.indexOf(metricId);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
+    [current[index], current[nextIndex]] = [current[nextIndex], current[index]];
+    return current;
+}
 
 function BoomTaskDialog({ modal, categories, onChange, onClose, onSubmit }) {
     if (!modal) return null;
@@ -444,24 +450,20 @@ export default function AdminBoom() {
                 {activeTab === 'design' && (
                     <section className="grid gap-6 xl:grid-cols-2 xl:items-start">
                         <div className={`${panelClass} p-5 sm:p-6`}>
-                            <h2 className="text-xl font-black text-gray-900 dark:text-white">תצוגת לוח הבקרה</h2>
+                            <h2 className="text-xl font-black text-gray-900 dark:text-white">תצוגת תמונת מצב</h2>
                             <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">כל שינוי מוצג מיד בתצוגה החיה ונשמר כחלק מהגדרות BOOM.</p>
                             <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                                 <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
                                     <div>
-                                        <h3 className="text-sm font-black text-gray-900 dark:text-white">הצגת לוח הבקרה</h3>
-                                        <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">כאשר הוא כבוי, העמוד הציבורי מתחיל ישירות בטבלת המשימות.</p>
+                                        <h3 className="text-sm font-black text-gray-900 dark:text-white">הצגת שורת סטטוס</h3>
+                                        <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">שורה תמציתית מעל טבלת המשימות. כאשר היא כבויה, העמוד מתחיל בטבלה.</p>
                                     </div>
                                     <AdminAddonToggle
-                                        checked={draft.design.showDashboard}
-                                        onChange={(showDashboard) => updateDesign({ showDashboard })}
-                                        label={draft.design.showDashboard ? 'מוצג' : 'מוסתר'}
-                                        ariaLabel="הצגת לוח הבקרה"
+                                        checked={draft.design.showSummaryStrip}
+                                        onChange={(showSummaryStrip) => updateDesign({ showSummaryStrip })}
+                                        label={draft.design.showSummaryStrip ? 'מוצג' : 'מוסתר'}
+                                        ariaLabel="הצגת שורת סטטוס"
                                     />
-                                </div>
-                                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                                    <label><span className={labelClass}>כותרת לוח הבקרה</span><input className={fieldClass} value={draft.design.dashboardTitle} onChange={(event) => updateDesign({ dashboardTitle: event.target.value })} /></label>
-                                    <label><span className={labelClass}>כותרת משנה</span><input className={fieldClass} value={draft.design.dashboardSubtitle} onChange={(event) => updateDesign({ dashboardSubtitle: event.target.value })} /></label>
                                 </div>
                             </div>
 
@@ -488,37 +490,39 @@ export default function AdminBoom() {
                                 })}
                             </div>
                             <div className="mt-6">
-                                <h3 className="text-sm font-black text-gray-900 dark:text-white">ווידג׳טים בלוח הבקרה</h3>
+                                <h3 className="text-sm font-black text-gray-900 dark:text-white">מדדים בשורת הסטטוס</h3>
                                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                                    {BOOM_DASHBOARD_WIDGETS.map((widget) => {
-                                        const checked = draft.design.dashboardWidgets.includes(widget.id);
+                                    {BOOM_SUMMARY_METRICS.map((metric) => {
+                                        const checked = draft.design.summaryMetrics.includes(metric.id);
                                         return (
-                                            <label key={widget.id} className={`rounded-xl border p-3 transition ${checked ? 'border-primary/35 bg-primary/5' : 'border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/[0.03]'}`}>
+                                            <label key={metric.id} className={`flex items-center justify-between gap-3 rounded-xl border p-3 transition ${checked ? 'border-primary/35 bg-primary/5' : 'border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/[0.03]'}`}>
                                                 <span className="flex items-center gap-2">
                                                     <input
                                                         type="checkbox"
                                                         checked={checked}
                                                         onChange={() => updateDesign({
-                                                            dashboardWidgets: checked
-                                                                ? draft.design.dashboardWidgets.filter((id) => id !== widget.id)
-                                                                : [...draft.design.dashboardWidgets, widget.id],
+                                                            summaryMetrics: checked
+                                                                ? draft.design.summaryMetrics.filter((id) => id !== metric.id)
+                                                                : [...draft.design.summaryMetrics, metric.id],
                                                         })}
                                                         className="h-4 w-4 rounded border-primary/30 accent-primary"
                                                     />
-                                                    <span className="text-sm font-black text-gray-800 dark:text-gray-100">{widget.label}</span>
+                                                    <span className="text-sm font-black text-gray-800 dark:text-gray-100">{metric.label}</span>
                                                 </span>
-                                                <span className="mt-1 block text-xs leading-5 text-gray-500 dark:text-gray-400">{widget.description}</span>
+                                                {checked && (
+                                                    <span className="flex gap-1">
+                                                        <button type="button" aria-label={`העבר את ${metric.label} ימינה`} onClick={() => updateDesign({ summaryMetrics: reorderMetric(draft.design.summaryMetrics, metric.id, -1) })} disabled={draft.design.summaryMetrics.indexOf(metric.id) === 0} className="rounded border border-gray-200 px-1.5 py-0.5 text-xs disabled:opacity-35 dark:border-white/10">ימינה</button>
+                                                        <button type="button" aria-label={`העבר את ${metric.label} שמאלה`} onClick={() => updateDesign({ summaryMetrics: reorderMetric(draft.design.summaryMetrics, metric.id, 1) })} disabled={draft.design.summaryMetrics.indexOf(metric.id) === draft.design.summaryMetrics.length - 1} className="rounded border border-gray-200 px-1.5 py-0.5 text-xs disabled:opacity-35 dark:border-white/10">שמאלה</button>
+                                                    </span>
+                                                )}
                                             </label>
                                         );
                                     })}
                                 </div>
                             </div>
                             <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                                <label><span className={labelClass}>צפיפות לוח הבקרה</span><select className={fieldClass} value={draft.design.dashboardDensity} onChange={(event) => updateDesign({ dashboardDensity: event.target.value })}>{BOOM_DASHBOARD_DENSITIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
                                 <label><span className={labelClass}>צפיפות טבלת המשימות</span><select className={fieldClass} value={draft.design.tableDensity} onChange={(event) => updateDesign({ tableDensity: event.target.value })}>{BOOM_TABLE_DENSITIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
                                 <label><span className={labelClass}>צבע מוביל</span><select className={fieldClass} value={draft.design.accent} onChange={(event) => updateDesign({ accent: event.target.value })}>{BOOM_ACCENT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-                                <label><span className={labelClass}>דגש כרטיסים</span><select className={fieldClass} value={draft.design.cardEmphasis} onChange={(event) => updateDesign({ cardEmphasis: event.target.value })}>{BOOM_CARD_EMPHASIS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-                                <label><span className={labelClass}>סגנון כותרת</span><select className={fieldClass} value={draft.design.headerStyle} onChange={(event) => updateDesign({ headerStyle: event.target.value })}>{BOOM_HEADER_STYLES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
                                 <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm font-bold text-gray-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-gray-200">
                                     <label className="flex items-center gap-2"><input type="checkbox" checked={draft.design.showCategoryColors} onChange={(event) => updateDesign({ showCategoryColors: event.target.checked })} className="h-4 w-4 rounded border-primary/30 accent-primary" />הדגש צבעי קטגוריות</label>
                                     <label className="flex items-center gap-2"><input type="checkbox" checked={draft.design.showSummaryChips} onChange={(event) => updateDesign({ showSummaryChips: event.target.checked })} className="h-4 w-4 rounded border-primary/30 accent-primary" />הצג תגי סיכום בטבלה</label>

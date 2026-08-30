@@ -16,19 +16,18 @@ export const BOOM_DESIGN_PRESETS = Object.freeze([
 
 const VALID_DESIGN_PRESETS = new Set(BOOM_DESIGN_PRESETS.map((preset) => preset.id));
 
-export const BOOM_DASHBOARD_WIDGETS = Object.freeze([
-    { id: 'overview', label: 'תמונת מצב', description: 'מדדים מרכזיים והיקף העבודה.' },
-    { id: 'status', label: 'התפלגות סטטוסים', description: 'חלוקת המשימות לפי מצב ביצוע.' },
-    { id: 'owners', label: 'עומס אחראים', description: 'האנשים עם הכי הרבה משימות פתוחות.' },
-    { id: 'upcoming', label: 'קרוב ודחוף', description: 'משימות שמתקרבות ליעד או באיחור.' },
-    { id: 'categories', label: 'תחומים', description: 'היקף המשימות לפי קטגוריה וצבעיה.' },
-    { id: 'insights', label: 'תובנות תפעוליות', description: 'חסמים, איחורים ומשימות ללא אחראי.' },
+export const BOOM_SUMMARY_METRICS = Object.freeze([
+    { id: 'total', label: 'משימות', icon: 'tasks' },
+    { id: 'active', label: 'בביצוע', icon: 'activity' },
+    { id: 'blocked', label: 'חסומות', icon: 'blocked' },
+    { id: 'completed', label: 'הושלמו', icon: 'completed' },
+    { id: 'overdue', label: 'באיחור', icon: 'overdue' },
+    { id: 'upcoming', label: 'קרובות', icon: 'upcoming' },
+    { id: 'owners', label: 'אחראים', icon: 'owners' },
+    { id: 'categories', label: 'תחומים', icon: 'categories' },
 ]);
 
-export const BOOM_DASHBOARD_DENSITIES = Object.freeze([
-    { value: 'compact', label: 'קומפקטי' },
-    { value: 'comfortable', label: 'מאוזן' },
-]);
+const DEFAULT_SUMMARY_METRICS = ['total', 'active', 'blocked', 'overdue'];
 
 export const BOOM_TABLE_DENSITIES = Object.freeze([
     { value: 'compact', label: 'קומפקטי' },
@@ -41,22 +40,9 @@ export const BOOM_ACCENT_OPTIONS = Object.freeze([
     { value: 'emerald', label: 'ירוק תפעולי' },
 ]);
 
-export const BOOM_CARD_EMPHASIS_OPTIONS = Object.freeze([
-    { value: 'soft', label: 'רך' },
-    { value: 'outlined', label: 'מודגש' },
-]);
-
-export const BOOM_HEADER_STYLES = Object.freeze([
-    { value: 'standard', label: 'רגיל' },
-    { value: 'minimal', label: 'מינימלי' },
-]);
-
-const VALID_DASHBOARD_WIDGETS = new Set(BOOM_DASHBOARD_WIDGETS.map((widget) => widget.id));
-const VALID_DASHBOARD_DENSITIES = new Set(BOOM_DASHBOARD_DENSITIES.map((option) => option.value));
+const VALID_SUMMARY_METRICS = new Set(BOOM_SUMMARY_METRICS.map((metric) => metric.id));
 const VALID_TABLE_DENSITIES = new Set(BOOM_TABLE_DENSITIES.map((option) => option.value));
 const VALID_ACCENTS = new Set(BOOM_ACCENT_OPTIONS.map((option) => option.value));
-const VALID_CARD_EMPHASIS = new Set(BOOM_CARD_EMPHASIS_OPTIONS.map((option) => option.value));
-const VALID_HEADER_STYLES = new Set(BOOM_HEADER_STYLES.map((option) => option.value));
 
 export const BOOM_COLOR_OPTIONS = Object.freeze([
     '#2563eb',
@@ -75,17 +61,12 @@ export const DEFAULT_BOOM_DATA = Object.freeze({
     description: 'מערכת שליטה ובקרה למשימות, אחריות והתקדמות.',
     design: {
         preset: 'operational',
-        showDashboard: true,
-        dashboardTitle: 'תמונת מצב',
-        dashboardSubtitle: '',
-        dashboardWidgets: BOOM_DASHBOARD_WIDGETS.map((widget) => widget.id),
-        dashboardDensity: 'comfortable',
+        showSummaryStrip: true,
+        summaryMetrics: DEFAULT_SUMMARY_METRICS,
         tableDensity: 'comfortable',
         showCategoryColors: true,
         showSummaryChips: true,
         accent: 'primary',
-        cardEmphasis: 'soft',
-        headerStyle: 'standard',
     },
     categories: [
         { id: 'boom-category-general', name: 'כללי', color: BOOM_COLOR_OPTIONS[0], order: 1 },
@@ -124,11 +105,11 @@ function todayDateString() {
     return `${year}-${month}-${day}`;
 }
 
-function normalizeDashboardWidgets(value) {
-    const widgets = Array.isArray(value)
-        ? value.filter((widget) => VALID_DASHBOARD_WIDGETS.has(widget))
-        : DEFAULT_BOOM_DATA.design.dashboardWidgets;
-    return [...new Set(widgets)];
+function normalizeSummaryMetrics(value) {
+    const metrics = Array.isArray(value)
+        ? value.filter((metric) => VALID_SUMMARY_METRICS.has(metric))
+        : DEFAULT_SUMMARY_METRICS;
+    return [...new Set(metrics)];
 }
 
 function normalizeBoomDesign(designLike) {
@@ -137,25 +118,16 @@ function normalizeBoomDesign(designLike) {
         preset: VALID_DESIGN_PRESETS.has(source.preset)
             ? source.preset
             : DEFAULT_BOOM_DATA.design.preset,
-        showDashboard: source.showDashboard !== false,
-        dashboardTitle: text(source.dashboardTitle, DEFAULT_BOOM_DATA.design.dashboardTitle),
-        dashboardSubtitle: text(source.dashboardSubtitle, DEFAULT_BOOM_DATA.design.dashboardSubtitle),
-        dashboardWidgets: normalizeDashboardWidgets(source.dashboardWidgets),
-        dashboardDensity: VALID_DASHBOARD_DENSITIES.has(source.dashboardDensity)
-            ? source.dashboardDensity
-            : DEFAULT_BOOM_DATA.design.dashboardDensity,
+        showSummaryStrip: source.showSummaryStrip !== undefined
+            ? source.showSummaryStrip !== false
+            : source.showDashboard !== false,
+        summaryMetrics: normalizeSummaryMetrics(source.summaryMetrics),
         tableDensity: VALID_TABLE_DENSITIES.has(source.tableDensity)
             ? source.tableDensity
             : DEFAULT_BOOM_DATA.design.tableDensity,
         showCategoryColors: source.showCategoryColors !== false,
         showSummaryChips: source.showSummaryChips !== false,
         accent: VALID_ACCENTS.has(source.accent) ? source.accent : DEFAULT_BOOM_DATA.design.accent,
-        cardEmphasis: VALID_CARD_EMPHASIS.has(source.cardEmphasis)
-            ? source.cardEmphasis
-            : DEFAULT_BOOM_DATA.design.cardEmphasis,
-        headerStyle: VALID_HEADER_STYLES.has(source.headerStyle)
-            ? source.headerStyle
-            : DEFAULT_BOOM_DATA.design.headerStyle,
     };
 }
 

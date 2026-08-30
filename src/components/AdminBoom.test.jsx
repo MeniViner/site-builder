@@ -31,11 +31,8 @@ const initialBoom = {
     description: 'תיאור',
     design: {
         preset: 'operational',
-        showDashboard: true,
-        dashboardTitle: 'תמונת מצב',
-        dashboardSubtitle: '',
-        dashboardWidgets: ['overview', 'status', 'owners', 'upcoming', 'categories', 'insights'],
-        dashboardDensity: 'comfortable',
+        showSummaryStrip: true,
+        summaryMetrics: ['total', 'active', 'blocked', 'overdue'],
         tableDensity: 'comfortable',
         showCategoryColors: true,
         showSummaryChips: true,
@@ -157,20 +154,20 @@ describe('AdminBoom', () => {
         ), { timeout: 1800 });
     });
 
-    it('updates the live dashboard preview and persists its visibility and widgets', async () => {
+    it('updates the live summary preview and persists its visibility and selected metrics', async () => {
         render(<MemoryRouter><AdminBoom /></MemoryRouter>);
         fireEvent.click(screen.getByRole('tab', { name: 'עיצוב' }));
 
-        expect(screen.getByTestId('boom-dashboard')).toBeInTheDocument();
-        fireEvent.click(screen.getByRole('switch', { name: 'הצגת לוח הבקרה' }));
-        expect(screen.queryByTestId('boom-dashboard')).not.toBeInTheDocument();
-        fireEvent.click(screen.getByRole('checkbox', { name: /התפלגות סטטוסים/ }));
+        expect(screen.getByTestId('boom-summary-strip')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('switch', { name: 'הצגת שורת סטטוס' }));
+        expect(screen.queryByTestId('boom-summary-strip')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('checkbox', { name: /חסומות/ }));
 
         await waitFor(() => expect(mocks.saveBoom).toHaveBeenCalledWith(
             expect.objectContaining({
                 design: expect.objectContaining({
-                    showDashboard: false,
-                    dashboardWidgets: expect.not.arrayContaining(['status']),
+                    showSummaryStrip: false,
+                    summaryMetrics: expect.not.arrayContaining(['blocked']),
                 }),
             })
         ), { timeout: 1800 });
