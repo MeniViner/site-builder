@@ -29,8 +29,10 @@ export type SharePointLibrarySetupLogEntry = {
   data?: unknown;
 };
 
-type SharePointLibrarySnapshot = {
+export type SharePointLibrarySnapshot = {
+  listId: string;
   title: string;
+  baseTemplate: number;
   expectedRootUrl: string;
   rootServerRelativeUrl: string;
   welcomePage: string;
@@ -70,6 +72,7 @@ type SpFetchOptions = RequestInit & {
   step: string;
   logs: SharePointLibrarySetupLogEntry[];
   expectedStatuses?: number[];
+  returnErrorResponse?: boolean;
 };
 
 type LibraryDefinition = {
@@ -77,6 +80,22 @@ type LibraryDefinition = {
   rawValue: string;
   title: string;
   expectedRootUrl: string;
+  description?: string;
+};
+
+export type SharePointProvisioningRequest = (options: {
+  url: string;
+  method?: string;
+  purpose?: string;
+  headers?: HeadersInit;
+  body?: BodyInit | null;
+}) => Promise<Response>;
+
+export type SharePointProvisioningSession = {
+  siteRoot: string;
+  digest: string;
+  logs: SharePointLibrarySetupLogEntry[];
+  request: SharePointProvisioningRequest;
 };
 
 export const unwrapSharePointODataRecord = (payload: unknown): Record<string, unknown> | null =>
@@ -121,7 +140,11 @@ const normalizeServerRelative = (value: unknown) => {
 };
 
 const toSegments = (value: unknown) => String(value ?? '').split('/').filter(Boolean);
-const escapeODataString = (value: unknown) => String(value ?? '').replace(/'/g, "''");
+const escapeODataString = (value: unknown) => String(value ?? '')
+  .replace(/'/g, "''")
+  .replace(/%/g, '%25')
+  .replace(/#/g, '%23')
+  .replace(/\?/g, '%3F');
 
 const parseResponseBody = async (response: Response) => {
   const contentType = response.headers.get('content-type') || '';
@@ -185,7 +208,7 @@ const buildSiteApiEndpoint = (siteRoot: string, apiPath: string) => {
 };
 
 const spFetchWithLogs = async (endpoint: string, options: SpFetchOptions) => {
-  const { purpose, step, logs, expectedStatuses = [], ...fetchOptions } = options;
+  const { purpose, step, logs, expectedStatuses = [], returnErrorResponse = false, ...fetchOptions } = options;
   const method = String(fetchOptions.method || 'GET').toUpperCase();
   const startedAt = performance.now();
 
@@ -205,6 +228,17 @@ const spFetchWithLogs = async (endpoint: string, options: SpFetchOptions) => {
 
     if (response.ok || expectedStatuses.includes(response.status)) {
       recordLog(logs, 'info', step, 'SharePoint REST request succeeded', {
+        method,
+        endpoint,
+        purpose,
+        status: response.status,
+        statusText: response.statusText,
+        durationMs,
+      });
+      return response;
+    }
+    if (returnErrorResponse) {
+      recordLog(logs, 'warn', step, 'SharePoint REST request returned a non-success response for caller classification', {
         method,
         endpoint,
         purpose,
@@ -366,6 +400,7 @@ const createDocumentLibrary = async (
   libraryTitle: string,
   siteRelativeUrl: string,
   logs: SharePointLibrarySetupLogEntry[],
+  description = 'Application data library',
 ) => {
   const step = 'create-library';
   recordLog(logs, 'info', step, 'Creating document library with deterministic JSOM URL', {
@@ -377,7 +412,7 @@ const createDocumentLibrary = async (
     webUrl: siteRoot,
     title: libraryTitle,
     siteRelativeUrl,
-    description: 'Application data library',
+    description,
   });
 };
 
@@ -476,6 +511,7 @@ const ensureDocumentLibraryBrowserView = async (
   expectedRootUrl: string,
   digest: string,
   logs: SharePointLibrarySetupLogEntry[],
+  strictVerification = false,
 ) => {
   const step = 'ensure-browser-view';
   let library = await readLibrary(siteRoot, libraryTitle, logs);
@@ -499,6 +535,8 @@ const ensureDocumentLibraryBrowserView = async (
   const welcomePage = String((library?.RootFolder as { WelcomePage?: string } | undefined)?.WelcomePage || '');
   const onQuickLaunchRaw = library?.OnQuickLaunch;
   const onQuickLaunch = typeof onQuickLaunchRaw === 'boolean' ? onQuickLaunchRaw : null;
+  const listId = String(library?.Id || '');
+  const baseTemplate = Number(library?.BaseTemplate);
 
   recordLog(logs, 'info', step, 'Library browser-view state after update', {
     libraryTitle,
@@ -508,7 +546,25 @@ const ensureDocumentLibraryBrowserView = async (
     OnQuickLaunch: onQuickLaunch,
   });
 
-  return { rootUrl, welcomePage, onQuickLaunch };
+  if (strictVerification && welcomePage !== REQUIRED_WELCOME_PAGE) {
+    throw normalizeError(
+      step,
+      `Library "${libraryTitle}" WelcomePage verification failed. Expected "${REQUIRED_WELCOME_PAGE}" but got "${welcomePage || '(empty)'}".`,
+      { responseBody: library },
+    );
+  }
+  if (strictVerification && (!listId || baseTemplate !== 101)) {
+    throw normalizeError(step, `Library "${libraryTitle}" did not return a valid List ID and BaseTemplate 101.`, {
+      responseBody: library,
+    });
+  }
+  if (strictVerification && onQuickLaunch !== true) {
+    throw normalizeError(step, `Library "${libraryTitle}" did not retain OnQuickLaunch=true.`, {
+      responseBody: library,
+    });
+  }
+
+  return { rootUrl, welcomePage, onQuickLaunch, listId, baseTemplate };
 };
 
 const ensureSingleLibrary = async (
@@ -516,6 +572,7 @@ const ensureSingleLibrary = async (
   def: LibraryDefinition,
   digest: string,
   logs: SharePointLibrarySetupLogEntry[],
+  strictBrowserViewVerification = false,
 ): Promise<SharePointLibrarySnapshot> => {
   const exact = await ensureExactSharePointLibrary({
     siteRoot,
@@ -524,7 +581,7 @@ const ensureSingleLibrary = async (
     readByTitle: () => readLibrary(siteRoot, def.title, logs),
     readAllLibraries: () => readAllLibraries(siteRoot, logs),
     createWithExactUrl: ({ title, siteRelativeUrl }: { title: string; siteRelativeUrl: string }) =>
-      createDocumentLibrary(siteRoot, title, siteRelativeUrl, logs),
+      createDocumentLibrary(siteRoot, title, siteRelativeUrl, logs, def.description),
   });
   const wasCreated = exact.created;
   let library = exact.record as Record<string, unknown>;
@@ -547,7 +604,14 @@ const ensureSingleLibrary = async (
     validateLibrary(library, def.title, def.expectedRootUrl);
   }
 
-  const browserView = await ensureDocumentLibraryBrowserView(siteRoot, def.title, def.expectedRootUrl, digest, logs);
+  const browserView = await ensureDocumentLibraryBrowserView(
+    siteRoot,
+    def.title,
+    def.expectedRootUrl,
+    digest,
+    logs,
+    strictBrowserViewVerification,
+  );
   recordLog(logs, 'info', 'library-ready', 'Library ready for SharePoint UI/browser navigation', {
     libraryTitle: def.title,
     expectedRootUrl: def.expectedRootUrl,
@@ -557,13 +621,67 @@ const ensureSingleLibrary = async (
   });
 
   return {
+    listId: browserView.listId,
     title: def.title,
+    baseTemplate: browserView.baseTemplate,
     expectedRootUrl: def.expectedRootUrl,
     rootServerRelativeUrl: browserView.rootUrl || def.expectedRootUrl,
     welcomePage: browserView.welcomePage || '',
     onQuickLaunch: browserView.onQuickLaunch,
     wasCreated,
   };
+};
+
+export const createSharePointProvisioningSession = async ({
+  siteRoot: siteRootLike = SHAREPOINT_PATHS.siteRoot,
+}: {
+  siteRoot?: string;
+} = {}): Promise<SharePointProvisioningSession> => {
+  if (typeof window === 'undefined') {
+    throw normalizeError('setup-start', 'SharePoint provisioning must run in browser runtime');
+  }
+  const siteRoot = normalizeServerRelative(siteRootLike);
+  if (!siteRoot) throw normalizeError('configuration', 'SharePoint site root is missing.');
+  const logs: SharePointLibrarySetupLogEntry[] = [];
+  await getCurrentUserInfo(siteRoot, logs);
+  const digest = await requestDigest(siteRoot, logs);
+  const request: SharePointProvisioningRequest = ({ url, method = 'GET', purpose = 'navigation-provisioning', headers, body }) =>
+    spFetchWithLogs(url, {
+      method,
+      purpose,
+      step: purpose,
+      logs,
+      headers,
+      body,
+      returnErrorResponse: true,
+    });
+  return Object.freeze({ siteRoot, digest, logs, request });
+};
+
+export const provisionSharePointDocumentLibrary = async ({
+  session,
+  title,
+  rootServerRelativeUrl,
+  description = 'Site Builder navigation content library',
+}: {
+  session: SharePointProvisioningSession;
+  title: string;
+  rootServerRelativeUrl: string;
+  description?: string;
+}): Promise<SharePointLibrarySnapshot> => {
+  const normalizedTitle = String(title || '').trim();
+  const expectedRootUrl = normalizeServerRelative(rootServerRelativeUrl);
+  if (!normalizedTitle || !expectedRootUrl) {
+    throw normalizeError('configuration', 'A library title and server-relative root are required.');
+  }
+  const def: LibraryDefinition = {
+    envName: 'navigation.category',
+    rawValue: expectedRootUrl,
+    title: normalizedTitle,
+    expectedRootUrl,
+    description,
+  };
+  return ensureSingleLibrary(session.siteRoot, def, session.digest, session.logs, true);
 };
 
 const classifyFailure = (error: unknown): Omit<Extract<SharePointLibrarySetupResult, { ok: false }>, 'logs'> => {

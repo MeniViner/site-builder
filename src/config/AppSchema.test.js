@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONFIG_V1, migrateLegacyToV1, validateAndNormalize } from './AppSchema';
+import {
+    COMMANDER_BUILTIN_AVATARS,
+    COMMANDER_IMAGE_OFFSET_X,
+    COMMANDER_IMAGE_OFFSET_Y,
+    COMMANDER_IMAGE_SCALE,
+} from '../utils/commanderImage';
 
 describe('migrateLegacyToV1', () => {
     it('preserves default branches when partial legacy data omits them', () => {
@@ -53,6 +59,124 @@ describe('migrateLegacyToV1', () => {
             id: 'handbook',
             kind: 'link',
             url: 'smb://fileserver/public/handbook',
+        });
+    });
+
+    it('preserves verified SharePoint navigation bindings across schema normalization', () => {
+        const binding = {
+            version: 1,
+            mode: 'sharepoint-auto',
+            targetKind: 'library',
+            state: 'verified',
+            serverRelativeUrl: '/sites/demo/content-library-123',
+            listId: '{LIST-ID}',
+            libraryTitle: 'תוכן',
+            libraryRootServerRelativeUrl: '/sites/demo/content-library-123',
+            provisionKey: 'category-node-id',
+        };
+        const normalized = validateAndNormalize({
+            ...DEFAULT_CONFIG_V1,
+            navigation: {
+                items: [{
+                    id: 'category-1',
+                    label: 'תוכן',
+                    kind: 'folder',
+                    url: binding.serverRelativeUrl,
+                    targetBinding: binding,
+                    children: [{
+                        id: 'folder-1',
+                        label: 'נהלים',
+                        kind: 'folder',
+                        url: `${binding.serverRelativeUrl}/procedures-folder-456`,
+                        targetBinding: {
+                            ...binding,
+                            targetKind: 'folder',
+                            serverRelativeUrl: `${binding.serverRelativeUrl}/procedures-folder-456`,
+                            provisionKey: 'folder-node-id',
+                        },
+                        children: [],
+                    }],
+                }],
+            },
+        });
+
+        expect(normalized.navigation.items[0].targetBinding).toEqual(binding);
+        expect(normalized.navigation.items[0].children[0].targetBinding).toEqual({
+            ...binding,
+            targetKind: 'folder',
+            serverRelativeUrl: `${binding.serverRelativeUrl}/procedures-folder-456`,
+            provisionKey: 'folder-node-id',
+        });
+    });
+
+    it('preserves and canonically normalizes Commander image geometry', () => {
+        const normalized = validateAndNormalize({
+            content: {
+                commander: {
+                    imageScale: 187,
+                    imageOffsetX: -91,
+                    imageOffsetY: 63,
+                    imageSource: 'builtin',
+                    imageAvatar: 'navy',
+                },
+            },
+        });
+
+        expect(normalized.content.commander).toMatchObject({
+            imageScale: 187,
+            imageOffsetX: -91,
+            imageOffsetY: 63,
+            imageSource: 'builtin',
+            imageAvatar: 'navy',
+            imageUrl: COMMANDER_BUILTIN_AVATARS.find((avatar) => avatar.id === 'navy').path,
+        });
+
+        const clamped = validateAndNormalize({
+            content: {
+                commander: {
+                    imageScale: COMMANDER_IMAGE_SCALE.max + 50,
+                    imageOffsetX: COMMANDER_IMAGE_OFFSET_X.min - 50,
+                    imageOffsetY: COMMANDER_IMAGE_OFFSET_Y.max + 50,
+                },
+            },
+        });
+
+        expect(clamped.content.commander).toMatchObject({
+            imageScale: COMMANDER_IMAGE_SCALE.max,
+            imageOffsetX: COMMANDER_IMAGE_OFFSET_X.min,
+            imageOffsetY: COMMANDER_IMAGE_OFFSET_Y.max,
+        });
+    });
+
+    it('defaults old Commander data and retains valid geometry during legacy migration', () => {
+        const legacyWithoutGeometry = migrateLegacyToV1({
+            siteContent: {
+                commander: {
+                    image: '/images/legacy-commander.png',
+                },
+            },
+        });
+        const legacyWithGeometry = migrateLegacyToV1({
+            siteContent: {
+                commander: {
+                    image: '/images/legacy-commander.png',
+                    imageScale: 164,
+                    imageOffsetX: 73,
+                },
+            },
+        });
+
+        expect(legacyWithoutGeometry.content.commander).toMatchObject({
+            imageScale: COMMANDER_IMAGE_SCALE.defaultValue,
+            imageOffsetX: COMMANDER_IMAGE_OFFSET_X.defaultValue,
+            imageOffsetY: COMMANDER_IMAGE_OFFSET_Y.defaultValue,
+            imageSource: 'custom',
+        });
+        expect(legacyWithGeometry.content.commander).toMatchObject({
+            imageScale: 164,
+            imageOffsetX: 73,
+            imageOffsetY: COMMANDER_IMAGE_OFFSET_Y.defaultValue,
+            imageSource: 'custom',
         });
     });
 

@@ -1,5 +1,6 @@
 import { validateAndNormalize } from '../config/AppSchema';
 import { normalizeGanttData } from '../utils/ganttData';
+import { normalizeBoomData } from '../utils/boomData';
 
 export const KASHAR_DRAFT_STORAGE_KEY = 'site-builder:demo:kashar:draft:v1';
 export const KASHAR_DRAFT_BACKUP_PREFIX = `${KASHAR_DRAFT_STORAGE_KEY}:backup`;
@@ -174,6 +175,7 @@ function normalizeCanonicalRecord(value) {
             updatedAt: value.updatedAt,
             revision: value.revision,
             configEnvelope: validateAndNormalize(deepClone(value.configEnvelope)),
+            boom: normalizeBoomData(deepClone(value.boom)),
             gantt: normalizeGanttData(deepClone(value.gantt)),
             sharedWidgetConfig: deepClone(value.sharedWidgetConfig),
             migration: normalizeMigration(value.migration),
@@ -396,11 +398,13 @@ export class KasharDraftStore {
     async _createFixtureState() {
         const {
             cloneKasharDemoData,
+            cloneKasharDemoBoomData,
             cloneKasharDemoGanttData,
             createKasharDemoWidgetConfig,
         } = await import('../demo-data/kasharDemoData');
         return {
             configEnvelope: cloneKasharDemoData(),
+            boom: cloneKasharDemoBoomData(),
             gantt: cloneKasharDemoGanttData(),
             sharedWidgetConfig: createKasharDemoWidgetConfig(),
         };
@@ -408,6 +412,7 @@ export class KasharDraftStore {
 
     _createCanonicalRecord({
         configEnvelope,
+        boom,
         gantt,
         sharedWidgetConfig,
         previousRecord = null,
@@ -433,6 +438,7 @@ export class KasharDraftStore {
             updatedAt: timestamp,
             revision: nextRevision,
             configEnvelope: validateAndNormalize(deepClone(configEnvelope)),
+            boom: normalizeBoomData(deepClone(boom)),
             gantt: normalizeGanttData(deepClone(gantt)),
             sharedWidgetConfig: isPlainObject(sharedWidgetConfig) ? deepClone(sharedWidgetConfig) : {},
             migration: migration || normalizeMigration(sourceRecord?.migration),
@@ -458,6 +464,7 @@ export class KasharDraftStore {
         const source = decoded.legacyRecord || {};
         return this._createCanonicalRecord({
             configEnvelope: source.configEnvelope || fixture.configEnvelope,
+            boom: source.boom || fixture.boom,
             gantt: source.gantt || fixture.gantt,
             sharedWidgetConfig: source.sharedWidgetConfig || fixture.sharedWidgetConfig,
             previousRecord,
@@ -575,6 +582,7 @@ export class KasharDraftStore {
             const candidate = await mutator(deepCloneJson(current));
             const saved = this._writeCanonicalRecord(this._createCanonicalRecord({
                 configEnvelope: candidate.configEnvelope,
+                boom: candidate.boom,
                 gantt: candidate.gantt,
                 sharedWidgetConfig: candidate.sharedWidgetConfig,
                 previousRecord: current,
@@ -606,6 +614,18 @@ export class KasharDraftStore {
 
     async getGantt() {
         return deepClone((await this.getDraft()).gantt);
+    }
+
+    async getBoom() {
+        return deepClone((await this.getDraft()).boom);
+    }
+
+    async saveBoom(boom) {
+        const saved = await this._update((draft) => ({
+            ...draft,
+            boom: normalizeBoomData(deepClone(boom)),
+        }));
+        return deepClone(saved.boom);
     }
 
     async saveGantt(gantt) {
@@ -749,6 +769,7 @@ export class KasharDraftStore {
     _writeImportedDraft(imported, current) {
         return this._writeCanonicalRecord(this._createCanonicalRecord({
             configEnvelope: imported.configEnvelope,
+            boom: imported.boom,
             gantt: imported.gantt,
             sharedWidgetConfig: imported.sharedWidgetConfig,
             previousRecord: current,

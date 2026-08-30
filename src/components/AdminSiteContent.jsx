@@ -15,8 +15,12 @@ import Tooltip from './Tooltip';
 import { DEFAULT_OVERLAY_IMAGE, normalizeOverlayImageConfig } from '../utils/overlayImageConfig';
 import {
     clampCommanderImageValue,
+    COMMANDER_BUILTIN_AVATARS,
     COMMANDER_IMAGE_OFFSET_X,
+    COMMANDER_IMAGE_OFFSET_Y,
     COMMANDER_IMAGE_SCALE,
+    COMMANDER_IMAGE_SOURCE,
+    DEFAULT_COMMANDER_IMAGE_PATH,
     normalizeCommanderImageSettings,
 } from '../utils/commanderImage';
 import { confirmToast } from '../utils/confirmToast';
@@ -50,9 +54,13 @@ const HERO_DEFAULTS = {
 };
 
 const COMMANDER_DEFAULTS = {
-    image: '',
+    image: DEFAULT_COMMANDER_IMAGE_PATH,
+    imageSource: COMMANDER_IMAGE_SOURCE.default,
+    imageAvatar: '',
+    customImageUrl: '',
     imageScale: COMMANDER_IMAGE_SCALE.defaultValue,
     imageOffsetX: COMMANDER_IMAGE_OFFSET_X.defaultValue,
+    imageOffsetY: COMMANDER_IMAGE_OFFSET_Y.defaultValue,
     sectionTitle: '',
     roleLabel: '',
     decorativeElement: 'line-diamond-line',
@@ -99,6 +107,69 @@ const OVERLAY_OBJECT_FIT_OPTIONS = [
 
 const inputCls = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:border-gray-700/50 dark:bg-[#1e212b] dark:text-white';
 const AI_SITE_CONTENT_RUNTIME = getSafeAiRuntimeConfig();
+
+function CommanderImageRangeControl({
+    id,
+    label,
+    value,
+    range,
+    formatValue,
+    onChange,
+}) {
+    const changeBy = (amount) => {
+        onChange(clampCommanderImageValue(value + amount, range));
+    };
+
+    return (
+        <div className="rounded-2xl bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.06),0_10px_28px_rgba(15,23,42,0.06)] dark:bg-[#232733] dark:shadow-[0_1px_2px_rgba(0,0,0,0.35),0_12px_30px_rgba(0,0,0,0.18)]">
+            <div className="mb-3 flex items-center justify-between gap-3">
+                <label htmlFor={id} className="text-sm font-bold text-gray-800 dark:text-gray-100">
+                    {label}
+                </label>
+                <output
+                    htmlFor={id}
+                    className="min-w-16 rounded-lg bg-primary-500/10 px-2.5 py-1 text-center text-xs font-black tabular-nums text-primary-700 dark:text-primary-300"
+                >
+                    {formatValue(value)}
+                </output>
+            </div>
+            <div dir="ltr" className="grid grid-cols-[40px_minmax(0,1fr)_40px] items-center gap-3">
+                <button
+                    type="button"
+                    aria-label={`הפחת ${label}`}
+                    onClick={() => changeBy(-1)}
+                    disabled={value <= range.min}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-lg font-black text-gray-700 shadow-sm transition-transform hover:scale-[1.03] active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-35 dark:bg-white/10 dark:text-gray-100"
+                >
+                    −
+                </button>
+                <input
+                    id={id}
+                    type="range"
+                    min={range.min}
+                    max={range.max}
+                    step="1"
+                    value={value}
+                    onChange={(event) => onChange(event.target.value)}
+                    className="h-2 w-full cursor-pointer accent-primary-600"
+                />
+                <button
+                    type="button"
+                    aria-label={`הוסף ${label}`}
+                    onClick={() => changeBy(1)}
+                    disabled={value >= range.max}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-lg font-black text-gray-700 shadow-sm transition-transform hover:scale-[1.03] active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-35 dark:bg-white/10 dark:text-gray-100"
+                >
+                    +
+                </button>
+            </div>
+            <div dir="ltr" className="mt-2 flex justify-between text-[11px] font-medium tabular-nums text-gray-400 dark:text-gray-500">
+                <span>{formatValue(range.min)}</span>
+                <span>{formatValue(range.max)}</span>
+            </div>
+        </div>
+    );
+}
 
 function asText(value, fallback = '') {
     if (typeof value !== 'string') return fallback;
@@ -351,7 +422,14 @@ export default function AdminSiteContent() {
         setUploadingCommander(true);
         try {
             const url = await uploadImage(file, 'Commander');
-            setCommander((prev) => ({ ...prev, image: url }));
+            setCommander((prev) => normalizeCommanderImageSettings({
+                ...prev,
+                imageSource: COMMANDER_IMAGE_SOURCE.custom,
+                imageAvatar: '',
+                customImageUrl: url,
+                image: url,
+                imageUrl: url,
+            }));
         } catch (err) {
             spLog.error('שגיאה בהעלאת תמונת מפקד:', err);
             setSaveMessage({ type: 'error', text: `שגיאה בהעלאת תמונה: ${err.message}` });
@@ -1139,105 +1217,146 @@ export default function AdminSiteContent() {
                                             />
                                         </div>
 
-                                        <div className="">
-                                            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                        <div>
+                                            <div>
                                                 <div>
                                                     <div className="flex items-center gap-2">
                                                         <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200">תמונת המפקד</h3>
-                                                        <HelpTooltipButton title="תמונת המפקד" description="אפשר להחליף את התמונה ולכוון בעדינות את הגודל והמיקום שלה בתצוגה באתר." />
+                                                        <HelpTooltipButton title="תמונת המפקד" description="בחרו מקור תמונה וכוונו את הגודל והמיקום. התוצאה מוצגת מיד בתצוגת האתר שמשמאל." />
                                                     </div>
-                                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">הגדרות התמונה מתעדכנות מיד בתצוגה המקדימה.</p>
+                                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">התצוגה החיה המלאה משמאל היא התצוגה הקובעת.</p>
                                                 </div>
-                                                <label
-                                                    className={`flex min-h-10 items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white px-4 py-2 text-sm text-gray-600 transition-colors hover:border-primary/50 hover:text-gray-800 active:scale-[0.96] dark:border-gray-700/50 dark:bg-[#1e212b] dark:text-gray-400 dark:hover:text-gray-300 ${uploadingCommander ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
-                                                >
-                                                    {uploadingCommander ? (
-                                                        <>
-                                                            <Loader2 size={16} className="animate-spin text-primary-400" />
-                                                            <span>מעלה תמונה...</span>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Upload size={16} />
-                                                            <span>{commander.image ? 'החלף תמונה' : 'העלה תמונת מפקד'}</span>
-                                                        </>
-                                                    )}
-                                                    <input
-                                                        ref={commanderFileInputRef}
-                                                        type="file"
-                                                        accept="image/*"
-                                                        onChange={handleCommanderFileUpload}
-                                                        className="hidden"
-                                                        disabled={uploadingCommander}
-                                                    />
-                                                </label>
                                             </div>
 
-                                            {commander.image && (
-                                                <div className="mt-5 grid gap-5 lg:grid-cols-[120px_minmax(0,1fr)] lg:items-center">
-                                                    <div className="h-28 w-28 overflow-hidden rounded-xl border border-black/10 bg-white p-2 dark:border-white/10 dark:bg-[#1e212b]">
-                                                        <ResolvedSiteImage
-                                                            source={commander.image}
-                                                            alt="תצוגה מקדימה של תמונת המפקד"
-                                                            className="h-full w-full object-contain transition-transform duration-200 ease-out"
-                                                            style={{ transform: `translateX(${commander.imageOffsetX}px) scale(${commander.imageScale / 100})` }}
-                                                            onError={(e) => { e.target.style.display = 'none'; }}
-                                                        />
+                                            <div className="mt-5 rounded-[28px] bg-gray-50 p-5 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)] dark:bg-[#1e212b] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
+                                                <fieldset>
+                                                    <legend className="text-sm font-black text-gray-900 dark:text-white">מקור התמונה</legend>
+                                                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                                        {[
+                                                            { source: COMMANDER_IMAGE_SOURCE.default, label: 'תמונת ברירת מחדל', image: DEFAULT_COMMANDER_IMAGE_PATH },
+                                                            { source: COMMANDER_IMAGE_SOURCE.custom, label: 'תמונה שהועלתה', image: commander.customImageUrl },
+                                                            { source: COMMANDER_IMAGE_SOURCE.none, label: 'ללא תמונה', image: '' },
+                                                        ].map((option) => {
+                                                            const selected = commander.imageSource === option.source;
+                                                            return (
+                                                                <button
+                                                                    key={option.source}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (option.source === COMMANDER_IMAGE_SOURCE.custom && !option.image) {
+                                                                            commanderFileInputRef.current?.click();
+                                                                            return;
+                                                                        }
+                                                                        setCommander((prev) => normalizeCommanderImageSettings({
+                                                                            ...prev,
+                                                                            imageSource: option.source,
+                                                                            imageAvatar: '',
+                                                                            image: option.image,
+                                                                            imageUrl: option.image,
+                                                                        }));
+                                                                    }}
+                                                                    aria-pressed={selected}
+                                                                    className={`min-h-24 rounded-2xl p-2 text-center text-xs font-bold transition-[box-shadow,transform] active:scale-[0.96] ${
+                                                                        selected
+                                                                            ? 'bg-primary/10 text-primary shadow-[inset_0_0_0_2px_currentColor]'
+                                                                            : 'bg-white text-gray-600 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)] hover:shadow-[inset_0_0_0_1px_rgba(59,130,246,0.45)] dark:bg-white/5 dark:text-gray-300 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]'
+                                                                    }`}
+                                                                >
+                                                                    <span className="flex h-14 items-center justify-center overflow-hidden rounded-xl bg-white/70 dark:bg-black/15">
+                                                                        {option.image ? (
+                                                                            <ResolvedSiteImage source={option.image} alt="" className="h-full w-full object-contain outline outline-1 outline-black/10 dark:outline-white/10" />
+                                                                        ) : option.source === COMMANDER_IMAGE_SOURCE.none ? (
+                                                                            <X size={24} aria-hidden="true" />
+                                                                        ) : (
+                                                                            <Upload size={22} aria-hidden="true" />
+                                                                        )}
+                                                                    </span>
+                                                                    <span className="mt-1.5 block">{option.label}</span>
+                                                                </button>
+                                                            );
+                                                        })}
                                                     </div>
+                                                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                                        {COMMANDER_BUILTIN_AVATARS.map((avatar) => {
+                                                            const selected = commander.imageSource === COMMANDER_IMAGE_SOURCE.builtin && commander.imageAvatar === avatar.id;
+                                                            return (
+                                                                <button
+                                                                    key={avatar.id}
+                                                                    type="button"
+                                                                    onClick={() => setCommander((prev) => normalizeCommanderImageSettings({
+                                                                        ...prev,
+                                                                        imageSource: COMMANDER_IMAGE_SOURCE.builtin,
+                                                                        imageAvatar: avatar.id,
+                                                                    }))}
+                                                                    aria-pressed={selected}
+                                                                    className={`min-h-24 rounded-2xl p-2 text-center text-xs font-bold transition-[box-shadow,transform] active:scale-[0.96] ${
+                                                                        selected
+                                                                            ? 'bg-primary/10 text-primary shadow-[inset_0_0_0_2px_currentColor]'
+                                                                            : 'bg-white text-gray-600 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)] hover:shadow-[inset_0_0_0_1px_rgba(59,130,246,0.45)] dark:bg-white/5 dark:text-gray-300 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]'
+                                                                    }`}
+                                                                >
+                                                                    <span className="flex h-14 items-center justify-center overflow-hidden rounded-xl bg-white/70 dark:bg-black/15">
+                                                                        <img src={avatar.path} alt="" className="h-full w-full object-contain outline outline-1 outline-black/10 dark:outline-white/10" />
+                                                                    </span>
+                                                                    <span className="mt-1.5 block">{avatar.label}</span>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                    <label className={`mt-3 flex min-h-10 items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white px-4 py-2 text-sm text-gray-600 transition-[border-color,color,transform] hover:border-primary/50 hover:text-gray-800 active:scale-[0.96] dark:border-gray-700/50 dark:bg-white/5 dark:text-gray-300 ${uploadingCommander ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}>
+                                                        {uploadingCommander ? <><Loader2 size={16} className="animate-spin text-primary" />מעלה תמונה...</> : <><Upload size={16} />העלאת תמונה אישית</>}
+                                                        <input ref={commanderFileInputRef} type="file" accept="image/*" onChange={handleCommanderFileUpload} className="hidden" disabled={uploadingCommander} />
+                                                    </label>
+                                                </fieldset>
 
-                                                    <div className="space-y-4">
-                                                        <div>
-                                                            <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                                                                <label htmlFor="commander-image-scale" className="font-bold text-gray-700 dark:text-gray-200">גודל תמונה</label>
-                                                                <output htmlFor="commander-image-scale" className="rounded-md bg-primary-500/10 px-2 py-0.5 text-xs font-bold tabular-nums text-primary-700 dark:text-primary-300">{commander.imageScale}%</output>
-                                                            </div>
-                                                            <input
+                                                {commander.imageSource !== COMMANDER_IMAGE_SOURCE.none && (
+                                                    <div className="mt-6 border-t border-gray-200 pt-5 dark:border-white/10">
+                                                        <div className="mb-4">
+                                                            <h4 className="text-sm font-black text-gray-900 dark:text-white">מסגור ומיקום התמונה</h4>
+                                                            <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">כוונו את התמונה דרך התצוגה החיה שמשמאל. השינויים נשמרים אוטומטית.</p>
+                                                        </div>
+                                                        <div className="space-y-3">
+                                                            <CommanderImageRangeControl
                                                                 id="commander-image-scale"
-                                                                type="range"
-                                                                min={COMMANDER_IMAGE_SCALE.min}
-                                                                max={COMMANDER_IMAGE_SCALE.max}
-                                                                step="1"
+                                                                label="קנה מידה"
                                                                 value={commander.imageScale}
-                                                                onChange={(event) => updateCommanderImageSetting('imageScale', event.target.value, COMMANDER_IMAGE_SCALE)}
-                                                                className="h-2 w-full cursor-pointer accent-primary-600"
+                                                                range={COMMANDER_IMAGE_SCALE}
+                                                                formatValue={(value) => `${value}%`}
+                                                                onChange={(value) => updateCommanderImageSetting('imageScale', value, COMMANDER_IMAGE_SCALE)}
                                                             />
-                                                            <div className="mt-1 flex justify-between text-[11px] text-gray-400 dark:text-gray-500"><span>קטן יותר</span><span>גדול יותר</span></div>
-                                                        </div>
-
-                                                        <div>
-                                                            <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                                                                <label htmlFor="commander-image-offset" className="font-bold text-gray-700 dark:text-gray-200">הזזה ימינה / שמאלה</label>
-                                                                <output htmlFor="commander-image-offset" className="rounded-md bg-primary-500/10 px-2 py-0.5 text-xs font-bold tabular-nums text-primary-700 dark:text-primary-300">{commander.imageOffsetX === 0 ? 'ממורכז' : `${Math.abs(commander.imageOffsetX)}px ${commander.imageOffsetX > 0 ? 'ימינה' : 'שמאלה'}`}</output>
-                                                            </div>
-                                                            <input
+                                                            <CommanderImageRangeControl
                                                                 id="commander-image-offset"
-                                                                type="range"
-                                                                min={COMMANDER_IMAGE_OFFSET_X.min}
-                                                                max={COMMANDER_IMAGE_OFFSET_X.max}
-                                                                step="1"
+                                                                label="מיקום אופקי"
                                                                 value={commander.imageOffsetX}
-                                                                onChange={(event) => updateCommanderImageSetting('imageOffsetX', event.target.value, COMMANDER_IMAGE_OFFSET_X)}
-                                                                className="h-2 w-full cursor-pointer accent-primary-600"
-                                                                dir="ltr"
+                                                                range={COMMANDER_IMAGE_OFFSET_X}
+                                                                formatValue={(value) => (value === 0 ? 'מרכז' : `${value > 0 ? '+' : ''}${value}px`)}
+                                                                onChange={(value) => updateCommanderImageSetting('imageOffsetX', value, COMMANDER_IMAGE_OFFSET_X)}
                                                             />
-                                                            <div className="mt-1 flex justify-between text-[11px] text-gray-400 dark:text-gray-500"><span>שמאלה</span><span>ימינה</span></div>
+                                                            <CommanderImageRangeControl
+                                                                id="commander-image-offset-y"
+                                                                label="מיקום אנכי"
+                                                                value={commander.imageOffsetY}
+                                                                range={COMMANDER_IMAGE_OFFSET_Y}
+                                                                formatValue={(value) => (value === 0 ? 'מרכז' : `${value > 0 ? '+' : ''}${value}px`)}
+                                                                onChange={(value) => updateCommanderImageSetting('imageOffsetY', value, COMMANDER_IMAGE_OFFSET_Y)}
+                                                            />
                                                         </div>
-
                                                         <button
                                                             type="button"
                                                             onClick={() => setCommander((prev) => ({
                                                                 ...prev,
                                                                 imageScale: COMMANDER_IMAGE_SCALE.defaultValue,
                                                                 imageOffsetX: COMMANDER_IMAGE_OFFSET_X.defaultValue,
+                                                                imageOffsetY: COMMANDER_IMAGE_OFFSET_Y.defaultValue,
                                                             }))}
-                                                            disabled={commander.imageScale === COMMANDER_IMAGE_SCALE.defaultValue && commander.imageOffsetX === COMMANDER_IMAGE_OFFSET_X.defaultValue}
-                                                            className="min-h-10 rounded-lg px-3 text-sm font-bold text-primary-700 transition-transform hover:bg-primary-500/10 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-45 dark:text-primary-300"
+                                                            disabled={commander.imageScale === COMMANDER_IMAGE_SCALE.defaultValue && commander.imageOffsetX === COMMANDER_IMAGE_OFFSET_X.defaultValue && commander.imageOffsetY === COMMANDER_IMAGE_OFFSET_Y.defaultValue}
+                                                            className="mt-4 min-h-10 w-full rounded-xl bg-white px-3 text-sm font-bold text-primary-700 shadow-sm transition-transform hover:scale-[1.01] active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-45 dark:bg-white/5 dark:text-primary-300"
                                                         >
-                                                            אפס התאמת תמונה
+                                                            מרכז ואפס התאמות
                                                         </button>
                                                     </div>
-                                                </div>
-                                            )}
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
 

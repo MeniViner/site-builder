@@ -5,6 +5,7 @@ import { ensureSharePointTextFileExists, upsertSharePointTextFile } from '../uti
 import { spBootstrapLog } from '../utils/spAppLog';
 import { DEFAULT_ACTIVE_WIDGETS, mergeWidgetSettings } from '../utils/widgetDisplay';
 import { DEFAULT_GANTT_DATA } from '../utils/ganttData';
+import { createInitialBoomData } from '../utils/boomData';
 import { resolveDefaultMasterConfigFileUrl } from './ConfigAdapter';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -255,6 +256,12 @@ const buildBootstrapFileDefinitions = () => {
             label: 'גאנט',
             serverRelativeUrl: SHAREPOINT_CONFIG.ganttFileServerRelativeUrl,
             text: JSON.stringify(DEFAULT_GANTT_DATA, null, 2),
+        },
+        {
+            key: 'boom',
+            label: 'BOOM',
+            serverRelativeUrl: SHAREPOINT_CONFIG.boomFileServerRelativeUrl,
+            text: JSON.stringify(createInitialBoomData(), null, 2),
         },
     ].filter((file) => typeof file.serverRelativeUrl === 'string' && file.serverRelativeUrl.trim().length > 0);
 };

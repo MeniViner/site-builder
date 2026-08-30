@@ -68,10 +68,11 @@ async function readFromInputDir(inputDir, mapping) {
     }
   }
 
+  if (mapping.optionalWhenMissing) return null;
   throw new Error(`Legacy file not found in input directory: ${mapping.fileName}`);
 }
 
-async function readFromSharePoint({ host, serverRelativeUrl, cookie, fetchImpl = fetch }) {
+async function readFromSharePoint({ host, serverRelativeUrl, cookie, allowMissing = false, fetchImpl = fetch }) {
   if (!host || !serverRelativeUrl) {
     throw new Error('SharePoint host and serverRelativeUrl are required');
   }
@@ -86,6 +87,7 @@ async function readFromSharePoint({ host, serverRelativeUrl, cookie, fetchImpl =
     },
   });
   if (!response.ok) {
+    if (allowMissing && response.status === 404) return null;
     throw new Error(`SharePoint read failed (${response.status}) for ${url}`);
   }
   return response.text();
@@ -209,6 +211,14 @@ export async function migrateSharePointToMongo({
 
       if (exportArtifact) {
         if (!exportObject) {
+          const manifestEntry = (exportManifest?.files || [])
+            .find((file) => file?.fileName === mapping.fileName);
+          const optionalFileIsAbsent = mapping.optionalWhenMissing
+            && (!manifestEntry || manifestEntry.status === 'missing');
+          if (optionalFileIsAbsent) {
+            report.skippedEmptyFiles.push({ key, fileName: mapping.fileName, reason: 'optional-file-missing' });
+            continue;
+          }
           throw new Error(`Export artifact is missing ${mapping.fileName}`);
         }
         data = exportObject.data;
@@ -221,8 +231,13 @@ export async function migrateSharePointToMongo({
               host: sharePointConfig?.host,
               serverRelativeUrl: key,
               cookie: process.env.SHAREPOINT_COOKIE || '',
+              allowMissing: mapping.optionalWhenMissing === true,
               fetchImpl,
             });
+        if (text === null) {
+          report.skippedEmptyFiles.push({ key, fileName: mapping.fileName, reason: 'optional-file-missing' });
+          continue;
+        }
         const parsed = parseJsonFileText(text, key);
         data = parsed.data;
         hash = parsed.empty ? null : sha256OfCanonicalJson(data);

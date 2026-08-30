@@ -485,16 +485,23 @@ export async function createClosedSharePointExportArtifact({
 
   for (const mapping of filePlan) {
     const browserFile = browserFilesByName.get(mapping.fileName);
+    const browserFileMissing = Boolean(browserFile && Number(browserFile.status) === 404);
     const sourcePath = browserFile
       ? browserExportPath
       : path.join(inputDir, mapping.fileName);
-    const text = browserFile
+    const text = browserFileMissing
+      ? null
+      : browserFile
       ? String(browserFile.text ?? '')
       : await readOptionalFile(sourcePath);
 
     if (text === null) {
-      const message = `Missing expected file: ${mapping.fileName}`;
-      errors.push(message);
+      const optional = mapping.optionalWhenMissing === true;
+      const message = optional
+        ? `Optional file is not present on this pre-BOOM site: ${mapping.fileName}`
+        : `Missing expected file: ${mapping.fileName}`;
+      if (optional) warnings.push(message);
+      else errors.push(message);
       files.push({
         key: mapping.key,
         fileName: mapping.fileName,
@@ -506,8 +513,9 @@ export async function createClosedSharePointExportArtifact({
         sha256: null,
         jsonSha256: null,
         recordCount: null,
-        warnings: [],
-        errors: [message],
+        optional,
+        warnings: optional ? [message] : [],
+        errors: optional ? [] : [message],
       });
       continue;
     }

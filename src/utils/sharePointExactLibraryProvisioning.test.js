@@ -186,6 +186,29 @@ describe('deterministic exact SharePoint library creation', () => {
     expect(createWithExactUrl).toHaveBeenCalledTimes(1);
   });
 
+  it('recovers idempotently when creation succeeded but the JSOM response was ambiguous', async () => {
+    const created = library({ id: 'created-despite-timeout' });
+    let readCount = 0;
+    const createWithExactUrl = vi.fn(async () => {
+      readCount = 1;
+      throw new Error('Network response was lost');
+    });
+
+    const result = await ensure({
+      readByTitle: async () => (readCount ? created : null),
+      readAllLibraries: async () => (readCount ? [created] : []),
+      createWithExactUrl,
+    });
+
+    expect(result).toMatchObject({
+      outcome: EXACT_LIBRARY_OUTCOMES.REUSE,
+      created: false,
+      recoveredAfterCreateError: true,
+      record: { Id: 'created-despite-timeout' },
+    });
+    expect(createWithExactUrl).toHaveBeenCalledOnce();
+  });
+
   it.each([
     ['/sites/schedule', '/sites/schedule/siteDB', 'siteDB'],
     ['/sites/schedule', '/sites/schedule/siteUsersDB', 'siteUsersDB'],
