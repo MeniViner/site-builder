@@ -1,4 +1,5 @@
 import { MongoClient } from 'mongodb';
+import { safeMongoError } from './mongoTarget.js';
 
 export const SAFE_WRITE_CONCERN = Object.freeze({ w: 'majority', j: true });
 
@@ -14,7 +15,13 @@ export async function createMongoDb({ mongodbUri, mongodbDbName }) {
     writeConcern: SAFE_WRITE_CONCERN,
     retryWrites: true,
   });
-  await client.connect();
+  try {
+    await client.connect();
+  } catch (error) {
+    await client.close().catch(() => undefined);
+    const safe = safeMongoError(error, mongodbDbName);
+    throw Object.assign(new Error(safe.message), { code: safe.code });
+  }
   return {
     client,
     db: client.db(mongodbDbName),

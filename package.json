@@ -22,6 +22,7 @@
     "test": "vitest",
     "server:dev": "node scripts/dev/run-with-env.mjs server/.env.local node --watch server/index.js",
     "server:start": "node server/index.js",
+    "mongo:indexes": "node server/scripts/migrateMongoIndexes.js",
     "server:test": "vitest run server",
     "dev:mongo:up": "docker compose -f docker-compose.dev.yml up -d",
     "dev:mongo:down": "docker compose -f docker-compose.dev.yml down",

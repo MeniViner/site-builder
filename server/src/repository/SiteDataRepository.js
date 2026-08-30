@@ -1,13 +1,13 @@
 import { SAFE_WRITE_CONCERN } from '../db/mongo.js';
+import {
+  BUILDER_GLOBAL_COLLECTIONS,
+  BUILDER_GLOBAL_INDEXES,
+  BUILDER_PHYSICAL_INDEXES,
+  createIndexesFromDefinitions,
+} from '../db/indexDefinitions.js';
 import { assertSafeCollectionName, sanitizeSiteCollectionName } from '../utils/collectionNames.js';
 import { canonicalStringify, deepMergeJson, sha256OfCanonicalJson } from '../utils/canonicalJson.js';
 import { badRequest, conflict, notFound, preconditionRequired } from '../utils/errors.js';
-
-const GLOBAL_COLLECTIONS = Object.freeze({
-  sites: 'sites',
-  revisions: 'site_data_revisions',
-  auditLogs: 'site_data_audit_logs',
-});
 
 const now = () => new Date();
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -56,15 +56,15 @@ export class SiteDataRepository {
   }
 
   sitesCollection() {
-    return this.db.collection(GLOBAL_COLLECTIONS.sites);
+    return this.db.collection(BUILDER_GLOBAL_COLLECTIONS.sites);
   }
 
   revisionsCollection() {
-    return this.db.collection(GLOBAL_COLLECTIONS.revisions);
+    return this.db.collection(BUILDER_GLOBAL_COLLECTIONS.revisions);
   }
 
   auditCollection() {
-    return this.db.collection(GLOBAL_COLLECTIONS.auditLogs);
+    return this.db.collection(BUILDER_GLOBAL_COLLECTIONS.auditLogs);
   }
 
   siteCollection(collectionName) {
@@ -72,13 +72,14 @@ export class SiteDataRepository {
   }
 
   async initIndexes() {
-    await Promise.all([
-      this.sitesCollection().createIndex({ siteId: 1 }, { unique: true }),
-      this.sitesCollection().createIndex({ siteSlug: 1 }),
-      this.sitesCollection().createIndex({ safeCollectionName: 1 }, { unique: true }),
-      this.revisionsCollection().createIndex({ siteId: 1, documentKey: 1, createdAt: -1 }),
-      this.auditCollection().createIndex({ siteId: 1, documentKey: 1, createdAt: -1 }),
-    ]);
+    const grouped = new Map();
+    for (const definition of BUILDER_GLOBAL_INDEXES) {
+      grouped.set(definition.collection, [...(grouped.get(definition.collection) || []), definition]);
+    }
+    await Promise.all(
+      [...grouped.entries()].map(([collectionName, definitions]) =>
+        createIndexesFromDefinitions(this.db.collection(collectionName), definitions)),
+    );
   }
 
   async listSites() {
@@ -124,12 +125,7 @@ export class SiteDataRepository {
   }
 
   async ensureSiteCollectionIndexes(collectionName) {
-    const collection = this.siteCollection(collectionName);
-    await Promise.all([
-      collection.createIndex({ siteId: 1, scope: 1, entityId: 1, deletedAt: 1 }),
-      collection.createIndex({ siteId: 1, scope: 1, updatedAt: -1 }),
-      collection.createIndex({ hash: 1 }),
-    ]);
+    await createIndexesFromDefinitions(this.siteCollection(collectionName), BUILDER_PHYSICAL_INDEXES);
   }
 
   async resolveSiteCollection(siteId, { createIfMissing = false } = {}) {
