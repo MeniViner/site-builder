@@ -72,6 +72,14 @@ export const LEGACY_MAPPINGS = Object.freeze([
     entityId: 'settings',
     mode: 'singleton',
   },
+  {
+    key: 'boom',
+    fileName: 'boom_data.txt',
+    scope: 'boom',
+    entityId: 'settings',
+    mode: 'singleton',
+    optionalWhenMissing: true,
+  },
 ]);
 
 export function normalizeLegacyKey(key) {

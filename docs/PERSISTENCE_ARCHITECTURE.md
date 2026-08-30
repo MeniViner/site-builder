@@ -7,9 +7,11 @@ The application accepts exactly two storage backends:
 - `txt` — the SharePoint-hosted `bihs_master_config_v1.txt` file is the live UI source of truth.
 - `mongo` — the Site Builder backend API and the configured logical `siteId` are the live source of truth.
 
-Navigation folders, network-folder targets, homepage links, external-link cards, theme, content, events, and most widget configuration are branches of the master config. `nav_data.txt` and `external_links_data.txt` remain import/export compatibility files; the active UI does not independently select or write them. `widgets_data.txt`, `users_data.txt`, and `gantt_data.txt` still serve their documented specialist flows.
+Navigation folders, network-folder targets, homepage links, external-link cards, theme, content, events, and most widget configuration are branches of the master config. `nav_data.txt` and `external_links_data.txt` remain import/export compatibility files; the active UI does not independently select or write them. `widgets_data.txt`, `users_data.txt`, `gantt_data.txt`, and `boom_data.txt` still serve their documented specialist flows. BOOM is an independent command-and-control document and is never embedded in Gantt data.
 
 There is no dual-write mode. A save is serialized through the master-config repository chosen during bootstrap. A failed save remains visible as dirty optimistic state and is not reported as saved.
+
+Automatically provisioned navigation nodes keep the ordinary `url` field for runtime compatibility and add a normalized `targetBinding` record to the master configuration. The binding stores `mode`, `targetKind`, verified server-relative paths, the owning SharePoint List ID/title, and a stable provisioning key. Legacy nodes without this metadata remain manual targets and never trigger provisioning during load or migration.
 
 ## Resolution and precedence
 

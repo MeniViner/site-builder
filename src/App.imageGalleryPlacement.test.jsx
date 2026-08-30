@@ -1,10 +1,21 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Home } from './App';
 
-vi.mock('./components/home/NavigationBar', () => ({ default: () => <nav>Navigation</nav> }));
+const featureState = vi.hoisted(() => ({
+    boomEnabled: false,
+}));
+
+vi.mock('./components/home/NavigationBar', () => ({
+    default: ({ utilityLinks = [] }) => (
+        <nav>
+            Navigation
+            {utilityLinks.map((link) => <span key={link.id}>{link.label}</span>)}
+        </nav>
+    ),
+}));
 vi.mock('./components/home/HeroSection', () => ({ default: () => <section>Hero</section> }));
 vi.mock('./components/home/CategorySection', () => ({ default: () => <section>Category</section> }));
 vi.mock('./components/home/OverlayImageElement', () => ({ default: () => null }));
@@ -51,11 +62,18 @@ vi.mock('./context/OrgChartContext', () => ({
 vi.mock('./context/GanttContext', () => ({
     useGantt: () => ({ gantt: { enabled: false } }),
 }));
+vi.mock('./context/BoomContext', () => ({
+    useBoom: () => ({ boom: { enabled: featureState.boomEnabled, buttonLabel: 'מרכז BOOM' } }),
+}));
 vi.mock('./context/ImageGalleryContext', () => ({
     useImageGalleries: () => ({ activeGalleries: [{ id: 'gallery' }] }),
 }));
 
 describe('homepage Image Gallery placement', () => {
+    beforeEach(() => {
+        featureState.boomEnabled = false;
+    });
+
     it('keeps the gallery in the usable normal-flow wrapper immediately before the real footer', () => {
         render(
             <MemoryRouter>
@@ -74,5 +92,16 @@ describe('homepage Image Gallery placement', () => {
         expect(usableContent).not.toContainElement(rail);
         expect(gallery.nextElementSibling).toBe(footer);
         expect(gallery).toHaveAttribute('data-layout', 'normal-flow');
+    });
+
+    it('adds BOOM to the existing utility-navigation mechanism only when enabled', () => {
+        featureState.boomEnabled = true;
+        render(
+            <MemoryRouter>
+                <Home />
+            </MemoryRouter>,
+        );
+
+        expect(screen.getByText('מרכז BOOM')).toBeInTheDocument();
     });
 });

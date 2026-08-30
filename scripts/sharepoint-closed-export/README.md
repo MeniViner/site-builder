@@ -82,6 +82,9 @@ The current legacy Site Builder TXT files are:
 - `widgets_data.txt`
 - `external_links_data.txt`
 - `gantt_data.txt`
+- `boom_data.txt`
+
+`boom_data.txt` is optional only when exporting a site created before BOOM was introduced. Its absence is reported as a warning and BOOM loads disabled by default; if the file exists, empty or invalid JSON still fails validation.
 
 By default most files live under:
 
@@ -126,6 +129,7 @@ sharepoint-export-input/
   widgets_data.txt
   external_links_data.txt
   gantt_data.txt
+  boom_data.txt
 ```
 
 Validate and package the export:

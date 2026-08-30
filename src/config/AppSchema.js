@@ -3,8 +3,18 @@ import { DEFAULT_BORDER_TARGETS } from '../utils/borderStyles';
 import { normalizeEventColor } from '../utils/colorValidation';
 import { normalizeSmartTextTokens } from '../utils/smartText';
 import { DEFAULT_ACTIVE_WIDGETS } from '../utils/widgetDisplay';
-import { getNavigationChildren, getNavigationKind, getNavigationUrl } from '../utils/navigationModel';
+import {
+    getNavigationChildren,
+    getNavigationKind,
+    getNavigationUrl,
+    normalizeNavigationTargetBinding,
+} from '../utils/navigationModel';
 import { normalizeImageGalleryBranch } from '../utils/imageGallery';
+import {
+    COMMANDER_IMAGE_OFFSET_X,
+    COMMANDER_IMAGE_SCALE,
+    getCommanderImageSettings,
+} from '../utils/commanderImage';
 
 const SCHEMA_VERSION = '1.0.0';
 const VALID_THEME_DISPLAY_MODES = ['dark', 'light', 'user-toggle'];
@@ -216,6 +226,7 @@ function normalizeNavigationNodes(nodes, prefix = 'nav') {
         const label = asNonEmptyString(node.label, asNonEmptyString(node.title, id));
         const childrenSource = getNavigationChildren(node);
         const url = getNavigationUrl(node);
+        const targetBinding = normalizeNavigationTargetBinding(node.targetBinding);
 
         normalized.push({
             id,
@@ -224,6 +235,7 @@ function normalizeNavigationNodes(nodes, prefix = 'nav') {
             icon: asString(node.icon, ''),
             iconUrl: asString(node.iconUrl, asString(node.imageUrl, asString(node.image, ''))),
             url,
+            ...(targetBinding ? { targetBinding } : {}),
             children: normalizeNavigationNodes(childrenSource, id),
         });
     });
@@ -1140,6 +1152,8 @@ export const DEFAULT_CONFIG_V1 = {
         },
         commander: {
             imageUrl: '/images/אייל זמיר.png',
+            imageScale: COMMANDER_IMAGE_SCALE.defaultValue,
+            imageOffsetX: COMMANDER_IMAGE_OFFSET_X.defaultValue,
             sectionTitle: 'דבר המפקד',
             roleLabel: 'מפקד צוות אלפא ',
             decorativeElement: 'line-diamond-line',
@@ -1623,7 +1637,10 @@ export function migrateLegacyToV1(legacyData) {
         : (Array.isArray(hero.backgroundImages) ? hero.backgroundImages : migrated.content.hero.backgroundImageUrls);
 
     const commander = isObject(legacyContent.commander) ? legacyContent.commander : {};
+    const commanderImageSettings = getCommanderImageSettings(commander);
     migrated.content.commander.imageUrl = asString(commander.imageUrl, asString(commander.image, migrated.content.commander.imageUrl));
+    migrated.content.commander.imageScale = commanderImageSettings.imageScale;
+    migrated.content.commander.imageOffsetX = commanderImageSettings.imageOffsetX;
     migrated.content.commander.sectionTitle = asString(commander.sectionTitle, migrated.content.commander.sectionTitle);
     migrated.content.commander.roleLabel = asString(commander.roleLabel, migrated.content.commander.roleLabel);
     migrated.content.commander.decorativeElement = asString(
@@ -1710,6 +1727,7 @@ export function migrateLegacyToV1(legacyData) {
 export function validateAndNormalize(config) {
     const source = deepMergeReplaceArrays(DEFAULT_CONFIG_V1, isObject(config) ? config : {});
     const widgetsSource = isObject(source.widgets) ? source.widgets : {};
+    const commanderImageSettings = getCommanderImageSettings(source.content?.commander);
 
     const normalized = {
         schemaVersion: SCHEMA_VERSION,
@@ -1802,6 +1820,7 @@ export function validateAndNormalize(config) {
             },
             commander: {
                 imageUrl: asString(source.content?.commander?.imageUrl, DEFAULT_CONFIG_V1.content.commander.imageUrl),
+                ...commanderImageSettings,
                 sectionTitle: asString(source.content?.commander?.sectionTitle, DEFAULT_CONFIG_V1.content.commander.sectionTitle),
                 roleLabel: asString(source.content?.commander?.roleLabel, DEFAULT_CONFIG_V1.content.commander.roleLabel),
                 decorativeElement: asEnum(

@@ -15,7 +15,7 @@ describe('commander image settings', () => {
     });
 
     it('rounds and clamps image size and horizontal movement to the supported range', () => {
-        expect(getCommanderImageSettings({ imageScale: 131.8, imageOffsetX: -32.4 })).toEqual({
+        expect(getCommanderImageSettings({ imageScale: 331.8, imageOffsetX: -232.4 })).toEqual({
             imageScale: COMMANDER_IMAGE_SCALE.max,
             imageOffsetX: COMMANDER_IMAGE_OFFSET_X.min,
         });

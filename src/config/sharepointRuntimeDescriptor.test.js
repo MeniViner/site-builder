@@ -21,6 +21,7 @@ describe('createSharePointRuntimeDescriptor', () => {
       siteAssetsRoot: '/sites/site-a/siteDB/siteAssets',
       imagesRoot: '/sites/site-a/siteDB/images',
       widgetsFileServerRelativeUrl: '/sites/site-a/siteUsersDb/widgets_data.txt',
+      boomFileServerRelativeUrl: '/sites/site-a/siteDB/siteAssets/boom_data.txt',
       finalAppUrl: 'https://portal.army.idf/sites/site-a/siteDB/dist/index.html',
     });
     expect(Object.isFrozen(descriptor)).toBe(true);

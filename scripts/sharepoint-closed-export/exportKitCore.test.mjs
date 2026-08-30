@@ -26,6 +26,7 @@ const sampleFiles = {
   'widgets_data.txt': { activeWidgets: ['events'], polls: [{ id: 'poll-1' }] },
   'external_links_data.txt': [{ id: 'link-1', title: 'Link' }],
   'gantt_data.txt': { enabled: true, items: [{ id: 'task-1' }] },
+  'boom_data.txt': { enabled: true, items: [{ id: 'boom-1' }] },
 };
 
 async function makeDir() {
@@ -84,7 +85,7 @@ describe('Closed SharePoint export kit', () => {
     const repeatManifestText = await fs.readFile(path.join(repeat.exportDir, 'manifest.json'), 'utf8');
 
     expect(result.manifest.safeForMongoDryRun).toBe(true);
-    expect(result.manifest.files).toHaveLength(9);
+    expect(result.manifest.files).toHaveLength(10);
     expect(await fs.readFile(path.join(result.exportDir, 'raw', 'users_data.txt'), 'utf8')).toContain('Admin');
     expect(await fs.readFile(path.join(result.exportDir, 'normalized', 'legacy-objects.json'), 'utf8')).toContain('admin-1');
     expect(manifestText).toBe(repeatManifestText);
@@ -92,6 +93,102 @@ describe('Closed SharePoint export kit', () => {
 
   it('calculates SHA-256 hashes', () => {
     expect(sha256Text('abc')).toBe(crypto.createHash('sha256').update('abc').digest('hex'));
+  });
+
+  it('keeps pre-BOOM exports safe and migratable when only boom_data.txt is absent', async () => {
+    const { 'boom_data.txt': _boom, ...preBoomFiles } = sampleFiles;
+    const inputDir = await writeInput(preBoomFiles);
+    const outputRoot = await makeDir();
+    const result = await createClosedSharePointExportArtifact({
+      inputDir,
+      outputRoot,
+      config: { siteCode: 'pre-boom' },
+      exportId: 'pre-boom-export',
+    });
+
+    expect(result.manifest.safeForMongoDryRun).toBe(true);
+    expect(result.manifest.status).toBe('WARNING');
+    expect(result.manifest.files.find((file) => file.fileName === 'boom_data.txt')).toMatchObject({
+      status: 'missing',
+      optional: true,
+      errors: [],
+    });
+
+    await expect(migrateSharePointToMongo({
+      siteId: 'pre-boom',
+      dryRun: true,
+      fromExport: result.exportDir,
+    })).resolves.toMatchObject({
+      failedKeys: [],
+      skippedEmptyFiles: [expect.objectContaining({
+        fileName: 'boom_data.txt',
+        reason: 'optional-file-missing',
+      })],
+    });
+  });
+
+  it('treats a browser-helper BOOM 404 as optional absence', async () => {
+    const browserExportPath = path.join(await makeDir(), 'browser-export.json');
+    await fs.writeFile(browserExportPath, JSON.stringify({
+      siteCode: 'pre-boom-browser',
+      files: [
+        ...Object.entries(sampleFiles)
+          .filter(([fileName]) => fileName !== 'boom_data.txt')
+          .map(([fileName, data]) => ({
+            fileName,
+            ok: true,
+            status: 200,
+            text: JSON.stringify(data),
+          })),
+        {
+          fileName: 'boom_data.txt',
+          ok: false,
+          status: 404,
+          text: '',
+        },
+      ],
+    }), 'utf8');
+
+    const result = await createClosedSharePointExportArtifact({
+      browserExportPath,
+      outputRoot: await makeDir(),
+      config: {},
+      exportId: 'pre-boom-browser-export',
+    });
+
+    expect(result.manifest.safeForMongoDryRun).toBe(true);
+    expect(result.manifest.files.find((file) => file.fileName === 'boom_data.txt')).toMatchObject({
+      status: 'missing',
+      optional: true,
+    });
+  });
+
+  it('does not reinterpret present invalid BOOM data as optional absence during unsafe migration', async () => {
+    const inputDir = await writeInput({
+      ...sampleFiles,
+      'boom_data.txt': '[invalid',
+    });
+    const result = await createClosedSharePointExportArtifact({
+      inputDir,
+      outputRoot: await makeDir(),
+      config: { siteCode: 'invalid-boom' },
+      exportId: 'invalid-boom-export',
+    });
+
+    expect(result.manifest.safeForMongoDryRun).toBe(false);
+    const migration = await migrateSharePointToMongo({
+      siteId: 'invalid-boom',
+      dryRun: true,
+      fromExport: result.exportDir,
+      allowUnsafeExport: true,
+    });
+    expect(migration.failedKeys).toContainEqual(expect.objectContaining({
+      fileName: 'boom_data.txt',
+    }));
+    expect(migration.skippedEmptyFiles).not.toContainEqual(expect.objectContaining({
+      fileName: 'boom_data.txt',
+      reason: 'optional-file-missing',
+    }));
   });
 
   it('sanitizes unsafe local site folder names and target Mongo collection names', () => {
@@ -280,7 +377,7 @@ describe('Closed SharePoint export kit', () => {
     });
 
     expect(report.failedKeys).toEqual([]);
-    expect(report.imported).toHaveLength(9);
+    expect(report.imported).toHaveLength(10);
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(repository.ensureSite).not.toHaveBeenCalled();
     expect(legacyRepository.writeLegacyObject).not.toHaveBeenCalled();

@@ -1,6 +1,8 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useMemo, useContext, useCallback } from 'react';
 import { useConfig } from './ConfigProvider';
 import { spLog } from '../utils/spAppLog';
+import { getCommanderImageSettings } from '../utils/commanderImage';
 
 export const SiteContentContext = createContext();
 
@@ -37,6 +39,7 @@ function ensureLegacySiteContentContract(content) {
                 signature: typeof item.signature === 'string' ? item.signature : '',
             }))
         : [{ ...SAFE_EMPTY_MESSAGE }];
+    const commanderImageSettings = getCommanderImageSettings(commander);
 
     return {
         hero: {
@@ -62,6 +65,7 @@ function ensureLegacySiteContentContract(content) {
                 ? commander.decorativeElement
                 : 'line-diamond-line',
             messages,
+            ...commanderImageSettings,
         },
         overlayImage: isObject(source.overlayImage) ? { ...source.overlayImage } : {},
     };
@@ -102,6 +106,10 @@ function toV1SiteContent(payload, previousContent = {}) {
         commander.messages,
         prevCommander.messages
     );
+    const commanderImageSettings = getCommanderImageSettings({
+        ...prevCommander,
+        ...commander,
+    });
     const safeOverlayDisplayArea = typeof overlayImage.displayArea === 'string'
         ? overlayImage.displayArea
         : (typeof prevOverlayImage.displayArea === 'string' ? prevOverlayImage.displayArea : 'fixed-site');
@@ -132,6 +140,7 @@ function toV1SiteContent(payload, previousContent = {}) {
                 ? commander.decorativeElement
                 : (prevCommander.decorativeElement ?? 'line-diamond-line'),
             messages: commanderMessages,
+            ...commanderImageSettings,
         },
         overlayImage: {
             ...prevOverlayImage,
@@ -224,7 +233,7 @@ export const SiteContentProvider = ({ children }) => {
         try {
             await reload();
             return true;
-        } catch (err) {
+        } catch {
             return false;
         }
     }, [reload]);

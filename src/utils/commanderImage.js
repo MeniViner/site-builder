@@ -1,12 +1,12 @@
 export const COMMANDER_IMAGE_SCALE = {
-    min: 80,
-    max: 120,
+    min: 25,
+    max: 300,
     defaultValue: 100,
 };
 
 export const COMMANDER_IMAGE_OFFSET_X = {
-    min: -24,
-    max: 24,
+    min: -160,
+    max: 160,
     defaultValue: 0,
 };
 

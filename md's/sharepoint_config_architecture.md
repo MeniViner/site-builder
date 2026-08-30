@@ -40,6 +40,10 @@ The most serious findings are:
 | Theme | `ThemeContext` + `ThemeService` | SharePoint or `localStorage` | `theme_data.txt` / `bihs_theme_data` | color, display, layout, external links visuals |
 | Widgets | `WidgetContext` + `WidgetService` | SharePoint or `localStorage` | `widgets_data.txt` / `bihs_widgets_data` | active widgets, rotation, widget data, widget display settings |
 | External links | `ExternalLinksContext` + `ExternalLinksService` | SharePoint or `localStorage` | `external_links_data.txt` / `bihs_external_links_data` | footer links, icons/images |
+| Gantt | `GanttContext` + `GanttService` | Mongo, SharePoint TXT, explicit mock, or Kashar draft | `gantt_data.txt` / `bihs_gantt_data` | specialist Gantt settings, categories, and timeline tasks |
+| BOOM | `BoomContext` + `BoomService` | Mongo, SharePoint TXT, explicit mock, or Kashar draft | `boom_data.txt` / `bihs_boom_data` | independent enablement, categories, and command-and-control tasks |
+
+Navigation nodes may also contain an optional `targetBinding`. `mode=sharepoint-auto` records a verified library/folder target using server-relative paths, the List ID/title, the library root, and a stable provisioning key. The public navigation continues to open the normal `url` field. Nodes without a binding, including historical data, remain manual and cause no SharePoint side effects.
 | Admin users | `AuthContext` + `UsersService` | SharePoint or `localStorage` | `users_data.txt` / `bihs_users_data` | admin user list |
 | User site display mode | `ThemeContext` | browser only | `bihs_user_display_mode` | `dark` or `light` |
 | Admin panel display mode | `ThemeContext` | browser only | `bihs_admin_display_mode` | `dark` or `light` |
@@ -1126,6 +1130,8 @@ The first unified loader should support a one-time migration path:
    - `widgets_data.txt`
    - `external_links_data.txt`
    - `users_data.txt`
+   - `gantt_data.txt`
+   - `boom_data.txt`
 4. Also read browser-only legacy `borderTargets` if available.
 5. Assemble a full `SharePointAppConfigV1`.
 6. Normalize and validate it.

@@ -51,6 +51,7 @@
     ['widgets', 'widgets_data.txt', cfg.widgetsDbTarget === 'site' ? legacyFolderPath : usersLegacyFolderPath],
     ['externalLinks', 'external_links_data.txt', legacyFolderPath],
     ['gantt', 'gantt_data.txt', legacyFolderPath],
+    ['boom', 'boom_data.txt', legacyFolderPath],
   ].map(([key, fileName, folder]) => ({
     key,
     fileName,

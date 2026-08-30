@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
     Undo2, Menu, Save, FileText, Link as LinkIcon,
-    LayoutGrid, Palette, ExternalLink, Sun, Moon, Users, ShieldCheck, ChevronDown, ChevronLeft, ChevronRight, CalendarDays, Image as ImageIcon, RotateCcw
+    LayoutGrid, Palette, ExternalLink, Sun, Moon, Users, ShieldCheck, ChevronDown, ChevronLeft, ChevronRight, CalendarDays, Image as ImageIcon, RotateCcw, Zap
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import AdminEvents from './AdminEvents';
@@ -23,6 +23,7 @@ import AdminHeritage from './AdminHeritage';
 import AdminTips from './AdminTips';
 import AdminOrgChart from './AdminOrgChart';
 import AdminGantt from './AdminGantt';
+import AdminBoom from './AdminBoom';
 import AdminAIHelp from './AdminAIHelp';
 import AdminSiteOwnersManagement from './AdminSiteOwnersManagement';
 import AdminAdminsSync from './AdminAdminsSync';
@@ -56,6 +57,7 @@ const ADMIN_SECTION_BY_TAB = {
     links: 'content',
     'org-chart': 'addons',
     gantt: 'addons',
+    boom: 'addons',
     'external-links': 'content',
     galleries: 'content',
     widgets: 'content',
@@ -237,6 +239,7 @@ export default function AdminHub() {
         if (path.includes('/admin/backups')) return 'backups';
         if (path.includes('/admin/org-chart')) return 'org-chart';
         if (path.includes('/admin/gantt')) return 'gantt';
+        if (path.includes('/admin/boom')) return 'boom';
         if (path.includes('/admin/outstanding')) return 'outstanding';
         if (path.includes('/admin/countdown')) return 'countdown';
         if (path.includes('/admin/news')) return 'news';
@@ -462,6 +465,14 @@ export default function AdminHub() {
                                 isSidebarOpen={isSidebarOpen}
                                 title="ניהול עמוד גאנט ציבורי"
                             />
+                            <SidebarButton
+                                icon={Zap}
+                                label="ניהול בום"
+                                isActive={activeTab === 'boom'}
+                                onClick={() => navigateAdmin('/admin/boom')}
+                                isSidebarOpen={isSidebarOpen}
+                                title="ניהול מערכת BOOM למשימות שליטה ובקרה"
+                            />
                         </>
                     )}
 
@@ -634,6 +645,7 @@ export default function AdminHub() {
                                 <Route path="/backups" element={<div className="w-full h-full"><AdminBackupManagement /></div>} />
                                 <Route path="/org-chart" element={<div className="w-full h-full"><AdminOrgChart /></div>} />
                                 <Route path="/gantt" element={<div className="w-full h-full"><AdminGantt /></div>} />
+                                <Route path="/boom" element={<div className="w-full h-full"><AdminBoom /></div>} />
                                 <Route path="/external-links" element={<div className="w-full h-full"><AdminExternalLinks /></div>} />
                                 <Route path="/galleries" element={<div className="w-full h-full"><AdminImageGalleries /></div>} />
                                 <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />
@@ -670,6 +682,7 @@ export default function AdminHub() {
                             <Route path="/backups" element={<div className="w-full h-full"><AdminBackupManagement /></div>} />
                             <Route path="/org-chart" element={<div className="w-full h-full"><AdminOrgChart /></div>} />
                             <Route path="/gantt" element={<div className="w-full h-full"><AdminGantt /></div>} />
+                            <Route path="/boom" element={<div className="w-full h-full"><AdminBoom /></div>} />
                             <Route path="/external-links" element={<div className="w-full h-full"><AdminExternalLinks /></div>} />
                             <Route path="/galleries" element={<div className="w-full h-full"><AdminImageGalleries /></div>} />
                             <Route path="/outstanding" element={<div className="w-full h-full"><AdminOutstanding /></div>} />

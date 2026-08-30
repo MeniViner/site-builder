@@ -100,6 +100,69 @@ const OVERLAY_OBJECT_FIT_OPTIONS = [
 const inputCls = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:border-gray-700/50 dark:bg-[#1e212b] dark:text-white';
 const AI_SITE_CONTENT_RUNTIME = getSafeAiRuntimeConfig();
 
+function CommanderImageRangeControl({
+    id,
+    label,
+    value,
+    range,
+    formatValue,
+    onChange,
+}) {
+    const changeBy = (amount) => {
+        onChange(clampCommanderImageValue(value + amount, range));
+    };
+
+    return (
+        <div className="rounded-2xl bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.06),0_10px_28px_rgba(15,23,42,0.06)] dark:bg-[#232733] dark:shadow-[0_1px_2px_rgba(0,0,0,0.35),0_12px_30px_rgba(0,0,0,0.18)]">
+            <div className="mb-3 flex items-center justify-between gap-3">
+                <label htmlFor={id} className="text-sm font-bold text-gray-800 dark:text-gray-100">
+                    {label}
+                </label>
+                <output
+                    htmlFor={id}
+                    className="min-w-16 rounded-lg bg-primary-500/10 px-2.5 py-1 text-center text-xs font-black tabular-nums text-primary-700 dark:text-primary-300"
+                >
+                    {formatValue(value)}
+                </output>
+            </div>
+            <div dir="ltr" className="grid grid-cols-[40px_minmax(0,1fr)_40px] items-center gap-3">
+                <button
+                    type="button"
+                    aria-label={`הפחת ${label}`}
+                    onClick={() => changeBy(-1)}
+                    disabled={value <= range.min}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-lg font-black text-gray-700 shadow-sm transition-transform hover:scale-[1.03] active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-35 dark:bg-white/10 dark:text-gray-100"
+                >
+                    −
+                </button>
+                <input
+                    id={id}
+                    type="range"
+                    min={range.min}
+                    max={range.max}
+                    step="1"
+                    value={value}
+                    onChange={(event) => onChange(event.target.value)}
+                    className="h-2 w-full cursor-pointer accent-primary-600"
+                />
+                <button
+                    type="button"
+                    aria-label={`הוסף ${label}`}
+                    onClick={() => changeBy(1)}
+                    disabled={value >= range.max}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-lg font-black text-gray-700 shadow-sm transition-transform hover:scale-[1.03] active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-35 dark:bg-white/10 dark:text-gray-100"
+                >
+                    +
+                </button>
+            </div>
+            <div dir="ltr" className="mt-2 flex justify-between text-[11px] font-medium tabular-nums text-gray-400 dark:text-gray-500">
+                <span>{formatValue(range.min)}</span>
+                <span>{formatValue(range.max)}</span>
+            </div>
+        </div>
+    );
+}
+
 function asText(value, fallback = '') {
     if (typeof value !== 'string') return fallback;
     const trimmed = value.trim();
@@ -1174,55 +1237,48 @@ export default function AdminSiteContent() {
                                             </div>
 
                                             {commander.image && (
-                                                <div className="mt-5 grid gap-5 lg:grid-cols-[120px_minmax(0,1fr)] lg:items-center">
-                                                    <div className="h-28 w-28 overflow-hidden rounded-xl border border-black/10 bg-white p-2 dark:border-white/10 dark:bg-[#1e212b]">
-                                                        <ResolvedSiteImage
-                                                            source={commander.image}
-                                                            alt="תצוגה מקדימה של תמונת המפקד"
-                                                            className="h-full w-full object-contain transition-transform duration-200 ease-out"
-                                                            style={{ transform: `translateX(${commander.imageOffsetX}px) scale(${commander.imageScale / 100})` }}
-                                                            onError={(e) => { e.target.style.display = 'none'; }}
-                                                        />
+                                                <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(220px,280px)_minmax(0,1fr)] xl:items-stretch">
+                                                    <div className="relative min-h-64 overflow-hidden rounded-[28px] bg-[radial-gradient(circle_at_50%_40%,rgba(59,130,246,0.14),transparent_62%)] p-4 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.08),0_18px_45px_rgba(15,23,42,0.08)] dark:bg-[radial-gradient(circle_at_50%_40%,rgba(96,165,250,0.18),transparent_62%)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1),0_18px_45px_rgba(0,0,0,0.22)]">
+                                                        <span className="absolute right-4 top-4 z-10 rounded-lg bg-white/85 px-2.5 py-1 text-[11px] font-bold text-gray-600 shadow-sm backdrop-blur-sm dark:bg-[#1e212b]/85 dark:text-gray-300">
+                                                            תצוגה חיה
+                                                        </span>
+                                                        <div className="flex h-full min-h-56 items-center justify-center overflow-hidden rounded-2xl bg-white/70 p-3 dark:bg-black/15">
+                                                            <ResolvedSiteImage
+                                                                source={commander.image}
+                                                                alt="תצוגה מקדימה של תמונת המפקד"
+                                                                className="h-52 w-full object-contain outline outline-1 outline-black/10 transition-transform duration-200 ease-out dark:outline-white/10"
+                                                                style={{
+                                                                    transform: `translateX(${commander.imageOffsetX}px) scale(${commander.imageScale / 100})`,
+                                                                    transformOrigin: 'center',
+                                                                }}
+                                                                onError={(e) => { e.target.style.display = 'none'; }}
+                                                            />
+                                                        </div>
                                                     </div>
 
-                                                    <div className="space-y-4">
-                                                        <div>
-                                                            <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                                                                <label htmlFor="commander-image-scale" className="font-bold text-gray-700 dark:text-gray-200">גודל תמונה</label>
-                                                                <output htmlFor="commander-image-scale" className="rounded-md bg-primary-500/10 px-2 py-0.5 text-xs font-bold tabular-nums text-primary-700 dark:text-primary-300">{commander.imageScale}%</output>
-                                                            </div>
-                                                            <input
+                                                    <div className="rounded-[28px] bg-gray-50 p-5 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)] dark:bg-[#1e212b] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
+                                                        <div className="mb-4">
+                                                            <h4 className="text-sm font-black text-gray-900 dark:text-white">מסגור ומיקום התמונה</h4>
+                                                            <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">כוונו את התמונה בדיוק בתוך אזור המפקד. השינויים מוצגים ונשמרים אוטומטית.</p>
+                                                        </div>
+                                                        <div className="space-y-3">
+                                                            <CommanderImageRangeControl
                                                                 id="commander-image-scale"
-                                                                type="range"
-                                                                min={COMMANDER_IMAGE_SCALE.min}
-                                                                max={COMMANDER_IMAGE_SCALE.max}
-                                                                step="1"
+                                                                label="קנה מידה"
                                                                 value={commander.imageScale}
-                                                                onChange={(event) => updateCommanderImageSetting('imageScale', event.target.value, COMMANDER_IMAGE_SCALE)}
-                                                                className="h-2 w-full cursor-pointer accent-primary-600"
+                                                                range={COMMANDER_IMAGE_SCALE}
+                                                                formatValue={(value) => `${value}%`}
+                                                                onChange={(value) => updateCommanderImageSetting('imageScale', value, COMMANDER_IMAGE_SCALE)}
                                                             />
-                                                            <div className="mt-1 flex justify-between text-[11px] text-gray-400 dark:text-gray-500"><span>קטן יותר</span><span>גדול יותר</span></div>
-                                                        </div>
-
-                                                        <div>
-                                                            <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                                                                <label htmlFor="commander-image-offset" className="font-bold text-gray-700 dark:text-gray-200">הזזה ימינה / שמאלה</label>
-                                                                <output htmlFor="commander-image-offset" className="rounded-md bg-primary-500/10 px-2 py-0.5 text-xs font-bold tabular-nums text-primary-700 dark:text-primary-300">{commander.imageOffsetX === 0 ? 'ממורכז' : `${Math.abs(commander.imageOffsetX)}px ${commander.imageOffsetX > 0 ? 'ימינה' : 'שמאלה'}`}</output>
-                                                            </div>
-                                                            <input
+                                                            <CommanderImageRangeControl
                                                                 id="commander-image-offset"
-                                                                type="range"
-                                                                min={COMMANDER_IMAGE_OFFSET_X.min}
-                                                                max={COMMANDER_IMAGE_OFFSET_X.max}
-                                                                step="1"
+                                                                label="מיקום אופקי"
                                                                 value={commander.imageOffsetX}
-                                                                onChange={(event) => updateCommanderImageSetting('imageOffsetX', event.target.value, COMMANDER_IMAGE_OFFSET_X)}
-                                                                className="h-2 w-full cursor-pointer accent-primary-600"
-                                                                dir="ltr"
+                                                                range={COMMANDER_IMAGE_OFFSET_X}
+                                                                formatValue={(value) => (value === 0 ? 'מרכז' : `${value > 0 ? '+' : ''}${value}px`)}
+                                                                onChange={(value) => updateCommanderImageSetting('imageOffsetX', value, COMMANDER_IMAGE_OFFSET_X)}
                                                             />
-                                                            <div className="mt-1 flex justify-between text-[11px] text-gray-400 dark:text-gray-500"><span>שמאלה</span><span>ימינה</span></div>
                                                         </div>
-
                                                         <button
                                                             type="button"
                                                             onClick={() => setCommander((prev) => ({
@@ -1231,9 +1287,9 @@ export default function AdminSiteContent() {
                                                                 imageOffsetX: COMMANDER_IMAGE_OFFSET_X.defaultValue,
                                                             }))}
                                                             disabled={commander.imageScale === COMMANDER_IMAGE_SCALE.defaultValue && commander.imageOffsetX === COMMANDER_IMAGE_OFFSET_X.defaultValue}
-                                                            className="min-h-10 rounded-lg px-3 text-sm font-bold text-primary-700 transition-transform hover:bg-primary-500/10 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-45 dark:text-primary-300"
+                                                            className="mt-4 min-h-10 w-full rounded-xl bg-white px-3 text-sm font-bold text-primary-700 shadow-sm transition-transform hover:scale-[1.01] active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-45 dark:bg-white/5 dark:text-primary-300"
                                                         >
-                                                            אפס התאמת תמונה
+                                                            מרכז ואפס התאמות
                                                         </button>
                                                     </div>
                                                 </div>

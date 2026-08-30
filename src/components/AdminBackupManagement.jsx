@@ -44,6 +44,8 @@ import {
 } from '../utils/backupPackage';
 import ConfigService from '../services/ConfigService';
 import { useConfig } from '../context/ConfigProvider';
+import { useBoom } from '../context/BoomContext';
+import { useGantt } from '../context/GanttContext';
 import BackupSiteLivePreview from './BackupSiteLivePreview';
 import DismissibleNotice from './DismissibleNotice';
 import backendApiClient from '../services/storage/backendApiClient';
@@ -62,6 +64,7 @@ const RESTORE_TARGET_BY_FILE_NAME = {
     [String(SHAREPOINT_CONFIG.widgetsFileServerRelativeUrl || '').split('/').pop()]: SHAREPOINT_CONFIG.widgetsFileServerRelativeUrl,
     [String(SHAREPOINT_CONFIG.externalLinksFileServerRelativeUrl || '').split('/').pop()]: SHAREPOINT_CONFIG.externalLinksFileServerRelativeUrl,
     [String(SHAREPOINT_CONFIG.ganttFileServerRelativeUrl || '').split('/').pop()]: SHAREPOINT_CONFIG.ganttFileServerRelativeUrl,
+    [String(SHAREPOINT_CONFIG.boomFileServerRelativeUrl || '').split('/').pop()]: SHAREPOINT_CONFIG.boomFileServerRelativeUrl,
     [String(SHAREPOINT_CONFIG.usersFileServerRelativeUrl || '').split('/').pop()]: SHAREPOINT_CONFIG.usersFileServerRelativeUrl,
 };
 
@@ -74,6 +77,7 @@ const BACKUP_FILE_LABELS = {
     [String(SHAREPOINT_CONFIG.widgetsFileServerRelativeUrl || '').split('/').pop()]: 'גיבוי ווידג׳טים',
     [String(SHAREPOINT_CONFIG.externalLinksFileServerRelativeUrl || '').split('/').pop()]: 'גיבוי קישורים חיצוניים',
     [String(SHAREPOINT_CONFIG.ganttFileServerRelativeUrl || '').split('/').pop()]: 'גיבוי גאנט',
+    [String(SHAREPOINT_CONFIG.boomFileServerRelativeUrl || '').split('/').pop()]: 'גיבוי BOOM',
     [String(SHAREPOINT_CONFIG.usersFileServerRelativeUrl || '').split('/').pop()]: 'גיבוי מנהלים',
 };
 
@@ -112,6 +116,11 @@ const DEV_MOCK_FILE_TARGETS = [
         fileName: String(SHAREPOINT_CONFIG.ganttFileServerRelativeUrl || '').split('/').pop(),
         storageKey: SHAREPOINT_CONFIG.ganttMockStorageKey,
         targetServerRelativeUrl: SHAREPOINT_CONFIG.ganttFileServerRelativeUrl,
+    },
+    {
+        fileName: String(SHAREPOINT_CONFIG.boomFileServerRelativeUrl || '').split('/').pop(),
+        storageKey: SHAREPOINT_CONFIG.boomMockStorageKey,
+        targetServerRelativeUrl: SHAREPOINT_CONFIG.boomFileServerRelativeUrl,
     },
     {
         fileName: String(SHAREPOINT_CONFIG.usersFileServerRelativeUrl || '').split('/').pop(),
@@ -205,19 +214,23 @@ const buildPreviewFromBackupTexts = (fileTextsByName) => {
         parsedByName.set(fileName, parseBackupJson(fileName, text));
     });
 
-    if (parsedByName.has(MASTER_CONFIG_FILE_NAME)) {
-        const parsed = parsedByName.get(MASTER_CONFIG_FILE_NAME);
-        return {
-            source: 'master',
-            config: validateAndNormalize(parsed),
-        };
-    }
-
     const getJsonForTarget = (targetUrl) => {
         const fileName = String(targetUrl || '').split('/').pop();
         if (!fileName || !parsedByName.has(fileName)) return undefined;
         return parsedByName.get(fileName);
     };
+
+    const gantt = getJsonForTarget(SHAREPOINT_CONFIG.ganttFileServerRelativeUrl);
+    const boom = getJsonForTarget(SHAREPOINT_CONFIG.boomFileServerRelativeUrl);
+    if (parsedByName.has(MASTER_CONFIG_FILE_NAME)) {
+        const parsed = parsedByName.get(MASTER_CONFIG_FILE_NAME);
+        return {
+            source: 'master',
+            config: validateAndNormalize(parsed),
+            gantt,
+            boom,
+        };
+    }
 
     const legacyData = {
         events: getJsonForTarget(SHAREPOINT_CONFIG.fileServerRelativeUrl),
@@ -227,7 +240,8 @@ const buildPreviewFromBackupTexts = (fileTextsByName) => {
         widgets: getJsonForTarget(SHAREPOINT_CONFIG.widgetsFileServerRelativeUrl),
         externalLinks: getJsonForTarget(SHAREPOINT_CONFIG.externalLinksFileServerRelativeUrl),
         users: getJsonForTarget(SHAREPOINT_CONFIG.usersFileServerRelativeUrl),
-        gantt: getJsonForTarget(SHAREPOINT_CONFIG.ganttFileServerRelativeUrl),
+        gantt,
+        boom,
     };
 
     const hasAnyLegacyData = Object.values(legacyData).some((value) => value !== undefined);
@@ -238,6 +252,8 @@ const buildPreviewFromBackupTexts = (fileTextsByName) => {
     return {
         source: 'legacy',
         config: validateAndNormalize(migrateLegacyToV1(legacyData)),
+        gantt,
+        boom,
     };
 };
 
@@ -425,6 +441,8 @@ export default function AdminBackupManagement() {
     const useLocalBackupStore = !mongoBackupStore && (SHAREPOINT_CONFIG.useMock || isSharePointReadonlyBackend());
     const currentSiteId = getSiteId();
     const { config, reload } = useConfig();
+    const { reloadBoom } = useBoom();
+    const { reloadGantt } = useGantt();
     const importInputRef = useRef(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -1150,7 +1168,7 @@ export default function AdminBackupManagement() {
                 restoreResultSummary.selectedItemCount = restoreResponse?.selectedItemCount || selectedItems.length;
                 restoreResultSummary.skippedItemCount = restoreResponse?.skippedItemCount;
                 restoreResultSummary.clearOrReplaceActions = restoreResponse?.clearOrReplaceActions || [];
-                await reload();
+                await Promise.all([reload(), reloadGantt(), reloadBoom()]);
                 toast.success('השחזור בוצע דרך Mongo ונתוני האתר נטענו מחדש.');
             } else {
                 const selectedFileTexts = new Map(
@@ -1181,7 +1199,7 @@ export default function AdminBackupManagement() {
                                 status: entry.status,
                                 restoreAction: entry.restoreAction,
                             }));
-                        await reload();
+                        await Promise.all([reload(), reloadGantt(), reloadBoom()]);
                         toast.success('השחזור במצב פיתוח הושלם. הנתונים נטענו מחדש מהגיבוי.');
                     } else {
                         const safetyBackup = await createBackup({ trigger: 'pre-restore' });
@@ -1225,7 +1243,7 @@ export default function AdminBackupManagement() {
                                 restoreAction: entry.restoreAction,
                             }));
 
-                        await reload();
+                        await Promise.all([reload(), reloadGantt(), reloadBoom()]);
                         toast.success('השחזור בוצע. מומלץ לרענן את האתר כדי לראות את כל הנתונים המשוחזרים.');
                     }
                 }
@@ -1705,7 +1723,11 @@ export default function AdminBackupManagement() {
                                                 </span>
                                             </div>
                                         </div>
-                                        <BackupSiteLivePreview config={restoreModal.preview?.config} />
+                                        <BackupSiteLivePreview
+                                            config={restoreModal.preview?.config}
+                                            gantt={restoreModal.preview?.gantt}
+                                            boom={restoreModal.preview?.boom}
+                                        />
                                     </div>
 
                                     <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#232733]">

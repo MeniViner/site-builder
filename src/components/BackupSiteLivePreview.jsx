@@ -6,11 +6,13 @@ import { EventsProvider } from '../context/EventsContext';
 import { SiteContentProvider } from '../context/SiteContentContext';
 import { OrgChartProvider } from '../context/OrgChartContext';
 import { GanttContext } from '../context/GanttContext';
+import { BoomContext } from '../context/BoomContext';
 import { ThemeContext, applyThemeToElement } from '../context/ThemeContext';
 import { WidgetContext } from '../context/WidgetContext';
 import { ExternalLinksProvider } from '../context/ExternalLinksContext';
 import { DEFAULT_ACTIVE_WIDGETS, mergeWidgetSettings } from '../utils/widgetDisplay';
 import { DEFAULT_GANTT_DATA, normalizeGanttData } from '../utils/ganttData';
+import { DEFAULT_BOOM_DATA, normalizeBoomData } from '../utils/boomData';
 import { validateAndNormalize } from '../config/AppSchema';
 
 const DESKTOP_WIDTH = 1440;
@@ -143,7 +145,7 @@ function toPreviewTheme(config) {
     };
 }
 
-function BackupPreviewProviders({ config, children }) {
+function BackupPreviewProviders({ config, gantt, boom, children }) {
     const normalizedConfig = useMemo(() => validateAndNormalize(config), [config]);
     const previewTheme = useMemo(() => toPreviewTheme(normalizedConfig), [normalizedConfig]);
     const previewMode = previewTheme.displayMode === 'light' ? 'light' : 'dark';
@@ -153,14 +155,24 @@ function BackupPreviewProviders({ config, children }) {
     );
     const widgetConfig = useMemo(() => toPreviewWidgetConfig(normalizedConfig.widgets), [normalizedConfig.widgets]);
     const ganttContextValue = useMemo(() => ({
-        gantt: normalizeGanttData(DEFAULT_GANTT_DATA),
+        gantt: normalizeGanttData(gantt ?? DEFAULT_GANTT_DATA),
         loading: false,
         saving: false,
         error: null,
         updateGantt: noop,
         saveGantt: noopAsync,
         reloadGantt: noopAsync,
-    }), []);
+    }), [gantt]);
+    const boomContextValue = useMemo(() => ({
+        boom: normalizeBoomData(boom ?? DEFAULT_BOOM_DATA),
+        loading: false,
+        loaded: true,
+        saving: false,
+        error: null,
+        updateBoom: noop,
+        saveBoom: noopAsync,
+        reloadBoom: noopAsync,
+    }), [boom]);
 
     const configContextValue = useMemo(() => ({
         config: normalizedConfig,
@@ -205,13 +217,15 @@ function BackupPreviewProviders({ config, children }) {
                     <SiteContentProvider>
                         <OrgChartProvider>
                             <GanttContext.Provider value={ganttContextValue}>
-                                <ExternalLinksProvider>
+                                <BoomContext.Provider value={boomContextValue}>
+                                  <ExternalLinksProvider>
                                     <ThemeContext.Provider value={themeContextValue}>
                                         <WidgetContext.Provider value={widgetContextValue}>
                                             {children}
                                         </WidgetContext.Provider>
                                     </ThemeContext.Provider>
-                                </ExternalLinksProvider>
+                                  </ExternalLinksProvider>
+                                </BoomContext.Provider>
                             </GanttContext.Provider>
                         </OrgChartProvider>
                     </SiteContentProvider>
@@ -221,7 +235,7 @@ function BackupPreviewProviders({ config, children }) {
     );
 }
 
-export default function BackupSiteLivePreview({ config }) {
+export default function BackupSiteLivePreview({ config, gantt = DEFAULT_GANTT_DATA, boom = DEFAULT_BOOM_DATA }) {
     const containerRef = useRef(null);
     const contentRef = useRef(null);
     const [scale, setScale] = useState(1);
@@ -262,7 +276,7 @@ export default function BackupSiteLivePreview({ config }) {
                     transform: `scale(${scale})`,
                 }}
             >
-                <BackupPreviewProviders config={normalizedConfig}>
+                <BackupPreviewProviders config={normalizedConfig} gantt={gantt} boom={boom}>
                     <div className="pointer-events-none min-h-full w-full select-none pb-32">
                         <Home isPreview />
                     </div>

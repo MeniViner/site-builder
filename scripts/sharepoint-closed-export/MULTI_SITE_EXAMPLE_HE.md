@@ -18,6 +18,7 @@ sharepoint-export-input/
     widgets_data.txt
     external_links_data.txt
     gantt_data.txt
+    boom_data.txt
 
   site-b-safe-folder/
     site.export.json
@@ -30,6 +31,7 @@ sharepoint-export-input/
     widgets_data.txt
     external_links_data.txt
     gantt_data.txt
+    boom_data.txt
 ```
 
 `site-b-safe-folder/` הוא שם תיקייה בטוח מקומית, לא שם האתר האמיתי.

@@ -46,13 +46,16 @@ function CommanderSection({ commander, messages }) {
 
   return (
     <div className="relative p-6 [@media(max-height:850px)]:p-4 flex flex-col sm:flex-row items-stretch h-full w-full">
-      <div className="w-full sm:w-[45%] relative shrink-0 sm:-ml-4 flex items-center justify-center overflow-visible mb-6 sm:mb-0 isolate">
+      <div className="w-full sm:w-[45%] relative shrink-0 sm:-ml-4 flex items-center justify-center overflow-hidden mb-6 sm:mb-0 isolate">
         <div className="absolute left-1/2 top-1/2 -translate-x-[40%] -translate-y-[60%] w-28 lg:w-32 xl:w-36 h-28 lg:h-32 xl:h-36 bg-primary z-[1] hidden sm:block shadow-[0_0_25px_var(--color-primary-600),0_0_50px_var(--color-primary-900)]" aria-hidden="true" />
         {commander.image && (
           <ResolvedSiteImage
             source={commander.image}
             className="w-full sm:w-44 lg:w-52 xl:w-60 h-40 sm:h-full object-contain object-center relative z-[2] border-b sm:border-b-0 border-theme-subtle transition-transform duration-200 ease-out"
-            style={{ transform: `translateX(${imageOffsetX}px) scale(${imageScale / 100})` }}
+            style={{
+              transform: `translateX(${imageOffsetX}px) scale(${imageScale / 100})`,
+              transformOrigin: 'center',
+            }}
             alt="Commander"
           />
         )}
@@ -144,18 +147,13 @@ export function WidgetSection({ borderStyle, widgetHeight, onWidgetTitleChange, 
       return [widgetConfig.activeWidget];
     }
     return [...DEFAULT_ACTIVE_WIDGETS];
-  }, [widgetConfig?.activeWidgets, widgetConfig?.activeWidget]);
+  }, [widgetConfig]);
 
   const rotationInterval = useMemo(() => {
     const parsed = Number(widgetConfig?.rotationInterval);
     if (!Number.isFinite(parsed)) return 8;
     return Math.max(3, Math.min(30, parsed));
   }, [widgetConfig?.rotationInterval]);
-
-  useEffect(() => {
-    if (currentIndex <= activeWidgets.length - 1) return;
-    setCurrentIndex(0);
-  }, [activeWidgets.length, currentIndex]);
 
   useEffect(() => {
     if (activeWidgets.length <= 1 || isWidgetHovered) return undefined;
@@ -167,7 +165,8 @@ export function WidgetSection({ borderStyle, widgetHeight, onWidgetTitleChange, 
     return () => clearInterval(timer);
   }, [activeWidgets.length, isWidgetHovered, rotationInterval]);
 
-  const currentWidget = activeWidgets[currentIndex] || activeWidgets[0] || 'events';
+  const visibleIndex = activeWidgets.length > 0 ? currentIndex % activeWidgets.length : 0;
+  const currentWidget = activeWidgets[visibleIndex] || 'events';
   const widgetTitle = getWidgetTitle(currentWidget);
   const hasMultipleWidgets = activeWidgets.length > 1;
 
@@ -226,7 +225,7 @@ export function WidgetSection({ borderStyle, widgetHeight, onWidgetTitleChange, 
           className={`w-full h-full group flex flex-col ${showBackground ? 'shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8)]' : ''}`}
         >
           <div className="relative h-full">
-            <div key={currentIndex} className="h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div key={visibleIndex} className="h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
               <WidgetPanelContent widgetConfig={widgetConfig} activeWidget={currentWidget} widgetTitle={widgetTitle} />
             </div>
           </div>

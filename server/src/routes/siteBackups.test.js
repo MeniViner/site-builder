@@ -92,6 +92,7 @@ describe('site backup routes', () => {
     await writeLegacy(siteId, 'widgets_data.txt', { activeWidget: ['events'], data: { news: [{ id: 'news-1', title: 'News One' }] } });
     await writeLegacy(siteId, 'external_links_data.txt', []);
     await writeLegacy(siteId, 'gantt_data.txt', { items: [{ id: 'task-1', title: 'Task One' }], categories: [] });
+    await writeLegacy(siteId, 'boom_data.txt', { enabled: true, items: [{ id: 'boom-1', title: 'BOOM One' }], categories: [] });
   }
 
   it('requires auth for backup routes', async () => {

@@ -1,5 +1,6 @@
 import { DEFAULT_CONFIG_V1, validateAndNormalize } from '../config/AppSchema';
 import { normalizeGanttData } from '../utils/ganttData';
+import { normalizeBoomData } from '../utils/boomData';
 
 function clone(value) {
     if (Array.isArray(value)) return value.map(clone);
@@ -420,6 +421,46 @@ export const kasharDemoGanttData = deepFreeze(normalizeGanttData({
     ],
 }));
 
+/** Independent BOOM command-and-control fixture for the Kashar profile. */
+export const kasharDemoBoomData = deepFreeze(normalizeBoomData({
+    enabled: true,
+    buttonLabel: 'בום',
+    pageTitle: 'BOOM - תמונת מצב',
+    description: 'מעקב שליטה ובקרה אחר משימות מרכזיות.',
+    categories: [
+        { id: 'boom-category-operations', name: 'מבצעים', color: '#2563eb', order: 1 },
+        { id: 'boom-category-community', name: 'קהילה', color: '#0f766e', order: 2 },
+    ],
+    items: [
+        {
+            id: 'boom-kashar-1',
+            title: 'השלמת תמונת מצב יומית',
+            category: 'מבצעים',
+            owner: 'חדר מבצעים',
+            status: 'active',
+            startDate: '2026-06-01',
+            endDate: '2026-06-30',
+            progress: 65,
+            details: 'איסוף ועדכון נתוני המשימות המרכזיות.',
+            color: '#2563eb',
+            order: 1,
+        },
+        {
+            id: 'boom-kashar-2',
+            title: 'תיאום פעילות קהילתית',
+            category: 'קהילה',
+            owner: 'רכזת קהילה',
+            status: 'planned',
+            startDate: '2026-06-15',
+            endDate: '2026-07-10',
+            progress: 20,
+            details: '',
+            color: '#0f766e',
+            order: 2,
+        },
+    ],
+}));
+
 /** The complete schema-v1 master configuration used by the Kashar Vite profile. */
 export const kasharDemoData = deepFreeze(validateAndNormalize(kasharDemoConfigSource));
 
@@ -429,6 +470,10 @@ export function cloneKasharDemoData() {
 
 export function cloneKasharDemoGanttData() {
     return clone(kasharDemoGanttData);
+}
+
+export function cloneKasharDemoBoomData() {
+    return clone(kasharDemoBoomData);
 }
 
 /** Legacy WidgetService still owns the shared poll response. */
