@@ -724,7 +724,7 @@ export default function AdminEvents({ onClose, inHub = false }) {
                                 helpTitle="משך זמן לתצוגת עמוד"
                                 helpDescription="כמה שניות כל מסך של אירועים יוצג לפני המעבר הבא."
                             >
-                                משך זמן לתצוגת עמוד (שניות)
+                                משך זמן לתצוגת עמוד (ש׳)
                             </HelpLabel>
                             <input
                                 type="number"

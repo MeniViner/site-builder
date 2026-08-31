@@ -148,7 +148,7 @@ export default function WidgetDisplaySettingsPanel({ widgetId, widgetKey }) {
                             'אם יש רק פריט אחד, ההשפעה כמעט לא תורגש.',
                         ]}
                     >
-                        הפעל גלילה/החלפה אוטומטית
+                        הפעל החלפה אוטומטית
                     </HelpLabel>
                     <button
                         dir="ltr"
@@ -182,7 +182,7 @@ export default function WidgetDisplaySettingsPanel({ widgetId, widgetKey }) {
                             'זמן ארוך מתאים כשיש טקסט שצריך זמן לקרוא.',
                         ]}
                     >
-                        משך זמן לתצוגת עמוד (שניות)
+                                משך זמן לתצוגת עמוד (ש׳)
                     </HelpLabel>
                     <input
                         type="number"
