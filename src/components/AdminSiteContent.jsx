@@ -27,16 +27,9 @@ import { confirmToast } from '../utils/confirmToast';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import { toast } from 'react-toastify';
 import DismissibleNotice from './DismissibleNotice';
-import AdminAIActionCard from './AdminAIActionCard';
-import AdminAIHelp from './AdminAIHelp';
 import AIService from '../services/AIService';
 import { getSafeAiRuntimeConfig } from '../config/ai.config';
 import { UI_FEATURES } from '../config/uiFeatures.config';
-import {
-    buildAdminAiChangeSummary,
-    createAdminAiAppliedResult,
-    createAdminAiNoChangeResult,
-} from '../utils/adminAiExecution';
 
 const MAX_COMMANDER_MESSAGES = 5;
 
@@ -176,68 +169,6 @@ function CommanderImageRangeControl({
     );
 }
 
-function asText(value, fallback = '') {
-    if (typeof value !== 'string') return fallback;
-    const trimmed = value.trim();
-    return trimmed || fallback;
-}
-
-function normalizeAiCommanderMessages(messages) {
-    if (!Array.isArray(messages)) return [];
-
-    return messages
-        .map((entry, index) => {
-            if (typeof entry === 'string') {
-                const text = entry.trim();
-                if (!text) return null;
-                return {
-                    id: `msg_${Date.now()}_${index}`,
-                    text,
-                    signature: '',
-                };
-            }
-
-            const text = asText(entry?.text);
-            if (!text) return null;
-
-            return {
-                id: asText(entry?.id, `msg_${Date.now()}_${index}`),
-                text,
-                signature: asText(entry?.signature),
-            };
-        })
-        .filter(Boolean)
-        .slice(0, MAX_COMMANDER_MESSAGES);
-}
-
-function normalizeAiSiteContentPayload(payload, fallbackHero, fallbackCommander) {
-    const heroPayload = payload?.hero || {};
-    const commanderPayload = payload?.commander || {};
-
-    const nextHero = {
-        ...fallbackHero,
-        siteName: asText(heroPayload.siteName, fallbackHero.siteName),
-        title: asText(heroPayload.title, fallbackHero.title).split('\n').slice(0, 2).join('\n'),
-        subtitle: asText(heroPayload.subtitle, fallbackHero.subtitle),
-        description: asText(heroPayload.description, fallbackHero.description).split('\n').slice(0, 3).join('\n'),
-    };
-
-    const nextCommander = {
-        ...fallbackCommander,
-        sectionTitle: asText(commanderPayload.sectionTitle, fallbackCommander.sectionTitle),
-        roleLabel: asText(commanderPayload.roleLabel, fallbackCommander.roleLabel),
-    };
-
-    if (Array.isArray(commanderPayload.messages)) {
-        nextCommander.messages = normalizeAiCommanderMessages(commanderPayload.messages);
-    }
-
-    return {
-        hero: nextHero,
-        commander: nextCommander,
-    };
-}
-
 export default function AdminSiteContent() {
     const { siteContent, loading, error, saveSiteContent } = useSiteContent();
     const { theme: themeSettings, saveTheme } = useTheme();
@@ -262,7 +193,6 @@ export default function AdminSiteContent() {
     const lastSavedRef = useRef(null);
     const showAiUi = UI_FEATURES.showAiUi;
     const isAiEnabled = showAiUi && AIService.isEnabled();
-    const [aiHistory, setAiHistory] = useState({ past: [], future: [] });
 
     useEffect(() => {
         if (!siteContent) return;
@@ -306,43 +236,6 @@ export default function AdminSiteContent() {
 
     const updateHeroField = (field, value) => {
         setHero((prev) => ({ ...prev, [field]: value }));
-    };
-
-    const getContentSnapshot = () => ({
-        hero,
-        commander,
-    });
-
-    const restoreContentSnapshot = (snapshot) => {
-        setHero({ ...HERO_DEFAULTS, ...(snapshot?.hero || {}) });
-        setCommander(normalizeCommanderImageSettings({
-            ...COMMANDER_DEFAULTS,
-            ...(snapshot?.commander || {}),
-            messages: Array.isArray(snapshot?.commander?.messages) ? snapshot.commander.messages : [],
-        }));
-        setEditingMessage(null);
-    };
-
-    const handleUndoAiSiteContent = () => {
-        if (!aiHistory.past.length) return;
-        const target = aiHistory.past[aiHistory.past.length - 1];
-        const current = getContentSnapshot();
-        setAiHistory((prev) => ({
-            past: prev.past.slice(0, -1),
-            future: [current, ...prev.future].slice(0, 20),
-        }));
-        restoreContentSnapshot(target);
-    };
-
-    const handleRedoAiSiteContent = () => {
-        if (!aiHistory.future.length) return;
-        const target = aiHistory.future[0];
-        const current = getContentSnapshot();
-        setAiHistory((prev) => ({
-            past: [...prev.past, current].slice(-20),
-            future: prev.future.slice(1),
-        }));
-        restoreContentSnapshot(target);
     };
 
     const updateCommanderField = (field, value) => {
@@ -592,85 +485,6 @@ export default function AdminSiteContent() {
         }
     };
 
-    const buildSiteContentAiPrompt = (instruction) => {
-        const snapshot = {
-            hero: {
-                siteName: hero.siteName,
-                title: hero.title,
-                subtitle: hero.subtitle,
-                description: hero.description,
-            },
-            commander: {
-                sectionTitle: commander.sectionTitle,
-                roleLabel: commander.roleLabel,
-                messages: commander.messages.map((item) => ({
-                    text: item.text,
-                    signature: item.signature,
-                })),
-            },
-        };
-
-        return [
-            'אתה קופירייטר לפורטל צבאי/ארגוני בעברית.',
-            'החזר JSON בלבד וללא טקסט נוסף.',
-            'סכימה מחייבת:',
-            '{',
-            '  "hero": {',
-            '    "siteName": "string",',
-            '    "subtitle": "string",',
-            '    "title": "string (עד 2 שורות)",',
-            '    "description": "string (עד 3 שורות)"',
-            '  },',
-            '  "commander": {',
-            '    "sectionTitle": "string",',
-            '    "roleLabel": "string",',
-            '    "messages": [',
-            '      { "text": "string", "signature": "string" }',
-            '    ]',
-            '  }',
-            '}',
-            'חוקים:',
-            `- עד ${MAX_COMMANDER_MESSAGES} דבר המפקד.`,
-            '- ניסוח קצר, מקצועי, לא סיסמאות ריקות.',
-            '- שמור על שפה טבעית וברורה.',
-            `תוכן קיים: ${JSON.stringify(snapshot)}`,
-            `בקשת המשתמש: ${instruction}`,
-        ].join('\n');
-    };
-
-    const applyAiSiteContent = (parsed, rawResponseText = '') => {
-        const normalized = normalizeAiSiteContentPayload(parsed, hero, commander);
-        const current = getContentSnapshot();
-        const next = { hero: normalized.hero, commander: normalized.commander };
-        if (JSON.stringify(current) === JSON.stringify(next)) {
-            return createAdminAiNoChangeResult({
-                rawResponseText,
-                parsedPayload: parsed,
-                errorCode: 'NO_MEANINGFUL_DIFF',
-                reason: 'התוכן שהתקבל זהה לתוכן האתר הקיים.',
-            });
-        }
-        const appliedChangeSummary = buildAdminAiChangeSummary(current, next, 'info', 'brief');
-        setAiHistory((prev) => ({
-            past: [...prev.past, current].slice(-20),
-            future: [],
-        }));
-        setHero(normalized.hero);
-        setCommander(normalized.commander);
-        setActiveSettingId('hero-content');
-        setEditingMessage(null);
-        toast.success('הצעת AI הוחלה על תוכן האתר');
-        return createAdminAiAppliedResult({
-            rawResponseText,
-            parsedPayload: parsed,
-            normalizedCandidates: [next],
-            appliedSnapshot: next,
-            appliedChangeSummary,
-            historyEntryCreated: true,
-            persistenceTriggered: true,
-        });
-    };
-
     const cleanImprovedText = (rawText, maxLines = 3) => {
         const cleaned = String(rawText || '')
             .replace(/^```[\s\S]*?\n/, '')
@@ -762,30 +576,6 @@ export default function AdminSiteContent() {
                     </div>
                     <div className="flex items-center gap-3">
                         <AdminPageHelpButton pageId="site-content" tabId={activeSettingId} />
-                        {showAiUi && (
-                            <AdminAIActionCard
-                                compact
-                                compactLabel="AI"
-                                title="עוזר AI לתוכן האתר"
-                                description="ייצור מהיר של טקסטי Hero ו'דבר המפקד' בהתאם לבריף שתכתוב."
-                                inputLabel="איזה תוכן תרצה לייצר?"
-                                inputPlaceholder='דוגמה: "נסח כותרת ותיאור אתר ליחידה טכנולוגית עם דגש על חדשנות, מקצועיות ושירות"'
-                                defaultInput="נסח תכנים רשמיים וקצרים למסך הבית"
-                                suggestionSurfaceKey="info"
-                                buildPrompt={buildSiteContentAiPrompt}
-                                onApply={applyAiSiteContent}
-                                canUndo={aiHistory.past.length > 0}
-                                canRedo={aiHistory.future.length > 0}
-                                onUndo={handleUndoAiSiteContent}
-                                onRedo={handleRedoAiSiteContent}
-                                applyButtonLabel="החל על התוכן"
-                                generateButtonLabel="ייצר תוכן"
-                                primaryPanelTabLabel="תוכן האתר"
-                                secondaryPanelTabLabel="שאלות ותפעול"
-                                secondaryPanelTitle="עוזר AI לניווט ותפעול"
-                                secondaryPanel={<AdminAIHelp embedded />}
-                            />
-                        )}
                         {isSaving && (
                             <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-full shadow-sm">
                                 <div className="w-3.5 h-3.5 border-[2px] border-primary border-t-transparent rounded-full animate-spin" />
