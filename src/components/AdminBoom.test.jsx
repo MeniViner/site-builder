@@ -106,6 +106,28 @@ describe('AdminBoom', () => {
         expect(screen.getByLabelText('כותרת העמוד')).toHaveValue('חדר מצב חדש ');
     });
 
+    it('adopts an external persisted update without overwriting it from the stale local draft', async () => {
+        const view = render(<MemoryRouter><AdminBoom /></MemoryRouter>);
+        mocks.boom = {
+            ...mocks.boom,
+            items: [
+                ...mocks.boom.items,
+                {
+                    ...mocks.boom.items[0],
+                    id: 'task-ai',
+                    title: 'משימת AI חיצונית',
+                },
+            ],
+        };
+
+        view.rerender(<MemoryRouter><AdminBoom /></MemoryRouter>);
+        fireEvent.click(screen.getByRole('tab', { name: 'ניהול משימות' }));
+
+        expect(await screen.findAllByText('משימת AI חיצונית')).not.toHaveLength(0);
+        await new Promise((resolve) => window.setTimeout(resolve, 900));
+        expect(mocks.saveBoom).not.toHaveBeenCalled();
+    });
+
     it('blocks editing after an initial load failure', () => {
         mocks.loaded = false;
         mocks.error = 'Access denied';

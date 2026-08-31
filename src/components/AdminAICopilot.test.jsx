@@ -165,6 +165,7 @@ describe('AdminAICopilot analysis responses', () => {
             id: 'b2',
             title: 'הכנת תמונת מצב',
         });
+        expect(screen.getByText('השינוי הוחל')).toBeVisible();
         expect(screen.getByText(/נוספו 1 משימות BOOM/)).toBeVisible();
     });
 
@@ -220,6 +221,7 @@ describe('AdminAICopilot analysis responses', () => {
             startDate: '2026-09-01',
             endDate: '2026-09-05',
         });
+        expect(screen.getByText('השינוי הוחל')).toBeVisible();
         expect(screen.getByText(/נוספו 1 משימות Gantt/)).toBeVisible();
         expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('משימות Gantt'));
     });

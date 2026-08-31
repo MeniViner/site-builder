@@ -48,6 +48,7 @@ describe('per-widget AI button configuration', () => {
     });
 
     it('requires both master flags in addition to the widget-specific flag', async () => {
+        Object.values(WIDGET_FLAGS).forEach((flag) => vi.stubEnv(flag, 'false'));
         vi.stubEnv('VITE_UI_SHOW_AI_NEWS', 'true');
         vi.stubEnv('VITE_UI_SHOW_AI_UI', 'false');
         vi.stubEnv('VITE_UI_SHOW_WIDGET_AI_BUTTONS', 'true');

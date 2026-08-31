@@ -58,6 +58,8 @@ export default function AdminPolls() {
     useEffect(() => {
         const server = widgetConfig?.polls ?? [];
         const normalized = ensureSingleActivePoll(server);
+        // The editor mirrors externally persisted widget data after AI/history updates.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setList(normalized);
         // Keep snapshot of the raw server payload so normalization (if needed)
         // will trigger a save and persist to shared config.
@@ -69,13 +71,13 @@ export default function AdminPolls() {
         const t = setTimeout(async () => {
             setIsSaving(true);
             setSaveMessage(null);
-            const success = await saveWidgetConfig({ ...widgetConfig, polls: list });
+            const success = await saveWidgetConfig({ polls: list });
             setIsSaving(false);
             if (success) lastSavedRef.current = JSON.stringify(list);
             else setSaveMessage({ type: 'error', text: 'שמירת הסקרים נכשלה. נסה שוב.' });
         }, 1200);
         return () => clearTimeout(t);
-    }, [list, widgetConfig]);
+    }, [list, saveWidgetConfig]);
 
     const openNew = () => {
         setForm({ ...EMPTY_POLL, id: makeId() });
@@ -131,10 +133,12 @@ export default function AdminPolls() {
 
     const applyAiList = async (next) => {
         const nextList = ensureSingleActivePoll(Array.isArray(next) ? next : []);
-        setList(nextList);
-        setEditingId(null);
-        const success = await saveWidgetConfig({ ...widgetConfig, polls: nextList });
-        if (success) lastSavedRef.current = JSON.stringify(nextList);
+        const success = await saveWidgetConfig({ polls: nextList });
+        if (success) {
+            lastSavedRef.current = JSON.stringify(nextList);
+            setList(nextList);
+            setEditingId(null);
+        }
         return success;
     };
 

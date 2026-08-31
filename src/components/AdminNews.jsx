@@ -22,6 +22,8 @@ export default function AdminNews() {
 
     useEffect(() => {
         const server = widgetConfig?.news ?? [];
+        // The editor mirrors externally persisted widget data after AI/history updates.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setList(server);
         lastSavedRef.current = JSON.stringify(server);
     }, [widgetConfig]);
@@ -31,13 +33,13 @@ export default function AdminNews() {
         const t = setTimeout(async () => {
             setIsSaving(true);
             setSaveMessage(null);
-            const success = await saveWidgetConfig({ ...widgetConfig, news: list });
+            const success = await saveWidgetConfig({ news: list });
             setIsSaving(false);
             if (success) lastSavedRef.current = JSON.stringify(list);
             else setSaveMessage({ type: 'error', text: 'שגיאה בשמירה. אנא נסה שוב.' });
         }, 1200);
         return () => clearTimeout(t);
-    }, [list, widgetConfig]);
+    }, [list, saveWidgetConfig]);
 
     const openNew = () => { setForm({ ...EMPTY_NEWS, id: crypto.randomUUID() }); setEditingId('new'); };
     const openEdit = (item) => { setForm({ ...item }); setEditingId(item.id); };
@@ -56,10 +58,12 @@ export default function AdminNews() {
 
     const applyAiList = async (next) => {
         const nextList = Array.isArray(next) ? next : [];
-        setList(nextList);
-        setEditingId(null);
-        const success = await saveWidgetConfig({ ...widgetConfig, news: nextList });
-        if (success) lastSavedRef.current = JSON.stringify(nextList);
+        const success = await saveWidgetConfig({ news: nextList });
+        if (success) {
+            lastSavedRef.current = JSON.stringify(nextList);
+            setList(nextList);
+            setEditingId(null);
+        }
         return success;
     };
 

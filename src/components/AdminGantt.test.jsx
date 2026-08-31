@@ -1,6 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminGantt from './AdminGantt';
 import { normalizeGanttData } from '../utils/ganttData';
 
@@ -26,14 +26,20 @@ const baseGantt = normalizeGanttData({
     items: [],
 });
 
+const mocks = vi.hoisted(() => ({
+    gantt: null,
+    saveGantt: vi.fn(),
+    reloadGantt: vi.fn(),
+}));
+
 vi.mock('../context/GanttContext', () => ({
     useGantt: () => ({
-        gantt: baseGantt,
+        gantt: mocks.gantt,
         loading: false,
         saving: false,
         error: null,
-        saveGantt: vi.fn(),
-        reloadGantt: vi.fn(),
+        saveGantt: mocks.saveGantt,
+        reloadGantt: mocks.reloadGantt,
     }),
 }));
 
@@ -45,6 +51,12 @@ function openTaskModal() {
 }
 
 describe('AdminGantt category combobox', () => {
+    beforeEach(() => {
+        mocks.gantt = JSON.parse(JSON.stringify(baseGantt));
+        mocks.saveGantt.mockReset().mockImplementation(async (value) => value);
+        mocks.reloadGantt.mockReset().mockResolvedValue(mocks.gantt);
+    });
+
     it('does not render the removed upper AI launcher', () => {
         render(<AdminGantt />);
         expect(screen.queryByRole('button', { name: 'AI' })).not.toBeInTheDocument();
@@ -92,5 +104,27 @@ describe('AdminGantt category combobox', () => {
         fireEvent.blur(categoryInput);
 
         expect(categoryInput).toHaveValue('תכנון');
+    });
+
+    it('adopts an external persisted update without overwriting it from the stale local draft', async () => {
+        const view = render(<AdminGantt />);
+        mocks.gantt = normalizeGanttData({
+            ...mocks.gantt,
+            items: [{
+                id: 'task-ai',
+                title: 'משימת גאנט חיצונית',
+                category: 'תכנון',
+                status: 'planned',
+                startDate: '2026-09-01',
+                endDate: '2026-09-02',
+            }],
+        });
+
+        view.rerender(<AdminGantt />);
+        fireEvent.click(screen.getByRole('tab', { name: 'ניהול הגאנט' }));
+
+        expect(await screen.findAllByText('משימת גאנט חיצונית')).not.toHaveLength(0);
+        await new Promise((resolve) => window.setTimeout(resolve, 1000));
+        expect(mocks.saveGantt).not.toHaveBeenCalled();
     });
 });

@@ -347,6 +347,31 @@ describe('adminAiCapabilities', () => {
     expect(next.items).toEqual([]);
   });
 
+  it('resolves a Gantt item category id to the category name', () => {
+    const next = normalizeAdminAiCandidate(
+      'gantt',
+      {
+        gantt: {
+          categories: [{ id: 'cat-general', name: 'כללי', color: '#2563eb' }],
+          items: [{
+            id: 'task-ai',
+            title: 'בדיקת גאנט AI',
+            owner: '',
+            category: 'cat-general',
+            status: 'planned',
+            startDate: '2026-09-01',
+            endDate: '2026-09-05',
+          }],
+        },
+      },
+      { categories: [], items: [] },
+      { actionId: 'brief', instruction: 'צור משימה בקטגוריית כללי מ-2026-09-01 עד 2026-09-05' },
+    );
+
+    expect(next.categories).toHaveLength(1);
+    expect(next.items[0].category).toBe('כללי');
+  });
+
   it('normalizes BOOM task and summary-strip updates through the BOOM contract', () => {
     const current = {
       enabled: true,
@@ -375,7 +400,7 @@ describe('adminAiCapabilities', () => {
           progress: 77,
         }],
       },
-    }, current);
+    }, current, { instruction: 'עדכן בין 10.06.2026 ל-20.06.2026' });
 
     expect(next.design).toMatchObject({
       preset: 'command-center',
@@ -391,5 +416,55 @@ describe('adminAiCapabilities', () => {
       endDate: '2026-06-20',
     });
     expect(next.items[0]).not.toHaveProperty('progress');
+  });
+
+  it('accepts an existing BOOM category id and drops ungrounded dates for a new task', () => {
+    const current = {
+      categories: [{ id: 'general', name: 'כללי', color: '#2563eb', order: 1 }],
+      items: [],
+    };
+    const next = normalizeAdminAiCandidate('boom', {
+      boom: {
+        categories: current.categories,
+        items: [{
+          id: 'task-ai',
+          title: 'בדיקת AI',
+          category: 'general',
+          status: 'planned',
+          startDate: '2023-10-01',
+          endDate: '2023-10-31',
+        }],
+      },
+    }, current, { actionId: 'brief', instruction: 'צור משימה בשם בדיקת AI' });
+
+    expect(next.items[0]).toMatchObject({
+      title: 'בדיקת AI',
+      category: 'כללי',
+      startDate: '',
+      endDate: '',
+    });
+    expect(next.categories).toHaveLength(1);
+  });
+
+  it('resolves a BOOM category id created in the same candidate', () => {
+    const next = normalizeAdminAiCandidate('boom', {
+      boom: {
+        categories: [{ id: 'ops-ai', name: 'מבצעים', color: '#0f766e' }],
+        items: [{
+          id: 'task-ai',
+          title: 'בדיקת קטגוריה חדשה',
+          category: 'ops-ai',
+          status: 'planned',
+        }],
+      },
+    }, { categories: [], items: [] }, {
+      actionId: 'brief',
+      instruction: 'צור משימה בשם בדיקת קטגוריה חדשה בקטגוריית מבצעים',
+    });
+
+    expect(next.items[0]).toMatchObject({
+      category: 'מבצעים',
+      color: '#0f766e',
+    });
   });
 });

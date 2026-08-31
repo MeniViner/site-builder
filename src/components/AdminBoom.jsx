@@ -135,19 +135,26 @@ export default function AdminBoom() {
     const loadedRef = useRef(loaded);
     const saveBoomRef = useRef(saveBoom);
     const ownPersistedSnapshotRef = useRef(null);
+    const externalSyncSnapshotRef = useRef(null);
 
     useEffect(() => {
         const incomingSnapshot = JSON.stringify(normalizeBoomData(boom));
-        setDraft((current) => {
-            const currentSnapshot = JSON.stringify(normalizeBoomData(current));
-            const cameFromOwnSave = ownPersistedSnapshotRef.current === incomingSnapshot;
-            if (cameFromOwnSave) ownPersistedSnapshotRef.current = null;
-            const hasLocalEdits = currentSnapshot !== savedSnapshotRef.current && currentSnapshot !== incomingSnapshot;
-            savedSnapshotRef.current = incomingSnapshot;
-            return hasLocalEdits || (cameFromOwnSave && currentSnapshot === incomingSnapshot)
-                ? current
-                : cloneBoomData(boom);
-        });
+        const current = draftRef.current;
+        const currentSnapshot = JSON.stringify(normalizeBoomData(current));
+        const cameFromOwnSave = ownPersistedSnapshotRef.current === incomingSnapshot;
+        if (cameFromOwnSave) ownPersistedSnapshotRef.current = null;
+        const hasLocalEdits = currentSnapshot !== savedSnapshotRef.current && currentSnapshot !== incomingSnapshot;
+        savedSnapshotRef.current = incomingSnapshot;
+        if (hasLocalEdits || (cameFromOwnSave && currentSnapshot === incomingSnapshot)) return;
+        if (currentSnapshot === incomingSnapshot) return;
+
+        const next = cloneBoomData(boom);
+        externalSyncSnapshotRef.current = incomingSnapshot;
+        draftSnapshotRef.current = incomingSnapshot;
+        draftRef.current = next;
+        // Persisted AI updates must replace the editor draft before autosave can replay stale state.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setDraft(next);
     }, [boom]);
 
     const draftSnapshot = useMemo(() => JSON.stringify(normalizeBoomData(draft)), [draft]);
@@ -190,10 +197,16 @@ export default function AdminBoom() {
     }, [saveBoom]);
 
     useEffect(() => {
+        if (externalSyncSnapshotRef.current) {
+            if (draftSnapshot === externalSyncSnapshotRef.current) {
+                externalSyncSnapshotRef.current = null;
+            }
+            return undefined;
+        }
         if (loading || !isDirty) return undefined;
         const timer = window.setTimeout(() => savePayload(draft), 800);
         return () => window.clearTimeout(timer);
-    }, [draft, isDirty, loading, savePayload]);
+    }, [draft, draftSnapshot, isDirty, loading, savePayload]);
 
     const updateDraft = (updater) => {
         setAutoSaveState((current) => (current === 'error' ? 'pending' : current));

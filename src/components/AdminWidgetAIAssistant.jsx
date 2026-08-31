@@ -287,6 +287,11 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
                         <button type="button" onClick={() => applyHistoryIndex(0)} disabled={historyBusy || index === 0} className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-[10px] font-bold text-primary disabled:opacity-35" title="לפני AI"><RotateCcw size={13} />לפני AI</button>
                         <button type="button" onClick={() => applyHistoryIndex(index - 1)} disabled={historyBusy || !canUndo} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-primary disabled:opacity-35" aria-label="הקודם"><Undo2 size={14} /></button>
                         <span className="min-w-10 text-center text-[10px] font-black text-primary">{index === 0 ? 'מקור' : `${index}/${aiCount}`}</span>
+                        {index > 0 && (
+                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200">
+                                השינוי הוחל
+                            </span>
+                        )}
                         <button type="button" onClick={() => applyHistoryIndex(index + 1)} disabled={historyBusy || !canRedo} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-primary disabled:opacity-35" aria-label="הבא"><Redo2 size={14} /></button>
                         {history.entries[index]?.summary?.length > 0 && (
                             <span className="max-w-52 truncate px-1 text-[10px] font-bold text-primary" title={history.entries[index].summary.join(' · ')}>

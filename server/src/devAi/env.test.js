@@ -121,6 +121,7 @@ describe('optional machine-local developer secret file', () => {
   it('is optional: the application works when the file is absent', () => {
     const loaded = loadDevAiEnv({
       env: { NODE_ENV: 'development' },
+      loadServerEnvFile: () => ({ exists: false, path: '/nowhere', values: {}, keys: [] }),
       loadSecretFile: () => ({ exists: false, path: '/nowhere', values: {}, keys: [] }),
     });
     expect(loaded.secretFile.exists).toBe(false);

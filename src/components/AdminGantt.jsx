@@ -691,15 +691,23 @@ export default function AdminGantt() {
     const [autoSaveState, setAutoSaveState] = useState('saved');
     const savedSnapshotRef = useRef(JSON.stringify(normalizeGanttData(gantt)));
     const draftSnapshotRef = useRef(JSON.stringify(normalizeGanttData(gantt)));
+    const draftRef = useRef(draft);
+    const externalSyncSnapshotRef = useRef(null);
 
     useEffect(() => {
         const incomingSnapshot = JSON.stringify(normalizeGanttData(gantt));
-        setDraft((currentDraft) => {
-            const currentSnapshot = JSON.stringify(normalizeGanttData(currentDraft));
-            const hasLocalEdits = currentSnapshot !== savedSnapshotRef.current && currentSnapshot !== incomingSnapshot;
-            savedSnapshotRef.current = incomingSnapshot;
-            return hasLocalEdits ? currentDraft : cloneGanttData(gantt);
-        });
+        const currentSnapshot = JSON.stringify(normalizeGanttData(draftRef.current));
+        const hasLocalEdits = currentSnapshot !== savedSnapshotRef.current && currentSnapshot !== incomingSnapshot;
+        savedSnapshotRef.current = incomingSnapshot;
+        if (hasLocalEdits || currentSnapshot === incomingSnapshot) return;
+
+        const next = cloneGanttData(gantt);
+        externalSyncSnapshotRef.current = incomingSnapshot;
+        draftSnapshotRef.current = incomingSnapshot;
+        draftRef.current = next;
+        // Persisted AI updates must replace the editor draft before autosave can replay stale state.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setDraft(next);
     }, [gantt]);
 
     const normalizedDraftString = useMemo(() => JSON.stringify(normalizeGanttData(draft)), [draft]);
@@ -708,7 +716,8 @@ export default function AdminGantt() {
 
     useEffect(() => {
         draftSnapshotRef.current = normalizedDraftString;
-    }, [normalizedDraftString]);
+        draftRef.current = draft;
+    }, [draft, normalizedDraftString]);
 
     const categoryOptions = useMemo(
         () => [...draft.categories].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'he')),
@@ -788,6 +797,12 @@ export default function AdminGantt() {
     }, [saveGantt]);
 
     useEffect(() => {
+        if (externalSyncSnapshotRef.current) {
+            if (normalizedDraftString === externalSyncSnapshotRef.current) {
+                externalSyncSnapshotRef.current = null;
+            }
+            return undefined;
+        }
         if (loading || !isDirty) return undefined;
 
         const payload = normalizeGanttData(draft);
@@ -796,7 +811,7 @@ export default function AdminGantt() {
         }, 900);
 
         return () => window.clearTimeout(timer);
-    }, [draft, isDirty, loading, savePayload]);
+    }, [draft, isDirty, loading, normalizedDraftString, savePayload]);
 
     const selectDesignPreset = (presetId) => {
         updateDraft((prev) => ({

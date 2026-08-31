@@ -221,6 +221,7 @@ describe('AdminWidgetAIAssistant', () => {
             { id: 'existing', text: 'מבזק קיים', isUrgent: false },
             { id: 'new', text: 'מבזק חדש', isUrgent: false },
         ]));
+        expect(screen.getByText('השינוי הוחל')).toBeVisible();
         expect(screen.getByText(/נוספו 1 ידיעות/)).toBeVisible();
 
         fireEvent.click(screen.getByRole('button', { name: 'לפני AI' }));

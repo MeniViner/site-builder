@@ -74,7 +74,7 @@ describe('AdminCurrentWidgets AI history switching', () => {
             }],
         };
         mocks.saveWidgetConfig.mockImplementation(async (next) => {
-            mocks.widgetConfig = next;
+            mocks.widgetConfig = { ...mocks.widgetConfig, ...next };
             return true;
         });
         vi.clearAllMocks();
@@ -114,6 +114,11 @@ describe('AdminCurrentWidgets AI history switching', () => {
         fireEvent.change(screen.getByRole('textbox'), { target: { value: 'צור סקר בנושא שירות' } });
         fireEvent.click(screen.getByRole('button', { name: 'צור והחל מיד' }));
         await waitFor(() => expect(screen.getByText('סקר AI')).toBeVisible());
+        expect(mocks.saveWidgetConfig).toHaveBeenLastCalledWith({
+            polls: expect.arrayContaining([
+                expect.objectContaining({ id: 'p2', question: 'סקר AI' }),
+            ]),
+        });
         expect(screen.getByText('1/1')).toBeVisible();
 
         fireEvent.click(screen.getByRole('button', { name: /מבזקים ועדכונים/ }));

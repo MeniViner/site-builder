@@ -332,8 +332,8 @@ function pageSchema(tab) {
     theme: '{"theme":{"primaryColor":"#0891b2","displayMode":"user-toggle|dark|light","borderStyle":"standard|square|cyber|armor|shield|blade","useTintedBackground":true,"tintedBackgroundStrength":72,"heroGrayscale":false,"heroGlassEffect":false,"heroGlassStrength":58,"topNavGlassEffect":false,"topNavGlassStrength":62,"showNavCategories":true,"regularLinksLayout":"sidebar-right|grid|compact|hq","externalLinksLayout":"cards|minimal|floating","externalLinksFixed":false,"externalLinksBordered":true,"externalLinksShowBackground":true,"widgetHeight":"full|high|medium|low"}}',
     'external-links': '{"items":[{"id":"","title":"","url":"","icon":"","iconUrl":""}]}',
     galleries: '{"items":[{"id":"","title":"","description":"","active":true,"style":"magal-strips|classic-carousel|center-carousel|coverflow|masonry","order":0,"images":[{"id":"","mediaRef":"PRESERVE","alt":"","caption":"","media":{"fileName":""}}]}]}',
-    gantt: '{"gantt":{"enabled":true,"buttonLabel":"","pageTitle":"","description":"","groupBy":"category|owner|status|none","defaultView":"day|week|month|quarter","showLegend":true,"showToday":true,"categories":[{"id":"","name":"","color":"#2563eb","order":1}],"items":[{"id":"","title":"","owner":"","category":"","status":"planned|blocked|completed|cancelled|onHold","startDate":"YYYY-MM-DD","endDate":"YYYY-MM-DD","color":"#2563eb","details":"","dependsOn":[],"milestones":[{"id":"","title":"","date":"YYYY-MM-DD"}]}]}}',
-    boom: '{"boom":{"enabled":true,"buttonLabel":"","pageTitle":"","description":"","design":{"preset":"operational|command-center|compact","showSummaryStrip":true,"summaryMetrics":["total|active|blocked|completed|overdue|upcoming|owners|categories"],"tableDensity":"compact|comfortable","showCategoryColors":true,"showSummaryChips":true,"accent":"primary|sky|emerald"},"categories":[{"id":"","name":"","color":"#2563eb","order":1}],"items":[{"id":"","title":"","owner":"","category":"","status":"planned|active|blocked|onHold|completed","startDate":"YYYY-MM-DD","endDate":"YYYY-MM-DD","details":""}]}}',
+    gantt: '{"gantt":{"enabled":true,"buttonLabel":"","pageTitle":"","description":"","groupBy":"category|owner|status|none","defaultView":"day|week|month|quarter","showLegend":true,"showToday":true,"categories":[{"id":"","name":"","color":"#2563eb","order":1}],"items":[{"id":"","title":"","owner":"","category":"existing or requested category name or id","status":"planned|blocked|completed|cancelled|onHold","startDate":"YYYY-MM-DD","endDate":"YYYY-MM-DD","color":"#2563eb","details":"","dependsOn":[],"milestones":[{"id":"","title":"","date":"YYYY-MM-DD"}]}]}}',
+    boom: '{"boom":{"enabled":true,"buttonLabel":"","pageTitle":"","description":"","design":{"preset":"operational|command-center|compact","showSummaryStrip":true,"summaryMetrics":["total|active|blocked|completed|overdue|upcoming|owners|categories"],"tableDensity":"compact|comfortable","showCategoryColors":true,"showSummaryChips":true,"accent":"primary|sky|emerald"},"categories":[{"id":"","name":"","color":"#2563eb","order":1}],"items":[{"id":"","title":"","owner":"","category":"existing category name or id","status":"planned|active|blocked|onHold|completed","startDate":"YYYY-MM-DD or empty","endDate":"YYYY-MM-DD or empty","details":""}]}}',
     'org-chart': '{"orgChart":{"enabled":true,"pageTitle":"","layoutDirection":"tree-center|step-rtl|step-ltr|3d-graph|flow-canvas","cardStyle":"classic|horizontal|large-avatar|compact","nodes":[{"id":"","name":"","rank":"","role":"","personalNumber":"","imageUrl":"PRESERVE","children":[]}]}}',
     alerts: '{"items":[{"id":"","title":"","text":"","isUrgent":false}]}',
     news: '{"items":[{"id":"","text":"","isUrgent":false}]}',
@@ -367,7 +367,7 @@ function specialRules(tab) {
     outstanding: ['אל תמציא הישגים או תכונות על אדם.', 'שמור תמונה קיימת.'],
     heritage: ['לעולם אל תמציא ציטוט או ייחוס.', 'אם אתה יוצר takeaway מסיפור, סמן אותו כמסר ארגוני ולא כציטוט היסטורי.'],
     'org-chart': ['אל תמציא אנשים, מספרים אישיים או דרגות.', 'שמור imageUrl קיים.'],
-    gantt: ['אל תמציא זהות של אחראי. אם לא סופק אחראי, השאר owner ריק.', 'תאריכים חדשים חייבים להיות נגזרים מהקלט או מטווח/תאריך יעד שסופק; אם אין בסיס, שמור תאריכים קיימים.'],
+    gantt: ['אל תמציא זהות של אחראי. אם לא סופק אחראי, השאר owner ריק.', 'תאריכים חדשים חייבים להיות נגזרים מהקלט או מטווח/תאריך יעד שסופק; אם אין בסיס, שמור תאריכים קיימים.', 'item.category חייב להפנות בדיוק ל-name או ל-id של רשומה ב-categories; אין ליצור קטגוריה נוספת רק כדי לתרגם שם ל-id.'],
     boom: ['אפשר ליצור או לעדכן משימות BOOM רק עם נתונים מהבקשה או מהמצב הקיים.', 'השתמש רק בסטטוסים, הגדרות עיצוב וערכי לוח בקרה שמופיעים בסכימה.', 'ההתקדמות מחושבת אוטומטית מתאריכי ההתחלה והסיום; אל תחזיר שדה progress.', 'כל משימה חייבת להפנות לקטגוריה קיימת. אפשר ליצור קטגוריה חדשה עם צבע hex תקין כשנדרש.'],
     'current-widgets': ['עדכן בעיקר את הווידג׳טים הפעילים שמופיעים ב-currentSnapshot.activeWidgets.', 'אל תמחוק מידע קיים שלא נדרש למחוק.'],
   };
@@ -401,6 +401,7 @@ function actionRules(tab, actionId) {
     'gantt:weekly': ['שמור משימות שלא הוזכרו ועדכן רק משימות שניתן לזהות מהקלט.'],
     'gantt:paste': ['שמור משימות קיימות והוסף משימות חדשות מהטקסט שסופק.'],
     'gantt:brief': ['שמור משימות קיימות אלא אם המשתמש ביקש במפורש לבנות תוכנית חלופית.'],
+    'boom:brief': ['שמור משימות קיימות והוסף את המשימות החדשות. אם המשתמש לא סיפק תאריך, החזר startDate ו-endDate כמחרוזות ריקות.'],
   };
   return rules[`${tab}:${actionId}`] || [];
 }
@@ -838,6 +839,12 @@ function normalizeGantt(payload, current, instruction, actionId) {
       order: index + 1,
     };
   }) : clone(currentCategories);
+  const resolvedCategoryById = existingById([...currentCategories, ...categories]);
+  const resolvedCategoryByName = new Map(
+    [...currentCategories, ...categories]
+      .map((category) => [String(category?.name || '').toLocaleLowerCase('he'), category])
+      .filter(([name]) => name)
+  );
 
   const sourceItems = Array.isArray(source?.items) ? source.items : currentItems;
   const items = sourceItems.slice(0, 250).map((item, index) => {
@@ -846,6 +853,9 @@ function normalizeGantt(payload, current, instruction, actionId) {
     const requestedOwner = bounded(item?.owner, 180, existing?.owner || '');
     const ownerWasSupplied = requestedOwner && instructionContainsValue(instruction, requestedOwner);
     const owner = ownerWasSupplied ? requestedOwner : existing?.owner || '';
+    const requestedCategory = bounded(item?.category, 160, existing?.category || categories?.[0]?.name || 'כללי');
+    const matchedCategory = resolvedCategoryById.get(requestedCategory)
+      || resolvedCategoryByName.get(requestedCategory.toLocaleLowerCase('he'));
     const mayUseRequestedDates = Boolean(existing) || instructionHasDate || (
       dateWithinCurrentRange(item?.startDate) && dateWithinCurrentRange(item?.endDate || item?.startDate)
     );
@@ -870,11 +880,13 @@ function normalizeGantt(payload, current, instruction, actionId) {
       id: text(item?.id, existing?.id || makeId(`gantt-task-${index}`)),
       title: bounded(item?.title, 240, existing?.title || ''),
       owner,
-      category: bounded(item?.category, 160, existing?.category || categories?.[0]?.name || 'כללי'),
+      category: matchedCategory?.name || requestedCategory,
       status: statuses.includes(item?.status) ? item.status : (existing?.status || 'planned'),
       startDate,
       endDate,
-      color: colors.includes(item?.color) ? item.color : (existing?.color || categories?.find((cat) => cat.name === item?.category)?.color || colors[0]),
+      color: colors.includes(item?.color)
+        ? item.color
+        : (existing?.color || matchedCategory?.color || colors[0]),
       details: bounded(item?.details, 3000, existing?.details || ''),
       dependsOn: Array.isArray(item?.dependsOn) ? item.dependsOn.map(String).slice(0, 30) : clone(existing?.dependsOn || []),
       milestones,
@@ -897,7 +909,7 @@ function normalizeGantt(payload, current, instruction, actionId) {
   };
 }
 
-function normalizeBoom(payload, current) {
+function normalizeBoom(payload, current, instruction) {
   const source = payload?.boom || payload || {};
   const baseline = normalizeBoomData(current);
   const currentTasks = existingById(baseline.items);
@@ -919,13 +931,16 @@ function normalizeBoom(payload, current) {
     : clone(currentCategories);
 
   const categoryByName = new Map(categories.map((category) => [category.name.toLocaleLowerCase('he'), category]));
+  const resolvedCategoryById = existingById([...currentCategories, ...categories]);
   const items = Array.isArray(source.items)
     ? source.items.slice(0, 250).map((item, index) => {
       const existing = currentTasks.get(String(item?.id || ''));
       const requestedCategory = bounded(item?.category, 160, existing?.category || categories[0]?.name || 'כללי');
-      const matchedCategory = categoryByName.get(requestedCategory.toLocaleLowerCase('he'));
-      const startDate = safeDate(item?.startDate, existing?.startDate || '');
-      const requestedEndDate = safeDate(item?.endDate, existing?.endDate || startDate);
+      const matchedCategory = resolvedCategoryById.get(requestedCategory)
+        || categoryByName.get(requestedCategory.toLocaleLowerCase('he'));
+      const mayUseRequestedDates = Boolean(existing) || hasDateSignal(instruction);
+      const startDate = mayUseRequestedDates ? safeDate(item?.startDate, existing?.startDate || '') : '';
+      const requestedEndDate = mayUseRequestedDates ? safeDate(item?.endDate, existing?.endDate || startDate) : '';
       const endDate = startDate && requestedEndDate && requestedEndDate < startDate ? startDate : requestedEndDate;
       return {
         ...(clone(existing) || {}),
@@ -1321,7 +1336,7 @@ export function normalizeAdminAiCandidate(tab, payload, currentSnapshot, options
     case 'galleries': return normalizeGalleries(payload, currentSnapshot);
     case 'gantt': return normalizeGantt(payload, currentSnapshot, instruction, actionId);
     case 'org-chart': return normalizeOrgChart(payload, currentSnapshot, instruction, actionId);
-    case 'boom': return normalizeBoom(payload, currentSnapshot);
+    case 'boom': return normalizeBoom(payload, currentSnapshot, instruction);
     case 'alerts': return normalizeAlerts(payload, currentSnapshot, instruction);
     case 'news': return normalizeNews(payload, currentSnapshot);
     case 'outstanding': return normalizeOutstanding(payload, currentSnapshot, instruction);

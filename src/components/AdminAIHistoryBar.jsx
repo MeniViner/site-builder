@@ -35,9 +35,14 @@ export default function AdminAIHistoryBar({
             <History size={17} />
           </span>
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-xs font-black text-gray-900 dark:text-white">
+            <div className="flex flex-wrap items-center gap-1.5 text-xs font-black text-gray-900 dark:text-white">
               <Sparkles size={12} className="text-primary" />
               שינויי AI — {pageTitle}
+              {index > 0 && (
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200">
+                  השינוי הוחל
+                </span>
+              )}
             </div>
             <div className="mt-0.5 truncate text-[11px] text-gray-500 dark:text-gray-400">
               {displayPosition}{current?.label && index > 0 ? ` · ${current.label}` : ''}
