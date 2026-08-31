@@ -14,6 +14,8 @@ import {
     Trash2,
     X,
     Zap,
+    ChevronUp,
+    ChevronDown,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -537,45 +539,167 @@ export default function AdminBoom() {
                 )}
 
                 {activeTab === 'categories' && (
-                    <section className={`${panelClass} overflow-hidden`}>
-                        <div className="flex flex-col justify-between gap-4 border-b border-gray-200 p-5 dark:border-white/10 sm:flex-row sm:items-center sm:p-6">
+                    <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 dark:bg-[#1b1f2a] dark:ring-white/10">
+                        {/* Header */}
+                        <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                             <div>
-                                <h2 className="text-xl font-black text-gray-900 dark:text-white">ניהול קטגוריות</h2>
-                                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">צבעים ושמות מתעדכנים מיד במשימות ובלוח הבקרה.</p>
+                                <h2 className="text-lg font-black text-gray-900 dark:text-white">
+                                    ניהול קטגוריות
+                                </h2>
+                                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                    הגדירו שמות וצבעים לקטגוריות המשימות.
+                                </p>
                             </div>
-                            <button type="button" onClick={addCategory} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-black text-white shadow-lg shadow-primary/20 transition-[filter,transform] hover:brightness-110 active:scale-[0.96]"><Plus size={18} />קטגוריה חדשה</button>
+
+                            <button
+                                type="button"
+                                onClick={addCategory}
+                                className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-xl bg-primary px-4 text-sm font-black text-white shadow-sm transition hover:brightness-105 active:scale-[0.98] sm:self-auto"
+                            >
+                                <Plus size={17} />
+                                קטגוריה חדשה
+                            </button>
                         </div>
-                        <div className="divide-y divide-gray-200 dark:divide-white/10">
+
+                        {/* Categories */}
+                        <div className="border-t border-gray-100 dark:border-white/10">
                             {draft.categories.map((category, index) => {
-                                const taskCount = draft.items.filter((task) => task.category === category.name).length;
+                                const taskCount = draft.items.filter(
+                                    (task) => task.category === category.name
+                                ).length;
+
+                                const taskCountLabel =
+                                    taskCount === 1 ? 'משימה אחת' : `${taskCount} משימות`;
+
+                                const isFirst = index === 0;
+                                const isLast = index === draft.categories.length - 1;
+                                const canDelete = draft.categories.length > 1;
+
                                 return (
-                                    <div key={category.id} className="grid gap-3 p-5 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto] sm:items-end sm:p-6">
-                                        <label>
-                                            <span className={labelClass}>צבע</span>
-                                            <input aria-label={`צבע עבור ${category.name}`} type="color" value={category.color} onChange={(event) => editCategory(category, { color: event.target.value })} className="h-11 w-14 cursor-pointer rounded-xl border border-gray-200 bg-white p-1 dark:border-white/10 dark:bg-white/5" />
+                                    <div
+                                        key={category.id}
+                                        className="group relative flex min-h-[68px] flex-col gap-3 border-b border-gray-100 px-5 py-3 last:border-b-0 hover:bg-gray-50/70 dark:border-white/5 dark:hover:bg-white/[0.025] sm:flex-row sm:items-center sm:px-6"
+                                    >
+                                        {/* Category color accent */}
+                                        <span
+                                            className="absolute inset-y-3 right-0 w-1 rounded-l-full"
+                                            style={{ backgroundColor: category.color }}
+                                            aria-hidden="true"
+                                        />
+
+                                        {/* Color picker */}
+                                        <label
+                                            className="relative inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-gray-50 ring-1 ring-gray-200 transition hover:ring-primary/40 dark:bg-white/5 dark:ring-white/10"
+                                            title="שינוי צבע הקטגוריה"
+                                        >
+                                            <span
+                                                className="h-5 w-5 rounded-md shadow-sm ring-1 ring-black/10"
+                                                style={{ backgroundColor: category.color }}
+                                            />
+
+                                            <input
+                                                aria-label={`צבע עבור ${category.name}`}
+                                                type="color"
+                                                value={category.color}
+                                                onChange={(event) =>
+                                                    editCategory(category, {
+                                                        color: event.target.value,
+                                                    })
+                                                }
+                                                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                            />
                                         </label>
-                                        <label>
-                                            <span className={labelClass}>שם הקטגוריה</span>
+
+                                        {/* Editable name */}
+                                        <div className="min-w-0 flex-1">
                                             <input
                                                 aria-label={`שם קטגוריה ${category.name}`}
-                                                className={fieldClass}
-                                                value={categoryNameDrafts[category.id] ?? category.name}
-                                                onChange={(event) => setCategoryNameDrafts((current) => ({ ...current, [category.id]: event.target.value }))}
+                                                value={
+                                                    categoryNameDrafts[category.id] ??
+                                                    category.name
+                                                }
+                                                onChange={(event) =>
+                                                    setCategoryNameDrafts((current) => ({
+                                                        ...current,
+                                                        [category.id]: event.target.value,
+                                                    }))
+                                                }
                                                 onBlur={(event) => {
-                                                    editCategory(category, { name: event.target.value });
+                                                    editCategory(category, {
+                                                        name: event.target.value,
+                                                    });
+
                                                     setCategoryNameDrafts((current) => {
                                                         const next = { ...current };
                                                         delete next[category.id];
                                                         return next;
                                                     });
                                                 }}
+                                                className="w-full truncate rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-base font-black text-gray-900 outline-none transition hover:border-gray-200 hover:bg-white focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/10 dark:text-white dark:hover:border-white/10 dark:hover:bg-white/5 dark:focus:bg-white/5"
                                             />
-                                        </label>
-                                        <div className="text-sm font-bold text-gray-500 dark:text-gray-400">{taskCount} משימות</div>
-                                        <button type="button" onClick={() => removeCategory(category)} disabled={draft.categories.length === 1} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-200 px-3 text-sm font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-red-500/30 dark:text-red-300 dark:hover:bg-red-500/10"><Trash2 size={16} />מחיקה</button>
-                                        <div className="flex gap-2 sm:col-span-4">
-                                            <button type="button" onClick={() => updateDraft((current) => reorderBoomCategory(current, category.id, -1))} disabled={index === 0} className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-bold disabled:opacity-40 dark:border-white/10">העבר למעלה</button>
-                                            <button type="button" onClick={() => updateDraft((current) => reorderBoomCategory(current, category.id, 1))} disabled={index === draft.categories.length - 1} className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-bold disabled:opacity-40 dark:border-white/10">העבר למטה</button>
+                                        </div>
+
+                                        {/* Task count */}
+                                        <span className="inline-flex h-8 shrink-0 items-center rounded-lg bg-gray-100 px-3 text-xs font-bold text-gray-600 dark:bg-white/7 dark:text-gray-300">
+                                            {taskCountLabel}
+                                        </span>
+
+                                        {/* Actions */}
+                                        <div className="flex shrink-0 items-center gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    updateDraft((current) =>
+                                                        reorderBoomCategory(
+                                                            current,
+                                                            category.id,
+                                                            -1
+                                                        )
+                                                    )
+                                                }
+                                                disabled={isFirst}
+                                                aria-label={`העבר את ${category.name} למעלה`}
+                                                title="העבר למעלה"
+                                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-25 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+                                            >
+                                                <ChevronUp size={18} />
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    updateDraft((current) =>
+                                                        reorderBoomCategory(
+                                                            current,
+                                                            category.id,
+                                                            1
+                                                        )
+                                                    )
+                                                }
+                                                disabled={isLast}
+                                                aria-label={`העבר את ${category.name} למטה`}
+                                                title="העבר למטה"
+                                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-25 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+                                            >
+                                                <ChevronDown size={18} />
+                                            </button>
+
+                                            <div className="mx-1 h-5 w-px bg-gray-200 dark:bg-white/10" />
+
+                                            <button
+                                                type="button"
+                                                onClick={() => removeCategory(category)}
+                                                disabled={!canDelete}
+                                                aria-label={`מחיקת הקטגוריה ${category.name}`}
+                                                title={
+                                                    canDelete
+                                                        ? 'מחיקת קטגוריה'
+                                                        : 'חייבת להישאר לפחות קטגוריה אחת'
+                                                }
+                                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-25 dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                                            >
+                                                <Trash2 size={17} />
+                                            </button>
                                         </div>
                                     </div>
                                 );
