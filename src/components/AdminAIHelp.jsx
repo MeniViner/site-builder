@@ -3,17 +3,11 @@ import { AlertTriangle, Bot, Copy, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import AIService from '../services/AIService';
 import { formatAiEngineLabel, getSafeAiRuntimeConfig } from '../config/ai.config';
+import AiPromptSuggestionButton from './AiPromptSuggestionButton';
+import { getAiPromptSuggestions } from '../utils/aiPromptSuggestions';
 
-const DEFAULT_QUESTION = 'איך נכון לעבוד עם שמירה אוטומטית במסכי הניהול בלי לאבד שינויים?';
-const QUICK_PROMPTS = [
-    'בנה לי תהליך עבודה בטוח לעריכת תוכן במסך "ניהול המידע", כולל סדר פעולות, שמירה, בדיקת תצוגה מקדימה ופרסום.',
-    'איך למנוע דריסת נתונים במסכי הניהול כשכמה עורכים עובדים במקביל? תן נוהל עבודה ברור עם נקודות בקרה.',
-    'תן לי צ׳קליסט לפני פרסום שינויים באתר: מה לבדוק בתוכן, ניווט, עיצוב, ווידג׳טים וקישורים חיצוניים.',
-    'מה סדר הפעולות המומלץ לעדכון ווידג׳טים מהבחירה ועד אימות תוצאה באתר, כולל בדיקות תקינות אחרי שמירה?',
-    'איך לתעד שינויי תוכן כדי שאפשר יהיה לשחזר מהר במקרה של טעות?',
-    'איך לעבוד נכון עם תצוגה מקדימה כדי לזהות תקלות עיצוב לפני פרסום?',
-    'תן נוהל בדיקה מהיר אחרי כל שמירה כדי לוודא שלא נשברו ניווטים, קישורים ורכיבים בדף הבית.',
-];
+const QUICK_PROMPTS = getAiPromptSuggestions('ai-help');
+const DEFAULT_QUESTION = QUICK_PROMPTS[0] || '';
 const AI_HELP_SCOPE_PROMPT = [
     'תפקיד: עוזר AI פנימי של מערכת פרוייקט מתנ"ה לבנייה, תחזוקה ותפעול האתר בלבד.',
     'היקף מותר: מסכי ניהול, תוכן אתר, ניווט, אירועים, עיצוב, ווידג׳טים, קישורים, SharePoint, אינטגרציות ומבנה המערכת.',
@@ -118,8 +112,17 @@ export default function AdminAIHelp({ embedded = false }) {
                 )}
 
                 <div className={embedded ? 'mt-3' : 'mt-4'}>
-                    <label className="block text-sm font-bold mb-2 text-theme-muted">השאלה שלך</label>
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                        <label className="block text-sm font-bold text-theme-muted" htmlFor="admin-ai-help-question">השאלה שלך</label>
+                        <AiPromptSuggestionButton
+                            surfaceKey="ai-help"
+                            currentValue={question}
+                            onChange={setQuestion}
+                            disabled={isLoading}
+                        />
+                    </div>
                     <textarea
+                        id="admin-ai-help-question"
                         value={question}
                         onChange={(e) => setQuestion(e.target.value)}
                         onKeyDown={(e) => {

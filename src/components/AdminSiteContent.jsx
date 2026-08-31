@@ -742,6 +742,7 @@ export default function AdminSiteContent() {
                                 inputLabel="איזה תוכן תרצה לייצר?"
                                 inputPlaceholder='דוגמה: "נסח כותרת ותיאור אתר ליחידה טכנולוגית עם דגש על חדשנות, מקצועיות ושירות"'
                                 defaultInput="נסח תכנים רשמיים וקצרים למסך הבית"
+                                suggestionSurfaceKey="info"
                                 buildPrompt={buildSiteContentAiPrompt}
                                 onApply={applyAiSiteContent}
                                 canUndo={aiHistory.past.length > 0}

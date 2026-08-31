@@ -25,6 +25,7 @@ import { UI_FEATURES } from '../config/uiFeatures.config';
 import { IDF_RANKS, IDF_ROLES } from '../data/idfDictionaries';
 import { uploadImage } from '../utils/sharepointUtils';
 import ResolvedSiteImage from './ResolvedSiteImage';
+import AiPromptSuggestionButton from './AiPromptSuggestionButton';
 import { confirmToast } from '../utils/confirmToast';
 import { spLog } from '../utils/spAppLog';
 import DismissibleNotice from './DismissibleNotice';
@@ -2835,9 +2836,18 @@ export default function AdminOrgChart() {
                                 </div>
                             )}
 
-                            <label className="block">
-                                <span className="mb-2 block text-sm font-bold text-gray-800 dark:text-gray-200">הנחיה נוספת (אופציונלי)</span>
+                            <div>
+                                <div className="mb-2 flex items-center justify-between gap-3">
+                                    <label htmlFor="org-chart-ai-import-instruction" className="text-sm font-bold text-gray-800 dark:text-gray-200">הנחיה נוספת (אופציונלי)</label>
+                                    <AiPromptSuggestionButton
+                                        surfaceKey="org-chart-import"
+                                        currentValue={aiImportState.instruction}
+                                        onChange={(instruction) => setAiImportState((current) => ({ ...current, instruction }))}
+                                        disabled={['extracting', 'analyzing'].includes(aiImportState.status)}
+                                    />
+                                </div>
                                 <textarea
+                                    id="org-chart-ai-import-instruction"
                                     value={aiImportState.instruction}
                                     disabled={['extracting', 'analyzing'].includes(aiImportState.status)}
                                     onChange={(event) => setAiImportState((current) => ({ ...current, instruction: event.target.value }))}
@@ -2846,7 +2856,7 @@ export default function AdminOrgChart() {
                                     className={`${inputCls} min-h-[92px] resize-y`}
                                     placeholder="לדוגמה: התייחס לכל גיליון כמחלקה נפרדת"
                                 />
-                            </label>
+                            </div>
 
                             {['extracting', 'analyzing'].includes(aiImportState.status) && (
                                 <div className="flex items-center gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4 text-sm font-bold text-violet-800 dark:border-violet-400/20 dark:bg-violet-500/10 dark:text-violet-100">

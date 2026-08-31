@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, Bot, Redo2, Sparkles, Undo2, Wand2, X } from 'lucide-react';
 import { toast } from 'react-toastify';
@@ -6,6 +6,7 @@ import AIService from '../services/AIService';
 import { parseJsonFromModel } from '../utils/aiJson';
 import { formatAiEngineLabel, getSafeAiRuntimeConfig } from '../config/ai.config';
 import DismissibleNotice from './DismissibleNotice';
+import AiPromptSuggestionButton from './AiPromptSuggestionButton';
 
 export default function AdminAIActionCard({
     title = 'עוזר AI',
@@ -34,6 +35,7 @@ export default function AdminAIActionCard({
     secondaryPanelTabLabel = 'עוזר תפעולי',
     suggestedActions = [],
     isReadOnlyRequest,
+    suggestionSurfaceKey,
 }) {
     const runtimeConfig = useMemo(() => getSafeAiRuntimeConfig(), []);
     const [instruction, setInstruction] = useState(defaultInput);
@@ -51,6 +53,7 @@ export default function AdminAIActionCard({
     const [resultReadOnly, setResultReadOnly] = useState(false);
     const lastAutoAppliedKeyRef = useRef('');
     const autoApplyingRef = useRef(false);
+    const instructionInputId = useId();
 
     const isEnabled = AIService.isEnabled();
 
@@ -264,18 +267,28 @@ export default function AdminAIActionCard({
                         ))}
                     </div>
                 )}
-                <label className="block">
-                    <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-theme-muted">
-                        {inputLabel}
-                    </span>
+                <div>
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                        <label htmlFor={instructionInputId} className="text-xs font-bold uppercase tracking-wide text-theme-muted">
+                            {inputLabel}
+                        </label>
+                        <AiPromptSuggestionButton
+                            surfaceKey={suggestionSurfaceKey}
+                            actionKey={selectedSuggestedActionId}
+                            currentValue={instruction}
+                            onChange={setInstruction}
+                            disabled={isGenerating}
+                        />
+                    </div>
                     <textarea
+                        id={instructionInputId}
                         value={instruction}
                         onChange={(e) => setInstruction(e.target.value)}
                         rows={3}
                         placeholder={inputPlaceholder}
                         className="w-full rounded-xl border border-theme-subtle bg-theme-elevated px-4 py-3 text-theme outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                     />
-                </label>
+                </div>
 
                 <div className="flex flex-wrap items-center gap-2">
                     <button

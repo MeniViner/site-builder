@@ -1,4 +1,4 @@
-import React, { forwardRef, useCallback, useImperativeHandle, useMemo, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, Bot, Loader2, Redo2, RotateCcw, Sparkles, Undo2, Wand2, X } from 'lucide-react';
 import { toast } from 'react-toastify';
@@ -7,6 +7,7 @@ import { formatAiEngineLabel, getSafeAiRuntimeConfig } from '../config/ai.config
 import { isWidgetAiButtonEnabled, UI_FEATURES } from '../config/uiFeatures.config';
 import { useAdminAiHistory } from '../hooks/useAdminAiHistory';
 import { parseJsonFromModel } from '../utils/aiJson';
+import AiPromptSuggestionButton from './AiPromptSuggestionButton';
 import {
     applyAdminAiActionSemantics,
     buildAdminAiPrompt,
@@ -68,6 +69,14 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
         [selectedActionId, widgetKey]
     );
     const aiEnabled = AIService.isEnabled();
+
+    useEffect(() => {
+        setSelectedActionId(capability.actions[0]?.id || '');
+        setInstruction('');
+        setAnswer('');
+        setErrorMessage('');
+        setIsOpen(false);
+    }, [capability.actions, widgetKey]);
 
     const applyValue = useCallback(async (nextValue) => {
         const result = onChange?.(clone(nextValue));
@@ -213,7 +222,17 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
                         <div className="font-black">{selectedAction?.label}</div>
                         <div className="mt-1 text-xs leading-5">{selectedAction?.hint}</div>
                     </div>
-                    <textarea value={instruction} onChange={(event) => setInstruction(event.target.value)} rows={6} placeholder={selectedAction?.hint || 'כתוב בקשה או הדבק טקסט...'} className="mt-4 w-full resize-y rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 outline-none dark:border-white/10 dark:bg-white/5" disabled={isGenerating} />
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                        <span className="text-xs font-black uppercase tracking-wide text-gray-500 dark:text-gray-400">הנחיה</span>
+                        <AiPromptSuggestionButton
+                            surfaceKey={surfaceKey}
+                            actionKey={selectedActionId}
+                            currentValue={instruction}
+                            onChange={setInstruction}
+                            disabled={isGenerating}
+                        />
+                    </div>
+                    <textarea aria-label="הנחיית AI" value={instruction} onChange={(event) => setInstruction(event.target.value)} rows={6} placeholder={selectedAction?.hint || 'כתוב בקשה או הדבק טקסט...'} className="mt-2 w-full resize-y rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 outline-none dark:border-white/10 dark:bg-white/5" disabled={isGenerating} />
                     {!aiEnabled && <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm dark:border-amber-500/30 dark:bg-amber-500/10"><AlertTriangle size={15} className="ml-2 inline" />AI כבוי כרגע</div>}
                     {errorMessage && <div className="mt-4 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">{errorMessage}</div>}
                     {answer && (

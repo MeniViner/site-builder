@@ -5,6 +5,7 @@ import AdminWidgetAIAssistant from './AdminWidgetAIAssistant';
 import AIService from '../services/AIService';
 import { clearAdminAiHistoryStore } from '../hooks/useAdminAiHistory';
 import { UI_FEATURES } from '../config/uiFeatures.config';
+import { getAiPromptSuggestions } from '../utils/aiPromptSuggestions';
 
 vi.mock('../config/uiFeatures.config', () => {
     const UI_FEATURES = {
@@ -13,6 +14,7 @@ vi.mock('../config/uiFeatures.config', () => {
         widgetAiButtons: {
             alerts: true,
             countdown: true,
+            events: true,
             news: true,
             phonebook: true,
             polls: true,
@@ -62,6 +64,7 @@ function StatefulAssistant({ widgetKey, initialValue, onPersist = vi.fn() }) {
 describe('AdminWidgetAIAssistant', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        AIService.isEnabled.mockReturnValue(true);
         UI_FEATURES.showAiUi = true;
         UI_FEATURES.showWidgetAiButtons = true;
         Object.keys(UI_FEATURES.widgetAiButtons).forEach((key) => {
@@ -72,6 +75,7 @@ describe('AdminWidgetAIAssistant', () => {
     afterEach(() => {
         cleanup();
         clearAdminAiHistoryStore();
+        vi.restoreAllMocks();
     });
 
     it('hides local controls when the master AI UI is disabled', () => {
@@ -96,6 +100,100 @@ describe('AdminWidgetAIAssistant', () => {
 
         rerender(<AdminWidgetAIAssistant widgetKey="news" value={[]} onChange={vi.fn()} />);
         expect(screen.getByRole('button', { name: 'AI' })).toBeVisible();
+    });
+
+    it('fills the actual prompt without calling AI and Generate uses the suggestion', async () => {
+        const onChange = vi.fn();
+        AIService.ask.mockResolvedValue({
+            content: JSON.stringify({
+                items: [{ id: 'new', text: 'מבזק חדש', isUrgent: false }],
+            }),
+            modelUsed: 'test-model',
+        });
+        vi.spyOn(Math, 'random').mockReturnValue(0);
+
+        render(<AdminWidgetAIAssistant widgetKey="news" value={[]} onChange={onChange} />);
+        fireEvent.click(screen.getByRole('button', { name: 'AI' }));
+        fireEvent.click(screen.getByRole('button', { name: 'הצע ניסוח' }));
+
+        const promptInput = screen.getByRole('textbox');
+        const suggestion = promptInput.value;
+        expect(suggestion).toBeTruthy();
+        expect(getAiPromptSuggestions('news', 'flash')).toContain(suggestion);
+        expect(AIService.ask).not.toHaveBeenCalled();
+        expect(onChange).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole('button', { name: 'צור והחל מיד' }));
+        await waitFor(() => expect(AIService.ask).toHaveBeenCalledOnce());
+        expect(AIService.ask.mock.calls[0][0]).toContain(suggestion);
+    });
+
+    it('uses a different suggestion on a second click when options exist', () => {
+        vi.spyOn(Math, 'random').mockReturnValue(0);
+        render(<AdminWidgetAIAssistant widgetKey="polls" value={[]} onChange={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'AI' }));
+
+        const suggestionButton = screen.getByRole('button', { name: 'הצע ניסוח' });
+        fireEvent.click(suggestionButton);
+        const first = screen.getByRole('textbox').value;
+        fireEvent.click(suggestionButton);
+        const second = screen.getByRole('textbox').value;
+
+        expect(first).not.toBe(second);
+        expect(getAiPromptSuggestions('polls', 'create')).toEqual(expect.arrayContaining([first, second]));
+        expect(AIService.ask).not.toHaveBeenCalled();
+    });
+
+    it('keeps local suggestions available when the AI provider is disabled', () => {
+        AIService.isEnabled.mockReturnValue(false);
+        vi.spyOn(Math, 'random').mockReturnValue(0);
+        render(<AdminWidgetAIAssistant widgetKey="countdown" value={{ items: [] }} onChange={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'AI' }));
+
+        const suggestionButton = screen.getByRole('button', { name: 'הצע ניסוח' });
+        expect(suggestionButton).toBeEnabled();
+        fireEvent.click(suggestionButton);
+
+        expect(screen.getByRole('textbox')).not.toHaveValue('');
+        expect(AIService.ask).not.toHaveBeenCalled();
+        expect(screen.getByRole('button', { name: 'צור והחל מיד' })).toBeDisabled();
+    });
+
+    it('resets prompt context when switching widget managers', async () => {
+        vi.spyOn(Math, 'random').mockReturnValue(0);
+        const { rerender } = render(
+            <AdminWidgetAIAssistant widgetKey="news" value={[]} onChange={vi.fn()} />
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'AI' }));
+        fireEvent.click(screen.getByRole('button', { name: 'הצע ניסוח' }));
+        const newsSuggestion = screen.getByRole('textbox').value;
+
+        rerender(<AdminWidgetAIAssistant widgetKey="polls" value={[]} onChange={vi.fn()} />);
+        await waitFor(() => expect(screen.queryByRole('textbox')).not.toBeInTheDocument());
+        fireEvent.click(screen.getByRole('button', { name: 'AI' }));
+        expect(screen.getByRole('textbox')).toHaveValue('');
+        fireEvent.click(screen.getByRole('button', { name: 'הצע ניסוח' }));
+
+        const pollSuggestion = screen.getByRole('textbox').value;
+        expect(pollSuggestion).not.toBe(newsSuggestion);
+        expect(getAiPromptSuggestions('polls', 'create')).toContain(pollSuggestion);
+    });
+
+    it('switches to the selected action suggestion pool', () => {
+        vi.spyOn(Math, 'random').mockReturnValue(0);
+        render(<AdminWidgetAIAssistant widgetKey="events" value={[]} onChange={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'AI' }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'הדבק לו״ז' }));
+        fireEvent.click(screen.getByRole('button', { name: 'הצע ניסוח' }));
+        const pasteSuggestion = screen.getByRole('textbox').value;
+        expect(getAiPromptSuggestions('events', 'paste')).toContain(pasteSuggestion);
+
+        fireEvent.click(screen.getByRole('button', { name: 'שפר אירועים' }));
+        fireEvent.click(screen.getByRole('button', { name: 'הצע ניסוח' }));
+        const improveSuggestion = screen.getByRole('textbox').value;
+        expect(getAiPromptSuggestions('events', 'improve')).toContain(improveSuggestion);
+        expect(improveSuggestion).not.toBe(pasteSuggestion);
     });
 
     it('applies a normalized mutation and supports before-AI and redo navigation', async () => {

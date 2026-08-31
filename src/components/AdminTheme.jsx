@@ -15,6 +15,7 @@ import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import AIService from '../services/AIService';
 import { parseJsonFromModel } from '../utils/aiJson';
 import DismissibleNotice from './DismissibleNotice';
+import AiPromptSuggestionButton from './AiPromptSuggestionButton';
 import { formatAiEngineLabel, getSafeAiRuntimeConfig } from '../config/ai.config';
 import { UI_FEATURES } from '../config/uiFeatures.config';
 
@@ -1029,27 +1030,34 @@ export default function AdminTheme() {
                                                 <div className="text-sm font-black text-gray-900 dark:text-white">כתוב מה תרצה לשנות בעיצוב</div>
                                                 <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">כאן אפשר לתאר בקצרה מה תרצה לשנות בעיצוב, לדוג' צבעים, פריסה וסגנון כללי.</div>
                                             </div>
-                                            <div>
-                                                <button
-                                                    type="button"
-                                                    onClick={handleGenerateAiTheme}
-                                                    disabled={!aiEnabled || aiIsGenerating}
-                                                    className="inline-flex  gap-2 h-9 items-center justify-center rounded-xl bg-primary px-4 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                                                >
-                                                    <Wand2 size={14} />
-                                                    {aiIsGenerating ? 'שולח...' : 'שלח'}
-                                                </button>
-                                            </div>
                                         </div>
 
                                         <div className="mt-4">
                                             <input
                                                 type="text"
+                                                aria-label="הנחיית עיצוב ל-AI"
                                                 value={aiPrompt}
                                                 onChange={(event) => setAiPrompt(event.target.value)}
                                                 placeholder='לדוגמה: "תעשה עיצוב כהה ויוקרתי עם צבע ראשי כחול, ניווט צדדי ומינימום עומס ויזואלי"'
                                                 className="w-full rounded-xl border border-gray-300 dark:border-white/10 bg-white/90 dark:bg-[#111723] px-4 py-3 text-sm text-gray-900 dark:text-white outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary/20"
                                             />
+                                            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                                                <AiPromptSuggestionButton
+                                                    surfaceKey="theme"
+                                                    currentValue={aiPrompt}
+                                                    onChange={setAiPrompt}
+                                                    disabled={aiIsGenerating}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={handleGenerateAiTheme}
+                                                    disabled={!aiEnabled || aiIsGenerating}
+                                                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    <Wand2 size={14} />
+                                                    {aiIsGenerating ? 'שולח...' : 'שלח'}
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </>

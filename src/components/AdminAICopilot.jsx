@@ -25,6 +25,7 @@ import { useGantt } from '../context/GanttContext';
 import { useOrgChart } from '../context/OrgChartContext';
 import { useBoom } from '../context/BoomContext';
 import AdminAIHistoryBar from './AdminAIHistoryBar';
+import AiPromptSuggestionButton from './AiPromptSuggestionButton';
 import {
   applyAdminAiActionSemantics,
   buildAdminAiPrompt,
@@ -554,10 +555,20 @@ export default function AdminAICopilot({ activeTab }) {
               </div>
 
               <label className="mt-4 block">
-                <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  מה תרצה שה-AI יעשה?
+                <span className="mb-2 flex items-center justify-between gap-3">
+                  <span className="text-xs font-black uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    מה תרצה שה-AI יעשה?
+                  </span>
+                  <AiPromptSuggestionButton
+                    surfaceKey={activeTab}
+                    actionKey={selectedActionId}
+                    currentValue={instruction}
+                    onChange={setInstruction}
+                    disabled={isGenerating}
+                  />
                 </span>
                 <textarea
+                  aria-label="מה תרצה שה-AI יעשה?"
                   value={instruction}
                   onChange={(event) => setInstruction(event.target.value)}
                   rows={6}

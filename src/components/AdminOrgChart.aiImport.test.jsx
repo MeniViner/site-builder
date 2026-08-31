@@ -8,6 +8,7 @@ import { confirmToast } from '../utils/confirmToast';
 import { UI_FEATURES } from '../config/uiFeatures.config';
 import { AI_CONFIG } from '../config/ai.config';
 import { spLog } from '../utils/spAppLog';
+import { getAiPromptSuggestions } from '../utils/aiPromptSuggestions';
 
 const saveOrgChart = vi.fn(async () => true);
 const sourceOrgChart = {
@@ -105,10 +106,13 @@ describe('AdminOrgChart AI file import', () => {
         AI_CONFIG.fileModel = 'gpt-4o';
     });
 
-    afterEach(() => cleanup());
+    afterEach(() => {
+        cleanup();
+        vi.restoreAllMocks();
+    });
 
     function selectAiFile(container) {
-        fireEvent.click(screen.getByRole('button', { name: 'הגדרות בסיס' }));
+        fireEvent.click(screen.getByRole('tab', { name: 'הגדרות בסיס' }));
         const input = container.querySelector('input[accept*=".pdf"]');
         const file = new File(['unit,parent\nOperations,HQ'], 'org-chart.csv', { type: 'text/csv' });
         fireEvent.change(input, { target: { files: [file] } });
@@ -118,7 +122,7 @@ describe('AdminOrgChart AI file import', () => {
     it('hides the experimental import action when its UI flag is false', () => {
         UI_FEATURES.showOrgChartAiImport = false;
         render(<AdminOrgChart />);
-        fireEvent.click(screen.getByRole('button', { name: 'הגדרות בסיס' }));
+        fireEvent.click(screen.getByRole('tab', { name: 'הגדרות בסיס' }));
         expect(screen.queryByRole('button', { name: /ייבוא עם AI/ })).not.toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'ייבוא JSON' })).toBeVisible();
     });
@@ -163,6 +167,19 @@ describe('AdminOrgChart AI file import', () => {
         expect(JSON.stringify(spLog.success.mock.calls)).not.toContain('Operations');
     });
 
+    it('fills the optional import instruction without starting analysis', () => {
+        vi.spyOn(Math, 'random').mockReturnValue(0);
+        const { container } = render(<AdminOrgChart />);
+        selectAiFile(container);
+
+        fireEvent.click(screen.getByRole('button', { name: 'הצע ניסוח' }));
+        const instruction = screen.getByLabelText('הנחיה נוספת (אופציונלי)').value;
+
+        expect(getAiPromptSuggestions('org-chart-import')).toContain(instruction);
+        expect(AIService.ask).not.toHaveBeenCalled();
+        expect(saveOrgChart).not.toHaveBeenCalled();
+    });
+
     it('keeps the current draft unchanged when the AI result is invalid', async () => {
         AIService.ask.mockResolvedValue({ modelUsed: 'gpt-4o', content: '{"nodes":[]}' });
         const { container } = render(<AdminOrgChart />);
@@ -185,7 +202,7 @@ describe('AdminOrgChart AI file import', () => {
 
     it('keeps visual file metadata visible and does not call the unverified transport', () => {
         const { container } = render(<AdminOrgChart />);
-        fireEvent.click(screen.getByRole('button', { name: 'הגדרות בסיס' }));
+        fireEvent.click(screen.getByRole('tab', { name: 'הגדרות בסיס' }));
         const input = container.querySelector('input[accept*=".png"]');
         fireEvent.change(input, {
             target: { files: [new File(['image bytes'], 'chart.png', { type: 'image/png' })] },

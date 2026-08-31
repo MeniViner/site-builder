@@ -540,6 +540,7 @@ export default function AdminEvents({ onClose, inHub = false }) {
                                     inputLabel="מה לייצר?"
                                     inputPlaceholder='דוגמה: "צור 6 אירועים לחודש הקרוב עם דגש על הכשרות ורווחה, כולל קישורים והדגשות"'
                                     defaultInput="צור סדרת אירועים חודשית מקצועית וברורה"
+                                    suggestionSurfaceKey="events"
                                     buildPrompt={buildEventsAiPrompt}
                                     onApply={applyAiEvents}
                                     canUndo={aiHistory.index > 0}
