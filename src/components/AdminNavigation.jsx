@@ -23,7 +23,6 @@ import {
     NAVIGATION_TARGET_MODES,
 } from '../utils/navigationModel';
 import navigationSharePointService, { buildNavigationProvisionKey } from '../services/NavigationSharePointService';
-import AdminWidgetAIAssistant from './AdminWidgetAIAssistant';
 
 function moveArrayItem(source, fromIndex, toIndex) {
     if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return source;
@@ -716,20 +715,6 @@ export default function AdminNavigation() {
                             הגדרות עיצוב
                         </button>
                         <AdminPageHelpButton pageId="navigation" />
-                        <AdminWidgetAIAssistant
-                            widgetKey="links"
-                            value={navItems}
-                            onChange={async (next) => {
-                                if (!Array.isArray(next) || next.length > MAX_TOP_LEVEL_NAV_ITEMS) {
-                                    throw new Error(`מבנה הניווט חייב להכיל עד ${MAX_TOP_LEVEL_NAV_ITEMS} קטגוריות`);
-                                }
-                                const saved = await saveNavigation(next);
-                                if (saved === false) return false;
-                                setExpandedNodes(new Set(['root', ...next.map((item) => item.id)]));
-                                setSelectedPath([]);
-                                return true;
-                            }}
-                        />
                         <div className="relative">
                             <Search size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
                             <input

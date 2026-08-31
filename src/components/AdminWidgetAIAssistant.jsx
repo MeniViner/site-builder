@@ -35,6 +35,7 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
     surfaceKey = `widget:${widgetKey}`,
     value,
     onChange,
+    showLauncher = true,
 }, ref) {
     const capability = useMemo(() => getAdminAiCapability(widgetKey), [widgetKey]);
     const [isOpen, setIsOpen] = useState(false);
@@ -101,7 +102,7 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
         },
     }), [recordAndApply, value, widgetKey]);
 
-    const showAiButton = isWidgetAiButtonEnabled(widgetKey);
+    const showAiButton = showLauncher && isWidgetAiButtonEnabled(widgetKey);
     const showHistoryOnly = UI_FEATURES.showAiUi && history.visible && history.entries.length > 1;
     if (!showAiButton && !showHistoryOnly) return null;
 

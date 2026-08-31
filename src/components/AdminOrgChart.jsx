@@ -2733,6 +2733,7 @@ export default function AdminOrgChart() {
                             ref={aiAssistantRef}
                             widgetKey="org-chart"
                             value={draft}
+                            showLauncher={false}
                             onChange={(next) => {
                                 setDraft(cloneOrgChart(next));
                                 setActiveNodeId(null);

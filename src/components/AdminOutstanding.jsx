@@ -11,7 +11,6 @@ import { uploadImageWithLocalFallback } from '../utils/sharepointUtils';
 import ResolvedSiteImage from './ResolvedSiteImage';
 import { spLog } from '../utils/spAppLog';
 import DismissibleNotice from './DismissibleNotice';
-import AdminWidgetAIAssistant from './AdminWidgetAIAssistant';
 
 const inputCls = 'w-full bg-theme-elevated border border-theme-subtle rounded-lg px-4 py-2.5 text-sm text-theme placeholder-theme-muted focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition';
 const labelCls = 'block text-xs font-semibold text-theme-muted mb-1.5 uppercase tracking-wide';
@@ -109,28 +108,6 @@ export default function AdminOutstanding() {
         if (editingId === id) cancelEdit();
     };
 
-    const applyAiList = async (next) => {
-        const nextList = Array.isArray(next) ? next : [];
-        setList(nextList);
-        setEditingId(null);
-        updateConfig((prev) => ({
-            ...prev,
-            widgets: {
-                ...(prev?.widgets || {}),
-                data: {
-                    ...(prev?.widgets?.data || {}),
-                    outstanding: {
-                        ...(prev?.widgets?.data?.outstanding || {}),
-                        items: nextList.map((person) => ({ ...person, imageUrl: person?.imageUrl ?? person?.image ?? '' })),
-                    },
-                },
-            },
-        }));
-        await saveNow();
-        lastSavedRef.current = JSON.stringify(nextList);
-        return true;
-    };
-
     const handleImageFileChange = async (event) => {
         const file = event.target.files?.[0];
         if (!file) return;
@@ -158,7 +135,6 @@ export default function AdminOutstanding() {
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                             <AdminPageHelpButton pageId="outstanding" />
-                            <AdminWidgetAIAssistant widgetKey="outstanding" value={list} onChange={applyAiList} />
                             <button onClick={openNew} className="h-10 inline-flex items-center bg-emerald-600 hover:bg-emerald-700 text-white px-4 rounded-lg text-sm font-bold transition">
                                 <span className="inline-flex items-center gap-2">
                                     <Plus size={16} />

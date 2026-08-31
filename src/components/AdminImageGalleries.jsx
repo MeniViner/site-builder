@@ -37,7 +37,6 @@ import {
     reorderImageGalleryItems,
 } from '../utils/imageGallery';
 import { GalleryImage, ImageGalleryRenderer } from './home/ImageGallerySection';
-import AdminWidgetAIAssistant from './AdminWidgetAIAssistant';
 
 const STYLE_ICONS = {
     'magal-strips': Waves,
@@ -602,7 +601,6 @@ export default function AdminImageGalleries() {
                 <div className="mb-7 flex flex-col gap-4 border-b border-gray-200 pb-6 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-start gap-3"><span className="rounded-xl bg-primary/10 p-3 text-primary"><ImageIcon size={24} aria-hidden="true" /></span><div><h1 className="text-2xl font-black sm:text-3xl">גלריות תמונות</h1><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">ניהול גלריות פעילות, תמונות, סדר תצוגה וסגנון בדף הבית.</p></div></div>
                     <div className="flex items-center gap-2">
-                        <AdminWidgetAIAssistant widgetKey="galleries" value={galleries} onChange={(next) => saveGalleries(Array.isArray(next) ? next : [])} />
                         <button type="button" onClick={() => setEditingGallery(createEmptyImageGallery(galleries.length))} className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-black text-white"><Plus size={18} aria-hidden="true" />גלריה חדשה</button>
                     </div>
                 </div>

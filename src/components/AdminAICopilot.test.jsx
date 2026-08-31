@@ -244,12 +244,15 @@ describe('AdminAICopilot analysis responses', () => {
         expect(toast.success).not.toHaveBeenCalled();
     });
 
-    it('renders the single retained lower-left Gantt AI launcher', () => {
-        render(<AdminAICopilot activeTab="gantt" />);
+    it.each(['info', 'events', 'news', 'current-widgets', 'admins'])(
+      'renders the single retained lower-left AI launcher on %s',
+      (activeTab) => {
+        render(<AdminAICopilot activeTab={activeTab} />);
         const launchers = screen.getAllByRole('button', { name: 'AI' });
         expect(launchers).toHaveLength(1);
         expect(launchers[0]).toHaveClass('fixed', 'bottom-4', 'left-4');
-    });
+      }
+    );
 
     it('does not execute AI or show a response when only suggesting a prompt', () => {
         render(<AdminAICopilot activeTab="gantt" />);

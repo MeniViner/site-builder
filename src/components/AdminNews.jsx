@@ -4,7 +4,6 @@ import { Rss, Plus, Trash2, Pencil, X, Check } from 'lucide-react';
 import WidgetDisplaySettingsPanel from './WidgetDisplaySettingsPanel';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import DismissibleNotice from './DismissibleNotice';
-import AdminWidgetAIAssistant from './AdminWidgetAIAssistant';
 
 const inputCls = 'w-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition';
 const labelCls = 'block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide';
@@ -56,17 +55,6 @@ export default function AdminNews() {
         if (editingId === id) cancelEdit();
     };
 
-    const applyAiList = async (next) => {
-        const nextList = Array.isArray(next) ? next : [];
-        const success = await saveWidgetConfig({ news: nextList });
-        if (success) {
-            lastSavedRef.current = JSON.stringify(nextList);
-            setList(nextList);
-            setEditingId(null);
-        }
-        return success;
-    };
-
     return (
         <div dir="rtl" className="min-h-screen text-gray-900 dark:text-white font-heebo p-8">
             {/* Header */}
@@ -81,7 +69,6 @@ export default function AdminNews() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                         <AdminPageHelpButton pageId="news" />
-                        <AdminWidgetAIAssistant widgetKey="news" value={list} onChange={applyAiList} />
                         <button onClick={openNew} className="h-10 inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 rounded-lg text-sm font-bold transition shadow">
                             <Plus size={16} />הוסף מבזק
                         </button>

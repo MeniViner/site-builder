@@ -14,7 +14,6 @@ import IconPickerModal from './IconPickerModal';
 import { DynamicIcon } from './DynamicIcon';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import DismissibleNotice from './DismissibleNotice';
-import AdminWidgetAIAssistant from './AdminWidgetAIAssistant';
 
 function generateId() {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -142,7 +141,6 @@ export default function AdminExternalLinks() {
                         <span>הגדרות עיצוב</span>
                     </button>
                     <AdminPageHelpButton pageId="external-links" />
-                    <AdminWidgetAIAssistant widgetKey="external-links" value={links} onChange={(next) => saveExternalLinks(Array.isArray(next) ? next : [])} />
                     <button
                         onClick={addLink}
                         className="flex items-center gap-2 bg-white dark:bg-white/5 hover:bg-gray-50 dark:hover:bg-white/10 border-2 border-gray-200 dark:border-white/10 text-gray-900 dark:text-white px-5 py-2.5 rounded-xl font-bold transition text-sm"

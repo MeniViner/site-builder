@@ -102,6 +102,18 @@ describe('AdminWidgetAIAssistant', () => {
         expect(screen.getByRole('button', { name: 'AI' })).toBeVisible();
     });
 
+    it('supports headless integrations without rendering an upper launcher', () => {
+        render(
+            <AdminWidgetAIAssistant
+                widgetKey="news"
+                value={[]}
+                onChange={vi.fn()}
+                showLauncher={false}
+            />
+        );
+        expect(screen.queryByRole('button', { name: 'AI' })).not.toBeInTheDocument();
+    });
+
     it('fills the actual prompt without calling AI and Generate uses the suggestion', async () => {
         const onChange = vi.fn();
         AIService.ask.mockResolvedValue({
