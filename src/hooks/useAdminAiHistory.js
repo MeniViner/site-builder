@@ -72,9 +72,16 @@ export function useAdminAiHistory(surfaceKey, applySnapshot) {
         getSurfaceHistory
     );
 
-    const recordAndApply = useCallback(async (candidates, baseline, label = 'שינוי AI') => {
+    const recordAndApply = useCallback(async (candidates, baseline, label = 'שינוי AI', metadata = {}) => {
+        const seen = new Set([stableStringify(baseline)]);
         const validCandidates = Array.isArray(candidates)
-            ? candidates.filter((candidate) => candidate !== undefined && candidate !== null)
+            ? candidates.filter((candidate) => {
+                if (candidate === undefined || candidate === null) return false;
+                const key = stableStringify(candidate);
+                if (!key || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            })
             : [];
         if (!validCandidates.length) return false;
 
@@ -99,6 +106,9 @@ export function useAdminAiHistory(surfaceKey, applySnapshot) {
                 ...validCandidates.map((candidate, index) => ({
                     value: clone(candidate),
                     label: validCandidates.length > 1 ? `חלופה ${index + 1}` : label,
+                    summary: Array.isArray(metadata.summaries?.[index])
+                        ? [...metadata.summaries[index]]
+                        : [],
                     createdAt: nextCreatedAt(),
                 })),
             ];

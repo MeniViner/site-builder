@@ -221,6 +221,7 @@ describe('AdminWidgetAIAssistant', () => {
             { id: 'existing', text: 'מבזק קיים', isUrgent: false },
             { id: 'new', text: 'מבזק חדש', isUrgent: false },
         ]));
+        expect(screen.getByText(/נוספו 1 ידיעות/)).toBeVisible();
 
         fireEvent.click(screen.getByRole('button', { name: 'לפני AI' }));
         await waitFor(() => expect(onChange).toHaveBeenLastCalledWith([
@@ -640,7 +641,8 @@ describe('AdminWidgetAIAssistant', () => {
         fireEvent.change(screen.getByRole('textbox'), { target: { value: 'הוסף את ישראל ישראלי למחלקת מטה' } });
         fireEvent.click(screen.getByRole('button', { name: 'צור והחל מיד' }));
 
-        expect(await screen.findByText(/לא זוהה שינוי שניתן להחיל/)).toBeVisible();
+        expect(await screen.findByText(/לא הוחל שינוי בפועל/)).toBeVisible();
+        expect(screen.getByText('תוצאה: לא הוחל שינוי')).toBeVisible();
         expect(onPersist).not.toHaveBeenCalled();
         expect(JSON.parse(screen.getByTestId('phonebook-state').textContent)).toEqual([]);
     });

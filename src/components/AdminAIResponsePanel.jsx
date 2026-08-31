@@ -69,12 +69,20 @@ const markdownComponents = {
     ),
 };
 
+const OUTCOME_LABELS = Object.freeze({
+    applied: 'תוצאה: שינוי הוחל',
+    analysis: 'תוצאה: נותח בלבד',
+    'no-change': 'תוצאה: לא הוחל שינוי',
+    error: 'תוצאה: שגיאה',
+});
+
 export default function AdminAIResponsePanel({
     content = '',
     isLoading = false,
     loadingLabel = 'ה-AI מנתח את המידע...',
     modelLabel = '',
     notice = '',
+    outcome = '',
     onClear,
     className = '',
 }) {
@@ -101,10 +109,24 @@ export default function AdminAIResponsePanel({
             aria-label="תשובת AI"
             aria-live="polite"
             className={`mt-4 overflow-hidden rounded-2xl border border-sky-200 bg-white shadow-sm dark:border-sky-500/25 dark:bg-white/[0.04] ${className}`}
+            data-ai-outcome={outcome || undefined}
         >
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-sky-50/80 px-4 py-3 dark:border-white/10 dark:bg-sky-500/10">
                 <div>
-                    <h3 className="text-sm font-black text-gray-950 dark:text-white">תשובת AI</h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-sm font-black text-gray-950 dark:text-white">תשובת AI</h3>
+                        {OUTCOME_LABELS[outcome] && (
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                                outcome === 'no-change' || outcome === 'error'
+                                    ? 'bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-100'
+                                    : outcome === 'applied'
+                                        ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-500/15 dark:text-emerald-100'
+                                        : 'bg-sky-100 text-sky-900 dark:bg-sky-500/15 dark:text-sky-100'
+                            }`}>
+                                {OUTCOME_LABELS[outcome]}
+                            </span>
+                        )}
+                    </div>
                     {modelLabel && <div className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">מודל: {modelLabel}</div>}
                 </div>
                 <div className="flex items-center gap-1">

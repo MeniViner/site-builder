@@ -6,6 +6,12 @@ import { formatAiEngineLabel, getSafeAiRuntimeConfig } from '../config/ai.config
 import AiPromptSuggestionButton from './AiPromptSuggestionButton';
 import { getAiPromptSuggestions } from '../utils/aiPromptSuggestions';
 import AdminAIResponsePanel from './AdminAIResponsePanel';
+import {
+    ADMIN_AI_EXECUTION_MODES,
+    ADMIN_AI_EXECUTION_OUTCOMES,
+    createAdminAiErrorResult,
+    createAdminAiExecutionResult,
+} from '../utils/adminAiExecution';
 
 const QUICK_PROMPTS = getAiPromptSuggestions('ai-help');
 const DEFAULT_QUESTION = QUICK_PROMPTS[0] || '';
@@ -25,6 +31,7 @@ export default function AdminAIHelp({ embedded = false }) {
     const [modelUsed, setModelUsed] = useState('');
     const [history, setHistory] = useState([]);
     const [showMorePrompts, setShowMorePrompts] = useState(false);
+    const [executionResult, setExecutionResult] = useState(null);
     const visiblePrompts = showMorePrompts ? QUICK_PROMPTS : QUICK_PROMPTS.slice(0, 4);
 
     const runtimeConfig = useMemo(() => getSafeAiRuntimeConfig(), []);
@@ -46,6 +53,7 @@ export default function AdminAIHelp({ embedded = false }) {
 
         setIsLoading(true);
         setAnswer('');
+        setExecutionResult(null);
         try {
             let streamed = '';
             const response = await AIService.ask(buildPrompt(trimmed), {
@@ -57,9 +65,18 @@ export default function AdminAIHelp({ embedded = false }) {
             });
             const content = response?.content || streamed || '';
             setAnswer(String(content).trim());
+            setExecutionResult(createAdminAiExecutionResult({
+                mode: ADMIN_AI_EXECUTION_MODES.ANALYSIS,
+                outcome: ADMIN_AI_EXECUTION_OUTCOMES.ANALYSIS,
+                rawResponseText: content,
+                userMessage: 'תוצאה: נותח בלבד',
+            }));
             setModelUsed(formatAiEngineLabel(response));
             setHistory((prev) => [trimmed, ...prev.filter((item) => item !== trimmed)].slice(0, 5));
         } catch (error) {
+            setExecutionResult(createAdminAiErrorResult(error, {
+                mode: ADMIN_AI_EXECUTION_MODES.ANALYSIS,
+            }));
             toast.error(error?.message || 'שליחת השאלה ל-AI נכשלה');
         } finally {
             setIsLoading(false);
@@ -202,7 +219,11 @@ export default function AdminAIHelp({ embedded = false }) {
                     content={answer}
                     isLoading={isLoading}
                     modelLabel={modelUsed}
-                    onClear={() => setAnswer('')}
+                    outcome={executionResult?.outcome || ''}
+                    onClear={() => {
+                        setAnswer('');
+                        setExecutionResult(null);
+                    }}
                     className={embedded ? 'max-h-[360px] overflow-y-auto' : ''}
                 />
 

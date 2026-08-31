@@ -8,6 +8,14 @@ import { formatAiEngineLabel, getSafeAiRuntimeConfig } from '../config/ai.config
 import DismissibleNotice from './DismissibleNotice';
 import AiPromptSuggestionButton from './AiPromptSuggestionButton';
 import AdminAIResponsePanel from './AdminAIResponsePanel';
+import {
+    ADMIN_AI_EXECUTION_MODES,
+    ADMIN_AI_EXECUTION_OUTCOMES,
+    createAdminAiErrorResult,
+    createAdminAiExecutionResult,
+    createAdminAiNoChangeResult,
+    normalizeAdminAiApplyResult,
+} from '../utils/adminAiExecution';
 
 export default function AdminAIActionCard({
     title = 'עוזר AI',
@@ -50,8 +58,12 @@ export default function AdminAIActionCard({
     const [activePanelView, setActivePanelView] = useState('primary');
     const [hasAppliedResult, setHasAppliedResult] = useState(false);
     const [selectedSuggestedActionId, setSelectedSuggestedActionId] = useState(suggestedActions[0]?.id || '');
-    const [resultReadOnly, setResultReadOnly] = useState(suggestedActions[0]?.readOnly === true);
+    const [resultReadOnly, setResultReadOnly] = useState(
+        suggestedActions[0]?.mode === 'analysis' || suggestedActions[0]?.readOnly === true
+    );
     const [responseNotice, setResponseNotice] = useState('');
+    const [executionResult, setExecutionResult] = useState(null);
+    const [appliedSummary, setAppliedSummary] = useState([]);
     const lastAutoAppliedKeyRef = useRef('');
     const autoApplyingRef = useRef(false);
     const instructionInputId = useId();
@@ -94,12 +106,14 @@ export default function AdminAIActionCard({
         setRawOutput('');
         setParsedOutput(null);
         setResponseNotice('');
+        setExecutionResult(null);
 
         try {
             const selectedSuggestedAction = suggestedActions.find(
                 (action) => action.id === selectedSuggestedActionId
             );
-            const readOnlyRequest = selectedSuggestedAction?.readOnly === true;
+            const readOnlyRequest = selectedSuggestedAction?.mode === 'analysis'
+                || selectedSuggestedAction?.readOnly === true;
             setResultReadOnly(readOnlyRequest);
             const prompt = buildPrompt(userInstruction, {
                 action: selectedSuggestedAction,
@@ -120,17 +134,35 @@ export default function AdminAIActionCard({
 
             if (readOnlyRequest || mode !== 'json') {
                 setParsedOutput(content);
+                if (readOnlyRequest) {
+                    setExecutionResult(createAdminAiExecutionResult({
+                        mode: ADMIN_AI_EXECUTION_MODES.ANALYSIS,
+                        outcome: ADMIN_AI_EXECUTION_OUTCOMES.ANALYSIS,
+                        rawResponseText: content,
+                        userMessage: 'תוצאה: נותח בלבד',
+                    }));
+                }
             } else {
                 try {
                     const parsed = parseJsonFromModel(content);
                     setParsedOutput(parsed);
                 } catch {
                     setParsedOutput(null);
-                    setResponseNotice('לא זוהה שינוי שניתן להחיל. תשובת ה-AI מוצגת למטה.');
+                    const noChange = createAdminAiNoChangeResult({
+                        rawResponseText: content,
+                        errorCode: 'INVALID_JSON',
+                        reason: 'תשובת המודל אינה JSON תקין.',
+                    });
+                    setExecutionResult(noChange);
+                    setResponseNotice(noChange.userMessage);
                 }
             }
         } catch (error) {
             const msg = error?.message || 'יצירת תוכן ב-AI נכשלה';
+            setExecutionResult(createAdminAiErrorResult(error, {
+                mode: resultReadOnly ? ADMIN_AI_EXECUTION_MODES.ANALYSIS : ADMIN_AI_EXECUTION_MODES.MUTATING,
+                rawResponseText: rawOutput,
+            }));
             setParseError(msg);
             setParsedOutput(null);
             toast.error(msg);
@@ -152,17 +184,25 @@ export default function AdminAIActionCard({
 
         setIsApplying(true);
         try {
-            const applied = await onApply(parsedOutput, rawOutput);
-            if (applied === false) {
-                setResponseNotice('לא זוהה שינוי שניתן להחיל. תשובת ה-AI מוצגת למטה.');
+            const applied = normalizeAdminAiApplyResult(
+                await onApply(parsedOutput, rawOutput),
+                { parsedPayload: parsedOutput, rawResponseText: rawOutput }
+            );
+            setExecutionResult(applied);
+            if (applied.outcome !== ADMIN_AI_EXECUTION_OUTCOMES.APPLIED) {
+                setResponseNotice(applied.userMessage || 'לא זוהה שינוי שניתן להחיל.');
                 return;
             }
             setHasAppliedResult(true);
+            setAppliedSummary(applied.appliedChangeSummary || []);
             if (compact && autoCloseOnApply) {
                 setIsOpen(false);
             }
         } catch (error) {
             const msg = error?.message || 'החלת תוצאות AI נכשלה';
+            setExecutionResult(createAdminAiErrorResult(error, {
+                rawResponseText: rawOutput,
+            }));
             toast.error(msg);
         } finally {
             setIsApplying(false);
@@ -186,13 +226,18 @@ export default function AdminAIActionCard({
             autoApplyingRef.current = true;
             setAutoApplyStatus('מחיל הצעת AI אוטומטית...');
             try {
-                const applied = await onApply(parsedOutput, rawOutput);
+                const applied = normalizeAdminAiApplyResult(
+                    await onApply(parsedOutput, rawOutput),
+                    { parsedPayload: parsedOutput, rawResponseText: rawOutput }
+                );
                 if (!cancelled) {
-                    if (applied === false) {
-                        setResponseNotice('לא זוהה שינוי שניתן להחיל. תשובת ה-AI מוצגת למטה.');
+                    setExecutionResult(applied);
+                    if (applied.outcome !== ADMIN_AI_EXECUTION_OUTCOMES.APPLIED) {
+                        setResponseNotice(applied.userMessage || 'לא זוהה שינוי שניתן להחיל.');
                         return;
                     }
                     setHasAppliedResult(true);
+                    setAppliedSummary(applied.appliedChangeSummary || []);
                     if (compact && autoCloseOnApply) {
                         setIsOpen(false);
                     }
@@ -201,6 +246,9 @@ export default function AdminAIActionCard({
             } catch (error) {
                 if (!cancelled) {
                     const msg = error?.message || 'החלת תוצאות AI נכשלה';
+                    setExecutionResult(createAdminAiErrorResult(error, {
+                        rawResponseText: rawOutput,
+                    }));
                     setAutoApplyStatus('');
                     setParseError(msg);
                     toast.error(msg);
@@ -266,7 +314,9 @@ export default function AdminAIActionCard({
                                     setInstruction(action.prompt);
                                     setParsedOutput(null);
                                     setParseError('');
-                                    setResultReadOnly(action.readOnly === true);
+                                    setExecutionResult(null);
+                                    setResponseNotice('');
+                                    setResultReadOnly(action.mode === 'analysis' || action.readOnly === true);
                                 }}
                                 className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
                                     selectedSuggestedActionId === action.id
@@ -362,13 +412,17 @@ export default function AdminAIActionCard({
                     </DismissibleNotice>
                 )}
 
-                {(resultReadOnly || responseNotice) ? (
+                {(resultReadOnly || responseNotice || [
+                    ADMIN_AI_EXECUTION_OUTCOMES.NO_CHANGE,
+                    ADMIN_AI_EXECUTION_OUTCOMES.ERROR,
+                ].includes(executionResult?.outcome)) ? (
                     <AdminAIResponsePanel
                         content={rawOutput}
                         isLoading={resultReadOnly && isGenerating}
                         modelLabel={modelUsed}
                         notice={responseNotice}
-                        onClear={() => { setRawOutput(''); setResponseNotice(''); }}
+                        outcome={executionResult?.outcome || ''}
+                        onClear={() => { setRawOutput(''); setResponseNotice(''); setExecutionResult(null); }}
                     />
                 ) : rawOutput ? (
                     <div className="rounded-xl border border-theme-subtle bg-theme-card p-3">
@@ -420,6 +474,11 @@ export default function AdminAIActionCard({
                         <Redo2 size={15} />
                     </button>
                     <span className="px-1 text-[10px] font-black text-primary">AI הוחל</span>
+                    {appliedSummary.length > 0 && (
+                        <span className="max-w-56 truncate px-1 text-[10px] font-bold text-primary" title={appliedSummary.join(' · ')}>
+                            {appliedSummary.join(' · ')}
+                        </span>
+                    )}
                 </div>
             )}
 

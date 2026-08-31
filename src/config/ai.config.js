@@ -142,6 +142,120 @@ export function resolveAiTransportConfig({
 
 export const AI_CONFIG = resolveAiTransportConfig();
 
+export function resolveAlphaAiFileModel({
+    config = AI_CONFIG,
+    capabilityKind = 'local-text',
+    visualTransportAvailable = false,
+} = {}) {
+    if (capabilityKind === 'native-import') {
+        return {
+            canAnalyze: true,
+            path: 'native-import',
+            pathLabel: 'ייבוא מקומי ללא AI',
+            modelSource: 'not-required',
+            resolvedModel: '',
+            displayModel: 'לא נדרש',
+            reasonCode: null,
+            reason: '',
+        };
+    }
+
+    if (capabilityKind === 'local-text') {
+        const dedicatedModel = String(config?.fileModel || '').trim();
+        const defaultModel = String(config?.defaultModel || '').trim();
+        const useTransportDefault = Boolean(config?.devAi) && !dedicatedModel;
+        const resolvedModel = dedicatedModel || (useTransportDefault ? '' : defaultModel);
+        const displayModel = dedicatedModel
+            || (useTransportDefault ? 'DEV AI · מודל ברירת המחדל של השרת' : defaultModel);
+
+        if (!config?.enabled) {
+            return {
+                canAnalyze: false,
+                path: 'local-text-extraction',
+                pathLabel: 'חילוץ טקסט מקומי + AI',
+                modelSource: dedicatedModel ? 'file-model' : useTransportDefault ? 'dev-transport-default' : 'default-model',
+                resolvedModel,
+                displayModel: displayModel || 'לא זמין',
+                reasonCode: 'AI_DISABLED',
+                reason: 'חיבור ה-AI כבוי. יש להפעיל אותו כדי לנתח את הטקסט שחולץ.',
+            };
+        }
+
+        if (!displayModel) {
+            return {
+                canAnalyze: false,
+                path: 'local-text-extraction',
+                pathLabel: 'חילוץ טקסט מקומי + AI',
+                modelSource: 'missing',
+                resolvedModel: '',
+                displayModel: 'לא הוגדר',
+                reasonCode: 'TEXT_MODEL_NOT_CONFIGURED',
+                reason: 'לא הוגדר מודל טקסט לניתוח התוכן שחולץ.',
+            };
+        }
+
+        return {
+            canAnalyze: true,
+            path: 'local-text-extraction',
+            pathLabel: 'חילוץ טקסט מקומי + AI',
+            modelSource: dedicatedModel ? 'file-model' : useTransportDefault ? 'dev-transport-default' : 'default-model',
+            resolvedModel,
+            displayModel,
+            reasonCode: null,
+            reason: '',
+        };
+    }
+
+    if (capabilityKind === 'visual-unverified') {
+        const dedicatedModel = String(config?.fileModel || '').trim();
+        if (!visualTransportAvailable) {
+            return {
+                canAnalyze: false,
+                path: 'visual-file-analysis',
+                pathLabel: 'ניתוח קובץ חזותי',
+                modelSource: dedicatedModel ? 'file-model' : 'missing',
+                resolvedModel: dedicatedModel,
+                displayModel: dedicatedModel || 'לא הוגדר',
+                reasonCode: 'VISUAL_TRANSPORT_UNAVAILABLE',
+                reason: 'סוג הקובץ דורש ניתוח חזותי, אך חיבור העלאת קבצים/תמונות עדיין אינו זמין.',
+            };
+        }
+        if (!dedicatedModel) {
+            return {
+                canAnalyze: false,
+                path: 'visual-file-analysis',
+                pathLabel: 'ניתוח קובץ חזותי',
+                modelSource: 'missing',
+                resolvedModel: '',
+                displayModel: 'לא הוגדר',
+                reasonCode: 'VISUAL_FILE_MODEL_NOT_CONFIGURED',
+                reason: 'ניתוח חזותי דורש מודל קבצים ייעודי באמצעות VITE_ALPHA_AI_FILE_MODEL.',
+            };
+        }
+        return {
+            canAnalyze: Boolean(config?.enabled),
+            path: 'visual-file-analysis',
+            pathLabel: 'ניתוח קובץ חזותי',
+            modelSource: 'file-model',
+            resolvedModel: dedicatedModel,
+            displayModel: dedicatedModel,
+            reasonCode: config?.enabled ? null : 'AI_DISABLED',
+            reason: config?.enabled ? '' : 'חיבור ה-AI כבוי.',
+        };
+    }
+
+    return {
+        canAnalyze: false,
+        path: 'unsupported',
+        pathLabel: 'סוג קובץ לא נתמך',
+        modelSource: 'not-applicable',
+        resolvedModel: '',
+        displayModel: 'לא רלוונטי',
+        reasonCode: 'UNSUPPORTED_FILE_TYPE',
+        reason: 'סוג הקובץ אינו נתמך במסלול הייבוא הנוכחי.',
+    };
+}
+
 export function isDevAiTransportActive(config = AI_CONFIG) {
     return Boolean(config?.devAi);
 }

@@ -36,9 +36,13 @@ vi.mock('../context/OrgChartContext', async (importOriginal) => ({
     }),
 }));
 
-vi.mock('../config/ai.config', () => ({
+vi.mock('../config/ai.config', async (importOriginal) => ({
+    ...await importOriginal(),
     AI_CONFIG: {
+        enabled: true,
+        devAi: false,
         apiBase: 'https://alphaai.example/api',
+        defaultModel: 'gpt-4o',
         fileModel: 'gpt-4o',
         fileMaxMb: 20,
     },
@@ -103,6 +107,9 @@ describe('AdminOrgChart AI file import', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         UI_FEATURES.showOrgChartAiImport = true;
+        AI_CONFIG.enabled = true;
+        AI_CONFIG.devAi = false;
+        AI_CONFIG.defaultModel = 'gpt-4o';
         AI_CONFIG.fileModel = 'gpt-4o';
     });
 
@@ -191,13 +198,47 @@ describe('AdminOrgChart AI file import', () => {
         expect(saveOrgChart).not.toHaveBeenCalled();
     });
 
-    it('blocks execution clearly when the dedicated file model is missing', () => {
+    it('uses the configured text model when a dedicated file model is missing', () => {
         AI_CONFIG.fileModel = '';
         const { container } = render(<AdminOrgChart />);
         selectAiFile(container);
-        expect(screen.getByText(/יש להגדיר מודל AI תומך קבצים/)).toBeVisible();
-        expect(screen.getByRole('button', { name: 'ניתוח וייבוא' })).toBeDisabled();
+        expect(screen.getByText('חילוץ טקסט מקומי + AI')).toBeVisible();
+        expect(screen.getByText('gpt-4o')).toBeVisible();
+        expect(screen.queryByText(/יש להגדיר מודל AI תומך קבצים/)).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'ניתוח וייבוא' })).toBeEnabled();
         expect(AIService.ask).not.toHaveBeenCalled();
+    });
+
+    it('uses the DEV AI transport default model without a file-model warning', async () => {
+        AI_CONFIG.devAi = true;
+        AI_CONFIG.defaultModel = '';
+        AI_CONFIG.fileModel = '';
+        AIService.ask.mockResolvedValue({
+            modelUsed: 'llama-local',
+            content: JSON.stringify({
+                nodes: [{
+                    id: 'after',
+                    name: 'אחרי AI',
+                    rank: '',
+                    role: '',
+                    personalNumber: '',
+                    imageUrl: '',
+                    children: [],
+                }],
+                warnings: [],
+                ambiguities: [],
+                summary: 'זוהה צומת אחד',
+            }),
+        });
+        const { container } = render(<AdminOrgChart />);
+        selectAiFile(container);
+
+        expect(screen.getByText('DEV AI · מודל ברירת המחדל של השרת')).toBeVisible();
+        expect(screen.queryByText(/VITE_ALPHA_AI_FILE_MODEL/)).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'ניתוח וייבוא' }));
+
+        await waitFor(() => expect(AIService.ask).toHaveBeenCalled());
+        expect(AIService.ask.mock.calls[0][1]).not.toHaveProperty('model');
     });
 
     it('keeps visual file metadata visible and does not call the unverified transport', () => {
@@ -209,7 +250,7 @@ describe('AdminOrgChart AI file import', () => {
         });
 
         expect(screen.getByText('chart.png')).toBeVisible();
-        expect(screen.getByText(/ניתוח קבצים חזותיים עדיין אינו זמין/)).toBeVisible();
+        expect(screen.getAllByText(/סוג הקובץ דורש ניתוח חזותי/).length).toBeGreaterThan(0);
         expect(screen.getByRole('button', { name: 'ניתוח וייבוא' })).toBeDisabled();
         expect(screen.getByTestId('org-live-preview')).toHaveTextContent('לפני AI');
         expect(AIService.ask).not.toHaveBeenCalled();

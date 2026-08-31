@@ -18,11 +18,84 @@ describe('Org Chart AI import configuration', () => {
         expect(UI_FEATURES.showOrgChartAiImport).toBe(true);
     });
 
-    it('does not fall back to the regular text model for file imports', async () => {
+    it('keeps the dedicated file-model setting distinct from the text model', async () => {
         vi.stubEnv('VITE_ALPHA_AI_MODEL', 'gpt-text-only');
         vi.stubEnv('VITE_ALPHA_AI_FILE_MODEL', '');
         const { AI_CONFIG } = await import('./ai.config');
         expect(AI_CONFIG.defaultModel).toBe('gpt-text-only');
         expect(AI_CONFIG.fileModel).toBe('');
+    });
+
+    it('does not require a dedicated file model for locally extracted text', async () => {
+        const { resolveAlphaAiFileModel } = await import('./ai.config');
+        const status = resolveAlphaAiFileModel({
+            config: {
+                enabled: true,
+                devAi: false,
+                defaultModel: 'gpt-text-only',
+                fileModel: '',
+            },
+            capabilityKind: 'local-text',
+        });
+
+        expect(status).toMatchObject({
+            canAnalyze: true,
+            path: 'local-text-extraction',
+            modelSource: 'default-model',
+            resolvedModel: 'gpt-text-only',
+        });
+    });
+
+    it('uses the DEV gateway configured model for extracted text', async () => {
+        const { resolveAlphaAiFileModel } = await import('./ai.config');
+        const status = resolveAlphaAiFileModel({
+            config: {
+                enabled: true,
+                devAi: true,
+                defaultModel: '',
+                fileModel: '',
+            },
+            capabilityKind: 'local-text',
+        });
+
+        expect(status).toMatchObject({
+            canAnalyze: true,
+            modelSource: 'dev-transport-default',
+            resolvedModel: '',
+            displayModel: 'DEV AI · מודל ברירת המחדל של השרת',
+            reasonCode: null,
+        });
+    });
+
+    it('still blocks visual files when the visual transport is unavailable', async () => {
+        const { resolveAlphaAiFileModel } = await import('./ai.config');
+        const status = resolveAlphaAiFileModel({
+            config: {
+                enabled: true,
+                devAi: true,
+                defaultModel: '',
+                fileModel: '',
+            },
+            capabilityKind: 'visual-unverified',
+        });
+
+        expect(status).toMatchObject({
+            canAnalyze: false,
+            path: 'visual-file-analysis',
+            reasonCode: 'VISUAL_TRANSPORT_UNAVAILABLE',
+        });
+        expect(status.reason).toContain('ניתוח חזותי');
+    });
+
+    it('does not require any AI model for native imports', async () => {
+        const { resolveAlphaAiFileModel } = await import('./ai.config');
+        expect(resolveAlphaAiFileModel({
+            config: { enabled: false, defaultModel: '', fileModel: '' },
+            capabilityKind: 'native-import',
+        })).toMatchObject({
+            canAnalyze: true,
+            path: 'native-import',
+            displayModel: 'לא נדרש',
+        });
     });
 });

@@ -32,6 +32,11 @@ import AdminAIHelp from './AdminAIHelp';
 import AIService from '../services/AIService';
 import { getSafeAiRuntimeConfig } from '../config/ai.config';
 import { UI_FEATURES } from '../config/uiFeatures.config';
+import {
+    buildAdminAiChangeSummary,
+    createAdminAiAppliedResult,
+    createAdminAiNoChangeResult,
+} from '../utils/adminAiExecution';
 
 const MAX_COMMANDER_MESSAGES = 5;
 
@@ -537,6 +542,10 @@ export default function AdminSiteContent() {
                 rules: 'עד 4 שורות. שפה בטוחה, סמכותית, אנושית ובהירה. בלי קלישאות.',
                 maxLines: 4,
             });
+            if (improved === source) {
+                toast.info('לא הוחל שינוי בפועל. הניסוח שהתקבל זהה לטקסט הקיים.');
+                return;
+            }
             setEditingMessage((prev) => (prev ? { ...prev, text: improved } : prev));
             toast.success('הודעת המפקד שופרה');
         } catch (error) {
@@ -629,11 +638,19 @@ export default function AdminSiteContent() {
         ].join('\n');
     };
 
-    const applyAiSiteContent = (parsed) => {
+    const applyAiSiteContent = (parsed, rawResponseText = '') => {
         const normalized = normalizeAiSiteContentPayload(parsed, hero, commander);
         const current = getContentSnapshot();
         const next = { hero: normalized.hero, commander: normalized.commander };
-        if (JSON.stringify(current) === JSON.stringify(next)) return false;
+        if (JSON.stringify(current) === JSON.stringify(next)) {
+            return createAdminAiNoChangeResult({
+                rawResponseText,
+                parsedPayload: parsed,
+                errorCode: 'NO_MEANINGFUL_DIFF',
+                reason: 'התוכן שהתקבל זהה לתוכן האתר הקיים.',
+            });
+        }
+        const appliedChangeSummary = buildAdminAiChangeSummary(current, next, 'info', 'brief');
         setAiHistory((prev) => ({
             past: [...prev.past, current].slice(-20),
             future: [],
@@ -643,7 +660,15 @@ export default function AdminSiteContent() {
         setActiveSettingId('hero-content');
         setEditingMessage(null);
         toast.success('הצעת AI הוחלה על תוכן האתר');
-        return true;
+        return createAdminAiAppliedResult({
+            rawResponseText,
+            parsedPayload: parsed,
+            normalizedCandidates: [next],
+            appliedSnapshot: next,
+            appliedChangeSummary,
+            historyEntryCreated: true,
+            persistenceTriggered: true,
+        });
     };
 
     const cleanImprovedText = (rawText, maxLines = 3) => {
@@ -700,6 +725,10 @@ export default function AdminSiteContent() {
                 rules: 'עד 3 שורות. לשמור על ניסוח ייצוגי, קריא ומדויק.',
                 maxLines: 3,
             });
+            if (improved === source) {
+                toast.info('לא הוחל שינוי בפועל. הניסוח שהתקבל זהה לתיאור הקיים.');
+                return;
+            }
             updateHeroField('description', improved);
             toast.success('התיאור שופר בהצלחה');
         } catch (error) {

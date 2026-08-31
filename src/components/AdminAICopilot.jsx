@@ -12,7 +12,6 @@ import {
 import { toast } from 'react-toastify';
 import AIService from '../services/AIService';
 import { formatAiEngineLabel, getSafeAiRuntimeConfig } from '../config/ai.config';
-import { parseJsonFromModel } from '../utils/aiJson';
 import { useSiteContent } from '../context/SiteContentContext';
 import { useNavigation } from '../context/NavigationContext';
 import { useEvents } from '../context/EventsContext';
@@ -27,15 +26,17 @@ import AdminAIHistoryBar from './AdminAIHistoryBar';
 import AiPromptSuggestionButton from './AiPromptSuggestionButton';
 import AdminAIResponsePanel from './AdminAIResponsePanel';
 import {
-  applyAdminAiActionSemantics,
   buildAdminAiPrompt,
-  extractAdminAiCandidates,
   getAdminAiAction,
+  getAdminAiActionMode,
   getAdminAiCapability,
   isAdminAiReadOnly,
-  normalizeAdminAiCandidate,
   sanitizeAdminAiSnapshot,
 } from '../utils/adminAiCapabilities';
+import {
+  ADMIN_AI_EXECUTION_OUTCOMES,
+  executeAdminAiResponse,
+} from '../utils/adminAiExecution';
 
 const RUNTIME_CONFIG = getSafeAiRuntimeConfig();
 const SMALL_WIDGET_TABS = new Set([
@@ -141,6 +142,7 @@ export default function AdminAICopilot({ activeTab }) {
   const [answerNotice, setAnswerNotice] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [modelUsed, setModelUsed] = useState('');
+  const [executionOutcome, setExecutionOutcome] = useState('');
   const historiesRef = useRef({});
   const [, setHistoryRevision] = useState(0);
 
@@ -177,6 +179,7 @@ export default function AdminAICopilot({ activeTab }) {
     setAnswer('');
     setAnswerNotice('');
     setErrorMessage('');
+    setExecutionOutcome('');
     setIsOpen(false);
   }, [activeTab, capability.actions]);
 
@@ -358,7 +361,7 @@ export default function AdminAICopilot({ activeTab }) {
     }
   }, [applySnapshot, commitHistory, getHistory]);
 
-  const recordCandidatesAndApply = useCallback(async (baseline, candidates, actionLabel) => {
+  const recordCandidatesAndApply = useCallback(async (baseline, candidates, actionLabel, summaries = []) => {
     const existingHistory = getHistory();
     const currentHistoryValue = existingHistory?.entries?.[existingHistory?.index]?.value;
     let baseHistory;
@@ -377,7 +380,11 @@ export default function AdminAICopilot({ activeTab }) {
 
     const uniqueCandidates = dedupeCandidates(candidates, baseline);
     if (!uniqueCandidates.length) {
-      return false;
+      return {
+        changed: false,
+        persistenceTriggered: false,
+        historyEntryCreated: false,
+      };
     }
 
     const firstIndex = baseHistory.entries.length;
@@ -386,6 +393,7 @@ export default function AdminAICopilot({ activeTab }) {
       ...uniqueCandidates.map((candidate, index) => ({
         value: clone(candidate),
         label: uniqueCandidates.length > 1 ? `${actionLabel} · חלופה ${index + 1}` : actionLabel,
+        summary: Array.isArray(summaries[index]) ? [...summaries[index]] : [],
         kind: 'ai',
         createdAt: Date.now() + index,
       })),
@@ -393,7 +401,13 @@ export default function AdminAICopilot({ activeTab }) {
 
     await applySnapshot(clone(uniqueCandidates[0]));
     commitHistory({ entries, index: firstIndex });
-    return true;
+    return {
+      changed: true,
+      persistenceTriggered: true,
+      historyEntryCreated: true,
+      appliedSnapshot: uniqueCandidates[0],
+      appliedChangeSummary: summaries[0] || [],
+    };
   }, [applySnapshot, commitHistory, getHistory]);
 
   const generate = useCallback(async () => {
@@ -412,6 +426,7 @@ export default function AdminAICopilot({ activeTab }) {
     setAnswerNotice('');
     setErrorMessage('');
     setModelUsed('');
+    setExecutionOutcome('');
 
     try {
       const baseline = getSnapshot();
@@ -438,41 +453,36 @@ export default function AdminAICopilot({ activeTab }) {
       const content = String(result?.content || streamed || '').trim();
       setModelUsed(formatAiEngineLabel(result) || RUNTIME_CONFIG.defaultModel || '');
 
-      if (readOnly) {
-        setAnswer(content);
-        return;
-      }
+      const execution = await executeAdminAiResponse({
+        mode: getAdminAiActionMode(activeTab, selectedActionId),
+        rawResponseText: content,
+        surfaceKey: activeTab,
+        actionId: selectedActionId,
+        instruction: effectiveInstruction,
+        baseline,
+        applyCandidates: ({ candidates, summaries }) => recordCandidatesAndApply(
+          baseline,
+          candidates,
+          selectedAction?.label || 'שינוי AI',
+          summaries
+        ),
+      });
+      setExecutionOutcome(execution.outcome);
 
-      let normalized;
-      try {
-        const parsed = parseJsonFromModel(content);
-        const rawCandidates = extractAdminAiCandidates(parsed);
-        normalized = rawCandidates
-          .map((candidate) => normalizeAdminAiCandidate(activeTab, candidate, baseline, {
-            instruction: effectiveInstruction,
-            actionId: selectedActionId,
-          }))
-          .map((candidate) => applyAdminAiActionSemantics(activeTab, selectedActionId, baseline, candidate))
-          .filter((candidate) => candidate !== undefined && candidate !== null);
-      } catch {
-        setAnswer(content || 'המודל לא החזיר תשובה שניתן להחיל.');
-        setAnswerNotice('לא זוהה שינוי שניתן להחיל. תשובת ה-AI מוצגת למטה.');
-        return;
-      }
-
-      const changed = await recordCandidatesAndApply(baseline, normalized, selectedAction?.label || 'שינוי AI');
-      if (changed) {
+      if (execution.outcome === ADMIN_AI_EXECUTION_OUTCOMES.APPLIED) {
         setIsOpen(false);
         setInstruction('');
-        toast.success(normalized.length > 1
-          ? `הוחלה חלופה 1. אפשר לדפדף בין ${normalized.length} תוצאות בסרגל AI.`
-          : 'הצעת ה-AI הוחלה מיד. אפשר לחזור אחורה דרך סרגל AI.');
+        toast.success(execution.appliedChangeSummary?.join(' · ') || 'הצעת ה-AI הוחלה ונשמרה');
       } else {
-        setAnswer(content || 'לא התקבלה תשובה שניתן להחיל.');
-        setAnswerNotice('לא זוהה שינוי שניתן להחיל. שום דבר באתר לא שונה ותשובת ה-AI מוצגת למטה.');
+        setAnswer(execution.rawResponseText || execution.userMessage || 'לא התקבלה תשובה מה-AI.');
+        setAnswerNotice(execution.userMessage || '');
+        if (execution.outcome === ADMIN_AI_EXECUTION_OUTCOMES.ERROR) {
+          setErrorMessage(execution.userMessage || 'החלת תוצאת ה-AI נכשלה');
+        }
       }
     } catch (error) {
       const message = error?.message || 'פעולת AI נכשלה';
+      setExecutionOutcome(ADMIN_AI_EXECUTION_OUTCOMES.ERROR);
       setErrorMessage(message);
       toast.error(message);
     } finally {
@@ -610,7 +620,8 @@ export default function AdminAICopilot({ activeTab }) {
                 isLoading={readOnly && isGenerating}
                 modelLabel={modelUsed}
                 notice={answerNotice}
-                onClear={() => { setAnswer(''); setAnswerNotice(''); }}
+                outcome={executionOutcome}
+                onClear={() => { setAnswer(''); setAnswerNotice(''); setExecutionOutcome(''); }}
               />
 
               <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4 dark:border-white/10">
@@ -649,7 +660,7 @@ export default function AdminAICopilot({ activeTab }) {
 
       <AdminAIHistoryBar
         pageTitle={capability.title}
-        history={readOnly ? null : activeHistory}
+        history={activeHistory}
         busy={historyBusy}
         onPrevious={() => applyHistoryIndex((activeHistory?.index || 0) - 1)}
         onNext={() => applyHistoryIndex((activeHistory?.index || 0) + 1)}

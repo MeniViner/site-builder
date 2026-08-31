@@ -165,6 +165,15 @@ describe('adminAiCapabilities', () => {
     ]);
   });
 
+  it('gives every action an authoritative execution mode', () => {
+    const actions = Object.values(ADMIN_AI_CAPABILITIES).flatMap((capability) => capability.actions);
+    expect(actions.length).toBeGreaterThan(100);
+    actions.forEach((item) => {
+      expect(['mutating', 'analysis']).toContain(item.mode);
+      expect(item.readOnly).toBe(item.mode === 'analysis');
+    });
+  });
+
   it('preserves existing news when adding a generated flash', () => {
     const existing = [{ id: 'existing', text: 'קיים', isUrgent: false }];
     const candidate = [{ id: 'new', text: 'חדש', isUrgent: false }];

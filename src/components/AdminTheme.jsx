@@ -13,11 +13,17 @@ import { normalizeBorderStyle, panelStyle } from '../utils/borderStyles';
 import Tooltip from './Tooltip';
 import { AdminPageHelpButton, HelpLabel, HelpTooltipButton } from './AdminHelp';
 import AIService from '../services/AIService';
-import { parseJsonFromModel } from '../utils/aiJson';
 import DismissibleNotice from './DismissibleNotice';
 import AiPromptSuggestionButton from './AiPromptSuggestionButton';
+import AdminAIResponsePanel from './AdminAIResponsePanel';
 import { formatAiEngineLabel, getSafeAiRuntimeConfig } from '../config/ai.config';
 import { UI_FEATURES } from '../config/uiFeatures.config';
+import {
+    ADMIN_AI_EXECUTION_MODES,
+    ADMIN_AI_EXECUTION_OUTCOMES,
+    didAdminAiApplyChange,
+    executeAdminAiResponse,
+} from '../utils/adminAiExecution';
 
 const AI_DESIGN_SECTION_ID = 'aiDesignAssistant';
 const BASE_SETTINGS_NAV = [
@@ -419,17 +425,6 @@ function buildThemeAiPrompt({ instruction, contextSnapshot }) {
     ].join('\n');
 }
 
-function resolveThemePayload(parsed) {
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        const nested = parsed.themePatch;
-        if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
-            return nested;
-        }
-        return parsed;
-    }
-    return {};
-}
-
 function formatThemeFieldValue(field, value) {
     if (field === 'primaryColor') return String(value || '').toUpperCase();
     if (field === 'displayMode') return DISPLAY_MODE_LABELS[value] || String(value);
@@ -538,13 +533,14 @@ export default function AdminTheme() {
         useTintedBackground: true,
         primaryColor: '#0891b2',
     });
-    const [aiSelectedTokenByGroup, setAiSelectedTokenByGroup] = useState({});
     const [aiOpenPickerField, setAiOpenPickerField] = useState('');
     const [aiIsGenerating, setAiIsGenerating] = useState(false);
     const [aiRawOutput, setAiRawOutput] = useState('');
     const [aiModelUsed, setAiModelUsed] = useState('');
     const [aiErrorMessage, setAiErrorMessage] = useState('');
     const [aiSuggestedTheme, setAiSuggestedTheme] = useState(null);
+    const [aiAppliedBaseline, setAiAppliedBaseline] = useState(null);
+    const [aiExecutionResult, setAiExecutionResult] = useState(null);
     const [aiThemeHistory, setAiThemeHistory] = useState({ items: [], index: -1 });
     const [aiTypingRunId, setAiTypingRunId] = useState(0);
     const [aiTypedChars, setAiTypedChars] = useState(0);
@@ -708,6 +704,7 @@ export default function AdminTheme() {
     }, [aiTypingRunId, aiFullSentence, activeSettingId, showQuickDesignComposer]);
     const applyAiTheme = (parsedPatch) => {
         const normalized = normalizeAiThemePayload(parsedPatch, draft);
+        if (!didAdminAiApplyChange(draft, normalized, 'theme')) return false;
         setDraft((prev) => {
             const next = { ...prev, ...normalized };
             triggerAutoSave(next);
@@ -717,6 +714,7 @@ export default function AdminTheme() {
             setCustomColor(normalized.primaryColor);
         }
         toast.success('הצעת AI הוחלה על עיצוב האתר');
+        return true;
     };
 
     const pushAiThemeTransition = useCallback((beforeSnapshot, afterSnapshot) => {
@@ -737,23 +735,6 @@ export default function AdminTheme() {
             return { items, index: items.length - 1 };
         });
     }, []);
-
-    const pushAiThemeSnapshot = useCallback((snapshot) => {
-        const normalized = { ...snapshot };
-        setAiThemeHistory((prev) => {
-            const keptItems = prev.index >= 0 ? prev.items.slice(0, prev.index + 1) : prev.items.slice(0, prev.items.length);
-            const last = keptItems[keptItems.length - 1];
-            if (last && JSON.stringify(last) === JSON.stringify(normalized)) {
-                return prev;
-            }
-            const items = [...keptItems, normalized];
-            return { items, index: items.length - 1 };
-        });
-    }, []);
-
-    const clearAiSelections = () => {
-        setAiSelectedTokenByGroup({});
-    };
 
     const handleAiSentenceSelectionChange = (field, value) => {
         setAiSentenceSelections((prev) => ({ ...prev, [field]: value }));
@@ -791,18 +772,6 @@ export default function AdminTheme() {
         toast.success('עיצוב מהיר הוחל בהצלחה.');
     };
 
-    const handleAiTokenToggle = (groupId, tokenId) => {
-        setAiSelectedTokenByGroup((prev) => {
-            const current = prev[groupId] || '';
-            if (current === tokenId) {
-                const next = { ...prev };
-                delete next[groupId];
-                return next;
-            }
-            return { ...prev, [groupId]: tokenId };
-        });
-    };
-
     const handleGenerateAiTheme = async () => {
         if (!aiEnabled) {
             toast.error('שירות ה-AI כבוי. יש להפעיל את ההגדרות בקובץ ENV.');
@@ -818,6 +787,7 @@ export default function AdminTheme() {
         setAiIsGenerating(true);
         setAiErrorMessage('');
         setAiRawOutput('');
+        setAiExecutionResult(null);
 
         try {
             const contextSnapshot = buildThemeAiContextSnapshot(config, draft, borderTargets);
@@ -836,18 +806,38 @@ export default function AdminTheme() {
             const content = String(result?.content || streamed || '').trim();
             setAiRawOutput(content);
             setAiModelUsed(formatAiEngineLabel(result));
-
-            const parsed = parseJsonFromModel(content);
-            const resolvedPayload = resolveThemePayload(parsed);
-            const normalized = normalizeAiThemePayload(resolvedPayload, draft);
-            setAiSuggestedTheme(normalized);
-
-            if (JSON.stringify(normalized) === JSON.stringify(draft)) {
-                toast.info('התקבלה תשובה, אבל אין שינוי ביחס לעיצוב הקיים. נסה הנחיה מדויקת יותר.');
-            } else {
-                const nextTheme = { ...draft, ...normalized };
-                pushAiThemeTransition(draft, nextTheme);
-                applyAiTheme(normalized);
+            const baseline = { ...draft };
+            const execution = await executeAdminAiResponse({
+                mode: ADMIN_AI_EXECUTION_MODES.MUTATING,
+                rawResponseText: content,
+                surfaceKey: 'theme',
+                actionId: 'direction',
+                instruction,
+                baseline,
+                applyCandidates: async ({ candidates, summaries }) => {
+                    const nextTheme = candidates[0];
+                    const applied = applyAiTheme(nextTheme);
+                    if (applied) {
+                        pushAiThemeTransition(baseline, nextTheme);
+                        setAiAppliedBaseline(baseline);
+                        setAiSuggestedTheme(nextTheme);
+                    }
+                    return {
+                        changed: applied === true,
+                        persistenceTriggered: applied === true,
+                        historyEntryCreated: applied === true,
+                        appliedSnapshot: nextTheme,
+                        appliedChangeSummary: summaries[0],
+                    };
+                },
+            });
+            setAiExecutionResult(execution);
+            if (execution.outcome === ADMIN_AI_EXECUTION_OUTCOMES.NO_CHANGE) {
+                setAiSuggestedTheme(null);
+                setAiAppliedBaseline(null);
+                toast.info('לא הוחל שינוי בפועל. תשובת ה-AI מוצגת למטה.');
+            } else if (execution.outcome === ADMIN_AI_EXECUTION_OUTCOMES.ERROR) {
+                throw new Error(execution.userMessage || 'החלת עיצוב ה-AI נכשלה.');
             }
         } catch (error) {
             const message = error?.message || 'יצירת עיצוב ב-AI נכשלה.';
@@ -857,15 +847,6 @@ export default function AdminTheme() {
         } finally {
             setAiIsGenerating(false);
         }
-    };
-
-    const handleApplyAiTheme = () => {
-        if (!aiSuggestedTheme) {
-            toast.error('אין הצעת AI מוכנה ליישום.');
-            return;
-        }
-        pushAiThemeTransition(draft, { ...draft, ...aiSuggestedTheme });
-        applyAiTheme(aiSuggestedTheme);
     };
 
     const handleUndoAiTheme = () => {
@@ -916,11 +897,11 @@ export default function AdminTheme() {
     const showSection = (id) => activeSettingId === id;
     const aiDiffRows = aiSuggestedTheme
         ? Object.entries(aiSuggestedTheme)
-            .filter(([field, nextValue]) => JSON.stringify(nextValue) !== JSON.stringify(draft[field]))
+            .filter(([field, nextValue]) => JSON.stringify(nextValue) !== JSON.stringify(aiAppliedBaseline?.[field]))
             .map(([field, nextValue]) => ({
                 field,
                 label: AI_FIELD_LABELS[field] || field,
-                currentValue: formatThemeFieldValue(field, draft[field]),
+                currentValue: formatThemeFieldValue(field, aiAppliedBaseline?.[field]),
                 nextValue: formatThemeFieldValue(field, nextValue),
             }))
         : [];
@@ -1373,10 +1354,26 @@ export default function AdminTheme() {
                                                     ))}
                                                 </div>
                                             )}
+                                            {aiExecutionResult?.appliedChangeSummary?.length > 0 && (
+                                                <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-100">
+                                                    {aiExecutionResult.appliedChangeSummary.join(' · ')}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
-                                    {aiRawOutput && (
+                                    {aiRawOutput && [ADMIN_AI_EXECUTION_OUTCOMES.NO_CHANGE, ADMIN_AI_EXECUTION_OUTCOMES.ERROR].includes(aiExecutionResult?.outcome) ? (
+                                        <AdminAIResponsePanel
+                                            content={aiRawOutput}
+                                            modelLabel={aiModelUsed}
+                                            notice={aiExecutionResult?.userMessage || ''}
+                                            outcome={aiExecutionResult?.outcome || ''}
+                                            onClear={() => {
+                                                setAiRawOutput('');
+                                                setAiExecutionResult(null);
+                                            }}
+                                        />
+                                    ) : aiRawOutput && (
                                         <details className="mt-5 rounded-2xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#171c27]/80 p-4">
                                             <summary className="cursor-pointer text-xs font-bold text-gray-600 dark:text-gray-300">פלט AI גולמי (לבדיקה)</summary>
                                             <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words text-[11px] text-gray-700 dark:text-gray-300">{aiRawOutput}</pre>

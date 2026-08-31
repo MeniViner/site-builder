@@ -14,13 +14,6 @@ function createError(code, message) {
 
 export async function analyzeOrgChartSourceFile(file, options = {}) {
     const model = String(options.model || '').trim();
-    if (!model) {
-        throw createError(
-            'FILE_MODEL_NOT_CONFIGURED',
-            'יש להגדיר מודל AI ייעודי לייבוא קבצים.',
-        );
-    }
-
     const capability = validateOrgChartAiFile(file, options.maxMb);
     if (capability.kind === 'visual-unverified') {
         if (typeof options.visualTransport !== 'function') {
@@ -47,14 +40,15 @@ export async function analyzeOrgChartSourceFile(file, options = {}) {
     });
     options.onStage?.('ai-request');
     const aiResponse = await AIService.ask(prompt, {
-        model,
+        ...(model ? { model } : {}),
         signal: options.signal,
     });
     options.onStage?.('response-parse');
     const result = parseOrgChartAiResponse(aiResponse?.content || '');
 
     return {
-        modelUsed: aiResponse?.modelUsed || model,
+        modelUsed: aiResponse?.modelUsed || model || 'מודל ברירת המחדל של חיבור ה-AI',
+        rawResponseText: String(aiResponse?.content || ''),
         source: {
             extension: extraction.extension,
             mimeType: file.type || 'unknown',

@@ -55,6 +55,23 @@ describe('OrgChartFileAIService', () => {
             extractedCharacterCount: expect.any(Number),
         }));
         expect(response.result).toEqual(validResult);
+        expect(response.rawResponseText).toBe(JSON.stringify(validResult));
+    });
+
+    it('allows extracted text to use the AI transport default model', async () => {
+        const file = new File(
+            ['unit,parent\nOperations,Headquarters'],
+            'tree.csv',
+            { type: 'text/csv' },
+        );
+
+        const response = await analyzeOrgChartSourceFile(file);
+
+        expect(AIService.ask).toHaveBeenCalledWith(
+            expect.stringContaining('Operations,Headquarters'),
+            expect.not.objectContaining({ model: expect.anything() })
+        );
+        expect(response.modelUsed).toBe('dedicated-file-model');
     });
 
     it('does not call text transport for a visual file without a verified adapter', async () => {

@@ -120,10 +120,12 @@ describe('AdminAIResponsePanel', () => {
         render(
             <AdminAIResponsePanel
                 content="לא הצלחתי ליצור מבנה תקין."
-                notice="לא זוהה שינוי שניתן להחיל. תשובת ה-AI מוצגת למטה."
+                notice="לא הוחל שינוי בפועל. תשובת ה-AI מוצגת למטה."
+                outcome="no-change"
             />
         );
-        expect(screen.getByText('לא זוהה שינוי שניתן להחיל. תשובת ה-AI מוצגת למטה.')).toBeVisible();
+        expect(screen.getByText('תוצאה: לא הוחל שינוי')).toBeVisible();
+        expect(screen.getByText('לא הוחל שינוי בפועל. תשובת ה-AI מוצגת למטה.')).toBeVisible();
         expect(screen.getByText('לא הצלחתי ליצור מבנה תקין.')).toBeVisible();
     });
 });

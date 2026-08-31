@@ -6,43 +6,28 @@ import AIService from '../services/AIService';
 import { formatAiEngineLabel, getSafeAiRuntimeConfig } from '../config/ai.config';
 import { isWidgetAiButtonEnabled, UI_FEATURES } from '../config/uiFeatures.config';
 import { useAdminAiHistory } from '../hooks/useAdminAiHistory';
-import { parseJsonFromModel } from '../utils/aiJson';
 import AiPromptSuggestionButton from './AiPromptSuggestionButton';
 import AdminAIResponsePanel from './AdminAIResponsePanel';
 import {
-    applyAdminAiActionSemantics,
     buildAdminAiPrompt,
-    extractAdminAiCandidates,
     getAdminAiAction,
+    getAdminAiActionMode,
     getAdminAiCapability,
     getAdminAiInstructionIssue,
     isAdminAiReadOnly,
-    normalizeAdminAiCandidate,
     sanitizeAdminAiSnapshot,
 } from '../utils/adminAiCapabilities';
+import {
+    ADMIN_AI_EXECUTION_OUTCOMES,
+    buildAdminAiChangeSummary,
+    didAdminAiApplyChange,
+    executeAdminAiResponse,
+} from '../utils/adminAiExecution';
 
 const RUNTIME_CONFIG = getSafeAiRuntimeConfig();
 
 function clone(value) {
     return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
-}
-
-function stableStringify(value) {
-    try {
-        return JSON.stringify(value);
-    } catch {
-        return '';
-    }
-}
-
-function uniqueCandidates(candidates, baseline) {
-    const seen = new Set([stableStringify(baseline)]);
-    return candidates.filter((candidate) => {
-        const key = stableStringify(candidate);
-        if (!key || seen.has(key)) return false;
-        seen.add(key);
-        return true;
-    });
 }
 
 const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
@@ -60,6 +45,7 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
     const [answerNotice, setAnswerNotice] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
     const [modelUsed, setModelUsed] = useState('');
+    const [executionOutcome, setExecutionOutcome] = useState('');
     const [historyBusy, setHistoryBusy] = useState(false);
 
     const selectedAction = useMemo(
@@ -78,6 +64,7 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
         setAnswer('');
         setAnswerNotice('');
         setErrorMessage('');
+        setExecutionOutcome('');
         setIsOpen(false);
     }, [capability.actions, widgetKey]);
 
@@ -97,11 +84,22 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
         async applyExternalResult(nextValue, options = {}) {
             const baseline = clone(options.baseline === undefined ? value : options.baseline);
             const candidate = clone(nextValue);
-            if (stableStringify(candidate) === stableStringify(baseline)) return false;
-            await recordAndApply([candidate], baseline, options.label || 'ייבוא עם AI');
+            if (!didAdminAiApplyChange(baseline, candidate, widgetKey)) return false;
+            const summary = buildAdminAiChangeSummary(
+                baseline,
+                candidate,
+                widgetKey,
+                options.actionId || 'external-import'
+            );
+            await recordAndApply(
+                [candidate],
+                baseline,
+                options.label || 'ייבוא עם AI',
+                { summaries: [summary] }
+            );
             return true;
         },
-    }), [recordAndApply, value]);
+    }), [recordAndApply, value, widgetKey]);
 
     const showAiButton = isWidgetAiButtonEnabled(widgetKey);
     const showHistoryOnly = UI_FEATURES.showAiUi && history.visible && history.entries.length > 1;
@@ -135,6 +133,8 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
         const instructionIssue = getAdminAiInstructionIssue(widgetKey, selectedActionId, effectiveInstruction);
         if (instructionIssue) {
             setAnswer(instructionIssue);
+            setAnswerNotice('לא הוחל שינוי. נדרשת הבהרה לפני שליחת בקשת AI.');
+            setExecutionOutcome(ADMIN_AI_EXECUTION_OUTCOMES.NO_CHANGE);
             setErrorMessage('');
             setModelUsed('');
             return;
@@ -145,6 +145,7 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
         setAnswerNotice('');
         setErrorMessage('');
         setModelUsed('');
+        setExecutionOutcome('');
 
         try {
             const baseline = clone(value);
@@ -165,41 +166,46 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
             const content = String(result?.content || streamed || '').trim();
             setModelUsed(formatAiEngineLabel(result) || RUNTIME_CONFIG.defaultModel || '');
 
-            if (readOnly) {
-                setAnswer(content || 'לא התקבלה תשובה מה-AI.');
+            const execution = await executeAdminAiResponse({
+                mode: getAdminAiActionMode(widgetKey, selectedActionId),
+                rawResponseText: content,
+                surfaceKey: widgetKey,
+                actionId: selectedActionId,
+                instruction: effectiveInstruction,
+                baseline,
+                applyCandidates: async ({ candidates, summaries }) => {
+                    const applied = await recordAndApply(
+                        candidates,
+                        baseline,
+                        selectedAction?.label || 'שינוי AI',
+                        { summaries }
+                    );
+                    return {
+                        changed: applied === true,
+                        persistenceTriggered: applied === true,
+                        historyEntryCreated: applied === true,
+                        appliedSnapshot: candidates[0],
+                        appliedChangeSummary: summaries[0],
+                    };
+                },
+            });
+            setExecutionOutcome(execution.outcome);
+
+            if (execution.outcome === ADMIN_AI_EXECUTION_OUTCOMES.APPLIED) {
+                setInstruction('');
+                setIsOpen(false);
+                toast.success(execution.appliedChangeSummary?.join(' · ') || 'שינוי ה-AI הוחל ונשמר');
                 return;
             }
 
-            let candidates;
-            try {
-                const parsed = parseJsonFromModel(content);
-                candidates = uniqueCandidates(
-                    extractAdminAiCandidates(parsed)
-                        .map((candidate) => normalizeAdminAiCandidate(widgetKey, candidate, baseline, {
-                            instruction: effectiveInstruction,
-                            actionId: selectedActionId,
-                        }))
-                        .map((candidate) => applyAdminAiActionSemantics(widgetKey, selectedActionId, baseline, candidate))
-                        .filter((candidate) => candidate !== undefined && candidate !== null),
-                    baseline
-                );
-            } catch {
-                setAnswer(content || 'המודל לא החזיר תשובה שניתן להחיל.');
-                setAnswerNotice('לא זוהה שינוי שניתן להחיל. תשובת ה-AI מוצגת למטה.');
-                return;
+            setAnswer(execution.rawResponseText || execution.userMessage || 'לא התקבלה תשובה מה-AI.');
+            setAnswerNotice(execution.userMessage || '');
+            if (execution.outcome === ADMIN_AI_EXECUTION_OUTCOMES.ERROR) {
+                setErrorMessage(execution.userMessage || 'החלת תוצאת ה-AI נכשלה');
             }
-
-            if (!candidates.length) {
-                setAnswer(content || 'לא התקבלה תשובה שניתן להחיל.');
-                setAnswerNotice('לא זוהה שינוי שניתן להחיל. התוכן הקיים נשאר ללא שינוי ותשובת ה-AI מוצגת למטה.');
-                return;
-            }
-
-            await recordAndApply(candidates, baseline, selectedAction?.label || 'שינוי AI');
-            setInstruction('');
-            setIsOpen(false);
         } catch (error) {
             const message = error?.message || 'פעולת AI נכשלה';
+            setExecutionOutcome(ADMIN_AI_EXECUTION_OUTCOMES.ERROR);
             setErrorMessage(message);
             toast.error(message);
         } finally {
@@ -252,7 +258,8 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
                         isLoading={readOnly && isGenerating}
                         modelLabel={modelUsed}
                         notice={answerNotice}
-                        onClear={() => { setAnswer(''); setAnswerNotice(''); }}
+                        outcome={executionOutcome}
+                        onClear={() => { setAnswer(''); setAnswerNotice(''); setExecutionOutcome(''); }}
                     />
                     <div className="mt-5 flex items-center justify-between gap-3 border-t border-gray-200 pt-4 dark:border-white/10">
                         <span className="text-xs text-gray-500">{readOnly ? 'ניתוח בלבד — התוכן לא ישתנה.' : 'התוצאה תוחל מיד ותישמר דרך המסך.'}</span>
@@ -275,12 +282,17 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
                         <Sparkles size={15} />AI
                     </button>
                 )}
-                {!readOnly && history.visible && history.entries.length > 1 && (
+                {history.visible && history.entries.length > 1 && (
                     <div className="inline-flex h-10 items-center gap-0.5 rounded-xl border border-primary/25 bg-primary/5 p-1">
                         <button type="button" onClick={() => applyHistoryIndex(0)} disabled={historyBusy || index === 0} className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-[10px] font-bold text-primary disabled:opacity-35" title="לפני AI"><RotateCcw size={13} />לפני AI</button>
                         <button type="button" onClick={() => applyHistoryIndex(index - 1)} disabled={historyBusy || !canUndo} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-primary disabled:opacity-35" aria-label="הקודם"><Undo2 size={14} /></button>
                         <span className="min-w-10 text-center text-[10px] font-black text-primary">{index === 0 ? 'מקור' : `${index}/${aiCount}`}</span>
                         <button type="button" onClick={() => applyHistoryIndex(index + 1)} disabled={historyBusy || !canRedo} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-primary disabled:opacity-35" aria-label="הבא"><Redo2 size={14} /></button>
+                        {history.entries[index]?.summary?.length > 0 && (
+                            <span className="max-w-52 truncate px-1 text-[10px] font-bold text-primary" title={history.entries[index].summary.join(' · ')}>
+                                {history.entries[index].summary.join(' · ')}
+                            </span>
+                        )}
                         <button type="button" onClick={hideHistory} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-primary" aria-label="הסתר היסטוריית AI"><X size={13} /></button>
                     </div>
                 )}

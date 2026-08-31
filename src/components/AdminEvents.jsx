@@ -26,6 +26,11 @@ import {
 import SmartTextRenderer from './SmartTextRenderer';
 import SmartTextEditor from './SmartTextEditor';
 import DismissibleNotice from './DismissibleNotice';
+import {
+    buildAdminAiChangeSummary,
+    createAdminAiAppliedResult,
+    createAdminAiNoChangeResult,
+} from '../utils/adminAiExecution';
 
 const STATUS_OPTIONS = [
     { value: 'gray', label: 'אפור (כלל משתמשי חרום)', hex: '#6B7280' },
@@ -33,11 +38,11 @@ const STATUS_OPTIONS = [
 ];
 
 const EVENTS_AI_ACTIONS = [
-    { id: 'generate', label: 'צור אירועים', prompt: 'צור 3 אירועים ברורים על בסיס הפרטים שאוסיף כאן.' },
-    { id: 'paste', label: 'לו״ז → אירועים', prompt: 'המר את לוח הזמנים הבא לאירועים: ' },
-    { id: 'add', label: 'הוסף בלי למחוק', prompt: 'הוסף אירועים חדשים לפי הפרטים הבאים בלי למחוק או לשנות אירועים קיימים: ' },
-    { id: 'improve', label: 'שפר ניסוח', prompt: 'שפר את ניסוח האירועים הקיימים בלי לשנות תאריכים או עובדות.' },
-    { id: 'audit', label: 'בדוק את הלוח', prompt: 'בדוק כפילויות, ניסוחים לא ברורים ותאריכים חשודים והצג המלצות בלבד.', readOnly: true },
+    { id: 'generate', label: 'צור אירועים', prompt: 'צור 3 אירועים ברורים על בסיס הפרטים שאוסיף כאן.', mode: 'mutating' },
+    { id: 'paste', label: 'לו״ז → אירועים', prompt: 'המר את לוח הזמנים הבא לאירועים: ', mode: 'mutating' },
+    { id: 'add', label: 'הוסף בלי למחוק', prompt: 'הוסף אירועים חדשים לפי הפרטים הבאים בלי למחוק או לשנות אירועים קיימים: ', mode: 'mutating' },
+    { id: 'improve', label: 'שפר ניסוח', prompt: 'שפר את ניסוח האירועים הקיימים בלי לשנות תאריכים או עובדות.', mode: 'mutating' },
+    { id: 'audit', label: 'בדוק את הלוח', prompt: 'בדוק כפילויות, ניסוחים לא ברורים ותאריכים חשודים והצג המלצות בלבד.', mode: 'analysis', readOnly: true },
 ];
 
 function resolveEventsAiOperation(suggestedAction) {
@@ -467,7 +472,7 @@ export default function AdminEvents({ onClose, inHub = false }) {
         });
     };
 
-    const applyAiEvents = async (parsed) => {
+    const applyAiEvents = async (parsed, rawResponseText = '') => {
         const current = getEventsSnapshot();
         const candidates = extractAdminAiCandidates(parsed)
             .map((candidate) => normalizeAiEventsPayload(candidate, {
@@ -504,10 +509,37 @@ export default function AdminEvents({ onClose, inHub = false }) {
                 return candidate;
             })
             .filter((candidate) => JSON.stringify(candidate) !== JSON.stringify(current));
-        if (!candidates.length) return false;
-        await recordAndApplyAiEvents(candidates, current, 'אירועי AI');
+        if (!candidates.length) {
+            return createAdminAiNoChangeResult({
+                rawResponseText,
+                parsedPayload: parsed,
+                errorCode: 'NO_MEANINGFUL_DIFF',
+                reason: 'האירועים שהתקבלו זהים ללוח הקיים או שאינם שמישים.',
+            });
+        }
+        const summaries = candidates.map((candidate) => (
+            buildAdminAiChangeSummary(current, candidate, 'events', aiOperationRef.current)
+        ));
+        const applied = await recordAndApplyAiEvents(candidates, current, 'אירועי AI', { summaries });
+        if (!applied) {
+            return createAdminAiNoChangeResult({
+                rawResponseText,
+                parsedPayload: parsed,
+                normalizedCandidates: candidates,
+                errorCode: 'APPLY_NOT_VERIFIED',
+                reason: 'מסלול שמירת האירועים לא אישר שינוי בפועל.',
+            });
+        }
         toast.success('הצעת AI הוחלה על אירועי החודש');
-        return true;
+        return createAdminAiAppliedResult({
+            rawResponseText,
+            parsedPayload: parsed,
+            normalizedCandidates: candidates,
+            appliedSnapshot: candidates[0],
+            appliedChangeSummary: summaries[0],
+            historyEntryCreated: true,
+            persistenceTriggered: true,
+        });
     };
 
     if (loading && !events.length) {

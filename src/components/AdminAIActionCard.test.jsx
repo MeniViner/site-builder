@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminAIActionCard from './AdminAIActionCard';
 import AIService from '../services/AIService';
 import { getAiPromptSuggestions } from '../utils/aiPromptSuggestions';
+import { createAdminAiAppliedResult } from '../utils/adminAiExecution';
 
 vi.mock('../config/ai.config', () => ({
     getSafeAiRuntimeConfig: () => ({ defaultModel: 'test-model', apiBase: '/test-ai' }),
@@ -67,8 +68,8 @@ describe('AdminAIActionCard prompt suggestions', () => {
                 buildPrompt={vi.fn()}
                 onApply={vi.fn()}
                 suggestedActions={[
-                    { id: 'paste', label: 'לו״ז → אירועים', prompt: 'טקסט התחלתי' },
-                    { id: 'audit', label: 'בדוק את הלוח', prompt: 'בדיקה התחלתית', readOnly: true },
+                    { id: 'paste', label: 'לו״ז → אירועים', prompt: 'טקסט התחלתי', mode: 'mutating' },
+                    { id: 'audit', label: 'בדוק את הלוח', prompt: 'בדיקה התחלתית', mode: 'analysis' },
                 ]}
             />
         );
@@ -95,8 +96,8 @@ describe('AdminAIActionCard prompt suggestions', () => {
                 onUndo={vi.fn()}
                 onRedo={vi.fn()}
                 suggestedActions={[
-                    { id: 'generate', label: 'צור אירועים', prompt: 'צור אירועים' },
-                    { id: 'audit', label: 'בדוק את הלוח', prompt: 'בדוק', readOnly: true },
+                    { id: 'generate', label: 'צור אירועים', prompt: 'צור אירועים', mode: 'mutating' },
+                    { id: 'audit', label: 'בדוק את הלוח', prompt: 'בדוק', mode: 'analysis' },
                 ]}
             />
         );
@@ -106,6 +107,7 @@ describe('AdminAIActionCard prompt suggestions', () => {
 
         expect(await screen.findByRole('heading', { name: 'בדיקת לוח' })).toBeVisible();
         expect(screen.getByRole('table')).toHaveTextContent('כפילות');
+        expect(screen.getByText('תוצאה: נותח בלבד')).toBeVisible();
         expect(onApply).not.toHaveBeenCalled();
         expect(screen.queryByRole('button', { name: 'החל הצעה' })).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /בטל שינוי AI|בצע מחדש/ })).not.toBeInTheDocument();
@@ -127,14 +129,21 @@ describe('AdminAIActionCard prompt suggestions', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'צור עם AI' }));
 
-        expect(await screen.findByText('לא זוהה שינוי שניתן להחיל. תשובת ה-AI מוצגת למטה.')).toBeVisible();
+        expect(await screen.findByText(/לא הוחל שינוי בפועל/)).toBeVisible();
+        expect(screen.getByText('תוצאה: לא הוחל שינוי')).toBeVisible();
         expect(screen.getByText('לא הצלחתי להפיק אירועים מובנים מהמידע שסופק.')).toBeVisible();
         expect(onApply).not.toHaveBeenCalled();
     });
 
     it('keeps valid mutating auto-apply behavior', async () => {
         const parsed = { events: [{ id: 'e1', title: 'אירוע' }] };
-        const onApply = vi.fn(async () => true);
+        const onApply = vi.fn(async (_parsed, rawResponseText) => createAdminAiAppliedResult({
+            rawResponseText,
+            parsedPayload: parsed,
+            normalizedCandidates: [parsed],
+            appliedSnapshot: parsed,
+            appliedChangeSummary: ['נוצר אירוע אחד'],
+        }));
         AIService.ask.mockResolvedValue({
             content: JSON.stringify(parsed),
             modelUsed: 'test-model',
@@ -150,5 +159,26 @@ describe('AdminAIActionCard prompt suggestions', () => {
         fireEvent.click(screen.getByRole('button', { name: 'צור עם AI' }));
         await waitFor(() => expect(onApply).toHaveBeenCalledWith(parsed, JSON.stringify(parsed)));
         expect(screen.queryByText(/לא זוהה שינוי/)).not.toBeInTheDocument();
+    });
+
+    it('does not claim success when the apply path returns no verification contract', async () => {
+        const parsed = { events: [{ id: 'e1', title: 'אירוע' }] };
+        AIService.ask.mockResolvedValue({
+            content: JSON.stringify(parsed),
+            modelUsed: 'test-model',
+        });
+        render(
+            <AdminAIActionCard
+                defaultInput="צור אירועים"
+                buildPrompt={vi.fn(() => 'MUTATION PROMPT')}
+                onApply={vi.fn(async () => undefined)}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'צור עם AI' }));
+
+        expect(await screen.findByText(/מסלול ההחלה לא אישר שינוי ושמירה בפועל/)).toBeVisible();
+        expect(screen.getByText('תוצאה: לא הוחל שינוי')).toBeVisible();
+        expect(screen.queryByText('AI הוחל')).not.toBeInTheDocument();
     });
 });

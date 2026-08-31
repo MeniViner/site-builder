@@ -2,7 +2,17 @@ import { isValidBoomColor, normalizeBoomData } from './boomData';
 
 const WIDGET_IDS = ['events', 'alerts', 'outstanding', 'countdown', 'news', 'phonebook', 'shuttles', 'polls', 'celebrations', 'heritage', 'tips'];
 
-const action = (id, label, hint, options = {}) => ({ id, label, hint, ...options });
+const action = (id, label, hint, options = {}) => {
+  const mode = options.mode || (options.readOnly === true ? 'analysis' : 'mutating');
+  return {
+    id,
+    label,
+    hint,
+    ...options,
+    mode,
+    readOnly: mode === 'analysis',
+  };
+};
 
 export const ADMIN_AI_CAPABILITIES = Object.freeze({
   info: {
@@ -294,7 +304,11 @@ export function getAdminAiAction(tab, actionId) {
 export function isAdminAiReadOnly(tab, actionId) {
   const capability = getAdminAiCapability(tab);
   const selected = getAdminAiAction(tab, actionId);
-  return capability.readOnly === true || selected?.readOnly === true;
+  return capability.readOnly === true || selected?.mode === 'analysis';
+}
+
+export function getAdminAiActionMode(tab, actionId) {
+  return isAdminAiReadOnly(tab, actionId) ? 'analysis' : 'mutating';
 }
 
 export function getAdminAiInstructionIssue(tab, actionId, instruction) {
@@ -394,7 +408,7 @@ function actionRules(tab, actionId) {
 export function buildAdminAiPrompt({ tab, actionId, instruction, currentSnapshot, visibleContext = '' }) {
   const capability = getAdminAiCapability(tab);
   const selected = getAdminAiAction(tab, actionId);
-  const readOnly = capability.readOnly === true || selected?.readOnly === true;
+  const readOnly = selected?.mode === 'analysis' || capability.readOnly === true;
 
   if (readOnly) {
     return [
@@ -657,7 +671,7 @@ const THEME_ENUMS = {
 };
 
 function normalizeTheme(payload, current) {
-  const source = payload?.theme || payload || {};
+  const source = payload?.theme || payload?.themePatch || payload || {};
   const next = { ...clone(current) };
   const stringFields = ['primaryColor', 'displayMode', 'borderStyle', 'regularLinksLayout', 'externalLinksLayout', 'widgetHeight'];
   const booleanFields = ['useTintedBackground', 'heroGrayscale', 'heroGlassEffect', 'topNavGlassEffect', 'heroPanelsBordered', 'commanderPanelBordered', 'widgetPanelBordered', 'showNavCategories', 'externalLinksFixed', 'externalLinksBordered', 'externalLinksShowBackground'];

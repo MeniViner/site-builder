@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminAICopilot from './AdminAICopilot';
 import AIService from '../services/AIService';
@@ -133,6 +133,41 @@ describe('AdminAICopilot analysis responses', () => {
         expect(screen.queryByRole('button', { name: /לפני AI|הקודם|הבא/ })).not.toBeInTheDocument();
     });
 
+    it('applies a real BOOM mutation through saveBoom and exposes its summary', async () => {
+        AIService.ask.mockResolvedValue({
+            modelUsed: 'test-model',
+            content: JSON.stringify({
+                boom: {
+                    categories: [{ id: 'c1', name: 'מבצעים', color: '#2563eb', order: 1 }],
+                    items: [{
+                        id: 'b2',
+                        title: 'הכנת תמונת מצב',
+                        owner: '',
+                        category: 'מבצעים',
+                        status: 'planned',
+                        startDate: '2026-09-01',
+                        endDate: '2026-09-02',
+                        details: '',
+                    }],
+                },
+            }),
+        });
+        render(<AdminAICopilot activeTab="boom" />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'AI' }));
+        fireEvent.change(screen.getByRole('textbox'), {
+            target: { value: 'צור משימת הכנת תמונת מצב ל-1.9.2026 עד 2.9.2026' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'צור והחל מיד' }));
+
+        await waitFor(() => expect(contextMocks.saveBoom).toHaveBeenCalledOnce());
+        expect(contextMocks.saveBoom.mock.calls[0][0].items[0]).toMatchObject({
+            id: 'b2',
+            title: 'הכנת תמונת מצב',
+        });
+        expect(screen.getByText(/נוספו 1 משימות BOOM/)).toBeVisible();
+    });
+
     it('renders Gantt audit output while leaving the draft untouched', async () => {
         AIService.ask.mockResolvedValue({
             modelUsed: 'test-model',
@@ -148,6 +183,47 @@ describe('AdminAICopilot analysis responses', () => {
         expect(toast.success).not.toHaveBeenCalled();
     });
 
+    it('applies a real Gantt mutation, persists it, and shows a change summary', async () => {
+        AIService.ask.mockResolvedValue({
+            modelUsed: 'test-model',
+            content: JSON.stringify({
+                gantt: {
+                    categories: [{ id: 'c1', name: 'תכנון', color: '#2563eb', order: 1 }],
+                    items: [{
+                        id: 'g1',
+                        title: 'אפיון',
+                        owner: '',
+                        category: 'תכנון',
+                        status: 'planned',
+                        startDate: '2026-09-01',
+                        endDate: '2026-09-05',
+                        color: '#2563eb',
+                        details: 'הגדרת דרישות',
+                        dependsOn: [],
+                        milestones: [],
+                    }],
+                },
+            }),
+        });
+        render(<AdminAICopilot activeTab="gantt" />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'AI' }));
+        fireEvent.change(screen.getByRole('textbox'), {
+            target: { value: 'צור משימת אפיון מ-1.9.2026 עד 5.9.2026' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'צור והחל מיד' }));
+
+        await waitFor(() => expect(contextMocks.saveGantt).toHaveBeenCalledOnce());
+        expect(contextMocks.saveGantt.mock.calls[0][0].items[0]).toMatchObject({
+            id: 'g1',
+            title: 'אפיון',
+            startDate: '2026-09-01',
+            endDate: '2026-09-05',
+        });
+        expect(screen.getByText(/נוספו 1 משימות Gantt/)).toBeVisible();
+        expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('משימות Gantt'));
+    });
+
     it('shows raw explanatory output when a mutating action returns no usable JSON', async () => {
         AIService.ask.mockResolvedValue({
             modelUsed: 'test-model',
@@ -159,7 +235,8 @@ describe('AdminAICopilot analysis responses', () => {
         fireEvent.change(screen.getByRole('textbox'), { target: { value: 'צור מבזק חדש' } });
         fireEvent.click(screen.getByRole('button', { name: 'צור והחל מיד' }));
 
-        expect(await screen.findByText('לא זוהה שינוי שניתן להחיל. תשובת ה-AI מוצגת למטה.')).toBeVisible();
+        expect(await screen.findByText(/לא הוחל שינוי בפועל/)).toBeVisible();
+        expect(screen.getByText('תוצאה: לא הוחל שינוי')).toBeVisible();
         expect(screen.getByText('לא ניתן ליצור מבזק חדש בלי פרטים נוספים.')).toBeVisible();
         expect(contextMocks.saveWidgetConfig).not.toHaveBeenCalled();
         expect(toast.success).not.toHaveBeenCalled();

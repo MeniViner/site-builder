@@ -42,6 +42,11 @@ export default function AdminAIHistoryBar({
             <div className="mt-0.5 truncate text-[11px] text-gray-500 dark:text-gray-400">
               {displayPosition}{current?.label && index > 0 ? ` · ${current.label}` : ''}
             </div>
+            {index > 0 && current?.summary?.length > 0 && (
+              <div className="mt-1 line-clamp-2 text-[11px] font-bold text-primary" title={current.summary.join(' · ')}>
+                {current.summary.join(' · ')}
+              </div>
+            )}
           </div>
         </div>
 
