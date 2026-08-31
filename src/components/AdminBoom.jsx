@@ -386,10 +386,6 @@ export default function AdminBoom() {
             <header className="sticky top-0 z-40 border-b border-gray-200 bg-gray-50/95 px-5 py-5 shadow-sm backdrop-blur-md dark:border-white/5 dark:bg-[#12141a]/95 sm:px-10">
                 <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
                     <div>
-                        <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-black text-primary">
-                            <Zap size={14} />
-                            Command &amp; Control
-                        </div>
                         <h1 className="text-3xl font-black tracking-tight text-gray-900 dark:text-white">ניהול בום</h1>
                         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">ניהול עצמאי של משימות, אחריות, סטטוסים והתקדמות.</p>
                     </div>
