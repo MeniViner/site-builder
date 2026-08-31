@@ -124,6 +124,7 @@ describe('adminAiCapabilities', () => {
     expect(isAdminAiReadOnly('gantt', 'audit')).toBe(true);
     expect(isAdminAiReadOnly('org-chart', 'audit')).toBe(true);
     expect(isAdminAiReadOnly('links', 'audit')).toBe(true);
+    expect(isAdminAiReadOnly('external-links', 'audit')).toBe(true);
     expect(isAdminAiReadOnly('boom', 'audit')).toBe(true);
     expect(isAdminAiReadOnly('polls', 'rewrite-bias')).toBe(false);
     expect(isAdminAiReadOnly('links', 'fix-audit')).toBe(false);
@@ -138,6 +139,7 @@ describe('adminAiCapabilities', () => {
     expect(actual).toEqual([
       'links:audit',
       'events:audit',
+      'external-links:audit',
       'galleries:audit',
       'gantt:audit',
       'gantt:status',

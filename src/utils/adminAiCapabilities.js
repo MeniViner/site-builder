@@ -90,6 +90,7 @@ export const ADMIN_AI_CAPABILITIES = Object.freeze({
       action('icons', 'הצע אייקונים', 'בחר אייקוני Lucide מתאימים.'),
       action('dedupe', 'נקה כפילויות', 'זהה קישורים זהים או דומים וסדר את הרשימה.'),
       action('order', 'סדר לפי חשיבות', 'תאר את הקהל/העדיפות וה-AI יציע סדר.'),
+      action('audit', 'נתח בעיות', 'מצא כפילויות, שמות לא ברורים, קישורים חשודים וסדר בעייתי והצג המלצות בלי לשנות.', { readOnly: true }),
     ],
   },
   galleries: {
