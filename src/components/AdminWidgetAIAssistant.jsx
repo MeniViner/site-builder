@@ -1,6 +1,6 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, Bot, Loader2, Redo2, RotateCcw, Sparkles, Undo2, Wand2, X } from 'lucide-react';
+import { AlertTriangle, Loader2, Redo2, RotateCcw, Sparkles, Undo2, Wand2, X } from 'lucide-react';
 import { toast } from 'react-toastify';
 import AIService from '../services/AIService';
 import { formatAiEngineLabel, getSafeAiRuntimeConfig } from '../config/ai.config';
@@ -8,6 +8,7 @@ import { isWidgetAiButtonEnabled, UI_FEATURES } from '../config/uiFeatures.confi
 import { useAdminAiHistory } from '../hooks/useAdminAiHistory';
 import { parseJsonFromModel } from '../utils/aiJson';
 import AiPromptSuggestionButton from './AiPromptSuggestionButton';
+import AdminAIResponsePanel from './AdminAIResponsePanel';
 import {
     applyAdminAiActionSemantics,
     buildAdminAiPrompt,
@@ -56,6 +57,7 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
     const [instruction, setInstruction] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [answer, setAnswer] = useState('');
+    const [answerNotice, setAnswerNotice] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
     const [modelUsed, setModelUsed] = useState('');
     const [historyBusy, setHistoryBusy] = useState(false);
@@ -74,6 +76,7 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
         setSelectedActionId(capability.actions[0]?.id || '');
         setInstruction('');
         setAnswer('');
+        setAnswerNotice('');
         setErrorMessage('');
         setIsOpen(false);
     }, [capability.actions, widgetKey]);
@@ -139,6 +142,7 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
 
         setIsGenerating(true);
         setAnswer('');
+        setAnswerNotice('');
         setErrorMessage('');
         setModelUsed('');
 
@@ -166,20 +170,28 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
                 return;
             }
 
-            const parsed = parseJsonFromModel(content);
-            const candidates = uniqueCandidates(
-                extractAdminAiCandidates(parsed)
-                    .map((candidate) => normalizeAdminAiCandidate(widgetKey, candidate, baseline, {
-                        instruction: effectiveInstruction,
-                        actionId: selectedActionId,
-                    }))
-                    .map((candidate) => applyAdminAiActionSemantics(widgetKey, selectedActionId, baseline, candidate))
-                    .filter((candidate) => candidate !== undefined && candidate !== null),
-                baseline
-            );
+            let candidates;
+            try {
+                const parsed = parseJsonFromModel(content);
+                candidates = uniqueCandidates(
+                    extractAdminAiCandidates(parsed)
+                        .map((candidate) => normalizeAdminAiCandidate(widgetKey, candidate, baseline, {
+                            instruction: effectiveInstruction,
+                            actionId: selectedActionId,
+                        }))
+                        .map((candidate) => applyAdminAiActionSemantics(widgetKey, selectedActionId, baseline, candidate))
+                        .filter((candidate) => candidate !== undefined && candidate !== null),
+                    baseline
+                );
+            } catch {
+                setAnswer(content || 'המודל לא החזיר תשובה שניתן להחיל.');
+                setAnswerNotice('לא זוהה שינוי שניתן להחיל. תשובת ה-AI מוצגת למטה.');
+                return;
+            }
 
             if (!candidates.length) {
-                setAnswer('לא נמצא שינוי שימושי לבצע. התוכן הקיים נשאר ללא שינוי.');
+                setAnswer(content || 'לא התקבלה תשובה שניתן להחיל.');
+                setAnswerNotice('לא זוהה שינוי שניתן להחיל. התוכן הקיים נשאר ללא שינוי ותשובת ה-AI מוצגת למטה.');
                 return;
             }
 
@@ -213,7 +225,7 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
                 <div className="max-h-[78vh] overflow-y-auto px-5 py-5">
                     <div className="flex flex-wrap gap-2">
                         {capability.actions.map((item) => (
-                            <button key={item.id} type="button" onClick={() => { setSelectedActionId(item.id); setAnswer(''); setErrorMessage(''); }} className={`rounded-full border px-3 py-1.5 text-xs font-bold ${item.id === selectedActionId ? 'border-primary bg-primary/10 text-primary' : 'border-gray-200 text-gray-600 dark:border-white/10 dark:text-gray-300'}`}>
+                            <button key={item.id} type="button" onClick={() => { setSelectedActionId(item.id); setErrorMessage(''); }} className={`rounded-full border px-3 py-1.5 text-xs font-bold ${item.id === selectedActionId ? 'border-primary bg-primary/10 text-primary' : 'border-gray-200 text-gray-600 dark:border-white/10 dark:text-gray-300'}`}>
                                 {item.label}
                             </button>
                         ))}
@@ -235,12 +247,13 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
                     <textarea aria-label="הנחיית AI" value={instruction} onChange={(event) => setInstruction(event.target.value)} rows={6} placeholder={selectedAction?.hint || 'כתוב בקשה או הדבק טקסט...'} className="mt-2 w-full resize-y rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 outline-none dark:border-white/10 dark:bg-white/5" disabled={isGenerating} />
                     {!aiEnabled && <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm dark:border-amber-500/30 dark:bg-amber-500/10"><AlertTriangle size={15} className="ml-2 inline" />AI כבוי כרגע</div>}
                     {errorMessage && <div className="mt-4 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">{errorMessage}</div>}
-                    {answer && (
-                        <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
-                            <div className="mb-2 flex items-center gap-2 text-xs font-black text-gray-500"><Bot size={13} />תשובת AI {modelUsed ? `· ${modelUsed}` : ''}</div>
-                            <div className="whitespace-pre-wrap text-sm leading-7">{answer}</div>
-                        </div>
-                    )}
+                    <AdminAIResponsePanel
+                        content={answer}
+                        isLoading={readOnly && isGenerating}
+                        modelLabel={modelUsed}
+                        notice={answerNotice}
+                        onClear={() => { setAnswer(''); setAnswerNotice(''); }}
+                    />
                     <div className="mt-5 flex items-center justify-between gap-3 border-t border-gray-200 pt-4 dark:border-white/10">
                         <span className="text-xs text-gray-500">{readOnly ? 'ניתוח בלבד — התוכן לא ישתנה.' : 'התוצאה תוחל מיד ותישמר דרך המסך.'}</span>
                         <button type="button" onClick={generate} disabled={!aiEnabled || isGenerating} className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-black text-white disabled:opacity-50">
@@ -262,7 +275,7 @@ const AdminWidgetAIAssistant = forwardRef(function AdminWidgetAIAssistant({
                         <Sparkles size={15} />AI
                     </button>
                 )}
-                {history.visible && history.entries.length > 1 && (
+                {!readOnly && history.visible && history.entries.length > 1 && (
                     <div className="inline-flex h-10 items-center gap-0.5 rounded-xl border border-primary/25 bg-primary/5 p-1">
                         <button type="button" onClick={() => applyHistoryIndex(0)} disabled={historyBusy || index === 0} className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-[10px] font-bold text-primary disabled:opacity-35" title="לפני AI"><RotateCcw size={13} />לפני AI</button>
                         <button type="button" onClick={() => applyHistoryIndex(index - 1)} disabled={historyBusy || !canUndo} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-primary disabled:opacity-35" aria-label="הקודם"><Undo2 size={14} /></button>

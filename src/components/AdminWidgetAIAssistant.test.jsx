@@ -237,7 +237,7 @@ describe('AdminWidgetAIAssistant', () => {
     it('keeps analysis output visible without mutating content', async () => {
         const onChange = vi.fn();
         AIService.ask.mockResolvedValue({
-            content: 'מצאתי שני מבזקים דומים. מומלץ לאחד אותם.',
+            content: '## בדיקת מבזקים\n\nמצאתי **שני מבזקים דומים**.\n\n| בעיה | המלצה |\n|---|---|\n| כפילות | לבדוק איחוד |',
             modelUsed: 'test-model',
         });
 
@@ -254,8 +254,54 @@ describe('AdminWidgetAIAssistant', () => {
         fireEvent.change(screen.getByRole('textbox'), { target: { value: 'בדוק כפילויות' } });
         fireEvent.click(screen.getByRole('button', { name: 'נתח והצג תשובה' }));
 
-        expect(await screen.findByText('מצאתי שני מבזקים דומים. מומלץ לאחד אותם.')).toBeVisible();
+        expect(await screen.findByRole('heading', { name: 'בדיקת מבזקים' })).toBeVisible();
+        expect(screen.getByRole('table')).toHaveTextContent('כפילות');
         expect(onChange).not.toHaveBeenCalled();
+        expect(screen.queryByRole('button', { name: /לפני AI|הקודם|הבא/ })).not.toBeInTheDocument();
+    });
+
+    it('keeps mutation history intact without recording a later audit response', async () => {
+        const onPersist = vi.fn();
+        AIService.ask
+            .mockResolvedValueOnce({
+                content: JSON.stringify({
+                    items: [{ id: 'n2', text: 'מבזק חדש', isUrgent: false }],
+                }),
+                modelUsed: 'test-model',
+            })
+            .mockResolvedValueOnce({
+                content: '## בדיקה\n\nלא נמצאו כפילויות.',
+                modelUsed: 'test-model',
+            });
+
+        render(
+            <StatefulAssistant
+                widgetKey="news"
+                initialValue={[{ id: 'n1', text: 'מקור', isUrgent: false }]}
+                onPersist={onPersist}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'AI' }));
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: 'צור מבזק חדש' } });
+        fireEvent.click(screen.getByRole('button', { name: 'צור והחל מיד' }));
+        await waitFor(() => expect(onPersist).toHaveBeenCalledTimes(1));
+
+        fireEvent.click(screen.getByRole('button', { name: 'AI' }));
+        fireEvent.click(screen.getByRole('button', { name: 'בדוק את הרשימה' }));
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: 'בדוק כפילויות' } });
+        fireEvent.click(screen.getByRole('button', { name: 'נתח והצג תשובה' }));
+        expect(await screen.findByRole('heading', { name: 'בדיקה' })).toBeVisible();
+        expect(onPersist).toHaveBeenCalledTimes(1);
+
+        fireEvent.click(screen.getByRole('button', { name: 'הפוך למבזק' }));
+        fireEvent.click(screen.getByRole('button', { name: 'סגור' }));
+        expect(screen.getByText('1/1')).toBeVisible();
+
+        fireEvent.click(screen.getByRole('button', { name: 'לפני AI' }));
+        await waitFor(() => expect(onPersist).toHaveBeenCalledTimes(2));
+        fireEvent.click(screen.getByRole('button', { name: 'הבא' }));
+        await waitFor(() => expect(onPersist).toHaveBeenCalledTimes(3));
     });
 
     it('records external AI imports in the same before-AI history', async () => {
@@ -594,7 +640,7 @@ describe('AdminWidgetAIAssistant', () => {
         fireEvent.change(screen.getByRole('textbox'), { target: { value: 'הוסף את ישראל ישראלי למחלקת מטה' } });
         fireEvent.click(screen.getByRole('button', { name: 'צור והחל מיד' }));
 
-        expect(await screen.findByText(/לא נמצא שינוי שימושי/)).toBeVisible();
+        expect(await screen.findByText(/לא זוהה שינוי שניתן להחיל/)).toBeVisible();
         expect(onPersist).not.toHaveBeenCalled();
         expect(JSON.parse(screen.getByTestId('phonebook-state').textContent)).toEqual([]);
     });
@@ -627,7 +673,7 @@ describe('AdminWidgetAIAssistant', () => {
 
     it('shows Poll bias analysis without mutating state', async () => {
         const onPersist = vi.fn();
-        AIService.ask.mockResolvedValue({ content: 'השאלה מובילה ומומלץ לנסח אותה באופן ניטרלי.' });
+        AIService.ask.mockResolvedValue({ content: '## בדיקת הטיה\n\nהשאלה **מובילה** ומומלץ לנסח אותה באופן ניטרלי.' });
         render(
             <StatefulAssistant
                 widgetKey="polls"
@@ -641,7 +687,8 @@ describe('AdminWidgetAIAssistant', () => {
         fireEvent.change(screen.getByRole('textbox'), { target: { value: 'בדוק אם השאלה מוטה' } });
         fireEvent.click(screen.getByRole('button', { name: 'נתח והצג תשובה' }));
 
-        expect(await screen.findByText('השאלה מובילה ומומלץ לנסח אותה באופן ניטרלי.')).toBeVisible();
+        expect(await screen.findByRole('heading', { name: 'בדיקת הטיה' })).toBeVisible();
+        expect(screen.getByText('מובילה').tagName).toBe('STRONG');
         expect(onPersist).not.toHaveBeenCalled();
     });
 });

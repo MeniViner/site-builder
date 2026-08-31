@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ADMIN_AI_CAPABILITIES,
   applyAdminAiActionSemantics,
   extractAdminAiCandidates,
   isAdminAiReadOnly,
@@ -123,8 +124,45 @@ describe('adminAiCapabilities', () => {
     expect(isAdminAiReadOnly('gantt', 'audit')).toBe(true);
     expect(isAdminAiReadOnly('org-chart', 'audit')).toBe(true);
     expect(isAdminAiReadOnly('links', 'audit')).toBe(true);
+    expect(isAdminAiReadOnly('boom', 'audit')).toBe(true);
     expect(isAdminAiReadOnly('polls', 'rewrite-bias')).toBe(false);
     expect(isAdminAiReadOnly('links', 'fix-audit')).toBe(false);
+  });
+
+  it('keeps the complete read-only action inventory explicit in capability metadata', () => {
+    const actual = Object.entries(ADMIN_AI_CAPABILITIES).flatMap(([surface, capability]) => (
+      capability.actions
+        .filter((item) => capability.readOnly === true || item.readOnly === true)
+        .map((item) => `${surface}:${item.id}`)
+    ));
+    expect(actual).toEqual([
+      'links:audit',
+      'events:audit',
+      'galleries:audit',
+      'gantt:audit',
+      'gantt:status',
+      'boom:audit',
+      'org-chart:audit',
+      'org-chart:layout',
+      'alerts:audit',
+      'news:audit',
+      'phonebook:duplicates',
+      'shuttles:audit',
+      'polls:bias',
+      'polls:options',
+      'polls:results',
+      'heritage:attribution',
+      'tips:audit',
+      'admins:explain',
+      'admins:logs',
+      'site-owners:explain',
+      'site-owners:logs',
+      'backups:explain',
+      'backups:restore',
+      'backups:risk',
+      'ai-help:explain',
+      'ai-help:what-next',
+    ]);
   });
 
   it('preserves existing news when adding a generated flash', () => {

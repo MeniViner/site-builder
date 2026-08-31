@@ -7,6 +7,7 @@ import { parseJsonFromModel } from '../utils/aiJson';
 import { formatAiEngineLabel, getSafeAiRuntimeConfig } from '../config/ai.config';
 import DismissibleNotice from './DismissibleNotice';
 import AiPromptSuggestionButton from './AiPromptSuggestionButton';
+import AdminAIResponsePanel from './AdminAIResponsePanel';
 
 export default function AdminAIActionCard({
     title = 'עוזר AI',
@@ -34,7 +35,6 @@ export default function AdminAIActionCard({
     primaryPanelTabLabel = 'יצירת תוכן',
     secondaryPanelTabLabel = 'עוזר תפעולי',
     suggestedActions = [],
-    isReadOnlyRequest,
     suggestionSurfaceKey,
 }) {
     const runtimeConfig = useMemo(() => getSafeAiRuntimeConfig(), []);
@@ -49,8 +49,9 @@ export default function AdminAIActionCard({
     const [isOpen, setIsOpen] = useState(false);
     const [activePanelView, setActivePanelView] = useState('primary');
     const [hasAppliedResult, setHasAppliedResult] = useState(false);
-    const [selectedSuggestedActionId, setSelectedSuggestedActionId] = useState('');
-    const [resultReadOnly, setResultReadOnly] = useState(false);
+    const [selectedSuggestedActionId, setSelectedSuggestedActionId] = useState(suggestedActions[0]?.id || '');
+    const [resultReadOnly, setResultReadOnly] = useState(suggestedActions[0]?.readOnly === true);
+    const [responseNotice, setResponseNotice] = useState('');
     const lastAutoAppliedKeyRef = useRef('');
     const autoApplyingRef = useRef(false);
     const instructionInputId = useId();
@@ -92,14 +93,13 @@ export default function AdminAIActionCard({
         setAutoApplyStatus('');
         setRawOutput('');
         setParsedOutput(null);
+        setResponseNotice('');
 
         try {
             const selectedSuggestedAction = suggestedActions.find(
                 (action) => action.id === selectedSuggestedActionId
             );
-            const readOnlyRequest = selectedSuggestedAction
-                ? selectedSuggestedAction.readOnly === true
-                : isReadOnlyRequest?.(userInstruction) === true;
+            const readOnlyRequest = selectedSuggestedAction?.readOnly === true;
             setResultReadOnly(readOnlyRequest);
             const prompt = buildPrompt(userInstruction, {
                 action: selectedSuggestedAction,
@@ -121,8 +121,13 @@ export default function AdminAIActionCard({
             if (readOnlyRequest || mode !== 'json') {
                 setParsedOutput(content);
             } else {
-                const parsed = parseJsonFromModel(content);
-                setParsedOutput(parsed);
+                try {
+                    const parsed = parseJsonFromModel(content);
+                    setParsedOutput(parsed);
+                } catch {
+                    setParsedOutput(null);
+                    setResponseNotice('לא זוהה שינוי שניתן להחיל. תשובת ה-AI מוצגת למטה.');
+                }
             }
         } catch (error) {
             const msg = error?.message || 'יצירת תוכן ב-AI נכשלה';
@@ -147,7 +152,11 @@ export default function AdminAIActionCard({
 
         setIsApplying(true);
         try {
-            await onApply(parsedOutput, rawOutput);
+            const applied = await onApply(parsedOutput, rawOutput);
+            if (applied === false) {
+                setResponseNotice('לא זוהה שינוי שניתן להחיל. תשובת ה-AI מוצגת למטה.');
+                return;
+            }
             setHasAppliedResult(true);
             if (compact && autoCloseOnApply) {
                 setIsOpen(false);
@@ -177,8 +186,12 @@ export default function AdminAIActionCard({
             autoApplyingRef.current = true;
             setAutoApplyStatus('מחיל הצעת AI אוטומטית...');
             try {
-                await onApply(parsedOutput, rawOutput);
+                const applied = await onApply(parsedOutput, rawOutput);
                 if (!cancelled) {
+                    if (applied === false) {
+                        setResponseNotice('לא זוהה שינוי שניתן להחיל. תשובת ה-AI מוצגת למטה.');
+                        return;
+                    }
                     setHasAppliedResult(true);
                     if (compact && autoCloseOnApply) {
                         setIsOpen(false);
@@ -251,7 +264,6 @@ export default function AdminAIActionCard({
                                 onClick={() => {
                                     setSelectedSuggestedActionId(action.id);
                                     setInstruction(action.prompt);
-                                    setRawOutput('');
                                     setParsedOutput(null);
                                     setParseError('');
                                     setResultReadOnly(action.readOnly === true);
@@ -305,7 +317,7 @@ export default function AdminAIActionCard({
                         <span className="hidden">
                             {/* {autoApplyStatus || 'ההצעה האחרונה תוחל אוטומטית'} */}
                         </span>
-                    ) : (
+                    ) : !resultReadOnly ? (
                         <button
                             type="button"
                             onClick={handleApply}
@@ -314,9 +326,9 @@ export default function AdminAIActionCard({
                         >
                             {isApplying ? 'מחיל...' : applyButtonLabel}
                         </button>
-                    )}
+                    ) : null}
 
-                    {(typeof onUndo === 'function' || typeof onRedo === 'function') && (
+                    {!resultReadOnly && (typeof onUndo === 'function' || typeof onRedo === 'function') && (
                         <div className="inline-flex items-center gap-1 rounded-xl border border-theme-subtle bg-theme-card p-1">
                             <button
                                 type="button"
@@ -350,16 +362,22 @@ export default function AdminAIActionCard({
                     </DismissibleNotice>
                 )}
 
-                {rawOutput && (
+                {(resultReadOnly || responseNotice) ? (
+                    <AdminAIResponsePanel
+                        content={rawOutput}
+                        isLoading={resultReadOnly && isGenerating}
+                        modelLabel={modelUsed}
+                        notice={responseNotice}
+                        onClear={() => { setRawOutput(''); setResponseNotice(''); }}
+                    />
+                ) : rawOutput ? (
                     <div className="rounded-xl border border-theme-subtle bg-theme-card p-3">
-                        <div className="mb-1 text-xs font-bold uppercase tracking-wide text-theme-muted">
-                            {resultReadOnly ? 'תשובת AI — ניתוח בלבד' : 'פלט AI'}
-                        </div>
-                        <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words text-xs text-theme">
+                        <div className="mb-1 text-xs font-bold uppercase tracking-wide text-theme-muted">פלט AI</div>
+                        <pre dir="ltr" className="max-h-56 overflow-auto whitespace-pre-wrap break-words text-left font-mono text-xs text-theme">
                             {rawOutput}
                         </pre>
                     </div>
-                )}
+                ) : null}
             </div>
         </section>
     );
@@ -379,7 +397,7 @@ export default function AdminAIActionCard({
                 {compactLabel}
             </button>
 
-            {hasAppliedResult && (typeof onUndo === 'function' || typeof onRedo === 'function') && (
+            {hasAppliedResult && !resultReadOnly && (typeof onUndo === 'function' || typeof onRedo === 'function') && (
                 <div className="inline-flex h-10 items-center gap-1 rounded-xl border border-primary/25 bg-primary/5 p-1" title="שינוי AI הוחל. אפשר לדפדף אחורה וקדימה.">
                     <button
                         type="button"

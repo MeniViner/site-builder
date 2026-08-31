@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, Bot, Copy, Sparkles, Trash2 } from 'lucide-react';
+import { AlertTriangle, Bot, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import AIService from '../services/AIService';
 import { formatAiEngineLabel, getSafeAiRuntimeConfig } from '../config/ai.config';
 import AiPromptSuggestionButton from './AiPromptSuggestionButton';
 import { getAiPromptSuggestions } from '../utils/aiPromptSuggestions';
+import AdminAIResponsePanel from './AdminAIResponsePanel';
 
 const QUICK_PROMPTS = getAiPromptSuggestions('ai-help');
 const DEFAULT_QUESTION = QUICK_PROMPTS[0] || '';
@@ -62,16 +63,6 @@ export default function AdminAIHelp({ embedded = false }) {
             toast.error(error?.message || 'שליחת השאלה ל-AI נכשלה');
         } finally {
             setIsLoading(false);
-        }
-    };
-
-    const handleCopyAnswer = async () => {
-        if (!answer) return;
-        try {
-            await navigator.clipboard.writeText(answer);
-            toast.success('התשובה הועתקה');
-        } catch {
-            toast.error('ההעתקה נכשלה');
         }
     };
 
@@ -166,15 +157,6 @@ export default function AdminAIHelp({ embedded = false }) {
                         <Trash2 size={14} />
                         נקה
                     </button>
-                    <button
-                        type="button"
-                        onClick={handleCopyAnswer}
-                        disabled={!answer}
-                        className="h-10 rounded-xl px-3 text-sm font-bold border border-black/15 bg-white text-black hover:bg-black/[0.04] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1 dark:border-white/15 dark:bg-[#151515] dark:text-white dark:hover:bg-white/[0.08]"
-                    >
-                        <Copy size={14} />
-                        העתק תשובה
-                    </button>
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -216,22 +198,15 @@ export default function AdminAIHelp({ embedded = false }) {
                     </div>
                 )}
 
-                {answer && (
-                    <div className={`mt-4 ${embedded ? 'h-[300px]' : 'h-[clamp(180px,30vh,320px)]'} rounded-2xl border border-black/10 bg-white p-4 overflow-y-auto dark:border-white/10 dark:bg-[#0f0f10]`}>
-                        <div className="mb-3 flex items-center justify-between gap-3">
-                            <h2 className="text-sm font-black text-black dark:text-white">תשובה</h2>
-                            {modelUsed && (
-                                <div className="text-[11px] text-theme-muted inline-flex items-center gap-1">
-                                    <Bot size={12} />
-                                    {modelUsed}
-                                </div>
-                            )}
-                        </div>
-                        <div className="whitespace-pre-wrap leading-7 text-sm text-black/90 dark:text-white/90">{answer}</div>
-                    </div>
-                )}
+                <AdminAIResponsePanel
+                    content={answer}
+                    isLoading={isLoading}
+                    modelLabel={modelUsed}
+                    onClear={() => setAnswer('')}
+                    className={embedded ? 'max-h-[360px] overflow-y-auto' : ''}
+                />
 
-                {!answer && (
+                {!answer && !isLoading && (
                     <div className={`mt-4 ${embedded ? 'h-[300px]' : 'h-[clamp(180px,30vh,320px)]'} rounded-2xl border border-black/10 bg-white p-5 flex items-center justify-center dark:border-white/10 dark:bg-[#0f0f10]`}>
                         <div className="w-full max-w-xl text-right">
                             <div className="flex items-start gap-3">

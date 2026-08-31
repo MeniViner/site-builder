@@ -633,17 +633,17 @@ export default function AdminSiteContent() {
         const normalized = normalizeAiSiteContentPayload(parsed, hero, commander);
         const current = getContentSnapshot();
         const next = { hero: normalized.hero, commander: normalized.commander };
-        if (JSON.stringify(current) !== JSON.stringify(next)) {
-            setAiHistory((prev) => ({
-                past: [...prev.past, current].slice(-20),
-                future: [],
-            }));
-        }
+        if (JSON.stringify(current) === JSON.stringify(next)) return false;
+        setAiHistory((prev) => ({
+            past: [...prev.past, current].slice(-20),
+            future: [],
+        }));
         setHero(normalized.hero);
         setCommander(normalized.commander);
         setActiveSettingId('hero-content');
         setEditingMessage(null);
         toast.success('הצעת AI הוחלה על תוכן האתר');
+        return true;
     };
 
     const cleanImprovedText = (rawText, maxLines = 3) => {

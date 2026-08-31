@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import {
   AlertTriangle,
-  Bot,
   CheckCircle2,
   Loader2,
   MessageSquare,
@@ -26,6 +25,7 @@ import { useOrgChart } from '../context/OrgChartContext';
 import { useBoom } from '../context/BoomContext';
 import AdminAIHistoryBar from './AdminAIHistoryBar';
 import AiPromptSuggestionButton from './AiPromptSuggestionButton';
+import AdminAIResponsePanel from './AdminAIResponsePanel';
 import {
   applyAdminAiActionSemantics,
   buildAdminAiPrompt,
@@ -138,6 +138,7 @@ export default function AdminAICopilot({ activeTab }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [historyBusy, setHistoryBusy] = useState(false);
   const [answer, setAnswer] = useState('');
+  const [answerNotice, setAnswerNotice] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [modelUsed, setModelUsed] = useState('');
   const historiesRef = useRef({});
@@ -174,6 +175,7 @@ export default function AdminAICopilot({ activeTab }) {
     setSelectedActionId(capability.actions[0]?.id || '');
     setInstruction('');
     setAnswer('');
+    setAnswerNotice('');
     setErrorMessage('');
     setIsOpen(false);
   }, [activeTab, capability.actions]);
@@ -290,11 +292,11 @@ export default function AdminAICopilot({ activeTab }) {
       return;
     }
     if (activeTab === 'galleries') {
-      await saveGalleries(snapshot || []);
+      ensureSuccess(await saveGalleries(snapshot || []), 'שמירת הגלריות נכשלה');
       return;
     }
     if (activeTab === 'gantt') {
-      await saveGantt(snapshot || {});
+      ensureSuccess(await saveGantt(snapshot || {}), 'שמירת הגאנט נכשלה');
       return;
     }
     if (activeTab === 'org-chart') {
@@ -407,6 +409,7 @@ export default function AdminAICopilot({ activeTab }) {
 
     setIsGenerating(true);
     setAnswer('');
+    setAnswerNotice('');
     setErrorMessage('');
     setModelUsed('');
 
@@ -440,15 +443,22 @@ export default function AdminAICopilot({ activeTab }) {
         return;
       }
 
-      const parsed = parseJsonFromModel(content);
-      const rawCandidates = extractAdminAiCandidates(parsed);
-      const normalized = rawCandidates
-        .map((candidate) => normalizeAdminAiCandidate(activeTab, candidate, baseline, {
-          instruction: effectiveInstruction,
-          actionId: selectedActionId,
-        }))
-        .map((candidate) => applyAdminAiActionSemantics(activeTab, selectedActionId, baseline, candidate))
-        .filter((candidate) => candidate !== undefined && candidate !== null);
+      let normalized;
+      try {
+        const parsed = parseJsonFromModel(content);
+        const rawCandidates = extractAdminAiCandidates(parsed);
+        normalized = rawCandidates
+          .map((candidate) => normalizeAdminAiCandidate(activeTab, candidate, baseline, {
+            instruction: effectiveInstruction,
+            actionId: selectedActionId,
+          }))
+          .map((candidate) => applyAdminAiActionSemantics(activeTab, selectedActionId, baseline, candidate))
+          .filter((candidate) => candidate !== undefined && candidate !== null);
+      } catch {
+        setAnswer(content || 'המודל לא החזיר תשובה שניתן להחיל.');
+        setAnswerNotice('לא זוהה שינוי שניתן להחיל. תשובת ה-AI מוצגת למטה.');
+        return;
+      }
 
       const changed = await recordCandidatesAndApply(baseline, normalized, selectedAction?.label || 'שינוי AI');
       if (changed) {
@@ -458,7 +468,8 @@ export default function AdminAICopilot({ activeTab }) {
           ? `הוחלה חלופה 1. אפשר לדפדף בין ${normalized.length} תוצאות בסרגל AI.`
           : 'הצעת ה-AI הוחלה מיד. אפשר לחזור אחורה דרך סרגל AI.');
       } else {
-        setAnswer('לא נמצא שינוי שימושי לבצע על המצב הקיים. שום דבר באתר לא שונה.');
+        setAnswer(content || 'לא התקבלה תשובה שניתן להחיל.');
+        setAnswerNotice('לא זוהה שינוי שניתן להחיל. שום דבר באתר לא שונה ותשובת ה-AI מוצגת למטה.');
       }
     } catch (error) {
       const message = error?.message || 'פעולת AI נכשלה';
@@ -521,7 +532,6 @@ export default function AdminAICopilot({ activeTab }) {
                     type="button"
                     onClick={() => {
                       setSelectedActionId(item.id);
-                      setAnswer('');
                       setErrorMessage('');
                     }}
                     className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
@@ -595,14 +605,13 @@ export default function AdminAICopilot({ activeTab }) {
                 </div>
               )}
 
-              {answer && (
-                <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
-                  <div className="mb-2 flex items-center gap-2 text-xs font-black text-gray-500 dark:text-gray-400">
-                    <Bot size={13} /> תשובת AI {modelUsed ? `· ${modelUsed}` : ''}
-                  </div>
-                  <div className="whitespace-pre-wrap text-sm leading-7 text-gray-800 dark:text-gray-100">{answer}</div>
-                </div>
-              )}
+              <AdminAIResponsePanel
+                content={answer}
+                isLoading={readOnly && isGenerating}
+                modelLabel={modelUsed}
+                notice={answerNotice}
+                onClear={() => { setAnswer(''); setAnswerNotice(''); }}
+              />
 
               <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4 dark:border-white/10">
                 <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -640,7 +649,7 @@ export default function AdminAICopilot({ activeTab }) {
 
       <AdminAIHistoryBar
         pageTitle={capability.title}
-        history={activeHistory}
+        history={readOnly ? null : activeHistory}
         busy={historyBusy}
         onPrevious={() => applyHistoryIndex((activeHistory?.index || 0) - 1)}
         onNext={() => applyHistoryIndex((activeHistory?.index || 0) + 1)}

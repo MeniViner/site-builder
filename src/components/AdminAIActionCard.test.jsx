@@ -79,4 +79,76 @@ describe('AdminAIActionCard prompt suggestions', () => {
         expect(getAiPromptSuggestions('events', 'audit')).toContain(screen.getByRole('textbox').value);
         expect(AIService.ask).not.toHaveBeenCalled();
     });
+
+    it('renders a read-only action response without applying or showing mutation controls', async () => {
+        const onApply = vi.fn();
+        AIService.ask.mockResolvedValue({
+            content: '## בדיקת לוח\n\n| בעיה | פרטים |\n|---|---|\n| כפילות | שני אירועים דומים |',
+            modelUsed: 'test-model',
+        });
+        render(
+            <AdminAIActionCard
+                suggestionSurfaceKey="events"
+                buildPrompt={vi.fn(() => 'AUDIT PROMPT')}
+                onApply={onApply}
+                autoApplyLatest={false}
+                onUndo={vi.fn()}
+                onRedo={vi.fn()}
+                suggestedActions={[
+                    { id: 'generate', label: 'צור אירועים', prompt: 'צור אירועים' },
+                    { id: 'audit', label: 'בדוק את הלוח', prompt: 'בדוק', readOnly: true },
+                ]}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'בדוק את הלוח' }));
+        fireEvent.click(screen.getByRole('button', { name: 'נתח והצג תשובה' }));
+
+        expect(await screen.findByRole('heading', { name: 'בדיקת לוח' })).toBeVisible();
+        expect(screen.getByRole('table')).toHaveTextContent('כפילות');
+        expect(onApply).not.toHaveBeenCalled();
+        expect(screen.queryByRole('button', { name: 'החל הצעה' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /בטל שינוי AI|בצע מחדש/ })).not.toBeInTheDocument();
+    });
+
+    it('shows raw model prose instead of applying an invalid mutating response', async () => {
+        const onApply = vi.fn();
+        AIService.ask.mockResolvedValue({
+            content: 'לא הצלחתי להפיק אירועים מובנים מהמידע שסופק.',
+            modelUsed: 'test-model',
+        });
+        render(
+            <AdminAIActionCard
+                defaultInput="צור אירועים"
+                buildPrompt={vi.fn(() => 'MUTATION PROMPT')}
+                onApply={onApply}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'צור עם AI' }));
+
+        expect(await screen.findByText('לא זוהה שינוי שניתן להחיל. תשובת ה-AI מוצגת למטה.')).toBeVisible();
+        expect(screen.getByText('לא הצלחתי להפיק אירועים מובנים מהמידע שסופק.')).toBeVisible();
+        expect(onApply).not.toHaveBeenCalled();
+    });
+
+    it('keeps valid mutating auto-apply behavior', async () => {
+        const parsed = { events: [{ id: 'e1', title: 'אירוע' }] };
+        const onApply = vi.fn(async () => true);
+        AIService.ask.mockResolvedValue({
+            content: JSON.stringify(parsed),
+            modelUsed: 'test-model',
+        });
+        render(
+            <AdminAIActionCard
+                defaultInput="צור אירועים"
+                buildPrompt={vi.fn(() => 'MUTATION PROMPT')}
+                onApply={onApply}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'צור עם AI' }));
+        await waitFor(() => expect(onApply).toHaveBeenCalledWith(parsed, JSON.stringify(parsed)));
+        expect(screen.queryByText(/לא זוהה שינוי/)).not.toBeInTheDocument();
+    });
 });

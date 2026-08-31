@@ -45,6 +45,11 @@ function openTaskModal() {
 }
 
 describe('AdminGantt category combobox', () => {
+    it('does not render the removed upper AI launcher', () => {
+        render(<AdminGantt />);
+        expect(screen.queryByRole('button', { name: 'AI' })).not.toBeInTheDocument();
+    });
+
     it('shows existing categories and lets the user select one instead of only typing', () => {
         const dialog = openTaskModal();
         const categoryInput = within(dialog).getByRole('combobox', { name: 'תחום / קטגוריה' });

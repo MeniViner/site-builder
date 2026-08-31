@@ -40,12 +40,8 @@ const EVENTS_AI_ACTIONS = [
     { id: 'audit', label: 'בדוק את הלוח', prompt: 'בדוק כפילויות, ניסוחים לא ברורים ותאריכים חשודים והצג המלצות בלבד.', readOnly: true },
 ];
 
-function resolveEventsAiOperation(instruction, suggestedAction) {
-    if (suggestedAction?.id) return suggestedAction.id;
-    if (/בדוק|נתח|כפילות|כפילויות|audit|review/i.test(instruction)) return 'audit';
-    if (/הוסף|תוסיף|\badd\b/i.test(instruction)) return 'add';
-    if (/שפר|קצר|נסח מחדש|improve|rewrite/i.test(instruction)) return 'improve';
-    return 'generate';
+function resolveEventsAiOperation(suggestedAction) {
+    return suggestedAction?.id || 'generate';
 }
 
 function getUrlPromptKeys(token) {
@@ -436,7 +432,7 @@ export default function AdminEvents({ onClose, inHub = false }) {
 
     const buildEventsAiPrompt = (instruction, requestOptions = {}) => {
         const today = new Date().toISOString().slice(0, 10);
-        const operation = resolveEventsAiOperation(instruction, requestOptions.action);
+        const operation = resolveEventsAiOperation(requestOptions.action);
         aiOperationRef.current = operation;
         const requestedEventCount = operation === 'improve'
             ? Math.max(1, Math.min(6, events.length || DEFAULT_AI_EVENTS_COUNT))
@@ -508,9 +504,10 @@ export default function AdminEvents({ onClose, inHub = false }) {
                 return candidate;
             })
             .filter((candidate) => JSON.stringify(candidate) !== JSON.stringify(current));
-        if (!candidates.length) return;
+        if (!candidates.length) return false;
         await recordAndApplyAiEvents(candidates, current, 'אירועי AI');
         toast.success('הצעת AI הוחלה על אירועי החודש');
+        return true;
     };
 
     if (loading && !events.length) {
@@ -550,7 +547,6 @@ export default function AdminEvents({ onClose, inHub = false }) {
                                     applyButtonLabel="החל על אירועים"
                                     generateButtonLabel="ייצר אירועים"
                                     suggestedActions={EVENTS_AI_ACTIONS}
-                                    isReadOnlyRequest={(instruction) => resolveEventsAiOperation(instruction) === 'audit'}
                                 />
                             )}
                             <button
