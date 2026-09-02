@@ -92,10 +92,10 @@ const OVERLAY_BORDER_STYLE_OPTIONS = [
     { value: 'none', label: 'ללא מסגרת' },
     { value: 'standard', label: 'סטנדרטי' },
     { value: 'square', label: 'מרובע' },
-    { value: 'cyber', label: 'סייבר' },
-    { value: 'armor', label: 'שריון' },
-    { value: 'shield', label: 'מגן' },
-    { value: 'blade', label: 'להב' },
+    // { value: 'cyber', label: 'סייבר' },
+    // { value: 'armor', label: 'שריון' },
+    // { value: 'shield', label: 'מגן' },
+    // { value: 'blade', label: 'להב' },
 ];
 
 const OVERLAY_OBJECT_FIT_OPTIONS = [

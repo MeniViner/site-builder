@@ -1,4 +1,4 @@
-import { computeGanttProgress } from './ganttData';
+import { computeGanttProgress } from './ganttData.js';
 
 export const BOOM_STATUS_OPTIONS = Object.freeze([
     { value: 'planned', label: 'מתוכנן' },

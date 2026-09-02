@@ -265,7 +265,7 @@ export async function runLegacyDeploy({
       );
       runBootstrapRobocopy(
         {
-          command: `robocopy "${bootstrapTransport.stagedDistRoot}" "${bootstrapTransport.bootstrapTargetDir}" /MIR /XF "${LEGACY_ENTRY_POINT}" /R:3 /W:5`,
+          command: `robocopy "${bootstrapTransport.stagedDistRoot}" "${bootstrapTransport.bootstrapTargetDir}" /E /XF "${LEGACY_ENTRY_POINT}" /R:3 /W:5`,
           operation: 'mirror-current-bootstrap-dist',
           source: bootstrapTransport.stagedDistRoot,
           destination: bootstrapTransport.bootstrapTargetDir,
