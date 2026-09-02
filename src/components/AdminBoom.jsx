@@ -478,7 +478,7 @@ export default function AdminBoom() {
                                 </div>
                             </div>
 
-                            <h3 className="mt-6 text-sm font-black text-gray-900 dark:text-white">סגנון תצוגה</h3>
+                            {/* <h3 className="mt-6 text-sm font-black text-gray-900 dark:text-white">סגנון תצוגה</h3>
                             <div className="mt-5 space-y-3">
                                 {BOOM_DESIGN_PRESETS.map((preset) => {
                                     const selected = draft.design.preset === preset.id;
@@ -499,7 +499,7 @@ export default function AdminBoom() {
                                         </button>
                                     );
                                 })}
-                            </div>
+                            </div> */}
                             <div className="mt-6">
                                 <h3 className="text-sm font-black text-gray-900 dark:text-white">מדדים בשורת הסטטוס</h3>
                                 <div className="mt-3 grid gap-2 sm:grid-cols-2">

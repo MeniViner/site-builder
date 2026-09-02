@@ -27,7 +27,7 @@ export const BOOM_SUMMARY_METRICS = Object.freeze([
     { id: 'categories', label: 'תחומים', icon: 'categories' },
 ]);
 
-const DEFAULT_SUMMARY_METRICS = ['total', 'active', 'blocked', 'overdue'];
+const DEFAULT_SUMMARY_METRICS = ['total', 'active', 'owners', 'categories'];
 
 export const BOOM_TABLE_DENSITIES = Object.freeze([
     { value: 'compact', label: 'קומפקטי' },
