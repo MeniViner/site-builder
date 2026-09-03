@@ -1906,18 +1906,18 @@ export default function AdminTheme() {
                                     <div className={`mt-4 pt-4 border-t border-gray-200 dark:border-white/10 ${draft.topNavGlassEffect === true ? '' : 'opacity-60'}`} dir="ltr">
                                         <div className="mb-2 flex items-center justify-between" dir="rtl">
                                             <span className="text-xs font-bold text-gray-700 dark:text-gray-300">עוצמת אפקט זכוכית</span>
-                                            <span className="text-xs font-black text-primary">{Math.max(0, Math.min(100, Number(draft.topNavGlassStrength) || 62))}%</span>
+                                            <span className="text-xs font-black text-primary">{Math.max(0, Math.min(100, Number.isFinite(Number(draft.topNavGlassStrength)) ? Number(draft.topNavGlassStrength) : 1))}%</span>
                                         </div>
                                         <input
                                             type="range"
                                             min={0}
                                             max={100}
                                             step={1}
-                                            value={Math.max(0, Math.min(100, Number(draft.topNavGlassStrength) || 62))}
+                                            value={Math.max(0, Math.min(100, Number.isFinite(Number(draft.topNavGlassStrength)) ? Number(draft.topNavGlassStrength) : 1))}
                                             disabled={draft.topNavGlassEffect !== true}
                                             onChange={(e) => updateField('topNavGlassStrength', Number(e.target.value))}
                                             className="tint-strength-slider w-full cursor-pointer disabled:cursor-not-allowed"
-                                            style={{ '--slider-fill': `${Math.max(0, Math.min(100, Number(draft.topNavGlassStrength) || 62))}%` }}
+                                            style={{ '--slider-fill': `${Math.max(0, Math.min(100, Number.isFinite(Number(draft.topNavGlassStrength)) ? Number(draft.topNavGlassStrength) : 1))}%` }}
                                             aria-label="עוצמת אפקט זכוכית בניווט העליון"
                                         />
                                     </div>

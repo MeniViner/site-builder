@@ -106,10 +106,10 @@ export default function NavigationBar({
   onBrandClick,
 }) {
   const location = useLocation();
-  const topNavGlassEffect = theme?.topNavGlassEffect === true;
+  const topNavGlassEffect = theme?.topNavGlassEffect !== false;
   const topNavGlassStrength = Number.isFinite(Number(theme?.topNavGlassStrength))
     ? Math.max(0, Math.min(100, Math.round(Number(theme.topNavGlassStrength))))
-    : 62;
+    : 1;
   const navGlassBlur = 8 + (topNavGlassStrength * 0.34);
   const navGlassBackgroundAlpha = effectiveMode === 'dark'
     ? 0.12 + (topNavGlassStrength * 0.0022)

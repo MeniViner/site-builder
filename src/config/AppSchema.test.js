@@ -8,6 +8,15 @@ import {
 } from '../utils/commanderImage';
 
 describe('migrateLegacyToV1', () => {
+    it('enables the top-navigation glass effect at one percent by default', () => {
+        const normalized = validateAndNormalize(DEFAULT_CONFIG_V1);
+
+        expect(normalized.theme.backgrounds.navbar).toEqual({
+            glassEffect: true,
+            glassStrength: 1,
+        });
+    });
+
     it('preserves default branches when partial legacy data omits them', () => {
         const defaults = validateAndNormalize(DEFAULT_CONFIG_V1);
         const migrated = migrateLegacyToV1({

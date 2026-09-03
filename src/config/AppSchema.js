@@ -728,8 +728,8 @@ export const DEFAULT_CONFIG_V1 = {
                 glassStrength: 58,
             },
             navbar: {
-                glassEffect: false,
-                glassStrength: 62,
+                glassEffect: true,
+                glassStrength: 1,
             },
         },
     },
