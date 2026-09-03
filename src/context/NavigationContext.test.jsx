@@ -93,8 +93,7 @@ describe('NavigationContext SharePoint binding persistence', () => {
         });
     });
 
-    it('loads legacy URL nodes unchanged and without automatic provisioning metadata', () => {
-        mocks.config = {
+    it('loads legacy URL nodes unchanged and without automatic provisioning metadata', () => {        mocks.config = {
             navigation: {
                 items: [{
                     id: 'legacy',
@@ -119,5 +118,66 @@ describe('NavigationContext SharePoint binding persistence', () => {
             url: expect.stringMatching(/^#\/file-explorer\?target=/),
             children: [],
         });
+    });
+
+    it('round-trips a level-3 automatic folder binding and caps the tree at three levels', () => {
+        const libraryRoot = '/sites/demo/מסמכים מקצועיים';
+        const level2 = `${libraryRoot}/תכניות עבודה`;
+        const level3 = `${level2}/2026`;
+        const folderBinding = (serverRelativeUrl, parentServerRelativeUrl, physicalName) => ({
+            version: 1,
+            mode: 'sharepoint-auto',
+            targetKind: 'folder',
+            state: 'verified',
+            serverRelativeUrl,
+            listId: '{LIST-ID}',
+            libraryTitle: 'מסמכים מקצועיים',
+            libraryRootServerRelativeUrl: libraryRoot,
+            parentServerRelativeUrl,
+            physicalName,
+            provisionKey: `folder:${serverRelativeUrl}`,
+        });
+
+        mocks.config = {
+            navigation: {
+                items: [{
+                    id: 'category-1',
+                    label: 'מסמכים מקצועיים',
+                    kind: 'folder',
+                    icon: 'Folder',
+                    iconUrl: '',
+                    url: libraryRoot,
+                    targetBinding: { ...targetBinding, serverRelativeUrl: libraryRoot, libraryRootServerRelativeUrl: libraryRoot },
+                    children: [{
+                        id: 'sub-1',
+                        title: 'תכניות עבודה',
+                        kind: 'folder',
+                        url: level2,
+                        targetBinding: folderBinding(level2, libraryRoot, 'תכניות עבודה'),
+                        subLinks: [{
+                            id: 'leaf-1',
+                            label: '2026',
+                            kind: 'link',
+                            url: level3,
+                            targetBinding: folderBinding(level3, level2, '2026'),
+                            // A fourth level must never survive normalization.
+                            subLinks: [{ id: 'too-deep', label: 'רבעון 1', url: `${level3}/רבעון 1` }],
+                        }],
+                    }],
+                }],
+            },
+        };
+
+        render(<NavigationProvider><Harness /></NavigationProvider>);
+
+        const [category] = JSON.parse(screen.getByTestId('navigation').textContent);
+        const [subcategory] = category.children;
+        // The legacy-shaped tree exposes level 3 as subLinks, and never a fourth level.
+        const [leaf] = subcategory.subLinks;
+
+        expect(subcategory.targetBinding).toEqual(folderBinding(level2, libraryRoot, 'תכניות עבודה'));
+        expect(leaf.targetBinding).toEqual(folderBinding(level3, level2, '2026'));
+        expect(leaf).not.toHaveProperty('subLinks');
+        expect(leaf).not.toHaveProperty('children');
     });
 });

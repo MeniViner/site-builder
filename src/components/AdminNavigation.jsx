@@ -19,6 +19,7 @@ import DismissibleNotice from './DismissibleNotice';
 import {
     createNavigationNodeId,
     getNavigationTargetBinding,
+    NAVIGATION_MAX_LEVEL,
     NAVIGATION_TARGET_KINDS,
     NAVIGATION_TARGET_MODES,
 } from '../utils/navigationModel';
@@ -32,17 +33,35 @@ function moveArrayItem(source, fromIndex, toIndex) {
     return copy;
 }
 
+const NAVIGATION_LEVEL_NOUNS = Object.freeze(['קטגוריה', 'תת־קטגוריה', 'פריט ברמה השלישית']);
+
+const NAVIGATION_AUTOMATIC_EXPLANATIONS = Object.freeze([
+    'יצירת ספריית מסמכים חדשה ומאומתת ב-SharePoint.',
+    'יצירת תיקייה אמיתית בתוך ספריית המסמכים של הקטגוריה.',
+    'יצירת תיקייה מקוננת בתוך תיקיית תת־הקטגוריה שנבחרה.',
+]);
+
+const NAVIGATION_AUTOMATIC_UNAVAILABLE_HINTS = Object.freeze([
+    '',
+    'יצירה אוטומטית זמינה רק בתוך קטגוריה שמקושרת לספריית SharePoint מאומתת.',
+    'יצירה אוטומטית זמינה רק בתוך תת־קטגוריה שמקושרת לתיקיית SharePoint מאומתת. עדיין ניתן להוסיף קישור קיים/ידני.',
+]);
+
+const NAVIGATION_NAME_PLACEHOLDERS = Object.freeze(['לדוגמה: מסמכים מקצועיים', 'לדוגמה: תכניות עבודה', 'לדוגמה: 2026']);
+
 function NavigationTargetDialog({ dialog, onChange, onClose, onSubmit }) {
     if (!dialog) return null;
     const isAutomatic = dialog.mode === NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO;
-    const noun = dialog.level === 0 ? 'קטגוריה' : 'תת-קטגוריה';
+    const noun = NAVIGATION_LEVEL_NOUNS[dialog.level] || NAVIGATION_LEVEL_NOUNS[0];
+    const automaticExplanation = NAVIGATION_AUTOMATIC_EXPLANATIONS[dialog.level] || NAVIGATION_AUTOMATIC_EXPLANATIONS[0];
+    const automaticUnavailableHint = NAVIGATION_AUTOMATIC_UNAVAILABLE_HINTS[dialog.level] || NAVIGATION_AUTOMATIC_UNAVAILABLE_HINTS[1];
 
     return (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" dir="rtl">
             <div role="dialog" aria-modal="true" aria-labelledby="navigation-target-dialog-title" className="w-full max-w-xl rounded-[28px] bg-white p-5 shadow-2xl dark:bg-[#141418] sm:p-7">
                 <div className="flex items-start justify-between gap-4">
                     <div>
-                        <h2 id="navigation-target-dialog-title" className="text-2xl font-black text-gray-900 dark:text-white">יצירת {noun} חדשה</h2>
+                        <h2 id="navigation-target-dialog-title" className="text-2xl font-black text-gray-900 dark:text-white">יצירת {noun}</h2>
                         <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">בחרו אם ליצור יעד SharePoint חדש או לקשר ליעד קיים.</p>
                     </div>
                     <button type="button" onClick={onClose} disabled={dialog.submitting} className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-gray-500 transition-[background-color,color,transform] hover:bg-gray-100 hover:text-gray-900 active:scale-[0.96] disabled:opacity-50 dark:hover:bg-white/10 dark:hover:text-white" aria-label="סגירת חלון">
@@ -51,18 +70,25 @@ function NavigationTargetDialog({ dialog, onChange, onClose, onSubmit }) {
                 </div>
 
                 <form onSubmit={onSubmit} className="mt-6 space-y-5">
-                    <label className="block">
-                        <span className="mb-1.5 block text-sm font-black text-gray-700 dark:text-gray-200">שם תצוגה</span>
-                        <input
-                            autoFocus
-                            disabled={dialog.submitting}
-                            value={dialog.displayName}
-                            onChange={(event) => onChange({ displayName: event.target.value, error: '' })}
-                            className="min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm font-bold text-gray-900 outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-2 focus:ring-primary/15 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                            placeholder={dialog.level === 0 ? 'לדוגמה: תכניות עבודה' : 'לדוגמה: תכנון שנתי'}
-                            required
-                        />
-                    </label>
+                    <div>
+                        <label className="block">
+                            <span className="mb-1.5 block text-sm font-black text-gray-700 dark:text-gray-200">שם תצוגה</span>
+                            <input
+                                autoFocus
+                                disabled={dialog.submitting}
+                                value={dialog.displayName}
+                                onChange={(event) => onChange({ displayName: event.target.value, error: '' })}
+                                className="min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm font-bold text-gray-900 outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-2 focus:ring-primary/15 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                                placeholder={NAVIGATION_NAME_PLACEHOLDERS[dialog.level] || NAVIGATION_NAME_PLACEHOLDERS[0]}
+                                required
+                            />
+                        </label>
+                        {isAutomatic && (
+                            <p className="mt-1.5 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                שם זה ישמש גם כשם הפיזי של היעד ב-SharePoint, ללא סיומות או מזהים אוטומטיים.
+                            </p>
+                        )}
+                    </div>
 
                     <fieldset>
                         <legend className="mb-2 text-sm font-black text-gray-700 dark:text-gray-200">סוג יעד</legend>
@@ -82,7 +108,7 @@ function NavigationTargetDialog({ dialog, onChange, onClose, onSubmit }) {
                                 <span>
                                     <span className="flex items-center gap-2 font-black text-gray-900 dark:text-white"><Database size={17} className="text-primary" />SharePoint אוטומטי</span>
                                     <span className="mt-1 block text-xs leading-5 text-gray-500 dark:text-gray-400">
-                                        {dialog.level === 0 ? 'יצירת ספריית מסמכים חדשה ומאומתת.' : 'יצירת תיקייה בתוך ספריית הקטגוריה.'}
+                                        {automaticExplanation}
                                     </span>
                                 </span>
                             </label>
@@ -106,7 +132,7 @@ function NavigationTargetDialog({ dialog, onChange, onClose, onSubmit }) {
                         </div>
                         {!dialog.canAutomatic && (
                             <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
-                                יצירה אוטומטית זמינה רק בתוך קטגוריה שמקושרת לספריית SharePoint מאומתת.
+                                {automaticUnavailableHint}
                             </p>
                         )}
                     </fieldset>
@@ -317,17 +343,25 @@ export default function AdminNavigation() {
     };
 
     const openCreationDialog = () => {
-        const parent = selectedPath.length === 1
-            ? navItems.find((item) => item.id === selectedPath[0])
-            : null;
+        const level = selectedPath.length;
+        if (level >= NAVIGATION_MAX_LEVEL) return;
+
+        const category = level >= 1 ? navItems.find((item) => item.id === selectedPath[0]) : null;
+        const parent = level === 1
+            ? category
+            : (level === 2 ? category?.children?.find((item) => item.id === selectedPath[1]) : null);
         const parentBinding = getNavigationTargetBinding(parent);
-        const canAutomatic = selectedPath.length === 0
+        const requiredParentKind = level === 1
+            ? NAVIGATION_TARGET_KINDS.LIBRARY
+            : NAVIGATION_TARGET_KINDS.FOLDER;
+        const canAutomatic = level === 0
             || (parentBinding?.mode === NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO
-                && parentBinding?.targetKind === NAVIGATION_TARGET_KINDS.LIBRARY);
-        const nodeId = createNavigationNodeId(selectedPath.length === 0 ? 'cat' : 'sub');
+                && parentBinding?.targetKind === requiredParentKind);
+        const nodeId = createNavigationNodeId(level === 0 ? 'cat' : (level === 1 ? 'sub' : 'link'));
         setCreationDialog({
-            level: selectedPath.length,
+            level,
             parentId: parent?.id || '',
+            parentPath: selectedPath,
             parentBinding,
             nodeId,
             displayName: '',
@@ -336,6 +370,9 @@ export default function AdminNavigation() {
             canAutomatic,
             submitting: false,
             error: '',
+            // Set once a provisioning attempt has been made for this exact key so a
+            // repeat click is treated as an idempotent retry rather than a collision.
+            attemptedProvisionKey: '',
         });
     };
 
@@ -343,9 +380,14 @@ export default function AdminNavigation() {
         event.preventDefault();
         if (!creationDialog || creationDialog.submitting || provisioningInFlightRef.current) return;
         const displayName = creationDialog.displayName.trim();
+        const category = creationDialog.level >= 1
+            ? navItems.find((item) => item.id === creationDialog.parentPath[0])
+            : null;
         const siblings = creationDialog.level === 0
             ? navItems
-            : (navItems.find((item) => item.id === creationDialog.parentId)?.children || []);
+            : (creationDialog.level === 1
+                ? (category?.children || [])
+                : (category?.children?.find((item) => item.id === creationDialog.parentPath[1])?.subLinks || []));
         if (siblings.some((node) => String(node.label || node.title || '').trim().toLocaleLowerCase('he') === displayName.toLocaleLowerCase('he'))) {
             setCreationDialog((current) => ({ ...current, error: 'כבר קיים פריט בשם זה באותה רמה.' }));
             return;
@@ -357,27 +399,32 @@ export default function AdminNavigation() {
 
         provisioningInFlightRef.current = true;
         setCreationDialog((current) => ({ ...current, submitting: true, error: '' }));
+        let provisionKey = '';
         try {
+            const isAutomatic = creationDialog.mode === NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO;
             const targetKind = creationDialog.level === 0
                 ? NAVIGATION_TARGET_KINDS.LIBRARY
                 : NAVIGATION_TARGET_KINDS.FOLDER;
-            const provisionKey = creationDialog.mode === NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO
+            provisionKey = isAutomatic
                 ? buildNavigationProvisionKey({
                     displayName,
                     targetKind,
                     parentBinding: creationDialog.parentBinding,
                 })
                 : '';
-            const target = creationDialog.mode === NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO
+            const retryOfProvisionKey = creationDialog.attemptedProvisionKey;
+            const target = isAutomatic
                 ? await (creationDialog.level === 0
                     ? navigationSharePointService.provisionCategory({
                         displayName,
                         provisionKey,
+                        retryOfProvisionKey,
                     })
-                    : navigationSharePointService.provisionSubcategory({
+                    : navigationSharePointService[creationDialog.level === 1 ? 'provisionSubcategory' : 'provisionNestedFolder']({
                         displayName,
                         provisionKey,
                         parentBinding: creationDialog.parentBinding,
+                        retryOfProvisionKey,
                     }))
                 : {
                     url: creationDialog.manualUrl.trim(),
@@ -399,32 +446,53 @@ export default function AdminNavigation() {
                     targetBinding: target.targetBinding,
                     children: [],
                 }
-                : {
-                    id: creationDialog.nodeId,
-                    kind: 'folder',
-                    title: displayName,
-                    label: displayName,
-                    icon: 'FileText',
-                    url: target.url,
-                    targetBinding: target.targetBinding,
-                    subLinks: [],
-                };
+                : creationDialog.level === 1
+                    ? {
+                        id: creationDialog.nodeId,
+                        kind: 'folder',
+                        title: displayName,
+                        label: displayName,
+                        icon: 'FileText',
+                        url: target.url,
+                        targetBinding: target.targetBinding,
+                        subLinks: [],
+                    }
+                    : {
+                        // Level 3 is always a leaf: it opens its target directly and
+                        // never exposes another navigation level.
+                        id: creationDialog.nodeId,
+                        kind: 'link',
+                        title: displayName,
+                        label: displayName,
+                        icon: 'Link',
+                        url: target.url,
+                        targetBinding: target.targetBinding,
+                    };
 
             const persisted = await saveNavigation((previous) => {
                 const copy = JSON.parse(JSON.stringify(previous));
                 if (creationDialog.level === 0) return [...copy, node];
-                const parent = copy.find((item) => item.id === creationDialog.parentId);
-                if (!parent) return copy;
-                parent.children = [...(parent.children || []), node];
+                const parentCategory = copy.find((item) => item.id === creationDialog.parentPath[0]);
+                if (!parentCategory) return copy;
+                if (creationDialog.level === 1) {
+                    parentCategory.children = [...(parentCategory.children || []), node];
+                    return copy;
+                }
+                const parentSubcategory = (parentCategory.children || []).find((item) => item.id === creationDialog.parentPath[1]);
+                if (!parentSubcategory) return copy;
+                parentSubcategory.subLinks = [...(parentSubcategory.subLinks || []), node];
                 return copy;
             });
 
             if (creationDialog.level === 0) {
                 setExpandedNodes((current) => new Set([...current, node.id]));
                 setSelectedPath([node.id]);
+            } else if (creationDialog.level === 1) {
+                setExpandedNodes((current) => new Set([...current, creationDialog.parentPath[0]]));
+                setSelectedPath([creationDialog.parentPath[0], node.id]);
             } else {
-                setExpandedNodes((current) => new Set([...current, creationDialog.parentId]));
-                setSelectedPath([creationDialog.parentId, node.id]);
+                setExpandedNodes((current) => new Set([...current, creationDialog.parentPath[0], creationDialog.parentPath[1]]));
+                setSelectedPath([...creationDialog.parentPath]);
             }
             setCreationDialog(null);
             provisioningInFlightRef.current = false;
@@ -440,6 +508,13 @@ export default function AdminNavigation() {
             setCreationDialog((current) => ({
                 ...current,
                 submitting: false,
+                // Only a failure that actually reached SharePoint's mutating APIs may
+                // arm an idempotent retry. Anything that failed earlier changed
+                // nothing, so a second click must still hit the collision check and
+                // can never silently attach to a pre-existing library or folder.
+                attemptedProvisionKey: creationError?.mutationAttempted
+                    ? provisionKey
+                    : (current?.attemptedProvisionKey || ''),
                 error: creationError?.userMessage || creationError?.message || 'יצירת היעד נכשלה.',
             }));
         }
@@ -447,26 +522,15 @@ export default function AdminNavigation() {
 
     // Adders
     const addNode = () => {
-        if (selectedPath.length === 0) {
-            if (navItems.length >= MAX_TOP_LEVEL_NAV_ITEMS) {
-                toast.warning(`לא ניתן להוסיף יותר מ-${MAX_TOP_LEVEL_NAV_ITEMS} קטגוריות ראשיות.`);
-                return;
-            }
-            openCreationDialog();
-        } else if (selectedPath.length === 1) {
-            openCreationDialog();
-        } else if (selectedPath.length === 2) {
-            saveNavigation(prev => {
-                const copy = JSON.parse(JSON.stringify(prev));
-                const cat = copy.find(c => c.id === selectedPath[0]);
-                const sub = cat?.children?.find(c => c.id === selectedPath[1]);
-                if (sub) {
-                    if (!sub.subLinks) sub.subLinks = [];
-                    sub.subLinks.push({ id: createNavigationNodeId('link'), kind: 'link', label: 'לינק חדש', icon: 'Link', url: '' });
-                }
-                return copy;
-            });
+        if (selectedPath.length === 0 && navItems.length >= MAX_TOP_LEVEL_NAV_ITEMS) {
+            toast.warning(`לא ניתן להוסיף יותר מ-${MAX_TOP_LEVEL_NAV_ITEMS} קטגוריות ראשיות.`);
+            return;
         }
+        if (selectedPath.length >= NAVIGATION_MAX_LEVEL) {
+            toast.warning(`מבנה הניווט תומך ב-${NAVIGATION_MAX_LEVEL} רמות בלבד.`);
+            return;
+        }
+        openCreationDialog();
     };
 
     // Remover
@@ -747,6 +811,23 @@ export default function AdminNavigation() {
                     </DismissibleNotice>
                 )}
 
+                {/* THREE-LEVEL MODEL EXPLANATION */}
+                <DismissibleNotice
+                    dismissKey="navigation-three-level-model-v1"
+                    className="mx-6 mt-4 shrink-0 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-[#252528] dark:bg-[#0a0a0c]"
+                >
+                    <div className="flex items-start gap-3 text-right">
+                        <Database size={18} className="mt-0.5 shrink-0 text-primary-500" />
+                        <div className="flex-1 space-y-1 text-xs leading-5 text-gray-600 dark:text-gray-300">
+                            <p className="font-bold text-gray-900 dark:text-gray-100">מבנה הניווט: שלוש רמות בלבד</p>
+                            <p><strong>רמה 1 — קטגוריה:</strong> במצב אוטומטי נוצרת ספריית מסמכים ב-SharePoint.</p>
+                            <p><strong>רמה 2 — תת־קטגוריה:</strong> במצב אוטומטי נוצרת תיקייה בתוך ספריית הקטגוריה.</p>
+                            <p><strong>רמה 3 — פריט אחרון:</strong> קישור קיים/ידני, או תיקייה מקוננת בתוך תיקיית תת־הקטגוריה. הפריט נפתח ישירות אל היעד שלו ואין מתחתיו רמה נוספת.</p>
+                            <p>שמות היעדים ב-SharePoint זהים לשם התצוגה שהוזן, ללא סיומות או מזהים אוטומטיים. שינוי שם תצוגה לאחר היצירה אינו משנה ואינו מעביר את הספרייה או התיקייה, ומחיקת פריט ניווט אינה מוחקת תוכן ב-SharePoint.</p>
+                        </div>
+                    </div>
+                </DismissibleNotice>
+
                 {/* Properties Panel (if not root) */}
                 {selectedPath.length > 0 && currentModel && (
                     <div className="px-6 py-4 border-b border-gray-200 dark:border-[#1f1f22] bg-gray-50 dark:bg-[#0a0a0c] flex flex-wrap items-center gap-4 shrink-0 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.5)] z-20 relative">
@@ -875,6 +956,9 @@ export default function AdminNavigation() {
                                         <>
                                             <span>{currentTargetBinding.targetKind === NAVIGATION_TARGET_KINDS.LIBRARY ? 'ספריית מסמכים' : 'תיקייה'}</span>
                                             <span className="font-mono [direction:ltr]">{currentTargetBinding.serverRelativeUrl}</span>
+                                            <span className="basis-full text-[11px] font-normal opacity-90">
+                                                שינוי שם התצוגה כאן אינו משנה את שם היעד הפיזי ב-SharePoint.
+                                            </span>
                                         </>
                                     )}
                                 </div>
@@ -895,14 +979,18 @@ export default function AdminNavigation() {
                     <div className="flex items-center gap-2">
                         <HelpTooltipButton
                             title="הוספת פריט"
-                            description={currentLevel === 0 ? 'כאן מוסיפים קטגוריה חדשה לרמה הראשית.' : currentLevel === 1 ? 'כאן מוסיפים תת קטגוריה בתוך הקטגוריה הנוכחית.' : 'כאן מוסיפים קישור חדש בתוך הכרטיסייה הנוכחית.'}
+                            description={currentLevel === 0
+                                ? 'כאן מוסיפים קטגוריה חדשה לרמה הראשית. במצב אוטומטי נוצרת ספריית מסמכים ב-SharePoint.'
+                                : currentLevel === 1
+                                    ? 'כאן מוסיפים תת־קטגוריה בתוך הקטגוריה הנוכחית. במצב אוטומטי נוצרת תיקייה בתוך ספריית הקטגוריה.'
+                                    : 'כאן מוסיפים פריט ברמה השלישית: קישור קיים או תיקייה מקוננת בתוך תיקיית תת־הקטגוריה. זו הרמה האחרונה.'}
                         />
                         <button
                             onClick={addNode}
                             className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-md transition shadow-[0_0_10px_rgba(220,38,38,0.2)] hover:shadow-[0_0_15px_rgba(220,38,38,0.4)] text-sm font-bold"
                         >
                             <Plus size={16} />
-                            <span>{currentLevel === 0 ? 'קטגוריה חדשה' : currentLevel === 1 ? 'כרטיסייה חדשה' : 'לינק חדש'}</span>
+                            <span>{currentLevel === 0 ? 'קטגוריה חדשה' : currentLevel === 1 ? 'תת־קטגוריה חדשה' : 'פריט ברמה השלישית'}</span>
                         </button>
                         {selectedPath.length > 0 && (
                             <button
@@ -1046,16 +1134,20 @@ export default function AdminNavigation() {
                                         </td>
                                         <td className="py-2.5 px-2">
                                             <div className="flex items-center gap-2 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Tooltip text="פתח תיקייה">
-                                                    <button
-                                                        onClick={() => setSelectedPath(child.nodePath)}
-                                                        className="p-1.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg transition"
-                                                    >
-                                                        <ChevronLeft size={18} />
-                                                    </button>
-                                                </Tooltip>
+                                                {child.type === 'folder' && (
+                                                    <Tooltip text="פתח תיקייה">
+                                                        <button
+                                                            aria-label={`פתח תיקייה: ${child.title || ''}`}
+                                                            onClick={() => setSelectedPath(child.nodePath)}
+                                                            className="p-1.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg transition"
+                                                        >
+                                                            <ChevronLeft size={18} />
+                                                        </button>
+                                                    </Tooltip>
+                                                )}
                                                 <Tooltip text="מחק">
                                                     <button
+                                                        aria-label={`מחק: ${child.title || ''}`}
                                                         onClick={() => removeNode(child.nodePath)}
                                                         className="p-1.5 bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 hover:text-primary-400 rounded-lg transition"
                                                     >

@@ -207,6 +207,30 @@ const buildSiteApiEndpoint = (siteRoot: string, apiPath: string) => {
   return `${root}${apiPath}`;
 };
 
+/**
+ * Cache directives applied to every SharePoint provisioning/verification
+ * request so proxies and the browser cannot answer with a stale or `304`
+ * revalidated representation of a list that was just created or modified.
+ */
+const NO_STORE_REQUEST_HEADERS: Record<string, string> = {
+  'Cache-Control': 'no-cache, no-store, max-age=0',
+  Pragma: 'no-cache',
+};
+
+const withNoStoreHeaders = (headers?: HeadersInit): Record<string, string> => {
+  const merged: Record<string, string> = { ...NO_STORE_REQUEST_HEADERS };
+  if (!headers) return merged;
+  if (typeof Headers !== 'undefined' && headers instanceof Headers) {
+    headers.forEach((value, key) => { merged[key] = value; });
+    return merged;
+  }
+  if (Array.isArray(headers)) {
+    headers.forEach(([key, value]) => { merged[key] = value; });
+    return merged;
+  }
+  return { ...merged, ...(headers as Record<string, string>) };
+};
+
 const spFetchWithLogs = async (endpoint: string, options: SpFetchOptions) => {
   const { purpose, step, logs, expectedStatuses = [], returnErrorResponse = false, ...fetchOptions } = options;
   const method = String(fetchOptions.method || 'GET').toUpperCase();
@@ -222,7 +246,15 @@ const spFetchWithLogs = async (endpoint: string, options: SpFetchOptions) => {
   try {
     const response = await fetch(endpoint, {
       credentials: 'include',
+      // Provisioning and post-create verification must observe live SharePoint
+      // state. Without this, a GetByTitle/root/WelcomePage read can be answered
+      // from the browser HTTP cache (or revalidated to 304 with a stale body)
+      // and a freshly created library looks unverifiable unless the user turns
+      // on DevTools "Disable cache". Scoped to SharePoint provisioning traffic
+      // only - application-wide caching is untouched.
+      cache: 'no-store',
       ...fetchOptions,
+      headers: withNoStoreHeaders(fetchOptions.headers),
     });
     const durationMs = Math.round(performance.now() - startedAt);
 

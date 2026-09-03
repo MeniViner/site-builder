@@ -4,6 +4,7 @@ import { normalizeEventColor } from '../utils/colorValidation';
 import { normalizeSmartTextTokens } from '../utils/smartText';
 import { DEFAULT_ACTIVE_WIDGETS } from '../utils/widgetDisplay';
 import {
+    NAVIGATION_MAX_LEVEL,
     getNavigationChildren,
     getNavigationKind,
     getNavigationUrl,
@@ -217,7 +218,7 @@ function normalizeActiveWidgets(value) {
     return normalized.slice(0, 3);
 }
 
-function normalizeNavigationNodes(nodes, prefix = 'nav') {
+function normalizeNavigationNodes(nodes, prefix = 'nav', level = 1) {
     const source = Array.isArray(nodes) ? nodes : [];
     const normalized = [];
 
@@ -226,7 +227,9 @@ function normalizeNavigationNodes(nodes, prefix = 'nav') {
 
         const id = asId(node.id, `${prefix}-${index + 1}`);
         const label = asNonEmptyString(node.label, asNonEmptyString(node.title, id));
-        const childrenSource = getNavigationChildren(node);
+        // Navigation is capped at exactly three levels, so anything a legacy
+        // payload nests below level 3 is dropped instead of persisted.
+        const childrenSource = level < NAVIGATION_MAX_LEVEL ? getNavigationChildren(node) : [];
         const url = getNavigationUrl(node);
         const targetBinding = normalizeNavigationTargetBinding(node.targetBinding);
 
@@ -238,7 +241,7 @@ function normalizeNavigationNodes(nodes, prefix = 'nav') {
             iconUrl: asString(node.iconUrl, asString(node.imageUrl, asString(node.image, ''))),
             url,
             ...(targetBinding ? { targetBinding } : {}),
-            children: normalizeNavigationNodes(childrenSource, id),
+            children: normalizeNavigationNodes(childrenSource, id, level + 1),
         });
     });
 

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
     createNavigationNodeId,
+    getNavigationBindingFolderDepth,
+    getNavigationBindingLevel,
     getNavigationKind,
     getNavigationNodeModel,
     getNavigationUrl,
@@ -76,7 +78,75 @@ describe('navigationModel', () => {
             listId: '{GUID}',
             libraryTitle: 'Library',
             libraryRootServerRelativeUrl: '/sites/demo/library',
+            parentServerRelativeUrl: '/sites/demo/library',
+            physicalName: 'folder',
             provisionKey: 'node-2',
         });
+    });
+
+    it('keeps a level-3 nested folder binding pointing at its own folder while owning the library identity', () => {
+        const binding = normalizeNavigationTargetBinding({
+            mode: 'sharepoint-auto',
+            targetKind: 'folder',
+            serverRelativeUrl: '/sites/demo/מסמכים מקצועיים/תכניות עבודה/2026',
+            listId: '{GUID}',
+            libraryTitle: 'מסמכים מקצועיים',
+            libraryRootServerRelativeUrl: '/sites/demo/מסמכים מקצועיים',
+            parentServerRelativeUrl: '/sites/demo/מסמכים מקצועיים/תכניות עבודה',
+            physicalName: '2026',
+            provisionKey: 'node-3',
+        });
+
+        expect(binding).toMatchObject({
+            serverRelativeUrl: '/sites/demo/מסמכים מקצועיים/תכניות עבודה/2026',
+            libraryRootServerRelativeUrl: '/sites/demo/מסמכים מקצועיים',
+            parentServerRelativeUrl: '/sites/demo/מסמכים מקצועיים/תכניות עבודה',
+            physicalName: '2026',
+            listId: '{GUID}',
+        });
+        expect(getNavigationBindingFolderDepth(binding)).toBe(2);
+        expect(getNavigationBindingLevel(binding)).toBe(3);
+    });
+
+    it('reports depth for library roots and rejects paths outside the owning library', () => {
+        expect(getNavigationBindingFolderDepth({
+            mode: 'sharepoint-auto',
+            targetKind: 'library',
+            serverRelativeUrl: '/sites/demo/library',
+        })).toBe(0);
+
+        expect(getNavigationBindingFolderDepth({
+            mode: 'sharepoint-auto',
+            targetKind: 'folder',
+            serverRelativeUrl: '/sites/demo/other-library/folder',
+            libraryRootServerRelativeUrl: '/sites/demo/library',
+        })).toBe(-1);
+
+        expect(getNavigationBindingFolderDepth({ mode: 'manual' })).toBe(-1);
+    });
+
+    it('carries unknown target-binding metadata through normalization instead of stripping it', () => {
+        const binding = normalizeNavigationTargetBinding({
+            mode: 'sharepoint-auto',
+            targetKind: 'folder',
+            serverRelativeUrl: '/sites/demo/library/folder',
+            libraryRootServerRelativeUrl: '/sites/demo/library',
+            listId: 'guid',
+            libraryTitle: 'Library',
+            provisionedAt: '2026-01-01T00:00:00.000Z',
+            provisionedByVersion: 7,
+            futureFlag: true,
+            // Non-primitive metadata is not a supported binding shape.
+            nested: { dropped: true },
+        });
+
+        expect(binding).toMatchObject({
+            provisionedAt: '2026-01-01T00:00:00.000Z',
+            provisionedByVersion: 7,
+            futureFlag: true,
+        });
+        expect(binding).not.toHaveProperty('nested');
+        // A round trip must be stable.
+        expect(normalizeNavigationTargetBinding(binding)).toEqual(binding);
     });
 });

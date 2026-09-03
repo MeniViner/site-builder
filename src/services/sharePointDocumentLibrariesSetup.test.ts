@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  createSharePointProvisioningSession,
   ensureSharePointDocumentLibrariesReady,
   provisionSharePointDocumentLibrary,
   unwrapSharePointODataRecord,
@@ -221,5 +222,141 @@ describe('SharePoint document-library response parsing', () => {
       technicalError: expect.objectContaining({ code: 'SHAREPOINT_AUTH_FAILURE', status: 401 }),
     });
     expect(result.userMessage).toContain('SHAREPOINT_AUTH_FAILURE');
+  });
+});
+
+/**
+ * Post-provisioning verification must read live SharePoint state. Without an
+ * explicit cache directive the browser may answer a verification GET from its
+ * HTTP cache (or revalidate it into a stale 304), which made correctness depend
+ * on the DevTools "Disable cache" checkbox being ticked.
+ */
+describe('SharePoint verification cache semantics', () => {
+  const siteRoot = '/sites/custom';
+  const title = 'ספריית אימות';
+  const rootServerRelativeUrl = '/sites/custom/verification-library';
+
+  const freshRecord = {
+    Id: 'library-guid',
+    Title: title,
+    BaseTemplate: 101,
+    RootFolder: { ServerRelativeUrl: rootServerRelativeUrl, WelcomePage: 'Forms/AllItems.aspx' },
+    OnQuickLaunch: true,
+  };
+
+  const headerValue = (options: RequestInit, name: string) => {
+    const headers = new Headers(options.headers as HeadersInit);
+    return headers.get(name) || '';
+  };
+
+  const expectNoStore = (options: RequestInit) => {
+    expect(options.cache).toBe('no-store');
+    expect(headerValue(options, 'Cache-Control')).toContain('no-store');
+    expect(headerValue(options, 'Cache-Control')).toContain('no-cache');
+    expect(headerValue(options, 'Pragma')).toBe('no-cache');
+  };
+
+  it('issues every provisioning and verification request with no-store semantics', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('/_api/web/lists?')) {
+        return new Response(JSON.stringify({ d: { results: [freshRecord] } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({ d: freshRecord }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await provisionSharePointDocumentLibrary({
+      session: { siteRoot, digest: 'digest', logs: [], request: vi.fn() },
+      title,
+      rootServerRelativeUrl,
+    });
+
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(0);
+    for (const [, options] of fetchMock.mock.calls) {
+      expectNoStore(options as RequestInit);
+      // The cache fix must not weaken authentication on provisioning traffic.
+      expect((options as RequestInit).credentials).toBe('include');
+    }
+  });
+
+  it('verifies a freshly created library even while a stale cached response is available', async () => {
+    // A cache that still holds the pre-creation "library does not exist" answer.
+    const staleResponse = () => new Response(JSON.stringify({ 'odata.error': { message: { value: 'List not found' } } }), {
+      status: 404,
+      statusText: 'Not Found',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const fetchMock = vi.fn(async (url: string, options: RequestInit = {}) => {
+      if (options.cache !== 'no-store') return staleResponse();
+      if (url.includes('/_api/web/lists?')) {
+        return new Response(JSON.stringify({ d: { results: [freshRecord] } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({ d: freshRecord }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(provisionSharePointDocumentLibrary({
+      session: { siteRoot, digest: 'digest', logs: [], request: vi.fn() },
+      title,
+      rootServerRelativeUrl,
+    })).resolves.toMatchObject({
+      listId: 'library-guid',
+      baseTemplate: 101,
+      rootServerRelativeUrl,
+      welcomePage: 'Forms/AllItems.aspx',
+      onQuickLaunch: true,
+    });
+  });
+
+  it('applies no-store to the shared session request used by folder probes and readiness waits', async () => {
+    const fetchMock = vi.fn(async (url: string) => new Response(
+      JSON.stringify(url.includes('contextinfo')
+        ? { d: { GetContextWebInformation: { FormDigestValue: 'digest' } } }
+        : { d: { Exists: true } }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const session = await createSharePointProvisioningSession({ siteRoot });
+    fetchMock.mockClear();
+    await session.request({ url: `${siteRoot}/_api/web/GetFolderByServerRelativeUrl('x')`, purpose: 'folder-probe' });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expectNoStore(fetchMock.mock.calls[0][1] as RequestInit);
+  });
+
+  it('lets an explicit caller header win without dropping the remaining no-store directives', async () => {
+    const fetchMock = vi.fn(async (url: string) => new Response(
+      JSON.stringify(url.includes('contextinfo')
+        ? { d: { GetContextWebInformation: { FormDigestValue: 'digest' } } }
+        : {}),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const session = await createSharePointProvisioningSession({ siteRoot });
+    fetchMock.mockClear();
+    await session.request({
+      url: `${siteRoot}/_api/web/lists`,
+      purpose: 'folder-probe',
+      headers: { Accept: 'application/json;odata=nometadata' },
+    });
+
+    const options = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(options.cache).toBe('no-store');
+    expect(headerValue(options, 'Accept')).toBe('application/json;odata=nometadata');
+    expect(headerValue(options, 'Pragma')).toBe('no-cache');
   });
 });

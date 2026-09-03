@@ -105,8 +105,46 @@ describe('migrateLegacyToV1', () => {
             ...binding,
             targetKind: 'folder',
             serverRelativeUrl: `${binding.serverRelativeUrl}/procedures-folder-456`,
+            parentServerRelativeUrl: binding.serverRelativeUrl,
+            physicalName: 'procedures-folder-456',
             provisionKey: 'folder-node-id',
         });
+    });
+
+    it('caps navigation at three levels and drops any deeper nodes', () => {
+        const normalized = validateAndNormalize({
+            ...DEFAULT_CONFIG_V1,
+            navigation: {
+                items: [{
+                    id: 'category-1',
+                    label: 'קטגוריה',
+                    kind: 'folder',
+                    url: '/sites/demo/קטגוריה',
+                    children: [{
+                        id: 'sub-1',
+                        label: 'תת־קטגוריה',
+                        kind: 'folder',
+                        url: '/sites/demo/קטגוריה/תת־קטגוריה',
+                        children: [{
+                            id: 'leaf-1',
+                            label: 'רמה שלישית',
+                            kind: 'link',
+                            url: '/sites/demo/קטגוריה/תת־קטגוריה/רמה שלישית',
+                            children: [{
+                                id: 'too-deep',
+                                label: 'רמה רביעית',
+                                kind: 'link',
+                                url: '/sites/demo/קטגוריה/תת־קטגוריה/רמה שלישית/רמה רביעית',
+                            }],
+                        }],
+                    }],
+                }],
+            },
+        });
+
+        const leaf = normalized.navigation.items[0].children[0].children[0];
+        expect(leaf.label).toBe('רמה שלישית');
+        expect(leaf.children).toEqual([]);
     });
 
     it('preserves and canonically normalizes Commander image geometry', () => {
