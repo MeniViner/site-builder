@@ -37,8 +37,12 @@ export default function AdminExternalLinks() {
         if (!file || !editingLink) return;
         setUploadingIcon(true);
         try {
-            const url = await uploadImage(file, 'ExternalLinks');
-            setEditingLink(prev => ({ ...prev, iconUrl: url, icon: '' }));
+            const url = String(await uploadImage(file, 'ExternalLinks') || '').trim();
+            if (!url) {
+                throw new Error('העלאת התמונה הסתיימה ללא נתיב תמונה תקין. התמונה הקודמת נשמרה.');
+            }
+            setEditingLink(prev => ({ ...prev, visualType: 'image', iconUrl: url, icon: '' }));
+            toast.success('התמונה הועלתה ומוצגת בתצוגה המקדימה.');
         } catch (err) {
             spLog.error('שגיאה בהעלאת יוצג:', err);
             toast.error(`שגיאה בהעלאת תמונה: ${err.message}`);

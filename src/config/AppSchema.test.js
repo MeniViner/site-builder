@@ -147,6 +147,30 @@ describe('migrateLegacyToV1', () => {
         expect(leaf.children).toEqual([]);
     });
 
+    it('preserves a manually configured V1 external-link SharePoint image visual', () => {
+        const imageUrl = '/sites/test-site/siteDB/images/ExternalLinks/portal.png';
+        const normalized = validateAndNormalize({
+            ...DEFAULT_CONFIG_V1,
+            externalLinks: {
+                items: [{
+                    id: 'portal',
+                    title: 'פורטל',
+                    url: 'https://portal.example',
+                    visual: { type: 'image', imageUrl },
+                    order: 0,
+                }],
+            },
+        });
+
+        expect(normalized.externalLinks.items).toEqual([{
+            id: 'portal',
+            title: 'פורטל',
+            url: 'https://portal.example',
+            visual: { type: 'image', imageUrl },
+            order: 0,
+        }]);
+    });
+
     it('preserves and canonically normalizes Commander image geometry', () => {
         const normalized = validateAndNormalize({
             content: {

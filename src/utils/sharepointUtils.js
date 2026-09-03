@@ -230,7 +230,30 @@ const buildFolderCreationPlan = (folderServerRelativeUrl) => {
     };
 };
 
+const probeSharePointFolder = async (folderServerRelativeUrl, siteRoot) => {
+    const escapedFolder = escapeODataString(folderServerRelativeUrl);
+    const endpoint =
+        `${buildSiteApiUrl(siteRoot, '')}` +
+        `/_api/web/GetFolderByServerRelativeUrl('${escapedFolder}')?$select=ServerRelativeUrl`;
+    const response = await fetch(endpoint, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Accept: ODATA_ACCEPT },
+    });
+
+    if (response.ok) return true;
+    if (response.status === 404) return false;
+
+    const errorText = summarizeErrorText(await responseTextSafe(response));
+    if (response.status === 401 || response.status === 403) {
+        throw new Error(`אין הרשאה לקרוא את נתיב התמונות ב-SharePoint (${response.status}): ${errorText}`);
+    }
+    throw new Error(`לא ניתן לבדוק את נתיב התמונות ב-SharePoint "${folderServerRelativeUrl}" (${response.status}): ${errorText}`);
+};
+
 const ensureSharePointFolder = async (folderServerRelativeUrl, digest, siteRoot) => {
+    if (await probeSharePointFolder(folderServerRelativeUrl, siteRoot)) return;
+
     const endpoint = buildSiteApiUrl(siteRoot, '/_api/web/folders');
     const response = await fetch(endpoint, {
         method: 'POST',
@@ -246,17 +269,19 @@ const ensureSharePointFolder = async (folderServerRelativeUrl, digest, siteRoot)
         }),
     });
 
-    if (response.ok || response.status === 409) {
-        return;
-    }
+    if (response.ok) return;
 
     const errorText = summarizeErrorText(await responseTextSafe(response));
-    const alreadyExists = response.status === 500 && /already exists/i.test(errorText);
-    if (alreadyExists) {
-        return;
+    if (response.status === 401 || response.status === 403) {
+        throw new Error(`אין הרשאה ליצור את נתיב התמונות ב-SharePoint (${response.status}): ${errorText}`);
     }
 
-    throw new Error(`Failed to create folder "${folderServerRelativeUrl}" (${response.status}): ${errorText}`);
+    // SharePoint does not document one universal duplicate-folder response,
+    // and localized installations need not include an English error message.
+    // Re-read the path after every non-auth creation failure: if a concurrent
+    // writer created it, the hierarchy is ready; otherwise preserve the error.
+    if (await probeSharePointFolder(folderServerRelativeUrl, siteRoot)) return;
+    throw new Error(`לא ניתן ליצור את תיקיית התמונות ב-SharePoint "${folderServerRelativeUrl}" (${response.status}): ${errorText}`);
 };
 
 const putTextFile = async (requestUrl, text, contentType) => {
@@ -1022,6 +1047,35 @@ export const ensureRecentBackup = async ({
     }
 };
 
+const extractUploadedFileServerRelativeUrl = (payload, targetFolder) => {
+    // Files/add returns one SP.File: verbose JSON wraps it in `d`, while
+    // minimal/no-metadata JSON returns that same entity at the root.
+    const file = payload?.d && typeof payload.d === 'object' && !Array.isArray(payload.d)
+        ? payload.d
+        : payload;
+    const serverRelativeUrl = normalizeServerRelativeUrl(file?.ServerRelativeUrl);
+    const normalizedTargetFolder = normalizeServerRelativeUrl(targetFolder);
+
+    if (!serverRelativeUrl
+        || !normalizedTargetFolder
+        || !serverRelativeUrl.toLowerCase().startsWith(`${normalizedTargetFolder.toLowerCase()}/`)) {
+        throw new Error('SharePoint אישר את ההעלאה אך לא החזיר נתיב תמונה תקין. התמונה לא נקשרה לקישור ולכן לא נשמרה בתצורה; יש לנסות שוב או לפנות למנהל המערכת.');
+    }
+    return serverRelativeUrl;
+};
+
+const createAssetContentVersion = (arrayBuffer) => {
+    const bytes = new Uint8Array(arrayBuffer);
+    // A content-derived FNV-1a value is a cache version, not a security hash.
+    // It is deterministic for the uploaded bytes and remains out of config.
+    let hash = 2166136261;
+    bytes.forEach((byte) => {
+        hash ^= byte;
+        hash = Math.imul(hash, 16777619);
+    });
+    return (hash >>> 0).toString(36);
+};
+
 /**
  * Uploads an image file. In mock mode, converts to Base64 data URL.
  * In production, uploads to SharePoint under the runtime images root.
@@ -1082,6 +1136,7 @@ export const uploadImage = async (file, categoryFolder) => {
     await ensureSharePointFolderHierarchy(targetFolder, digest);
 
     const arrayBuffer = await file.arrayBuffer();
+    const assetContentVersion = createAssetContentVersion(arrayBuffer);
     const escapedFolder = targetFolder.replace(/'/g, "''");
     const encodedFileName = encodeURIComponent(file.name).replace(/'/g, '%27');
     const uploadUrl =
@@ -1103,8 +1158,15 @@ export const uploadImage = async (file, categoryFolder) => {
         throw new Error(`העלאת תמונה נכשלה (${uploadRes.status}): ${errorText}`);
     }
 
-    const data = await uploadRes.json();
-    const url = data?.d?.ServerRelativeUrl;
+    let data;
+    try {
+        data = await uploadRes.json();
+    } catch {
+        throw new Error('SharePoint אישר את ההעלאה אך החזיר תגובה שאינה JSON תקין. התמונה לא נקשרה לקישור ולכן לא נשמרה בתצורה; יש לנסות שוב.');
+    }
+    const url = extractUploadedFileServerRelativeUrl(data, targetFolder);
+    const { rememberSiteImageVersion } = await import('./assetUrl');
+    rememberSiteImageVersion(url, assetContentVersion);
     spLog.success(`העלאת תמונה הצליחה | נתיב: ${url}`);
     return url;
 };

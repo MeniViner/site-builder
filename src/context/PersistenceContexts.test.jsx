@@ -120,6 +120,7 @@ function ExternalLinksStateView() {
     return (
         <div>
             <span>{externalLinks.map((item) => item.title).join(',')}</span>
+            <output data-testid="external-links">{JSON.stringify(externalLinks)}</output>
             <span data-testid="external-status">{saveStatus}</span>
             {error && <span>{error}</span>}
         </div>
@@ -132,6 +133,33 @@ function ExternalLinksRouteHarness() {
         <ExternalLinksProvider>
             <button type="button" onClick={() => setShowAdmin(false)}>leave external admin</button>
             {showAdmin && <ExternalLinksAdminControl />}
+            <ExternalLinksStateView />
+        </ExternalLinksProvider>
+    );
+}
+
+function ExternalLinksImageControl() {
+    const { saveExternalLinks } = useExternalLinks();
+    return (
+        <button
+            type="button"
+            onClick={() => saveExternalLinks([{
+                id: 'portal-image',
+                title: 'פורטל',
+                url: 'https://portal.example',
+                icon: '',
+                iconUrl: '/sites/test-site/siteDB/images/ExternalLinks/badge.png',
+            }])}
+        >
+            save external image
+        </button>
+    );
+}
+
+function ExternalLinksImageHarness() {
+    return (
+        <ExternalLinksProvider>
+            <ExternalLinksImageControl />
             <ExternalLinksStateView />
         </ExternalLinksProvider>
     );
@@ -236,5 +264,43 @@ describe('provider-owned optimistic persistence', () => {
         expect(mocks.updateConfig).toHaveBeenCalledTimes(1);
         expect(screen.getByText('Network card')).toBeInTheDocument();
         expect(screen.getByTestId('external-status')).toHaveTextContent('saved');
+    });
+
+    it('round-trips a canonical SharePoint external-link image through the V1 visual contract', () => {
+        mocks.config = {
+            navigation: { items: [] },
+            externalLinks: {
+                items: [{
+                    id: 'portal-image',
+                    title: 'פורטל',
+                    url: 'https://portal.example',
+                    visual: {
+                        type: 'image',
+                        imageUrl: '/sites/test-site/siteDB/images/ExternalLinks/badge.png',
+                    },
+                    order: 0,
+                }],
+            },
+        };
+        const view = render(<ExternalLinksImageHarness />);
+
+        expect(JSON.parse(screen.getByTestId('external-links').textContent)[0]).toMatchObject({
+            icon: '',
+            iconUrl: '/sites/test-site/siteDB/images/ExternalLinks/badge.png',
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'save external image' }));
+        expect(mocks.config.externalLinks.items[0]).toMatchObject({
+            visual: {
+                type: 'image',
+                imageUrl: '/sites/test-site/siteDB/images/ExternalLinks/badge.png',
+            },
+        });
+
+        view.unmount();
+        render(<ExternalLinksImageHarness />);
+        expect(JSON.parse(screen.getByTestId('external-links').textContent)[0]).toMatchObject({
+            iconUrl: '/sites/test-site/siteDB/images/ExternalLinks/badge.png',
+        });
     });
 });

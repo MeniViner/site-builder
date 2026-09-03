@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useMemo, useContext, useCallback } from 'react';
 import { useConfig } from './ConfigProvider';
 import { normalizeLinkTarget } from '../utils/linkTargets';
@@ -29,6 +30,18 @@ function toLegacyLinks(items) {
 }
 
 function toV1Visual(link) {
+    if (link?.visual?.type === 'image'
+        && typeof link.visual.imageUrl === 'string'
+        && link.visual.imageUrl.trim()) {
+        return { type: 'image', imageUrl: link.visual.imageUrl };
+    }
+    if (link?.visual?.type === 'icon'
+        && typeof link.visual.icon === 'string'
+        && link.visual.icon.trim()) {
+        return { type: 'icon', icon: link.visual.icon };
+    }
+    if (link?.visual?.type === 'none') return { type: 'none' };
+
     const image = typeof link?.iconUrl === 'string' && link.iconUrl.trim()
         ? link.iconUrl
         : (typeof link?.image === 'string' && link.image.trim() ? link.image : '');
