@@ -110,7 +110,7 @@ export default function NotificationCenter({ items, currentUser, autoOpen = true
             </div>
 
             {selected && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
                     <div className="w-full max-w-xl">
                         <NotificationPopupCard item={selected} onClose={closeSelected} remaining={1} />
                     </div>
@@ -118,7 +118,7 @@ export default function NotificationCenter({ items, currentUser, autoOpen = true
             )}
 
             {popup && !selected && (
-                <div className="fixed inset-0 z-[105] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
                     <div className="relative w-full max-w-xl">
                         {pendingPopups.length > 2 && <div className="absolute inset-x-8 -top-4 h-full rounded-[28px] border border-theme-subtle bg-theme-card/55" />}
                         {pendingPopups.length > 1 && <div className="absolute inset-x-4 -top-2 h-full rounded-[28px] border border-theme-subtle bg-theme-card/80" />}

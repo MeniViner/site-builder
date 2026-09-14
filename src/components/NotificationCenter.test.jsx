@@ -19,9 +19,11 @@ describe('NotificationCenter unread state', () => {
 
         expect(screen.getByText('ראשונה')).toBeInTheDocument();
         const notificationButton = screen.getByRole('button', { name: 'מרכז ההתראות' });
+        const closeButton = screen.getByRole('button', { name: 'סגירת התראה' });
         expect(within(notificationButton).getByText('2')).toBeInTheDocument();
+        expect(closeButton.closest('.fixed.inset-0')).toHaveClass('z-[10000]');
 
-        fireEvent.click(screen.getByRole('button', { name: 'סגירת התראה' }));
+        fireEvent.click(closeButton);
 
         expect(screen.queryByText('ראשונה')).not.toBeInTheDocument();
         expect(screen.getByText('שנייה')).toBeInTheDocument();
