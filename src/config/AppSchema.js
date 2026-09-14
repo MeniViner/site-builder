@@ -12,6 +12,7 @@ import {
 } from '../utils/navigationModel';
 import { normalizeImageGalleryBranch } from '../utils/imageGallery';
 import { normalizeNotifications } from '../utils/notificationData';
+import { SITE_BUILDER_DATA_SCHEMA_VERSION } from './siteBuilderContract';
 import {
     COMMANDER_IMAGE_OFFSET_Y,
     COMMANDER_IMAGE_OFFSET_X,
@@ -20,7 +21,7 @@ import {
     normalizeCommanderImageSettings,
 } from '../utils/commanderImage';
 
-const SCHEMA_VERSION = '1.0.0';
+const SCHEMA_VERSION = SITE_BUILDER_DATA_SCHEMA_VERSION;
 const VALID_THEME_DISPLAY_MODES = ['dark', 'light', 'user-toggle'];
 const VALID_BORDER_STYLES = ['standard', 'square', 'cyber', 'armor', 'shield', 'blade'];
 const VALID_OVERLAY_BORDER_STYLES = ['none', ...VALID_BORDER_STYLES];

@@ -27,6 +27,10 @@ export function createApp({
       ok: true,
       service: 'site-builder-api',
       storageBackend: config.storageBackend,
+      appVersion: String(config.appVersion || ''),
+      gitCommit: String(config.gitCommit || ''),
+      dataSchemaVersion: String(config.dataSchemaVersion || ''),
+      supportedFrontendRange: String(config.supportedFrontendRange || ''),
       time: new Date().toISOString(),
     });
   };

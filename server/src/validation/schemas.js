@@ -21,6 +21,8 @@ export const createSiteSchema = z.object({
   publicRead: z.boolean().optional(),
 });
 
+export const provisionSiteSchema = createSiteSchema.omit({ siteId: true });
+
 export const putDataSchema = z.object({
   data: jsonDataSchema,
   expectedVersion: z.number().int().min(0).optional(),

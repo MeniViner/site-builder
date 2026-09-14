@@ -13,9 +13,11 @@ import {
   parseOrBadRequest,
   patchDataSchema,
   putDataSchema,
+  provisionSiteSchema,
 } from '../validation/schemas.js';
 import { badRequest } from '../utils/errors.js';
 import { SiteBackupRepository } from '../repository/SiteBackupRepository.js';
+import { inspectSiteProvisioning, provisionSiteDefaults } from '../provisioning/siteProvisioning.js';
 
 function expectedVersionFrom(req, body = {}) {
   if (body.expectedVersion !== undefined) return body.expectedVersion;
@@ -58,6 +60,35 @@ export function createSiteRouter({ repository, legacyRepository, backupRepositor
     try {
       const site = await repository.getSite(req.params.siteId);
       res.json({ ok: true, site });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get('/sites/:siteId/provision-status', async (req, res, next) => {
+    try {
+      const provisionStatus = await inspectSiteProvisioning({
+        siteId: req.params.siteId,
+        repository,
+        legacyRepository,
+      });
+      res.json({ ok: true, provisionStatus });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post('/sites/:siteId/provision', async (req, res, next) => {
+    try {
+      const body = parseOrBadRequest(provisionSiteSchema, req.body || {});
+      const result = await provisionSiteDefaults({
+        siteId: req.params.siteId,
+        repository,
+        legacyRepository,
+        actor: actorFromRequest(req),
+        ...body,
+      });
+      res.status(result.createdCount > 0 || result.siteCreated ? 201 : 200).json({ ok: true, ...result });
     } catch (error) {
       next(error);
     }

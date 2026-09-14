@@ -1,6 +1,7 @@
 import { getRuntimeValue } from '../services/storage/runtimeConfig';
+import { SITE_BUILDER_DEFAULT_APP_VERSION } from './siteBuilderContract';
 
-export const APP_VERSION = import.meta.env.VITE_APP_VERSION || '0.1.14';
+export const APP_VERSION = import.meta.env.VITE_APP_VERSION || SITE_BUILDER_DEFAULT_APP_VERSION;
 
 export const getAppVersion = () =>
     getRuntimeValue('releaseVersion') || getRuntimeValue('appVersion') || APP_VERSION;

@@ -142,6 +142,15 @@ Activation is a separate operator action:
 
 To roll back, set the production selector back to `txt` and deploy again. Do not copy Mongo data over TXT automatically and do not delete either data source. Reconcile intentional changes separately after service is stable.
 
+## Mongo provisioning contract
+
+The authenticated backend now exposes two non-destructive provisioning endpoints:
+
+- `GET /api/sites/:siteId/provision-status` — reports whether the logical site record exists and which canonical default legacy objects are still missing. The response includes only file names, versions, and aggregate counts; it never returns seeded document contents, content hashes, or secrets.
+- `POST /api/sites/:siteId/provision` — idempotently creates the site registry entry plus only the missing canonical defaults (`bihs_master_config_v1.txt`, `users_data.txt`, `events_data.txt`, `nav_data.txt`, `site_content_data.txt`, `theme_data.txt`, `widgets_data.txt`, `external_links_data.txt`, `gantt_data.txt`, `boom_data.txt`). Existing objects are skipped and never overwritten.
+
+These defaults now come from one shared canonical seed source used by SharePoint bootstrap, legacy site initialization, and Mongo provisioning so TXT/Mongo first-run behavior stays aligned.
+
 ## Operator verification
 
 In the browser console inspect:

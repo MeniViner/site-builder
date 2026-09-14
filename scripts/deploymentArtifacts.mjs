@@ -6,6 +6,7 @@ import {
   createSharePointRuntimeDescriptor,
   SharePointRuntimeDescriptorError,
 } from '../src/config/sharepointRuntimeDescriptor.js';
+import { SITE_BUILDER_DATA_SCHEMA_VERSION } from '../src/config/siteBuilderContract.js';
 
 export const STORAGE_BACKENDS = Object.freeze({
   TXT: 'txt',
@@ -237,6 +238,7 @@ export function buildDeployManifest(files, {
   buildMode = 'universal',
   artifactKind = ARTIFACT_KINDS.UNIVERSAL,
   requiresRuntimeConfig = artifactKind === ARTIFACT_KINDS.UNIVERSAL,
+  requiresDataSchemaVersion = artifactKind === ARTIFACT_KINDS.UNIVERSAL ? SITE_BUILDER_DATA_SCHEMA_VERSION : '',
   generatedAt = new Date().toISOString(),
   indexReferences = [],
 } = {}) {
@@ -259,6 +261,7 @@ export function buildDeployManifest(files, {
     generatedAt,
     storageCompatibility: [STORAGE_BACKENDS.TXT, STORAGE_BACKENDS.MONGO],
     requiresRuntimeConfig,
+    ...(requiresDataSchemaVersion ? { requiresDataSchemaVersion } : {}),
     preservesRuntimeConfig: true,
     runtimeConfigFiles: [RUNTIME_CONFIG_FILE, DEPLOYMENT_METADATA_FILE],
     manifestFile: DEPLOY_MANIFEST_FILE,

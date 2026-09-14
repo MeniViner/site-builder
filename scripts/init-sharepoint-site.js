@@ -3,8 +3,7 @@ import os from 'os';
 import path from 'path';
 import { pathToFileURL } from 'url';
 import { parseCliArgs, resolveConfig, writeEnvProduction } from './sp-env.js';
-import { DEFAULT_GANTT_DATA } from '../src/utils/ganttData.js';
-import { createInitialBoomData } from '../src/utils/boomData.js';
+import { buildCanonicalLegacySeedTexts } from '../src/config/siteSeedDefaults.js';
 import {
   decideLegacyLibraryDeployment,
   probeLegacyWebDavLibrary,
@@ -40,18 +39,10 @@ const fileMap = {
   boom: normalizeServerRelative(siteAssetsRel, 'boom_data.txt'),
 };
 
-const defaultFiles = [
-  { key: 'masterConfig', content: JSON.stringify({ schemaVersion: '1.0.0' }, null, 2) },
-  { key: 'users', content: JSON.stringify([{ id: 1, name: 'מנהל לדוגמה', role: 'admin', personalNumber: '8856096', email: '', loginName: '' }, { id: 2, name: 'מנהל ראשי', role: 'admin', personalNumber: '8624034', email: '', loginName: '' }], null, 2) },
-  { key: 'events', content: JSON.stringify({ displayCount: 3, displayMode: 'default', events: [] }, null, 2) },
-  { key: 'navigation', content: JSON.stringify([], null, 2) },
-  { key: 'siteContent', content: JSON.stringify({}, null, 2) },
-  { key: 'theme', content: JSON.stringify({}, null, 2) },
-  { key: 'widgets', content: JSON.stringify({}, null, 2) },
-  { key: 'externalLinks', content: JSON.stringify([], null, 2) },
-  { key: 'gantt', content: JSON.stringify(DEFAULT_GANTT_DATA, null, 2) },
-  { key: 'boom', content: JSON.stringify(createInitialBoomData(), null, 2) },
-];
+const defaultFiles = buildCanonicalLegacySeedTexts().map((file) => ({
+  key: file.key,
+  content: file.text,
+}));
 
 const logLibraryCheck = (library) => {
   const probe = library.parentProbe || library.libraryProbe;

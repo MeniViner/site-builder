@@ -19,13 +19,24 @@ describe('site-builder API', () => {
         nodeEnv: 'test',
         adminApiKey: 'secret',
         storageBackend: 'mongo',
+        appVersion: '0.1.14',
+        gitCommit: 'abc123def456',
+        dataSchemaVersion: '1.0.0',
+        supportedFrontendRange: '^0.1.14',
       },
     });
   });
 
   it('serves health without auth', async () => {
     const response = await request(app).get('/healthz').expect(200);
-    expect(response.body.ok).toBe(true);
+    expect(response.body).toMatchObject({
+      ok: true,
+      storageBackend: 'mongo',
+      appVersion: '0.1.14',
+      gitCommit: 'abc123def456',
+      dataSchemaVersion: '1.0.0',
+      supportedFrontendRange: '^0.1.14',
+    });
   });
 
   it('requires auth for API routes', async () => {
@@ -63,6 +74,75 @@ describe('site-builder API', () => {
       .expect(200);
 
     expect(firstSave.body).toMatchObject({ ok: true, version: 1, missing: false });
+  });
+
+  it('reports provisioning status and provisions canonical defaults without exposing seeded data', async () => {
+    const statusBefore = await request(app)
+      .get('/api/sites/alpha/provision-status')
+      .set('x-api-key', 'secret')
+      .expect(200);
+
+    expect(statusBefore.body.provisionStatus).toMatchObject({
+      site: null,
+      siteExists: false,
+      provisioned: false,
+      totalDefaults: 10,
+      missingDefaults: 10,
+    });
+    expect(statusBefore.body.provisionStatus.items[0]).not.toHaveProperty('data');
+
+    const provisioned = await request(app)
+      .post('/api/sites/alpha/provision')
+      .set('x-api-key', 'secret')
+      .send({})
+      .expect(201);
+
+    expect(provisioned.body).toMatchObject({
+      ok: true,
+      siteCreated: true,
+      createdCount: 10,
+    });
+    expect(provisioned.body.provisionStatus).toMatchObject({
+      siteExists: true,
+      provisioned: true,
+      missingDefaults: 0,
+    });
+    expect(provisioned.body.provisionStatus.items[0]).not.toHaveProperty('data');
+
+    const theme = await request(app)
+      .get('/api/sites/alpha/legacy-object?key=theme_data.txt')
+      .set('x-api-key', 'secret')
+      .expect(200);
+
+    await request(app)
+      .put('/api/sites/alpha/legacy-object')
+      .set('x-api-key', 'secret')
+      .send({
+        key: 'theme_data.txt',
+        data: { primaryColor: '#123456' },
+        expectedVersion: theme.body.version,
+      })
+      .expect(200);
+
+    const repeat = await request(app)
+      .post('/api/sites/alpha/provision')
+      .set('x-api-key', 'secret')
+      .send({})
+      .expect(200);
+
+    expect(repeat.body).toMatchObject({
+      ok: true,
+      siteCreated: false,
+      createdCount: 0,
+      skippedCount: 10,
+    });
+
+    const themeAfter = await request(app)
+      .get('/api/sites/alpha/legacy-object?key=theme_data.txt')
+      .set('x-api-key', 'secret')
+      .expect(200);
+
+    expect(themeAfter.body.data).toEqual({ primaryColor: '#123456' });
   });
 
   it('creates a site and reads/writes data', async () => {

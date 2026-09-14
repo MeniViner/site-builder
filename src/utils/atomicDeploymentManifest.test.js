@@ -52,5 +52,13 @@ describe('atomic deployment manifest', () => {
       fileCount: 4,
     })).toThrow('duplicate');
   });
-});
 
+  it('preserves an optional requiresDataSchemaVersion field for newer manifests', () => {
+    const manifest = normalizeAtomicBuildManifest({
+      ...manifestFor('B'),
+      requiresDataSchemaVersion: '1.0.0',
+    });
+
+    expect(manifest.requiresDataSchemaVersion).toBe('1.0.0');
+  });
+});

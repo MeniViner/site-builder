@@ -33,6 +33,7 @@ describe('deployment artifacts', () => {
       schemaVersion: 4,
       artifactKind: 'site-builder-universal-frontend',
       requiresRuntimeConfig: true,
+      requiresDataSchemaVersion: '1.0.0',
       preservesRuntimeConfig: true,
     });
 

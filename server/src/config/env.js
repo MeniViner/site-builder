@@ -1,6 +1,17 @@
 import dotenv from 'dotenv';
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  buildSupportedFrontendRange,
+  normalizeSiteBuilderAppVersion,
+  SITE_BUILDER_DATA_SCHEMA_VERSION,
+} from '../../../src/config/siteBuilderContract.js';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const repositoryRoot = path.resolve(path.dirname(__filename), '../../..');
 
 const splitCsv = (value) =>
   String(value || '')
@@ -8,7 +19,20 @@ const splitCsv = (value) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
+const resolveRepositoryGitCommit = () => {
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: repositoryRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return 'unknown';
+  }
+};
+
 export function getServerConfig(env = process.env) {
+  const appVersion = normalizeSiteBuilderAppVersion(env.APP_VERSION || env.npm_package_version);
   return {
     mongodbUri: env.MONGODB_URI || '',
     // The database name must be explicit.  Falling back to the historical
@@ -27,6 +51,10 @@ export function getServerConfig(env = process.env) {
       env.REQUIRE_STARTUP_COLLECTIONS ?? (env.NODE_ENV === 'production' ? 'true' : 'false'),
     ).toLowerCase() === 'true',
     shutdownTimeoutMs: Number(env.SHUTDOWN_TIMEOUT_MS || 30000),
+    appVersion,
+    gitCommit: String(env.GIT_COMMIT || env.COMMIT_SHA || resolveRepositoryGitCommit()).trim() || 'unknown',
+    dataSchemaVersion: String(env.DATA_SCHEMA_VERSION || SITE_BUILDER_DATA_SCHEMA_VERSION).trim() || SITE_BUILDER_DATA_SCHEMA_VERSION,
+    supportedFrontendRange: String(env.SUPPORTED_FRONTEND_RANGE || buildSupportedFrontendRange(appVersion)).trim(),
   };
 }
 

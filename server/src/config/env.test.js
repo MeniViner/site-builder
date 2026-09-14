@@ -37,4 +37,22 @@ describe('server env validation', () => {
     expect(config.mongodbDbName).toBe('sitebuilder_site_data');
     expect(validateServerConfig(config)).toEqual([]);
   });
+
+  it('derives safe public health metadata from env defaults and overrides', () => {
+    const config = getServerConfig({
+      STORAGE_BACKEND: 'mongo',
+      MONGODB_URI: 'mongodb://127.0.0.1:27018/sitebuilder_site_data',
+      MONGODB_DB_NAME: 'sitebuilder_site_data',
+      APP_VERSION: '0.2.3',
+      GIT_COMMIT: 'deadbeef',
+      SUPPORTED_FRONTEND_RANGE: '^0.2.0',
+    });
+
+    expect(config).toMatchObject({
+      appVersion: '0.2.3',
+      gitCommit: 'deadbeef',
+      dataSchemaVersion: '1.0.0',
+      supportedFrontendRange: '^0.2.0',
+    });
+  });
 });
