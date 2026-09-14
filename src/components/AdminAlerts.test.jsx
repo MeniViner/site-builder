@@ -52,13 +52,25 @@ describe('AdminAlerts popup composer', () => {
         fireEvent.change(screen.getByRole('textbox', { name: 'תוכן ההתראה' }), {
             target: { value: 'התוכן מופיע מיד בפופאפ' },
         });
+        fireEvent.change(screen.getByRole('textbox', { name: 'טקסט לכפתור פעולה' }), {
+            target: { value: 'מעבר לטופס' },
+        });
 
         expect(screen.getByRole('heading', { name: 'עדכון בזמן אמת' })).toBeInTheDocument();
         expect(screen.getAllByText('התוכן מופיע מיד בפופאפ')).toHaveLength(2);
+        expect(screen.getByRole('button', { name: 'מעבר לטופס' })).toBeDisabled();
+        fireEvent.change(screen.getByRole('textbox', { name: 'כתובת הכפתור' }), {
+            target: { value: 'https://example.com/form' },
+        });
+        expect(screen.getByRole('link', { name: 'מעבר לטופס' })).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('tab', { name: 'הצגה ותזמון' }));
         expect(screen.getByRole('radio', { name: /פופאפ בכניסה/ })).toBeChecked();
         expect(screen.getByRole('checkbox', { name: /דרישת אישור קריאה/ })).toBeInTheDocument();
+        expect(screen.getByText(/התזמון אופציונלי/)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('checkbox', { name: /דרישת אישור קריאה/ }));
+        expect(screen.getByRole('link', { name: 'מעבר לטופס' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'קראתי ואישרתי' })).not.toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('button', { name: 'שמירה כטיוטה' }));
         await waitFor(() => expect(mocks.saveNow).toHaveBeenCalledOnce());

@@ -8,8 +8,8 @@ export default function NotificationPopupCard({
     remaining = 1,
     preview = false,
 }) {
-    const requiresAcknowledgement = item?.requiresAcknowledgement === true;
-    const hasCta = Boolean(item?.ctaLabel && item?.ctaUrl);
+    const hasCta = Boolean(item?.ctaLabel && (preview || item?.ctaUrl));
+    const requiresAcknowledgement = item?.requiresAcknowledgement === true && !hasCta;
 
     return (
         <div
@@ -48,9 +48,30 @@ export default function NotificationPopupCard({
                 fallback={preview ? 'התוכן שתקלידו יוצג כאן בדיוק כפי שהמשתמש יראה אותו.' : ''}
             />
 
-            {(requiresAcknowledgement || hasCta) && (
+            {(hasCta || requiresAcknowledgement) && (
                 <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-theme-subtle pt-4">
                     <div className="flex flex-wrap items-center gap-2">
+                    {hasCta && (
+                        preview && !item.ctaUrl ? (
+                            <button
+                                type="button"
+                                disabled
+                                className="inline-flex min-h-10 items-center justify-center rounded-xl bg-primary px-4 text-sm font-black text-white opacity-70"
+                            >
+                                {item.ctaLabel}
+                            </button>
+                        ) : (
+                            <a
+                                href={item.ctaUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={onClose}
+                                className="inline-flex min-h-10 items-center justify-center rounded-xl bg-primary px-4 text-sm font-black text-white transition-[filter,transform] hover:brightness-110 active:scale-[0.96]"
+                            >
+                                {item.ctaLabel}
+                            </a>
+                        )
+                    )}
                     {requiresAcknowledgement && (
                         <button
                             type="button"
@@ -59,16 +80,6 @@ export default function NotificationPopupCard({
                         >
                             קראתי ואישרתי
                         </button>
-                    )}
-                    {hasCta && (
-                        <a
-                            href={item.ctaUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex min-h-10 items-center justify-center rounded-xl bg-primary px-4 text-sm font-black text-white transition-[filter,transform] hover:brightness-110 active:scale-[0.96]"
-                        >
-                            {item.ctaLabel}
-                        </a>
                     )}
                     </div>
                     {requiresAcknowledgement && (

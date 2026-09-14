@@ -519,6 +519,9 @@ export default function AdminAlerts() {
                                                 <input type="date" className={`${inputClass} ${datesInvalid ? 'border-red-500' : ''}`} value={form.endsAt} onChange={(event) => setForm((current) => ({ ...current, endsAt: event.target.value }))} />
                                             </label>
                                         </div>
+                                        <p className="text-pretty text-xs leading-5 text-theme-muted">
+                                            התזמון אופציונלי. אם שני התאריכים נשארים ריקים, ההתראה תוצג ללא הגבלת זמן. אפשר להגדיר רק תאריך התחלה או רק תאריך סיום.
+                                        </p>
                                         {datesInvalid && <p className="text-sm font-bold text-red-600">תאריך הסיום לא יכול להיות לפני תאריך ההתחלה.</p>}
                                         <label className="flex min-h-14 items-center justify-between gap-4 rounded-2xl bg-theme-elevated px-4 py-3 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)]">
                                             <div>

@@ -37,4 +37,36 @@ describe('NotificationPopupCard actions', () => {
 
         expect(screen.getByRole('link', { name: 'פתיחת טופס' })).toHaveAttribute('href', 'https://example.com/form');
     });
+
+    it('shows the action button instead of acknowledgement when both are configured', () => {
+        const onClose = vi.fn();
+        render(
+            <NotificationPopupCard
+                item={{
+                    title: 'פעולה עם אישור',
+                    text: 'יש לבצע פעולה.',
+                    ctaLabel: 'מעבר לטופס',
+                    ctaUrl: 'https://example.com/action',
+                    requiresAcknowledgement: true,
+                }}
+                onClose={onClose}
+            />
+        );
+
+        expect(screen.getByRole('link', { name: 'מעבר לטופס' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'קראתי ואישרתי' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'סגירת התראה' })).not.toBeDisabled();
+    });
+
+    it('shows a disabled action button in preview while its URL is still being entered', () => {
+        render(
+            <NotificationPopupCard
+                item={{ title: 'תצוגה', text: 'תוכן', ctaLabel: 'כפתור בפופאפ', ctaUrl: '' }}
+                onClose={() => {}}
+                preview
+            />
+        );
+
+        expect(screen.getByRole('button', { name: 'כפתור בפופאפ' })).toBeDisabled();
+    });
 });
