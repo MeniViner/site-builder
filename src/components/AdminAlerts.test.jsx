@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminAlerts from './AdminAlerts';
 
@@ -38,16 +38,15 @@ describe('AdminAlerts popup composer', () => {
         mocks.saveNow.mockReset().mockResolvedValue(true);
     });
 
-    it('renders a live popup preview and excludes widget urgency and rotation controls', () => {
+    it('renders the full console with live preview, draft publishing, delivery, and no widget controls', async () => {
         render(<AdminAlerts />);
         fireEvent.click(screen.getByRole('button', { name: 'התראה חדשה' }));
 
         expect(screen.getByRole('heading', { name: 'תצוגה בזמן אמת' })).toBeInTheDocument();
         expect(screen.queryByText('התראה דחופה')).not.toBeInTheDocument();
         expect(screen.queryByText(/זמן החלפה/)).not.toBeInTheDocument();
-        expect(screen.getByRole('checkbox', { name: /הצגה אוטומטית כפופאפ/ })).toBeChecked();
 
-        fireEvent.change(screen.getByRole('textbox', { name: 'כותרת' }), {
+        fireEvent.change(screen.getByRole('textbox', { name: /כותרת/ }), {
             target: { value: 'עדכון בזמן אמת' },
         });
         fireEvent.change(screen.getByRole('textbox', { name: 'תוכן ההתראה' }), {
@@ -56,5 +55,14 @@ describe('AdminAlerts popup composer', () => {
 
         expect(screen.getByRole('heading', { name: 'עדכון בזמן אמת' })).toBeInTheDocument();
         expect(screen.getAllByText('התוכן מופיע מיד בפופאפ')).toHaveLength(2);
+
+        fireEvent.click(screen.getByRole('tab', { name: 'הצגה ותזמון' }));
+        expect(screen.getByRole('radio', { name: /פופאפ בכניסה/ })).toBeChecked();
+        expect(screen.getByRole('checkbox', { name: /דרישת אישור קריאה/ })).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'שמירה כטיוטה' }));
+        await waitFor(() => expect(mocks.saveNow).toHaveBeenCalledOnce());
+        expect(screen.getByRole('tab', { name: 'התראות שמורות' })).toHaveAttribute('aria-selected', 'true');
+        expect(screen.getByText('טיוטה')).toBeInTheDocument();
     });
 });

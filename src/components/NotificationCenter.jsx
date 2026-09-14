@@ -23,9 +23,10 @@ export default function NotificationCenter({ items, currentUser, autoOpen = true
         () => getNotificationDismissalStorageKey(siteIdentity, currentUser),
         [currentUser, siteIdentity]
     );
+    const [dateRevision, setDateRevision] = useState(0);
     const notifications = useMemo(
         () => filterNotificationsForUser(items, currentUser),
-        [currentUser, items]
+        [currentUser, dateRevision, items]
     );
     const [panelOpen, setPanelOpen] = useState(false);
     const [selected, setSelected] = useState(null);
@@ -34,6 +35,16 @@ export default function NotificationCenter({ items, currentUser, autoOpen = true
     useEffect(() => {
         setDismissed(readDismissed(storageKey));
     }, [storageKey]);
+
+    useEffect(() => {
+        const now = new Date();
+        const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        const timer = window.setTimeout(
+            () => setDateRevision((current) => current + 1),
+            Math.max(1000, nextMidnight.getTime() - now.getTime() + 250)
+        );
+        return () => window.clearTimeout(timer);
+    }, [dateRevision]);
 
     const unreadNotifications = notifications.filter((item) => !dismissed.has(item.id));
     const pendingPopups = unreadNotifications.filter((item) => item.popupActive);

@@ -1,7 +1,11 @@
-import { normalizeSmartTextTokens, smartTextTokensToPlainText } from './smartText';
+import { normalizeSmartTextTokens, sanitizeSmartHref, smartTextTokensToPlainText } from './smartText';
 
 const text = (value) => (typeof value === 'string' ? value.trim() : '');
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+const dateText = (value) => {
+    const candidate = text(value);
+    return /^\d{4}-\d{2}-\d{2}$/.test(candidate) ? candidate : '';
+};
 
 export function normalizeIdentityKey(value) {
     return text(value).toLowerCase();
@@ -51,6 +55,13 @@ export function normalizeNotification(itemLike, index = 0) {
     const legacyText = text(source.text);
     const createdAt = text(source.createdAt) || '';
     const updatedAt = text(source.updatedAt) || createdAt;
+    const status = source.status === 'draft' ? 'draft' : 'published';
+    const startsAt = dateText(source.startsAt ?? source.from);
+    const endsAt = dateText(source.endsAt ?? source.to);
+    const popupActive = source.popupActive !== undefined
+        ? source.popupActive === true
+        : source.displayMode === 'popup';
+    const displayMode = popupActive ? 'popup' : 'center';
 
     return {
         id: text(source.id) || `notification-${index + 1}`,
@@ -58,7 +69,14 @@ export function normalizeNotification(itemLike, index = 0) {
         text: legacyText || richPlainText,
         richContent,
         isUrgent: source.isUrgent === true,
-        popupActive: source.popupActive === true,
+        popupActive,
+        displayMode,
+        status,
+        startsAt,
+        endsAt,
+        ctaLabel: text(source.ctaLabel ?? source.cta),
+        ctaUrl: sanitizeSmartHref(source.ctaUrl ?? source.url),
+        requiresAcknowledgement: source.requiresAcknowledgement === true || source.ack === true,
         audience: normalizeNotificationAudience(source.audience),
         source: text(source.source) || 'admin',
         sourceEntityId: text(source.sourceEntityId),
@@ -66,6 +84,22 @@ export function normalizeNotification(itemLike, index = 0) {
         createdAt,
         updatedAt,
     };
+}
+
+export function getNotificationEffectiveStatus(notificationLike, today = new Date()) {
+    const notification = normalizeNotification(notificationLike);
+    if (notification.status === 'draft') return 'draft';
+    const date = today instanceof Date ? today : new Date(today);
+    const currentDate = Number.isFinite(date.getTime())
+        ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+        : '';
+    if (notification.startsAt && currentDate && notification.startsAt > currentDate) return 'scheduled';
+    if (notification.endsAt && currentDate && notification.endsAt < currentDate) return 'ended';
+    return 'published';
+}
+
+export function isNotificationCurrentlyVisible(notificationLike, today = new Date()) {
+    return getNotificationEffectiveStatus(notificationLike, today) === 'published';
 }
 
 export function normalizeNotifications(itemsLike) {
@@ -84,6 +118,7 @@ export function isNotificationForUser(notificationLike, user) {
 export function filterNotificationsForUser(items, user) {
     return normalizeNotifications(items)
         .filter((item) => isNotificationForUser(item, user))
+        .filter((item) => isNotificationCurrentlyVisible(item))
         .sort((left, right) => {
             const leftTime = Date.parse(left.updatedAt || left.createdAt || '') || 0;
             const rightTime = Date.parse(right.updatedAt || right.createdAt || '') || 0;
@@ -109,6 +144,8 @@ export function buildBoomAssignmentNotification(task, assignee, now = new Date()
         text: details,
         isUrgent: false,
         popupActive: true,
+        displayMode: 'popup',
+        status: 'published',
         audience: { type: 'users', identities: [identityKey] },
         source: 'boom-assignment',
         sourceEntityId: task.id,

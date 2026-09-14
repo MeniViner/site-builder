@@ -4,6 +4,7 @@ import {
     buildBoomAssignmentNotification,
     filterNotificationsForUser,
     getNotificationDismissalStorageKey,
+    getNotificationEffectiveStatus,
     normalizeNotification,
 } from './notificationData';
 
@@ -17,8 +18,17 @@ describe('notificationData', () => {
                 text: 'תוכן',
                 isUrgent: true,
                 popupActive: false,
+                status: 'published',
                 audience: { type: 'all' },
             });
+    });
+
+    it('filters drafts and notifications outside their display window', () => {
+        const now = new Date('2026-09-14T12:00:00Z');
+        expect(getNotificationEffectiveStatus({ status: 'draft' }, now)).toBe('draft');
+        expect(getNotificationEffectiveStatus({ status: 'published', startsAt: '2026-09-15' }, now)).toBe('scheduled');
+        expect(getNotificationEffectiveStatus({ status: 'published', endsAt: '2026-09-13' }, now)).toBe('ended');
+        expect(getNotificationEffectiveStatus({ status: 'published', startsAt: '2026-09-01', endsAt: '2026-09-20' }, now)).toBe('published');
     });
 
     it('filters targeted notifications by stable identity', () => {
