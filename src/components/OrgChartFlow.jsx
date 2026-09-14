@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactFlow, {
     Background,
@@ -17,9 +18,10 @@ import 'reactflow/dist/style.css';
 
 const FALLBACK_X_STEP = 320;
 const FALLBACK_Y_STEP = 170;
-const AUTO_LAYOUT_DIRECTIONS = ['center', 'rtl', 'ltr'];
+const AUTO_LAYOUT_DIRECTIONS = ['center', 'compact', 'rtl', 'ltr'];
 const AUTO_LAYOUT_OPTIONS = [
     { id: 'center', label: 'מרכוז' },
+    { id: 'compact', label: 'פריסה קומפקטית' },
     { id: 'rtl', label: 'ימין לשמאל' },
     { id: 'ltr', label: 'שמאל לימין' },
 ];
@@ -190,7 +192,7 @@ function normalizeLayoutDirection(direction) {
     return AUTO_LAYOUT_DIRECTIONS.includes(direction) ? direction : 'center';
 }
 
-function buildCenteredTreePositions(treeNodes) {
+export function buildCenteredTreePositions(treeNodes) {
     const positions = {};
     let leafCursor = 0;
 
@@ -226,6 +228,34 @@ function buildCenteredTreePositions(treeNodes) {
         };
         return acc;
     }, {});
+}
+
+export function buildCompactTreePositions(treeNodes, columns = 4) {
+    const levels = [];
+    const queue = (Array.isArray(treeNodes) ? treeNodes : []).map((node) => ({ node, depth: 0 }));
+    while (queue.length > 0) {
+        const { node, depth } = queue.shift();
+        if (!levels[depth]) levels[depth] = [];
+        levels[depth].push(node);
+        (Array.isArray(node.children) ? node.children : []).forEach((child) => queue.push({ node: child, depth: depth + 1 }));
+    }
+
+    const positions = {};
+    let y = 0;
+    levels.forEach((nodesAtDepth) => {
+        const rowCount = Math.ceil(nodesAtDepth.length / columns);
+        nodesAtDepth.forEach((node, index) => {
+            const row = Math.floor(index / columns);
+            const column = index % columns;
+            const columnsInRow = Math.min(columns, nodesAtDepth.length - row * columns);
+            positions[node.id] = {
+                x: Math.round((column - (columnsInRow - 1) / 2) * 290),
+                y: Math.round(y + row * 175),
+            };
+        });
+        y += Math.max(1, rowCount) * 175 + 105;
+    });
+    return positions;
 }
 
 function buildHorizontalTreePositions(treeNodes, direction) {
@@ -267,8 +297,9 @@ function buildHorizontalTreePositions(treeNodes, direction) {
     }, {});
 }
 
-function buildHierarchyLayoutPositions(treeNodes, requestedDirection) {
+export function buildHierarchyLayoutPositions(treeNodes, requestedDirection) {
     const direction = normalizeLayoutDirection(requestedDirection);
+    if (direction === 'compact') return buildCompactTreePositions(treeNodes);
     if (direction === 'rtl' || direction === 'ltr') {
         return buildHorizontalTreePositions(treeNodes, direction);
     }

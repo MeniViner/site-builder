@@ -41,11 +41,13 @@ import {
     normalizeImportedBackupPackage,
     packageToBackupListItem,
     packageToFileTextsMap,
+    deriveBackupFileRecordCount,
 } from '../utils/backupPackage';
 import ConfigService from '../services/ConfigService';
 import { useConfig } from '../context/ConfigProvider';
 import { useBoom } from '../context/BoomContext';
 import { useGantt } from '../context/GanttContext';
+import { useWidget } from '../context/WidgetContext';
 import BackupSiteLivePreview from './BackupSiteLivePreview';
 import DismissibleNotice from './DismissibleNotice';
 import backendApiClient from '../services/storage/backendApiClient';
@@ -303,7 +305,7 @@ const summarizeFileForRestore = (file = {}) => {
         missing: Boolean(file.missing) || status === 'missing',
         invalid: Boolean(file.invalid) || status === 'invalid',
         entityId: file.entityId || '',
-        recordCount: Number.isFinite(Number(file.recordCount)) ? Number(file.recordCount) : 0,
+        recordCount: deriveBackupFileRecordCount(fileName, file.text, file.recordCount),
         sizeBytes: Number.isFinite(Number(file.sizeBytes)) ? Number(file.sizeBytes) : 0,
         restoreUnitId,
     };
@@ -443,6 +445,13 @@ export default function AdminBackupManagement() {
     const { config, reload } = useConfig();
     const { reloadBoom } = useBoom();
     const { reloadGantt } = useGantt();
+    const { fetchWidgetConfig = async () => true } = useWidget() || {};
+    const reloadRestoredData = () => Promise.all([
+        reload(),
+        reloadGantt(),
+        reloadBoom(),
+        fetchWidgetConfig(),
+    ]);
     const importInputRef = useRef(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -1151,9 +1160,9 @@ export default function AdminBackupManagement() {
                     description: `Safety backup before restoring ${restoreTargetId}`,
                 });
                 const preRestoreBackupId = safetyBackup?.backup?.id || safetyBackup?.backup?.backupId || safetyBackup?.backup?.entityId;
-                if (preRestoreBackupId) {
-                    restorePayload.preRestoreBackupId = preRestoreBackupId;
-                }
+                if (!preRestoreBackupId) throw new Error('גיבוי הבטיחות לא נשמר עם מזהה תקין.');
+                await backendApiClient.getBackup(currentSiteId, preRestoreBackupId);
+                restorePayload.preRestoreBackupId = preRestoreBackupId;
 
                 const restoreResponse = await backendApiClient.restoreBackup(currentSiteId, restoreTargetId, restorePayload);
                 restoreResultSummary.status = restoreResponse?.restoreStatus || 'completed';
@@ -1168,7 +1177,7 @@ export default function AdminBackupManagement() {
                 restoreResultSummary.selectedItemCount = restoreResponse?.selectedItemCount || selectedItems.length;
                 restoreResultSummary.skippedItemCount = restoreResponse?.skippedItemCount;
                 restoreResultSummary.clearOrReplaceActions = restoreResponse?.clearOrReplaceActions || [];
-                await Promise.all([reload(), reloadGantt(), reloadBoom()]);
+                await reloadRestoredData();
                 toast.success('השחזור בוצע דרך Mongo ונתוני האתר נטענו מחדש.');
             } else {
                 const selectedFileTexts = new Map(
@@ -1199,7 +1208,7 @@ export default function AdminBackupManagement() {
                                 status: entry.status,
                                 restoreAction: entry.restoreAction,
                             }));
-                        await Promise.all([reload(), reloadGantt(), reloadBoom()]);
+                        await reloadRestoredData();
                         toast.success('השחזור במצב פיתוח הושלם. הנתונים נטענו מחדש מהגיבוי.');
                     } else {
                         const safetyBackup = await createBackup({ trigger: 'pre-restore' });
@@ -1243,8 +1252,8 @@ export default function AdminBackupManagement() {
                                 restoreAction: entry.restoreAction,
                             }));
 
-                        await Promise.all([reload(), reloadGantt(), reloadBoom()]);
-                        toast.success('השחזור בוצע. מומלץ לרענן את האתר כדי לראות את כל הנתונים המשוחזרים.');
+                        await reloadRestoredData();
+                        toast.success('השחזור בוצע וכל הנתונים הנטענים עודכנו.');
                     }
                 }
 

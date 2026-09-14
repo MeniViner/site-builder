@@ -2,6 +2,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import GanttService from '../services/GanttService';
 import { DEFAULT_GANTT_DATA, normalizeGanttData } from '../utils/ganttData';
+import { assertAdminEditSessionFresh } from '../utils/adminEditSession';
 
 const GanttContext = createContext(null);
 
@@ -39,6 +40,7 @@ export const GanttProvider = ({ children }) => {
     }, []);
 
     const saveGantt = useCallback(async (payload = undefined) => {
+        assertAdminEditSessionFresh();
         setSaving(true);
         setError(null);
         try {

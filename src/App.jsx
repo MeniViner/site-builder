@@ -12,6 +12,8 @@ import OverlayImageElement from './components/home/OverlayImageElement';
 import { ExtLinksCards, ExtLinksFloating, ExtLinksMinimal } from './components/home/ExternalLinksLayouts';
 import SharePointPermissionsSetupStatus from './components/SharePointPermissionsSetupStatus';
 import { getWidgetTitle } from './components/WidgetPanelContent';
+import NotificationCenter from './components/NotificationCenter';
+import { useOptionalConfig } from './context/ConfigProvider';
 import NotFoundPage from './components/NotFoundPage';
 import { useNavigation } from './context/NavigationContext';
 import { useAuth } from './context/AuthContext';
@@ -51,6 +53,8 @@ export function Home({ isPreview = false }) {
 
   const { navItems, loading } = useNavigation();
   const { currentUser, isAdmin, loading: authLoading } = useAuth();
+  const configContext = useOptionalConfig();
+  const config = configContext?.config;
   const { siteContent } = useSiteContent();
   const { theme, effectiveMode, toggleUserMode, borderTargets } = useTheme();
   const { externalLinks } = useExternalLinks();
@@ -202,6 +206,11 @@ export function Home({ isPreview = false }) {
           getGreeting={getGreeting}
           userName={userName}
           utilityLinks={utilityLinks}
+        />
+        <NotificationCenter
+          items={config?.widgets?.data?.alerts?.items || []}
+          currentUser={currentUser}
+          autoOpen={!isPreview}
         />
 
         <div

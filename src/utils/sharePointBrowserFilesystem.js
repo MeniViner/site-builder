@@ -200,11 +200,14 @@ export async function probeSharePointFolder({ webUrl, folderRel, libraries, requ
     const record = unwrapSharePointODataRecord(second.parsed);
     const actualPath = normalizeSharePointPath(record?.ServerRelativeUrl);
     const exactFolderObject = second.response.ok && sameSharePointPath(actualPath, normalized);
+    const folderObjectExists = second.response.ok || second.result.exists;
     return Object.freeze({
       ...first.result,
-      exists: first.result.exists || exactFolderObject,
-      reason: exactFolderObject ? 'FOLDER_OBJECT_VISIBLE_WAITING_FOR_LIST_ITEM' : first.result.reason,
-      actualPath: exactFolderObject ? actualPath : first.result.actualPath,
+      exists: first.result.exists || folderObjectExists,
+      reason: folderObjectExists
+        ? 'FOLDER_OBJECT_VISIBLE_WAITING_FOR_LIST_ITEM'
+        : first.result.reason,
+      actualPath: exactFolderObject ? actualPath : (second.result.actualPath || first.result.actualPath),
       url: listItemUrl,
       fallbackUrl: folderUrl,
       rawPreview: (second.raw || first.raw).slice(0, 700),

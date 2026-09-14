@@ -109,12 +109,30 @@ function countLegacyRecords(mapping, data) {
   if (mapping.mode === 'list') {
     return Array.isArray(data) ? data.length : 0;
   }
+
   if (mapping.mode === 'list-with-settings') {
     return Array.isArray(data?.[mapping.listProperty]) ? data[mapping.listProperty].length : 0;
   }
   if (Array.isArray(data)) return data.length;
   if (isObject(data)) return Object.keys(data).length > 0 ? 1 : 0;
   return data === null || data === undefined ? 0 : 1;
+}
+
+function validateLegacyPayload(mapping, data, fileName) {
+  if (!mapping) throw badRequest(`Backup file "${fileName}" has no supported restore destination.`);
+  if (data === null) {
+    throw badRequest(`Backup file "${fileName}" contains null instead of a restorable ${mapping.mode} payload.`);
+  }
+  if (mapping.mode === 'list' && !Array.isArray(data)) {
+    throw badRequest(`Backup file "${fileName}" must contain a JSON array.`);
+  }
+  if (mapping.mode === 'list-with-settings'
+    && (!isObject(data) || !Array.isArray(data[mapping.listProperty]))) {
+    throw badRequest(`Backup file "${fileName}" must contain an "${mapping.listProperty}" array.`);
+  }
+  if (mapping.mode === 'singleton' && !isObject(data)) {
+    throw badRequest(`Backup file "${fileName}" must contain a JSON object.`);
+  }
 }
 
 function hasLegacySettings(mapping, data) {
@@ -171,7 +189,16 @@ function inferEntryFromFile(file) {
     empty: Boolean(file.empty) || status === 'empty',
     missing: Boolean(file.missing) || status === 'missing',
     invalid: Boolean(file.invalid) || status === 'invalid',
-    recordCount: Number.isFinite(Number(file.recordCount)) ? Number(file.recordCount) : 0,
+    recordCount: (() => {
+      if (!mapping || typeof file.text !== 'string') {
+        return Number.isFinite(Number(file.recordCount)) ? Number(file.recordCount) : 0;
+      }
+      try {
+        return countLegacyRecords(mapping, JSON.parse(file.text));
+      } catch {
+        return Number.isFinite(Number(file.recordCount)) ? Number(file.recordCount) : 0;
+      }
+    })(),
     documentCount: Number.isFinite(Number(file.documentCount)) ? Number(file.documentCount) : 0,
     version: Number.isFinite(Number(file.version)) ? Number(file.version) : undefined,
     hash: typeof file.hash === 'string' ? file.hash : '',
@@ -206,8 +233,8 @@ function restoreEntriesFromPackage(backupPackage, { backupId = '' } = {}) {
         backupId,
       });
       return {
-        ...summarized,
         ...cloneJson(sourceEntry),
+        ...summarized,
       };
     }).filter((entry) => entry.fileName);
   }
@@ -678,8 +705,14 @@ export class SiteBackupRepository {
 
     // Validate every selected payload before the first write so an invalid
     // package cannot produce a partially applied restore.
-    filesToRestore.forEach(({ file }) => {
-      if (file) parseFileJson(file);
+    filesToRestore.forEach(({ entry, file }) => {
+      if (!file) {
+        throw badRequest(`Selected restore payload "${entry.fileName}" is missing.`);
+      }
+      const data = parseFileJson(file);
+      const mapping = LEGACY_MAPPINGS.find((candidate) => candidate.fileName === entry.fileName);
+      validateLegacyPayload(mapping, data, entry.fileName);
+      entry.recordCount = countLegacyRecords(mapping, data);
     });
 
     const restored = [];
@@ -702,21 +735,6 @@ export class SiteBackupRepository {
     }));
 
     for (const { entry, file } of filesToRestore) {
-      if (!file) {
-        failed.push({
-          restoreUnitId: entry.restoreUnitId,
-          fileName: entry.fileName,
-          scope: entry.scope,
-          entityId: entry.entityId,
-          restoreAction: entry.restoreAction,
-          status: entry.status,
-          outcome: 'failed',
-          selected: true,
-          message: 'Restore payload is missing file text.',
-        });
-        continue;
-      }
-
       try {
         const data = parseFileJson(file);
         let expectedVersion = 0;

@@ -220,6 +220,32 @@ describe('exact-name collision behaviour', () => {
         expect(ensureFolder).not.toHaveBeenCalled();
     });
 
+    it('does not report or mutate a temporarily incomplete folder object as an ordinary collision', async () => {
+        const ensureFolder = vi.fn();
+        const service = createService({
+            ensureFolder,
+            probeFolder: probeFolderFor({
+                [LIBRARY_ROOT]: readyLibraryProbe(),
+                [LEVEL_2_FOLDER]: {
+                    ready: false,
+                    exists: true,
+                    reason: 'FOLDER_OBJECT_VISIBLE_WAITING_FOR_LIST_ITEM',
+                    status: 200,
+                },
+            }),
+        });
+
+        await expect(service.provisionSubcategory({
+            displayName: 'תכניות עבודה',
+            provisionKey: 'k',
+            parentBinding: libraryBinding,
+        })).rejects.toMatchObject({
+            code: 'SHAREPOINT_FOLDER_INCOMPLETE',
+            mutationAttempted: false,
+        });
+        expect(ensureFolder).not.toHaveBeenCalled();
+    });
+
     it('still succeeds for a genuine idempotent retry of the same provisioning attempt', async () => {
         const provisionLibrary = vi.fn(async ({ title, rootServerRelativeUrl }) => verifiedLibrary(rootServerRelativeUrl, title));
         const service = createService({

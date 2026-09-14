@@ -25,6 +25,9 @@ const sanitizeValue = (value: unknown): unknown => {
             if (lower.includes('cookie') || lower.includes('authorization')) {
                 return [key, '[redacted]'];
             }
+            if (lower.includes('personalnumber') || lower === 'input' || lower === 'normalizedinput') {
+                return [key, '[redacted identity]'];
+            }
             if (lower.includes('digest') && typeof entryValue === 'string') {
                 return [key, `[redacted digest length ${entryValue.length}]`];
             }

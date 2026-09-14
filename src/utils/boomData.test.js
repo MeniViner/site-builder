@@ -13,6 +13,37 @@ import {
 } from './boomData';
 
 describe('boomData', () => {
+    it('preserves a verified linked assignee using stable fields only', () => {
+        const normalized = normalizeBoomData({
+            items: [{
+                id: 'linked',
+                title: 'משימה',
+                owner: 'נועה',
+                linkedAssignee: {
+                    Title: 'נועה כהן',
+                    personalNumber: 's1234567',
+                    LoginName: 'i:0#.f|membership|s1234567@army.idf.il',
+                    Email: 'S1234567@ARMY.IDF.IL',
+                    Id: 17,
+                    ignored: 'do-not-store',
+                },
+                assignmentVersion: 2,
+            }],
+        });
+
+        expect(normalized.items[0]).toMatchObject({
+            owner: 'נועה',
+            assignmentVersion: 2,
+            linkedAssignee: {
+                displayName: 'נועה כהן',
+                personalNumber: '1234567',
+                email: 's1234567@army.idf.il',
+                sharePointUserId: 17,
+                identityKey: 'sp:17',
+            },
+        });
+        expect(normalized.items[0].linkedAssignee).not.toHaveProperty('ignored');
+    });
     it('keeps BOOM disabled and independent by default', () => {
         expect(normalizeBoomData()).toEqual(DEFAULT_BOOM_DATA);
         expect(DEFAULT_BOOM_DATA).not.toHaveProperty('groupBy');

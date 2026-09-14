@@ -4,6 +4,8 @@ import {
     createBackupPackage,
     normalizeImportedBackupPackage,
     packageToFileTextsMap,
+    countBackupFileRecords,
+    packageToBackupListItem,
 } from './backupPackage';
 
 describe('backupPackage', () => {
@@ -34,6 +36,22 @@ describe('backupPackage', () => {
     it('rejects package files without backup entries', () => {
         expect(() => normalizeImportedBackupPackage({ kind: BACKUP_PACKAGE_KIND, files: [] }))
             .toThrow('קובץ הגיבוי לא כולל קבצים לשחזור.');
+    });
+
+    it('derives schema-aware counts when legacy metadata is absent or stale', () => {
+        const backupPackage = createBackupPackage({
+            files: [
+                { name: 'boom_data.txt', text: JSON.stringify({ items: [{ id: '1' }, { id: '2' }] }), recordCount: 0 },
+                { name: 'events_data.txt', text: JSON.stringify({ events: [{ id: 'e1' }] }) },
+            ],
+        });
+        const summary = packageToBackupListItem(backupPackage);
+
+        expect(summary.files.map((file) => file.recordCount)).toEqual([2, 1]);
+        expect(countBackupFileRecords('widgets_data.txt', {
+            alerts: { items: [{ id: 'a' }] },
+            polls: { items: [{ id: 'p1' }, { id: 'p2' }] },
+        })).toBe(3);
     });
 
     it('preserves Image Gallery configuration through export and import', () => {

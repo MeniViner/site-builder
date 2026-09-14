@@ -372,7 +372,15 @@ export function createNavigationSharePointService(dependencies = {}) {
             purpose: 'navigation-folder-collision-check',
         });
         assertProbeAuthorized(collisionProbe, 'SharePoint folder collision check access denied.');
-        if (collisionProbe.exists && !isVerifiedIdempotentRetry({
+        if (collisionProbe.exists && !collisionProbe.ready) {
+            throw new NavigationSharePointProvisioningError(
+                'SHAREPOINT_FOLDER_INCOMPLETE',
+                'קיים אובייקט תיקייה ב-SharePoint שעדיין אינו מחובר לפריט בספרייה. יש להמתין לסיום העיבוד ולנסות שוב.',
+                null,
+                { folderPath, collisionProbe },
+            );
+        }
+        if (collisionProbe.ready && !isVerifiedIdempotentRetry({
             existingBinding,
             expectedPath: folderPath,
             provisionKey,
@@ -405,6 +413,7 @@ export function createNavigationSharePointService(dependencies = {}) {
             state: 'verified',
             serverRelativeUrl: folderPath,
             listId: binding.listId,
+            itemId: folder.probe.id,
             libraryTitle: binding.libraryTitle,
             libraryRootServerRelativeUrl: binding.libraryRootServerRelativeUrl,
             parentServerRelativeUrl: binding.serverRelativeUrl,

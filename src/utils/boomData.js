@@ -85,6 +85,29 @@ function text(value, fallback = '') {
     return typeof value === 'string' ? value.trim() : fallback;
 }
 
+export function normalizeBoomAssignee(assigneeLike) {
+    if (!isObject(assigneeLike)) return null;
+    const sharePointUserId = Number(assigneeLike.sharePointUserId ?? assigneeLike.Id);
+    const loginName = text(assigneeLike.loginName ?? assigneeLike.LoginName);
+    const email = text(assigneeLike.email ?? assigneeLike.Email).toLowerCase();
+    const personalNumber = text(assigneeLike.personalNumber).replace(/\D/g, '');
+    const identityKey = text(assigneeLike.identityKey).toLowerCase()
+        || (Number.isInteger(sharePointUserId) && sharePointUserId > 0 ? `sp:${sharePointUserId}` : '')
+        || (loginName ? `login:${loginName.toLowerCase()}` : '')
+        || (email ? `email:${email}` : '')
+        || (personalNumber ? `pn:${personalNumber}` : '');
+    if (!identityKey) return null;
+
+    return {
+        displayName: text(assigneeLike.displayName ?? assigneeLike.Title),
+        personalNumber,
+        loginName,
+        email,
+        sharePointUserId: Number.isInteger(sharePointUserId) && sharePointUserId > 0 ? sharePointUserId : null,
+        identityKey,
+    };
+}
+
 function integer(value, min, max, fallback) {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return fallback;
@@ -152,6 +175,12 @@ export function normalizeBoomTask(taskLike, index = 0) {
         title: text(source.title, `משימה ${index + 1}`),
         category: text(source.category ?? source.domain, 'כללי'),
         owner: text(source.owner ?? source.responsibleOwner),
+        ...(normalizeBoomAssignee(source.linkedAssignee)
+            ? { linkedAssignee: normalizeBoomAssignee(source.linkedAssignee) }
+            : {}),
+        ...(Number(source.assignmentVersion) > 0
+            ? { assignmentVersion: integer(source.assignmentVersion, 1, Number.MAX_SAFE_INTEGER, 1) }
+            : {}),
         status: normalizeBoomStatus(source.status),
         startDate,
         endDate,

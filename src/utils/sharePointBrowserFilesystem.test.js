@@ -59,6 +59,24 @@ describe('SharePoint list-backed folder readiness', () => {
       '/sites/אתר בדיקה',
     )).toBe(true);
   });
+
+  it('reports an incomplete folder object as existing but not ready', async () => {
+    const request = vi.fn(async ({ url }) => (
+      url.includes('/ListItemAllFields')
+        ? response({ error: { message: { value: 'not found' } } }, 404)
+        : response({ d: {} }, 200)
+    ));
+
+    await expect(probeSharePointFolder({
+      ...runtime,
+      folderRel: '/sites/schedule/siteDB8/ממתין',
+      request,
+    })).resolves.toMatchObject({
+      ready: false,
+      exists: true,
+      reason: 'FOLDER_OBJECT_VISIBLE_WAITING_FOR_LIST_ITEM',
+    });
+  });
 });
 
 describe('SharePoint folder creation and file upload recovery', () => {

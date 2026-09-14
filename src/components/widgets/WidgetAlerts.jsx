@@ -2,20 +2,25 @@ import React, { useMemo, useState } from 'react';
 import { AlertTriangle, Bell, Filter } from 'lucide-react';
 import WidgetEmptyState from './WidgetEmptyState';
 import { useRotatingWidgetItems } from '../../utils/widgetDisplay';
+import { useAuth } from '../../context/AuthContext';
+import { filterNotificationsForUser } from '../../utils/notificationData';
+import SmartTextRenderer from '../SmartTextRenderer';
 
 export default function WidgetAlerts({ data = [], settings = {} }) {
   const [activeFilter, setActiveFilter] = useState('all');
+  const { currentUser } = useAuth();
+  const applicableItems = useMemo(() => filterNotificationsForUser(data, currentUser), [currentUser, data]);
 
-  const urgentItems = useMemo(() => data.filter((item) => item.isUrgent), [data]);
+  const urgentItems = useMemo(() => applicableItems.filter((item) => item.isUrgent), [applicableItems]);
   const filteredItems = useMemo(() => {
-    if (activeFilter === 'urgent') return data.filter((item) => item.isUrgent);
-    if (activeFilter === 'regular') return data.filter((item) => !item.isUrgent);
-    return data;
-  }, [activeFilter, data]);
+    if (activeFilter === 'urgent') return applicableItems.filter((item) => item.isUrgent);
+    if (activeFilter === 'regular') return applicableItems.filter((item) => !item.isUrgent);
+    return applicableItems;
+  }, [activeFilter, applicableItems]);
 
   const { visibleItems, page, totalPages } = useRotatingWidgetItems(filteredItems, settings, 5000);
 
-  if (!data || data.length === 0) {
+  if (applicableItems.length === 0) {
     return <WidgetEmptyState icon={Bell} title="אין הודעות במערכת" description="הודעות שוטפות ועדכונים קריטיים יופיעו כאן כאשר הם יוזנו." />;
   }
 
@@ -26,7 +31,7 @@ export default function WidgetAlerts({ data = [], settings = {} }) {
           <div>
             <div className="text-xs font-bold uppercase tracking-[0.24em] text-primary/80">לוח הודעות</div>
             <div className="mt-1 text-sm font-semibold text-gray-600 dark:text-gray-300">
-              {urgentItems.length} הודעות קריטיות מתוך {data.length} הודעות
+              {urgentItems.length} הודעות קריטיות מתוך {applicableItems.length} הודעות
             </div>
           </div>
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
@@ -65,9 +70,7 @@ export default function WidgetAlerts({ data = [], settings = {} }) {
             <div className="min-w-0">
               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-red-500">הודעה קריטית</div>
               {urgentItems[0].title && <div className="mt-1 font-bold text-gray-900 dark:text-white">{urgentItems[0].title}</div>}
-              <p className="mt-1 text-sm font-semibold leading-7 text-gray-800 dark:text-gray-100">
-                {urgentItems[0].text}
-              </p>
+              <SmartTextRenderer text={urgentItems[0].text} richText={urgentItems[0].richContent} className="mt-1 block text-sm font-semibold leading-7 text-gray-800 dark:text-gray-100" />
             </div>
           </div>
         </div>
@@ -100,9 +103,7 @@ export default function WidgetAlerts({ data = [], settings = {} }) {
                         </span>
                       </div>
                       {item.title && <h3 className="mt-2 font-bold text-gray-900 dark:text-white">{item.title}</h3>}
-                      <p className={`mt-1 text-sm leading-6 ${item.title ? 'text-gray-600 dark:text-gray-300' : 'text-gray-700 dark:text-gray-200'}`}>
-                        {item.text}
-                      </p>
+                      <SmartTextRenderer text={item.text} richText={item.richContent} className={`mt-1 block text-sm leading-6 ${item.title ? 'text-gray-600 dark:text-gray-300' : 'text-gray-700 dark:text-gray-200'}`} />
                     </div>
                   </div>
                 </div>

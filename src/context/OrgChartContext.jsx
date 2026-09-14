@@ -21,7 +21,7 @@ const VALID_FLOW_BACKGROUND_VARIANTS = ['dots', 'lines', 'cross'];
 const VALID_FLOW_CONTROL_ORIENTATION = ['vertical', 'horizontal'];
 const VALID_FLOW_VIEWPORT_MODES = ['map', 'design'];
 const VALID_FLOW_NODE_VISUAL_STYLES = ['command', 'clean', 'minimal'];
-const VALID_FLOW_AUTO_LAYOUT_DIRECTIONS = ['center', 'rtl', 'ltr'];
+const VALID_FLOW_AUTO_LAYOUT_DIRECTIONS = ['center', 'compact', 'rtl', 'ltr'];
 
 function clamp(value, min, max, fallback) {
     const parsed = Number(value);

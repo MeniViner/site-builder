@@ -4,6 +4,7 @@ import { useConfig } from './ConfigProvider';
 import { DEFAULT_ACTIVE_WIDGETS, mergeWidgetSettings } from '../utils/widgetDisplay';
 import WidgetService from '../services/WidgetService';
 import { spLog } from '../utils/spAppLog';
+import { assertAdminEditSessionFresh } from '../utils/adminEditSession';
 
 export const WidgetContext = createContext();
 
@@ -369,6 +370,7 @@ export const WidgetProvider = ({ children }) => {
     }, [sharedWidgetSnapshot]);
 
     const saveWidgetConfig = useCallback(async (newWidgetConfig) => {
+        assertAdminEditSessionFresh();
         const hasPollsPayload = Object.prototype.hasOwnProperty.call(newWidgetConfig || {}, 'polls');
         let pollsSaved = true;
 

@@ -1,8 +1,13 @@
 import React from 'react';
 import { act, render, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import BoomService from '../services/BoomService';
 import { BoomProvider, useBoom } from './BoomContext';
+import {
+    ADMIN_STALE_THRESHOLD_MS,
+    beginAdminEditSession,
+    endAdminEditSession,
+} from '../utils/adminEditSession';
 
 vi.mock('../services/BoomService', () => ({
     default: {
@@ -38,10 +43,13 @@ function Probe({ onChange }) {
 
 describe('BoomContext persistence safety', () => {
     beforeEach(() => {
+        endAdminEditSession();
         currentContext = null;
         BoomService.getBoom.mockReset().mockResolvedValue(baseBoom);
         BoomService.saveBoom.mockReset();
     });
+
+    afterEach(() => endAdminEditSession());
 
     it('serializes saves so an older request cannot overwrite a newer BOOM revision', async () => {
         let resolveFirst;
@@ -80,6 +88,15 @@ describe('BoomContext persistence safety', () => {
         await waitFor(() => expect(currentContext.loading).toBe(false));
 
         await expect(currentContext.saveBoom(baseBoom)).rejects.toThrow('לפני שהטעינה הראשונית');
+        expect(BoomService.saveBoom).not.toHaveBeenCalled();
+    });
+
+    it('does not call persistence after an Admin session becomes stale', async () => {
+        render(<BoomProvider><Probe onChange={captureContext} /></BoomProvider>);
+        await waitFor(() => expect(currentContext.loaded).toBe(true));
+        beginAdminEditSession(Date.now() - ADMIN_STALE_THRESHOLD_MS - 1);
+
+        await expect(currentContext.saveBoom(baseBoom)).rejects.toThrow('חייבים לרענן');
         expect(BoomService.saveBoom).not.toHaveBeenCalled();
     });
 });

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
     Undo2, Menu, Save, FileText, Link as LinkIcon,
-    LayoutGrid, Palette, ExternalLink, Sun, Moon, Users, ShieldCheck, ChevronDown, ChevronLeft, ChevronRight, CalendarDays, Image as ImageIcon, RotateCcw, Zap
+    LayoutGrid, Palette, ExternalLink, Sun, Moon, Users, ShieldCheck, ChevronDown, ChevronLeft, ChevronRight, CalendarDays, Image as ImageIcon, RotateCcw, Zap, Bell
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import AdminEvents from './AdminEvents';
@@ -40,6 +40,7 @@ import { UI_FEATURES } from '../config/uiFeatures.config';
 import { resolveSiteImageUrl } from '../utils/assetUrl';
 import { ALPHA_TEAM_CONFIG, getAppVersion } from '../config/alphaTeam.config';
 import { isKasharDemoProfile } from '../demo-data/demoProfile';
+import AdminEditSessionGuard from './AdminEditSessionGuard';
 
 const ADMIN_SECTION_STORAGE_KEY = 'siteBuilder.adminHub.openSections.v1';
 const ADMIN_LAST_PATH_STORAGE_KEY = 'siteBuilder.adminHub.lastPath.v1';
@@ -325,6 +326,7 @@ export default function AdminHub() {
 
     return (
         <div dir="rtl" className="flex h-screen bg-gray-100 dark:bg-[#1e212b] text-gray-900 dark:text-white font-heebo overflow-hidden">
+            <AdminEditSessionGuard />
             {/* {showAiUi && <AdminAICopilot activeTab={activeTab} />} */}
             {showKasharDraftTools && (
                 <input
@@ -426,6 +428,14 @@ export default function AdminHub() {
                                 onClick={() => navigateAdmin('/admin/widgets')}
                                 isSidebarOpen={isSidebarOpen}
                                 title="בחירת עד 3 ווידג׳טים שיוצגו בקרוסלה"
+                            />
+                            <SidebarButton
+                                icon={Bell}
+                                label="התראות"
+                                isActive={activeTab === 'alerts'}
+                                onClick={() => navigateAdmin('/admin/alerts')}
+                                isSidebarOpen={isSidebarOpen}
+                                title="ניהול התראות, קהלי יעד ופופאפים"
                             />
 
                         </>

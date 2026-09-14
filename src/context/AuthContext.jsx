@@ -66,6 +66,7 @@ const normalizeCurrentUser = (input) => {
             email: '',
             loginName: '',
             personalNumber: normalizePersonalNumber(displayName),
+            sharePointUserId: null,
         };
     }
 
@@ -79,6 +80,7 @@ const normalizeCurrentUser = (input) => {
         || input?.idNumber
         || input?.misparIshi
     );
+    const sharePointUserId = Number(input?.sharePointUserId ?? input?.Id ?? input?.id);
 
     const inferredPersonal = personalNumber
         || extractDigitTokens(loginName)[0]
@@ -91,6 +93,7 @@ const normalizeCurrentUser = (input) => {
         email,
         loginName,
         personalNumber: inferredPersonal,
+        sharePointUserId: Number.isInteger(sharePointUserId) && sharePointUserId > 0 ? sharePointUserId : null,
     };
 };
 
@@ -359,6 +362,7 @@ export const AuthProvider = ({ children }) => {
                     LoginName: data?.d?.LoginName,
                 });
                 const user = normalizeCurrentUser({
+                    sharePointUserId: data?.d?.Id,
                     displayName: data?.d?.Title || '',
                     loginName: data?.d?.LoginName || '',
                     email: data?.d?.Email || '',

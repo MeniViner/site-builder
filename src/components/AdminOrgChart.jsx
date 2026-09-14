@@ -199,6 +199,7 @@ const FLOW_VISUAL_PRESET_OPTIONS = [
 ];
 const FLOW_AUTO_LAYOUT_OPTIONS = [
     { value: 'center', label: 'מרכוז', description: 'עץ קלאסי מלמעלה למטה עם מרכזיות היררכית מלאה.' },
+    { value: 'compact', label: 'פריסה קומפקטית', description: 'עוטפת שכבות רחבות למספר שורות ושומרת על כרטיסים קריאים.' },
     { value: 'rtl', label: 'ימין לשמאל', description: 'שורש מימין, וכל שכבה מתקדמת שמאלה לפי היררכיה.' },
     { value: 'ltr', label: 'שמאל לימין', description: 'שורש משמאל, וכל שכבה מתקדמת ימינה לפי היררכיה.' },
 ];
@@ -367,7 +368,7 @@ function normalizeFlowCanvasSettings(value, fallback = DEFAULT_ORG_CHART.flowCan
         showRank: asBool(source.showRank, defaults.showRank),
         showRole: asBool(source.showRole, defaults.showRole),
         showAvatar: asBool(source.showAvatar, defaults.showAvatar),
-        autoLayoutDirection: asEnum(source.autoLayoutDirection, ['center', 'rtl', 'ltr'], defaults.autoLayoutDirection),
+        autoLayoutDirection: asEnum(source.autoLayoutDirection, ['center', 'compact', 'rtl', 'ltr'], defaults.autoLayoutDirection),
     };
 }
 
@@ -702,6 +703,18 @@ function PreviewMonitor({ draft, activeTab, onSaveFlowPositions, onFlowSettingCh
     const effectivePreviewPaneTab = isFlowTab ? previewPaneTab : 'preview';
     const isManualPositionTabActive = effectivePreviewPaneTab === 'manual-position';
     const showFlowRuntimePreview = isFlowTab && isFlowLayout && !isManualPositionTabActive;
+    const widthStats = useMemo(() => {
+        let leaves = 0;
+        let maxSiblings = 0;
+        const visit = (node) => {
+            const children = Array.isArray(node?.children) ? node.children : [];
+            maxSiblings = Math.max(maxSiblings, children.length);
+            if (children.length === 0) leaves += 1;
+            children.forEach(visit);
+        };
+        (Array.isArray(draft.nodes) ? draft.nodes : []).forEach(visit);
+        return { leaves, maxSiblings, wide: leaves > 12 || maxSiblings > 6 };
+    }, [draft.nodes]);
 
     return (
         <div className={`sticky top-[128px] ${isFlowTab ? 'max-h-[calc(100vh-145px)] overflow-y-auto custom-scrollbar pr-1' : ''}`}>
@@ -736,6 +749,18 @@ function PreviewMonitor({ draft, activeTab, onSaveFlowPositions, onFlowSettingCh
                         >
                             עריכת מיקום ידנית
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {isFlowTab && isFlowLayout && widthStats.wide && draft.flowCanvas?.autoLayoutDirection !== 'compact' && (
+                <div dir="rtl" className="mb-4 rounded-2xl border border-amber-300/50 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-100">
+                    <div className="flex items-start gap-2">
+                        <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+                        <div>
+                            <div className="font-black">זוהה מבנה רחב וצפוף</div>
+                            <p className="mt-1">מומלץ להפעיל פריסה קומפקטית כדי לשמור על גודל תצוגה נוח.</p>
+                        </div>
                     </div>
                 </div>
             )}

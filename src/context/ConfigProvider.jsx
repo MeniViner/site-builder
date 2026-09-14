@@ -16,6 +16,7 @@ import { toast } from 'react-toastify';
 import { isMongoStorageBackend, isSharePointReadonlyBackend } from '../services/storage/storageBackend';
 import { isKasharDemoProfile } from '../demo-data/demoProfile';
 import KasharDraftRecoveryPanel from '../components/KasharDraftRecoveryPanel';
+import { assertAdminEditSessionFresh, isStaleAdminEditError } from '../utils/adminEditSession';
 
 const STATUS = {
     LOADING: 'loading',
@@ -376,6 +377,7 @@ export const ConfigProvider = ({ children }) => {
         }
 
         try {
+            assertAdminEditSessionFresh();
             const prevConfig = configRef.current;
             const prevSerialized = JSON.stringify(prevConfig);
             const nextConfig = updater(prevConfig);
@@ -402,6 +404,7 @@ export const ConfigProvider = ({ children }) => {
                 setStatus(STATUS.ERROR);
                 setError(err?.message || 'Failed to update configuration');
             }
+            if (isStaleAdminEditError(err)) throw err;
         }
     }, []);
 
@@ -442,6 +445,7 @@ export const ConfigProvider = ({ children }) => {
 
                 let normalizedSaved;
                 try {
+                    assertAdminEditSessionFresh();
                     const saved = await ConfigService.saveConfig(snapshot);
                     normalizedSaved = normalizeConfigStrict(saved);
                 } catch (err) {
@@ -500,6 +504,11 @@ export const ConfigProvider = ({ children }) => {
     }, [settleSaveWaiters]);
 
     const saveNow = useCallback(() => {
+        try {
+            assertAdminEditSessionFresh();
+        } catch (staleError) {
+            return Promise.reject(staleError);
+        }
         if (loadFailedRef.current) {
             return Promise.reject(new Error('Cannot save because the initial data load failed. Reload after fixing the backend connection.'));
         }
@@ -763,6 +772,9 @@ export const useConfig = () => {
     }
     return context;
 };
+
+export const useOptionalConfig = () => useContext(ConfigContext);
+
 
 export const useThemeConfig = () => useConfig().config.theme;
 export const useLayoutConfig = () => useConfig().config.layout;

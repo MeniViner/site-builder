@@ -20,6 +20,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useBoom } from '../context/BoomContext';
+import { useConfig } from '../context/ConfigProvider';
 import {
     BOOM_COLOR_OPTIONS,
     BOOM_ACCENT_OPTIONS,
@@ -38,9 +39,14 @@ import {
     reorderBoomCategory,
     updateBoomCategory,
 } from '../utils/boomData';
+import {
+    appendNotificationOnce,
+    buildBoomAssignmentNotification,
+} from '../utils/notificationData';
 import { AdminAddonTabs, AdminAddonToggle } from './AdminAddonControls';
 import TaskManagementTable, { TASK_STATUS_META } from './TaskManagementTable';
 import BoomPresentation from './BoomPresentation';
+import VerifiedIdentityField from './VerifiedIdentityField';
 
 const panelClass = 'rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-[#1b1f2a]';
 const fieldClass = 'min-h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-2 focus:ring-primary/15 dark:border-white/10 dark:bg-white/5 dark:text-white';
@@ -87,9 +93,18 @@ function BoomTaskDialog({ modal, categories, onChange, onClose, onSubmit }) {
                         </datalist>
                     </label>
                     <label>
-                        <span className={labelClass}>אחראי</span>
+                        <span className={labelClass}>אחראי משימה</span>
                         <input className={fieldClass} value={form.owner} onChange={(event) => onChange({ owner: event.target.value })} placeholder="שם בעל המשימה" />
                     </label>
+                    <VerifiedIdentityField
+                        identityInput={form.identityInput || ''}
+                        linkedUser={form.linkedAssignee}
+                        onIdentityChange={(identityInput) => onChange({ identityInput })}
+                        onLinkedUserChange={(linkedAssignee) => onChange({
+                            linkedAssignee,
+                            ...(linkedAssignee?.displayName ? { owner: linkedAssignee.displayName } : {}),
+                        })}
+                    />
                     <label>
                         <span className={labelClass}>סטטוס</span>
                         <select className={fieldClass} value={form.status} onChange={(event) => onChange({ status: event.target.value })}>
@@ -124,6 +139,7 @@ function BoomTaskDialog({ modal, categories, onChange, onClose, onSubmit }) {
 export default function AdminBoom() {
     const navigate = useNavigate();
     const { boom, loading, loaded, saving, error, saveBoom, reloadBoom } = useBoom();
+    const configContext = useConfig();
     const [draft, setDraft] = useState(() => cloneBoomData(boom));
     const [modal, setModal] = useState(null);
     const [query, setQuery] = useState('');
@@ -136,6 +152,9 @@ export default function AdminBoom() {
     const draftRef = useRef(draft);
     const loadedRef = useRef(loaded);
     const saveBoomRef = useRef(saveBoom);
+    const configContextRef = useRef(configContext);
+    const pendingAssignmentNotificationsRef = useRef(new Map());
+    const publishPendingAssignmentsRef = useRef(async () => {});
     const ownPersistedSnapshotRef = useRef(null);
     const externalSyncSnapshotRef = useRef(null);
 
@@ -171,15 +190,52 @@ export default function AdminBoom() {
     useEffect(() => {
         loadedRef.current = loaded;
         saveBoomRef.current = saveBoom;
-    }, [loaded, saveBoom]);
+        configContextRef.current = configContext;
+    }, [configContext, loaded, saveBoom]);
+
+    const publishPendingAssignments = useCallback(async (savedBoom) => {
+        const savedTasks = new Map((savedBoom?.items || []).map((task) => [task.id, task]));
+        const pending = [...pendingAssignmentNotificationsRef.current.values()]
+            .filter((notification) => {
+                const task = savedTasks.get(notification.sourceEntityId);
+                return task && buildBoomAssignmentNotification(task, task.linkedAssignee)?.eventKey === notification.eventKey;
+            });
+        if (pending.length === 0) return;
+
+        const currentConfigContext = configContextRef.current;
+        currentConfigContext.updateConfig((current) => ({
+            ...current,
+            widgets: {
+                ...current.widgets,
+                data: {
+                    ...current.widgets?.data,
+                    alerts: {
+                        ...current.widgets?.data?.alerts,
+                        items: pending.reduce(
+                            (items, notification) => appendNotificationOnce(items, notification),
+                            current.widgets?.data?.alerts?.items
+                        ),
+                    },
+                },
+            },
+        }));
+        await currentConfigContext.saveNow();
+        pending.forEach((notification) => pendingAssignmentNotificationsRef.current.delete(notification.eventKey));
+    }, []);
+
+    useEffect(() => {
+        publishPendingAssignmentsRef.current = publishPendingAssignments;
+    }, [publishPendingAssignments]);
 
     useEffect(() => () => {
         const pendingDraft = draftRef.current;
         const pendingSnapshot = JSON.stringify(normalizeBoomData(pendingDraft));
         if (!loadedRef.current || pendingSnapshot === savedSnapshotRef.current) return;
-        void saveBoomRef.current(pendingDraft).catch((saveError) => {
-            console.error('[BOOM] Failed to flush pending changes while leaving the admin page.', saveError);
-        });
+        void saveBoomRef.current(pendingDraft)
+            .then((saved) => publishPendingAssignmentsRef.current(saved))
+            .catch((saveError) => {
+                console.error('[BOOM] Failed to flush pending changes while leaving the admin page.', saveError);
+            });
     }, []);
 
     const savePayload = useCallback(async (payload) => {
@@ -192,11 +248,16 @@ export default function AdminBoom() {
             ownPersistedSnapshotRef.current = persistedSnapshot;
             savedSnapshotRef.current = persistedSnapshot;
             setAutoSaveState(draftSnapshotRef.current === payloadSnapshot ? 'saved' : 'pending');
+            try {
+                await publishPendingAssignments(saved);
+            } catch (notificationError) {
+                toast.error(notificationError?.message || 'שמירת התראת השיוך נכשלה');
+            }
         } catch (saveError) {
             setAutoSaveState('error');
             toast.error(saveError?.message || 'שמירת נתוני BOOM נכשלה');
         }
-    }, [saveBoom]);
+    }, [publishPendingAssignments, saveBoom]);
 
     useEffect(() => {
         if (externalSyncSnapshotRef.current) {
@@ -228,7 +289,15 @@ export default function AdminBoom() {
         return draft.items.filter((task) => {
             if (statusFilter !== 'all' && task.status !== statusFilter) return false;
             if (!normalizedQuery) return true;
-            return [task.title, task.category, task.owner, task.details]
+            return [
+                task.title,
+                task.category,
+                task.owner,
+                task.details,
+                task.linkedAssignee?.displayName,
+                task.linkedAssignee?.email,
+                task.linkedAssignee?.loginName,
+            ]
                 .some((value) => String(value || '').toLocaleLowerCase('he').includes(normalizedQuery));
         });
     }, [draft.items, query, statusFilter]);
@@ -237,7 +306,10 @@ export default function AdminBoom() {
         const category = draft.categories[0];
         setModal({
             mode: 'add',
-            form: createBoomTask({ category: category?.name || 'כללי', color: category?.color || BOOM_COLOR_OPTIONS[0] }),
+            form: {
+                ...createBoomTask({ category: category?.name || 'כללי', color: category?.color || BOOM_COLOR_OPTIONS[0] }),
+                identityInput: '',
+            },
             error: '',
         });
     };
@@ -255,6 +327,25 @@ export default function AdminBoom() {
             return;
         }
 
+        const previousTask = modal.mode === 'edit'
+            ? draftRef.current.items.find((item) => item.id === modal.taskId)
+            : null;
+        const previousIdentity = previousTask?.linkedAssignee?.identityKey || '';
+        const nextIdentity = modal.form.linkedAssignee?.identityKey || '';
+        const assignmentChanged = Boolean(nextIdentity && nextIdentity !== previousIdentity);
+        const assignmentVersion = assignmentChanged
+            ? (Number(previousTask?.assignmentVersion) || 0) + 1
+            : (Number(previousTask?.assignmentVersion) || Number(modal.form.assignmentVersion) || 0);
+        const taskForNotification = {
+            ...modal.form,
+            title,
+            category: categoryName,
+            assignmentVersion,
+        };
+        const assignmentNotification = assignmentChanged
+            ? buildBoomAssignmentNotification(taskForNotification, taskForNotification.linkedAssignee)
+            : null;
+
         updateDraft((current) => {
             const category = current.categories.find((item) => item.name === categoryName);
             const color = category?.color || BOOM_COLOR_OPTIONS[current.categories.length % BOOM_COLOR_OPTIONS.length];
@@ -266,12 +357,25 @@ export default function AdminBoom() {
                     color,
                     order: current.categories.length + 1,
                 }];
-            const task = { ...modal.form, title, category: categoryName, color };
+            const task = {
+                ...modal.form,
+                title,
+                category: categoryName,
+                color,
+                assignmentVersion,
+            };
+            delete task.identityInput;
             const items = modal.mode === 'edit'
                 ? current.items.map((item) => (item.id === modal.taskId ? task : item))
                 : [...current.items, task];
             return { ...current, categories, items };
         });
+        if (assignmentNotification) {
+            pendingAssignmentNotificationsRef.current.set(
+                assignmentNotification.eventKey,
+                assignmentNotification
+            );
+        }
         setModal(null);
         toast.success(modal.mode === 'edit' ? 'המשימה עודכנה' : 'המשימה נוספה');
     };
@@ -478,7 +582,7 @@ export default function AdminBoom() {
                                 </div>
                             </div>
 
-                            {/* <h3 className="mt-6 text-sm font-black text-gray-900 dark:text-white">סגנון תצוגה</h3>
+                            <h3 className="mt-6 text-sm font-black text-gray-900 dark:text-white">סגנון תצוגה</h3>
                             <div className="mt-5 space-y-3">
                                 {BOOM_DESIGN_PRESETS.map((preset) => {
                                     const selected = draft.design.preset === preset.id;
@@ -499,7 +603,7 @@ export default function AdminBoom() {
                                         </button>
                                     );
                                 })}
-                            </div> */}
+                            </div>
                             <div className="mt-6">
                                 <h3 className="text-sm font-black text-gray-900 dark:text-white">מדדים בשורת הסטטוס</h3>
                                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -699,7 +803,7 @@ export default function AdminBoom() {
                                                 type="button"
                                                 onClick={() => removeCategory(category)}
                                                 disabled={!canDelete}
-                                                aria-label={`מחיקת הקטגוריה ${category.name}`}
+                                                aria-label="מחיקה"
                                                 title={
                                                     canDelete
                                                         ? 'מחיקת קטגוריה'
@@ -748,8 +852,30 @@ export default function AdminBoom() {
                             categories={draft.categories}
                             statusMeta={TASK_STATUS_META}
                             getProgress={computeBoomProgress}
-                            onAssign={(task) => setModal({ mode: 'edit', taskId: task.id, form: { ...task }, error: '' })}
-                            onEdit={(task) => setModal({ mode: 'edit', taskId: task.id, form: { ...task }, error: '' })}
+                            onAssign={(task) => setModal({
+                                mode: 'edit',
+                                taskId: task.id,
+                                form: {
+                                    ...task,
+                                    identityInput: task.linkedAssignee?.personalNumber
+                                        || task.linkedAssignee?.email
+                                        || task.linkedAssignee?.loginName
+                                        || '',
+                                },
+                                error: '',
+                            })}
+                            onEdit={(task) => setModal({
+                                mode: 'edit',
+                                taskId: task.id,
+                                form: {
+                                    ...task,
+                                    identityInput: task.linkedAssignee?.personalNumber
+                                        || task.linkedAssignee?.email
+                                        || task.linkedAssignee?.loginName
+                                        || '',
+                                },
+                                error: '',
+                            })}
                             onDuplicate={duplicateTask}
                             onDelete={deleteTask}
                         />

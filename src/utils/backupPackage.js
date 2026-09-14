@@ -5,6 +5,56 @@ function isObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+const fileBaseName = (value) => String(value || '').replace(/\\/g, '/').split('/').pop()?.toLowerCase() || '';
+
+export function countBackupFileRecords(fileName, data) {
+    const name = fileBaseName(fileName);
+    if (name === 'users_data.txt' || name === 'nav_data.txt' || name === 'external_links_data.txt') {
+        return Array.isArray(data) ? data.length : (Array.isArray(data?.items) ? data.items.length : 0);
+    }
+    if (name === 'events_data.txt') {
+        return Array.isArray(data) ? data.length : (Array.isArray(data?.events) ? data.events.length : 0);
+    }
+    if (name === 'boom_data.txt') {
+        return Array.isArray(data?.items) ? data.items.length : 0;
+    }
+    if (name === 'gantt_data.txt') {
+        return Array.isArray(data?.tasks) ? data.tasks.length : (Array.isArray(data?.items) ? data.items.length : 0);
+    }
+    if (name === 'widgets_data.txt') {
+        const branches = isObject(data?.data) ? data.data : data;
+        if (!isObject(branches)) return 0;
+        return Object.values(branches).reduce((sum, branch) => (
+            sum + (Array.isArray(branch?.items) ? branch.items.length : (Array.isArray(branch) ? branch.length : 0))
+        ), 0) || (Object.keys(branches).length > 0 ? 1 : 0);
+    }
+    if (name === 'bihs_master_config_v1.txt') {
+        if (!isObject(data)) return 0;
+        const collections = [
+            data.navigation?.items,
+            data.widgets?.data?.alerts?.items,
+            data.widgets?.data?.events?.items,
+            data.externalLinks?.items,
+            data.imageGalleries?.items,
+        ];
+        return Math.max(1, collections.reduce((sum, value) => sum + (Array.isArray(value) ? value.length : 0), 0));
+    }
+    if (name === 'site_content_data.txt' || name === 'theme_data.txt') {
+        return isObject(data) && Object.keys(data).length > 0 ? 1 : 0;
+    }
+    if (Array.isArray(data)) return data.length;
+    return isObject(data) && Object.keys(data).length > 0 ? 1 : 0;
+}
+
+export function deriveBackupFileRecordCount(fileName, textValue, fallback = 0) {
+    try {
+        const data = typeof textValue === 'string' ? JSON.parse(textValue) : textValue;
+        return countBackupFileRecords(fileName, data);
+    } catch {
+        return Number.isFinite(Number(fallback)) ? Number(fallback) : 0;
+    }
+}
+
 function createId(prefix = 'backup') {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
         return `${prefix}-${crypto.randomUUID()}`;
@@ -43,6 +93,7 @@ function normalizeFileEntry(file, index) {
         timeLastModified: typeof source.timeLastModified === 'string' ? source.timeLastModified : '',
         sizeBytes,
         text,
+        recordCount: deriveBackupFileRecordCount(name, text, source.recordCount),
     };
 
     [
@@ -68,7 +119,6 @@ function normalizeFileEntry(file, index) {
     });
 
     [
-        'recordCount',
         'documentCount',
         'version',
     ].forEach((key) => {

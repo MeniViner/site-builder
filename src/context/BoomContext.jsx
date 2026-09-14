@@ -2,6 +2,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import BoomService from '../services/BoomService';
 import { DEFAULT_BOOM_DATA, normalizeBoomData } from '../utils/boomData';
+import { assertAdminEditSessionFresh } from '../utils/adminEditSession';
 
 const BoomContext = createContext(null);
 
@@ -45,6 +46,11 @@ export const BoomProvider = ({ children }) => {
     }, []);
 
     const saveBoom = useCallback((payload = undefined) => {
+        try {
+            assertAdminEditSessionFresh();
+        } catch (staleError) {
+            return Promise.reject(staleError);
+        }
         if (!loaded) {
             return Promise.reject(new Error('לא ניתן לשמור נתוני BOOM לפני שהטעינה הראשונית הושלמה בהצלחה.'));
         }
@@ -52,6 +58,7 @@ export const BoomProvider = ({ children }) => {
         pendingSaveCountRef.current += 1;
         setSaving(true);
         const operation = saveChainRef.current.then(async () => {
+            assertAdminEditSessionFresh();
             setError(null);
             try {
                 const saved = await BoomService.saveBoom(next);

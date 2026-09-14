@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { Check, Clipboard, Loader2, Trash2 } from 'lucide-react';
-// import ReactMarkdown from 'react-markdown';
-// import remarkGfm from 'remark-gfm';
-import Markdown from 'markdown-to-jsx';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 function MarkdownTable({ children }) {
     return (
@@ -164,7 +163,7 @@ export default function AdminAIResponsePanel({
                         {loadingLabel}
                     </div>
                 )}
-                {/* {hasContent && (
+                {hasContent && (
                     <div className="min-w-0 overflow-hidden">
                         <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
@@ -173,13 +172,6 @@ export default function AdminAIResponsePanel({
                         >
                             {content}
                         </ReactMarkdown>
-                    </div>
-                )} */}
-                {hasContent && (
-                    <div className="min-w-0 overflow-hidden">
-                        <Markdown options={{ overrides: markdownComponents }}>
-                            {content}
-                        </Markdown>
                     </div>
                 )}
                 {isLoading && hasContent && (

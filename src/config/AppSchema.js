@@ -11,6 +11,7 @@ import {
     normalizeNavigationTargetBinding,
 } from '../utils/navigationModel';
 import { normalizeImageGalleryBranch } from '../utils/imageGallery';
+import { normalizeNotifications } from '../utils/notificationData';
 import {
     COMMANDER_IMAGE_OFFSET_Y,
     COMMANDER_IMAGE_OFFSET_X,
@@ -42,7 +43,7 @@ const VALID_FLOW_BACKGROUND_VARIANTS = ['dots', 'lines', 'cross'];
 const VALID_FLOW_CONTROL_ORIENTATION = ['vertical', 'horizontal'];
 const VALID_FLOW_VIEWPORT_MODES = ['map', 'design'];
 const VALID_FLOW_NODE_VISUAL_STYLES = ['command', 'clean', 'minimal'];
-const VALID_FLOW_AUTO_LAYOUT_DIRECTIONS = ['center', 'rtl', 'ltr'];
+const VALID_FLOW_AUTO_LAYOUT_DIRECTIONS = ['center', 'compact', 'rtl', 'ltr'];
 const VALID_OVERLAY_OBJECT_FIT = ['contain', 'cover'];
 const VALID_OVERLAY_POSITION_MODES = ['fixed', 'absolute'];
 const VALID_OVERLAY_DISPLAY_AREAS = ['fixed-site', 'hero-full', 'hero-content'];
@@ -1886,14 +1887,8 @@ export function validateAndNormalize(config) {
             data: {
                 events: normalizeEventsBranch(resolveWidgetDataBranch(widgetsSource, 'events')),
                 alerts: {
-                    items: normalizeSimpleItems(
-                        resolveWidgetDataBranch(widgetsSource, 'alerts')?.items ?? resolveWidgetDataBranch(widgetsSource, 'alerts'),
-                        (item, index) => ({
-                            id: asId(item.id, String(index + 1)),
-                            title: asString(item.title, ''),
-                            text: asString(item.text, ''),
-                            isUrgent: asBoolean(item.isUrgent, false),
-                        })
+                    items: normalizeNotifications(
+                        resolveWidgetDataBranch(widgetsSource, 'alerts')?.items ?? resolveWidgetDataBranch(widgetsSource, 'alerts')
                     ),
                 },
                 outstanding: {

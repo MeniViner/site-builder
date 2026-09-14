@@ -24,6 +24,13 @@ vi.mock('../context/BoomContext', () => ({
     }),
 }));
 
+vi.mock('../context/ConfigProvider', () => ({
+    useConfig: () => ({
+        updateConfig: vi.fn(),
+        saveNow: vi.fn().mockResolvedValue(true),
+    }),
+}));
+
 const initialBoom = {
     enabled: true,
     buttonLabel: 'בום',
