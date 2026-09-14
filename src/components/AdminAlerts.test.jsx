@@ -66,9 +66,9 @@ describe('AdminAlerts popup composer', () => {
 
         fireEvent.click(screen.getByRole('tab', { name: 'הצגה ותזמון' }));
         expect(screen.getByRole('radio', { name: /פופאפ בכניסה/ })).toBeChecked();
-        expect(screen.getByRole('checkbox', { name: /דרישת אישור קריאה/ })).toBeInTheDocument();
+        expect(screen.getByRole('checkbox', { name: /דרישת אישור קריאה/ })).toBeDisabled();
         expect(screen.getByText(/התזמון אופציונלי/)).toBeInTheDocument();
-        fireEvent.click(screen.getByRole('checkbox', { name: /דרישת אישור קריאה/ }));
+        expect(screen.getByText(/כבר הוגדר כפתור פעולה/)).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'מעבר לטופס' })).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'קראתי ואישרתי' })).not.toBeInTheDocument();
 

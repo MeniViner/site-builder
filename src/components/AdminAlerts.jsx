@@ -109,6 +109,7 @@ export default function AdminAlerts() {
     const isDirty = Boolean(editingId && formSnapshot(form) !== baseline);
     const bodyLength = smartTextTokensToPlainText(form.richContent).trim().length || form.text.trim().length;
     const datesInvalid = Boolean(form.startsAt && form.endsAt && form.endsAt < form.startsAt);
+    const hasActionButton = Boolean(form.ctaLabel.trim());
 
     useEffect(() => {
         dirtyRef.current = isDirty;
@@ -485,7 +486,19 @@ export default function AdminAlerts() {
                                         <div className="grid gap-4 sm:grid-cols-2">
                                             <label>
                                                 <span className="mb-1.5 block text-sm font-black">טקסט לכפתור פעולה</span>
-                                                <input className={inputClass} value={form.ctaLabel} onChange={(event) => setForm((current) => ({ ...current, ctaLabel: event.target.value }))} placeholder="אופציונלי" />
+                                                <input
+                                                    className={inputClass}
+                                                    value={form.ctaLabel}
+                                                    onChange={(event) => {
+                                                        const ctaLabel = event.target.value;
+                                                        setForm((current) => ({
+                                                            ...current,
+                                                            ctaLabel,
+                                                            ...(ctaLabel.trim() ? { requiresAcknowledgement: false } : {}),
+                                                        }));
+                                                    }}
+                                                    placeholder="אופציונלי"
+                                                />
                                             </label>
                                             <label>
                                                 <span className="mb-1.5 block text-sm font-black">כתובת הכפתור</span>
@@ -523,12 +536,22 @@ export default function AdminAlerts() {
                                             התזמון אופציונלי. אם שני התאריכים נשארים ריקים, ההתראה תוצג ללא הגבלת זמן. אפשר להגדיר רק תאריך התחלה או רק תאריך סיום.
                                         </p>
                                         {datesInvalid && <p className="text-sm font-bold text-red-600">תאריך הסיום לא יכול להיות לפני תאריך ההתחלה.</p>}
-                                        <label className="flex min-h-14 items-center justify-between gap-4 rounded-2xl bg-theme-elevated px-4 py-3 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)]">
+                                        <label className={`flex min-h-14 items-center justify-between gap-4 rounded-2xl px-4 py-3 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)] ${hasActionButton ? 'cursor-not-allowed bg-gray-200/70 text-gray-500 dark:bg-white/[0.04] dark:text-gray-500' : 'bg-theme-elevated'}`}>
                                             <div>
                                                 <div className="text-sm font-black">דרישת אישור קריאה</div>
-                                                <p className="mt-0.5 text-pretty text-xs text-theme-muted">המשתמש יידרש ללחוץ ״קראתי ואישרתי״ לפני סגירת הפופאפ.</p>
+                                                <p className="mt-0.5 text-pretty text-xs text-theme-muted">
+                                                    {hasActionButton
+                                                        ? 'כבר הוגדר כפתור פעולה. כפתור הפעולה מחליף את ״קראתי ואישרתי״.'
+                                                        : 'המשתמש יידרש ללחוץ ״קראתי ואישרתי״ לפני סגירת הפופאפ.'}
+                                                </p>
                                             </div>
-                                            <input type="checkbox" checked={form.requiresAcknowledgement} onChange={(event) => setForm((current) => ({ ...current, requiresAcknowledgement: event.target.checked }))} className="h-5 w-5 accent-primary" />
+                                            <input
+                                                type="checkbox"
+                                                checked={form.requiresAcknowledgement}
+                                                disabled={hasActionButton}
+                                                onChange={(event) => setForm((current) => ({ ...current, requiresAcknowledgement: event.target.checked }))}
+                                                className="h-5 w-5 accent-primary disabled:cursor-not-allowed disabled:opacity-45"
+                                            />
                                         </label>
                                         <div className="rounded-2xl border border-theme-subtle p-4">
                                             <div className="mb-3 text-sm font-black">קהל יעד</div>

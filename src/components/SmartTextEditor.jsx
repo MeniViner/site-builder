@@ -1,5 +1,15 @@
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Bold, Italic, Link as LinkIcon, Underline, X } from 'lucide-react';
+import {
+    Bold,
+    CornerDownLeft,
+    Italic,
+    Link as LinkIcon,
+    List,
+    ListOrdered,
+    RemoveFormatting,
+    Underline,
+    X,
+} from 'lucide-react';
 import {
     SMART_LINK_TYPES,
     SMART_TEXT_MARKS,
@@ -238,6 +248,17 @@ function readSmartTextTokensFromElement(root) {
 
         const element = node;
         const nextMarks = getElementMarks(element, marks);
+        if (element.tagName === 'LI') {
+            const parent = element.parentElement;
+            const marker = parent?.tagName === 'OL'
+                ? `${Array.from(parent.children).indexOf(element) + 1}. `
+                : '• ';
+            pushRawToken(tokens, {
+                type: SMART_TEXT_TOKEN_TYPES.text,
+                text: marker,
+                marks: [],
+            });
+        }
         const isAnchor = element.tagName === 'A';
         const nextLinkMeta = isAnchor
             ? {
@@ -251,6 +272,9 @@ function readSmartTextTokensFromElement(root) {
             : linkMeta;
 
         Array.from(element.childNodes || []).forEach((child) => readNode(child, nextMarks, nextLinkMeta));
+        if (element.tagName === 'LI') {
+            pushRawToken(tokens, { type: SMART_TEXT_TOKEN_TYPES.break });
+        }
     };
 
     const children = Array.from(root.childNodes || []);
@@ -358,6 +382,27 @@ export default function SmartTextEditor({
         }
     }, [commitTokens]);
 
+    const resetToPlainText = useCallback(() => {
+        const editor = editorRef.current;
+        if (!editor) return;
+        editor.focus({ preventScroll: true });
+        const selectionOffsets = getSelectionOffsets(editor);
+        if (typeof document.execCommand === 'function') {
+            document.execCommand('removeFormat', false, null);
+            document.execCommand('unlink', false, null);
+            pendingSelectionRef.current = getSelectionOffsets(editor) || selectionOffsets;
+            commitTokens(readSmartTextTokensFromElement(editor), pendingSelectionRef.current);
+        }
+    }, [commitTokens]);
+
+    const insertLineBreak = useCallback(() => {
+        const editor = editorRef.current;
+        if (!editor) return;
+        editor.focus({ preventScroll: true });
+        insertPlainTextAtSelection(editor, '\n');
+        syncFromDom();
+    }, [syncFromDom]);
+
     const openLinkDialog = useCallback(() => {
         const editor = editorRef.current;
         const selectionOffsets = getSelectionOffsets(editor) || { start: plainValue.length, end: plainValue.length };
@@ -460,6 +505,56 @@ export default function SmartTextEditor({
                     aria-label="הוספת קישור"
                 >
                     <LinkIcon size={15} />
+                </button>
+                <span className="mx-0.5 h-6 w-px bg-theme-subtle" aria-hidden="true" />
+                <button
+                    type="button"
+                    onMouseDown={(event) => {
+                        event.preventDefault();
+                        runFormatCommand('insertUnorderedList');
+                    }}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-theme-subtle bg-theme-elevated text-theme transition-[background-color,transform] hover:bg-theme-card-hover active:scale-[0.96]"
+                    title="רשימת תבליטים"
+                    aria-label="רשימת תבליטים"
+                >
+                    <List size={15} />
+                </button>
+                <button
+                    type="button"
+                    onMouseDown={(event) => {
+                        event.preventDefault();
+                        runFormatCommand('insertOrderedList');
+                    }}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-theme-subtle bg-theme-elevated text-theme transition-[background-color,transform] hover:bg-theme-card-hover active:scale-[0.96]"
+                    title="רשימה ממוספרת"
+                    aria-label="רשימה ממוספרת"
+                >
+                    <ListOrdered size={15} />
+                </button>
+                <button
+                    type="button"
+                    onMouseDown={(event) => {
+                        event.preventDefault();
+                        insertLineBreak();
+                    }}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-theme-subtle bg-theme-elevated text-theme transition-[background-color,transform] hover:bg-theme-card-hover active:scale-[0.96]"
+                    title="ירידת שורה"
+                    aria-label="ירידת שורה"
+                >
+                    <CornerDownLeft size={15} />
+                </button>
+                <button
+                    type="button"
+                    onMouseDown={(event) => {
+                        event.preventDefault();
+                        resetToPlainText();
+                    }}
+                    className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-theme-subtle bg-theme-elevated px-2.5 text-xs font-bold text-theme transition-[background-color,transform] hover:bg-theme-card-hover active:scale-[0.96]"
+                    title="החזרה לטקסט רגיל"
+                    aria-label="טקסט רגיל"
+                >
+                    <RemoveFormatting size={15} />
+                    טקסט רגיל
                 </button>
             </div>
 
