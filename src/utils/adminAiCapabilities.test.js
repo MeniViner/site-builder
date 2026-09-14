@@ -378,14 +378,13 @@ describe('adminAiCapabilities', () => {
     const current = {
       enabled: true,
       pageTitle: 'BOOM',
-      design: { preset: 'operational', showSummaryStrip: true },
+      design: { showSummaryStrip: true },
       categories: [{ id: 'general', name: 'כללי', color: '#2563eb', order: 1 }],
       items: [],
     };
     const next = normalizeAdminAiCandidate('boom', {
       boom: {
         design: {
-          preset: 'command-center',
           showSummaryStrip: false,
           summaryMetrics: ['total', 'categories', 'invalid'],
           tableDensity: 'compact',
@@ -405,7 +404,6 @@ describe('adminAiCapabilities', () => {
     }, current, { instruction: 'עדכן בין 10.06.2026 ל-20.06.2026' });
 
     expect(next.design).toMatchObject({
-      preset: 'command-center',
       showSummaryStrip: false,
       summaryMetrics: ['total', 'categories'],
       tableDensity: 'compact',

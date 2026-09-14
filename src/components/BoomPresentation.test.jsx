@@ -7,7 +7,6 @@ const boom = {
     pageTitle: 'תמונת מצב',
     description: 'בקרה שוטפת',
     design: {
-        preset: 'command-center',
         showSummaryStrip: true,
         summaryMetrics: ['total', 'active', 'categories'],
         tableDensity: 'compact',

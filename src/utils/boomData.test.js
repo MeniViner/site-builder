@@ -106,16 +106,16 @@ describe('boomData', () => {
         const current = normalizeBoomData({
             enabled: true,
             buttonLabel: 'חדר מצב',
-            design: { preset: 'compact' },
+            design: { accent: 'emerald' },
             items: [{ id: 'old', title: 'ישן' }],
         });
         const loaded = loadBoomDemoData(current, new Date('2026-06-15T12:00:00'));
         const cleared = clearBoomTasks(loaded);
 
-        expect(loaded).toMatchObject({ enabled: true, buttonLabel: 'חדר מצב', design: { preset: 'compact' } });
+        expect(loaded).toMatchObject({ enabled: true, buttonLabel: 'חדר מצב', design: { accent: 'emerald' } });
         expect(loaded.items).toHaveLength(4);
         expect(cleared.items).toEqual([]);
-        expect(cleared.design.preset).toBe('compact');
+        expect(cleared.design.accent).toBe('emerald');
     });
 
     it.each([
@@ -147,7 +147,6 @@ describe('boomData', () => {
     it('normalizes persisted summary-strip settings to supported values', () => {
         const normalized = normalizeBoomData({
             design: {
-                preset: 'command-center',
                 showSummaryStrip: false,
                 summaryMetrics: ['total', 'active', 'invalid', 'total'],
                 tableDensity: 'compact',
@@ -157,13 +156,13 @@ describe('boomData', () => {
         });
 
         expect(normalized.design).toMatchObject({
-            preset: 'command-center',
             showSummaryStrip: false,
             summaryMetrics: ['total', 'active'],
             tableDensity: 'compact',
             showCategoryColors: false,
             accent: 'emerald',
         });
+        expect(normalized.design).not.toHaveProperty('preset');
     });
 
     it('renames and recolors categories without leaving task references behind', () => {

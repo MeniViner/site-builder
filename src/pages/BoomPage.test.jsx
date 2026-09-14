@@ -34,7 +34,7 @@ vi.mock('../context/BoomContext', () => ({
             enabled: state.enabled,
             pageTitle: 'BOOM ציבורי',
             description: 'תמונת מצב',
-            design: { preset: 'compact' },
+            design: {},
             categories: [{ id: 'general', name: 'כללי', color: '#2563eb', order: 1 }],
             items: [{
                 id: 'task-1',
@@ -58,7 +58,7 @@ describe('BoomPage', () => {
         render(<MemoryRouter><BoomPage /></MemoryRouter>);
 
         expect(screen.getByRole('heading', { name: 'BOOM ציבורי' })).toBeInTheDocument();
-        expect(screen.getByTestId('boom-presentation')).toHaveAttribute('data-preset', 'compact');
+        expect(screen.getByTestId('boom-presentation')).not.toHaveAttribute('data-preset');
         expect(screen.getAllByText('משימה לקריאה בלבד').length).toBeGreaterThanOrEqual(2);
         expect(screen.queryByRole('button', { name: 'ערוך משימה' })).not.toBeInTheDocument();
         expect(screen.queryByText('מחק')).not.toBeInTheDocument();

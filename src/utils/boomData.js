@@ -8,14 +8,6 @@ export const BOOM_STATUS_OPTIONS = Object.freeze([
     { value: 'completed', label: 'הושלם' },
 ]);
 
-export const BOOM_DESIGN_PRESETS = Object.freeze([
-    { id: 'operational', label: 'טבלה תפעולית', description: 'תצוגה בהירה ומאוזנת לעבודה שוטפת.' },
-    { id: 'command-center', label: 'מרכז שליטה', description: 'מסגרת מודגשת וסיכום מצב לפיקוח מהיר.' },
-    { id: 'compact', label: 'ניהול קומפקטי', description: 'צפיפות גבוהה יותר להצגת משימות רבות.' },
-]);
-
-const VALID_DESIGN_PRESETS = new Set(BOOM_DESIGN_PRESETS.map((preset) => preset.id));
-
 export const BOOM_SUMMARY_METRICS = Object.freeze([
     { id: 'total', label: 'משימות', icon: 'tasks' },
     { id: 'active', label: 'בביצוע', icon: 'activity' },
@@ -60,7 +52,6 @@ export const DEFAULT_BOOM_DATA = Object.freeze({
     pageTitle: 'BOOM - תמונת מצב',
     description: 'מערכת שליטה ובקרה למשימות, אחריות והתקדמות.',
     design: {
-        preset: 'operational',
         showSummaryStrip: true,
         summaryMetrics: DEFAULT_SUMMARY_METRICS,
         tableDensity: 'comfortable',
@@ -138,9 +129,6 @@ function normalizeSummaryMetrics(value) {
 function normalizeBoomDesign(designLike) {
     const source = isObject(designLike) ? designLike : {};
     return {
-        preset: VALID_DESIGN_PRESETS.has(source.preset)
-            ? source.preset
-            : DEFAULT_BOOM_DATA.design.preset,
         showSummaryStrip: source.showSummaryStrip !== undefined
             ? source.showSummaryStrip !== false
             : source.showDashboard !== false,

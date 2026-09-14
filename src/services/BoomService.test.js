@@ -50,7 +50,7 @@ describe('BoomService', () => {
     it('seeds an independent disabled BOOM demo document in explicit mock mode', async () => {
         const loaded = await new BoomService(mockConfig).getBoom();
 
-        expect(loaded).toMatchObject({ enabled: false, design: { preset: 'operational' } });
+        expect(loaded).toMatchObject({ enabled: false, design: { showSummaryStrip: true } });
         expect(loaded.items.length).toBeGreaterThan(0);
         expect(JSON.parse(localStorage.getItem(mockConfig.boomMockStorageKey))).toEqual(loaded);
     });

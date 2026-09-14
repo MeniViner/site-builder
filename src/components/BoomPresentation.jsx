@@ -1,13 +1,7 @@
 import React, { useMemo } from 'react';
 import { Activity, CheckCircle2, CircleAlert, Clock3, ListChecks, ShieldCheck, Tag, Users } from 'lucide-react';
-import { BOOM_DESIGN_PRESETS, BOOM_SUMMARY_METRICS, computeBoomProgress } from '../utils/boomData';
+import { BOOM_SUMMARY_METRICS, computeBoomProgress } from '../utils/boomData';
 import TaskManagementTable, { TASK_STATUS_META } from './TaskManagementTable';
-
-const PRESENTATION_STYLES = Object.freeze({
-    operational: { shell: 'border-theme-subtle bg-theme-card shadow-[0_10px_30px_rgba(0,0,0,0.08)]' },
-    'command-center': { shell: 'border-slate-700/25 bg-theme-card shadow-[0_12px_34px_rgba(15,23,42,0.14)] dark:border-sky-400/15' },
-    compact: { shell: 'border-theme-subtle bg-theme-card shadow-sm' },
-});
 
 const ACCENT_STYLES = Object.freeze({
     primary: 'bg-primary/8 text-primary',
@@ -38,7 +32,6 @@ export default function BoomPresentation({
     emptyMessage = 'עדיין אין משימות BOOM',
 }) {
     const design = boom?.design || {};
-    const preset = BOOM_DESIGN_PRESETS.some((option) => option.id === design.preset) ? design.preset : 'operational';
     const showSummaryStrip = design.showSummaryStrip !== false;
     const summaryMetrics = useMemo(
         () => (Array.isArray(design.summaryMetrics) ? design.summaryMetrics : ['total', 'active', 'blocked', 'overdue']),
@@ -68,7 +61,7 @@ export default function BoomPresentation({
     }, [summaryMetrics, tasks]);
 
     return (
-        <div data-testid="boom-presentation" data-preset={preset} className={`space-y-4 ${preview ? 'max-h-[620px] overflow-auto p-1' : ''}`}>
+        <div data-testid="boom-presentation" className={`space-y-4 ${preview ? 'max-h-[620px] overflow-auto p-1' : ''}`}>
             <header className="px-1 pt-1">
                 <h1 className="text-xl font-black tracking-tight text-theme sm:text-2xl">{boom?.pageTitle}</h1>
                 {boom?.description && <p className="mt-1 text-sm leading-6 text-theme-muted">{boom.description}</p>}
@@ -94,7 +87,7 @@ export default function BoomPresentation({
                 </section>
             )}
 
-            <section data-testid="boom-task-table" className={`overflow-hidden rounded-2xl border ${PRESENTATION_STYLES[preset].shell}`}>
+            <section data-testid="boom-task-table" className="overflow-hidden rounded-2xl border border-theme-subtle bg-theme-card shadow-[0_10px_30px_rgba(0,0,0,0.08)]">
                 <header className="flex flex-col gap-3 border-b border-theme-subtle px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                     <h2 className="text-base font-black text-theme">משימות וניהול שוטף</h2>
                     {showSummaryChips && (

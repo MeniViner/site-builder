@@ -24,7 +24,6 @@ import { useConfig } from '../context/ConfigProvider';
 import {
     BOOM_COLOR_OPTIONS,
     BOOM_ACCENT_OPTIONS,
-    BOOM_DESIGN_PRESETS,
     BOOM_SUMMARY_METRICS,
     BOOM_STATUS_OPTIONS,
     BOOM_TABLE_DENSITIES,
@@ -582,28 +581,6 @@ export default function AdminBoom() {
                                 </div>
                             </div>
 
-                            <h3 className="mt-6 text-sm font-black text-gray-900 dark:text-white">סגנון תצוגה</h3>
-                            <div className="mt-5 space-y-3">
-                                {BOOM_DESIGN_PRESETS.map((preset) => {
-                                    const selected = draft.design.preset === preset.id;
-                                    return (
-                                        <button
-                                            key={preset.id}
-                                            type="button"
-                                            aria-pressed={selected}
-                                            onClick={() => updateDesign({ preset: preset.id })}
-                                            className={`w-full rounded-2xl p-4 text-right transition-[box-shadow,transform] active:scale-[0.96] ${
-                                                selected
-                                                    ? 'bg-primary/10 text-primary shadow-[inset_0_0_0_2px_currentColor]'
-                                                    : 'bg-gray-50 text-gray-700 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)] hover:shadow-[inset_0_0_0_1px_rgba(59,130,246,0.45)] dark:bg-white/[0.03] dark:text-gray-200 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]'
-                                            }`}
-                                        >
-                                            <span className="block font-black">{preset.label}</span>
-                                            <span className={`mt-1 block text-xs leading-5 ${selected ? 'text-primary/80' : 'text-gray-500 dark:text-gray-400'}`}>{preset.description}</span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
                             <div className="mt-6">
                                 <h3 className="text-sm font-black text-gray-900 dark:text-white">מדדים בשורת הסטטוס</h3>
                                 <div className="mt-3 grid gap-2 sm:grid-cols-2">

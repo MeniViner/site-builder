@@ -37,7 +37,6 @@ const initialBoom = {
     pageTitle: 'חדר מצב',
     description: 'תיאור',
     design: {
-        preset: 'operational',
         showSummaryStrip: true,
         summaryMetrics: ['total', 'active', 'blocked', 'overdue'],
         tableDensity: 'comfortable',
@@ -170,17 +169,14 @@ describe('AdminBoom', () => {
         await waitFor(() => expect(mocks.saveBoom.mock.calls.at(-1)[0].items).toEqual([]), { timeout: 1800 });
     });
 
-    it('persists design presets and previews them through the real BOOM presentation', async () => {
+    it('does not expose removed BOOM design presets', () => {
         render(<MemoryRouter><AdminBoom /></MemoryRouter>);
         fireEvent.click(screen.getByRole('tab', { name: 'עיצוב' }));
 
-        expect(screen.getByTestId('boom-presentation')).toHaveAttribute('data-preset', 'operational');
-        fireEvent.click(screen.getByRole('button', { name: /מרכז שליטה/ }));
-        expect(screen.getByTestId('boom-presentation')).toHaveAttribute('data-preset', 'command-center');
-
-        await waitFor(() => expect(mocks.saveBoom).toHaveBeenCalledWith(
-            expect.objectContaining({ design: expect.objectContaining({ preset: 'command-center' }) })
-        ), { timeout: 1800 });
+        expect(screen.queryByRole('button', { name: /טבלה תפעולית/ })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /מרכז שליטה/ })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /ניהול קומפקטי/ })).not.toBeInTheDocument();
+        expect(screen.getByTestId('boom-presentation')).not.toHaveAttribute('data-preset');
     });
 
     it('updates the live summary preview and persists its visibility and selected metrics', async () => {
