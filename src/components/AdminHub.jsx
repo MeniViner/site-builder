@@ -320,7 +320,7 @@ export default function AdminHub() {
     }, [jumpToThemeTab, location.key, location.pathname, navigate]);
 
     // Determine the key for the current dynamic widget page
-    const widgetPageKeys = ['events', 'alerts', 'outstanding', 'countdown', 'news', 'phonebook', 'shuttles', 'polls', 'celebrations', 'heritage', 'tips'];
+    const widgetPageKeys = ['events', 'outstanding', 'countdown', 'news', 'phonebook', 'shuttles', 'polls', 'celebrations', 'heritage', 'tips'];
     const isOnWidgetPage = widgetPageKeys.includes(activeTab);
     const previewActiveWidget = isOnWidgetPage ? activeTab : primaryWidget;
 
