@@ -21,7 +21,6 @@ const FALLBACK_Y_STEP = 170;
 const AUTO_LAYOUT_DIRECTIONS = ['center', 'compact', 'rtl', 'ltr'];
 const AUTO_LAYOUT_OPTIONS = [
     { id: 'center', label: 'מרכוז' },
-    { id: 'compact', label: 'פריסה קומפקטית' },
     { id: 'rtl', label: 'ימין לשמאל' },
     { id: 'ltr', label: 'שמאל לימין' },
 ];

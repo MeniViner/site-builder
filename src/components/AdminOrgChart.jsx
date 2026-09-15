@@ -4,12 +4,17 @@ import {
     CheckCircle2,
     ChevronLeft,
     Download,
+    ExternalLink,
     FileUp,
+    Gauge,
+    GitBranch,
     Image as ImageIcon,
     LayoutGrid,
     Loader2,
     Monitor,
+    MousePointer2,
     Network,
+    Palette,
     Pencil,
     Plus,
     Sparkles,
@@ -62,6 +67,12 @@ const TABS = [
     { id: 'design-flow', label: 'קנבס', description: 'עריכת מיקומי הצמתים על קנבס הזרימה ושמירתם.' },
     // { id: 'design-layout', label: 'פריסה חלופית', description: 'פריסה, כרטיסים, קווים ואווטאר כחלופה לזרימה.' },
     // { id: 'design-3d', label: 'גרף תלת-מימדי', description: 'הפעלת גרף תלת-מימדי והגדרות אינטראקטיביות ייעודיות.' },
+];
+const FLOW_SETTING_SECTIONS = [
+    { id: 'flow-appearance', label: 'קווים ורקע', icon: Palette },
+    { id: 'flow-cards', label: 'כרטיסים והיררכיה', icon: GitBranch },
+    { id: 'flow-navigation', label: 'ניווט ובקרה', icon: MousePointer2 },
+    { id: 'flow-performance', label: 'דיוק וביצועים', icon: Gauge },
 ];
 const LAYOUT_DIRECTION_OPTIONS = [
     {
@@ -183,23 +194,8 @@ const AVATAR_SHAPE_OPTIONS = [
         kind: 'avatar-square',
     },
 ];
-const FLOW_VISUAL_PRESET_OPTIONS = [
-    {
-        value: 'command',
-        label: 'פיקודי מודגש',
-    },
-    {
-        value: 'clean',
-        label: 'נקי להצגה',
-    },
-    {
-        value: 'minimal',
-        label: 'מינימלי מהיר',
-    },
-];
 const FLOW_AUTO_LAYOUT_OPTIONS = [
     { value: 'center', label: 'מרכוז', description: 'עץ קלאסי מלמעלה למטה עם מרכזיות היררכית מלאה.' },
-    { value: 'compact', label: 'פריסה קומפקטית', description: 'עוטפת שכבות רחבות למספר שורות ושומרת על כרטיסים קריאים.' },
     { value: 'rtl', label: 'ימין לשמאל', description: 'שורש מימין, וכל שכבה מתקדמת שמאלה לפי היררכיה.' },
     { value: 'ltr', label: 'שמאל לימין', description: 'שורש משמאל, וכל שכבה מתקדמת ימינה לפי היררכיה.' },
 ];
@@ -368,7 +364,9 @@ function normalizeFlowCanvasSettings(value, fallback = DEFAULT_ORG_CHART.flowCan
         showRank: asBool(source.showRank, defaults.showRank),
         showRole: asBool(source.showRole, defaults.showRole),
         showAvatar: asBool(source.showAvatar, defaults.showAvatar),
-        autoLayoutDirection: asEnum(source.autoLayoutDirection, ['center', 'compact', 'rtl', 'ltr'], defaults.autoLayoutDirection),
+        autoLayoutDirection: source.autoLayoutDirection === 'compact'
+            ? 'center'
+            : asEnum(source.autoLayoutDirection, ['center', 'rtl', 'ltr'], defaults.autoLayoutDirection),
     };
 }
 
@@ -524,6 +522,41 @@ function SettingCard({ title, description, children, helpTitle, helpDescription 
             </div>
             {children}
         </section>
+    );
+}
+
+function FlowSectionHeader({ id, number, title, description, icon: Icon }) {
+    return (
+        <div id={id} className="scroll-mt-36 border-b border-gray-200 bg-gray-50/80 px-5 py-4 dark:border-white/10 dark:bg-white/[0.025]">
+            <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    {React.createElement(Icon, { size: 17 })}
+                </div>
+                <div className="min-w-0">
+                    <div className="font-mono text-[10px] font-bold tracking-[0.16em] text-gray-400">{String(number).padStart(2, '0')}</div>
+                    <h3 className="mt-0.5 text-sm font-black text-gray-900 dark:text-white">{title}</h3>
+                    <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{description}</p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function FlowToggle({ checked, onChange, label, disabled = false }) {
+    return (
+        <button
+            type="button"
+            role="switch"
+            aria-checked={checked}
+            disabled={disabled}
+            onClick={() => onChange(!checked)}
+            className="group flex min-h-10 w-full items-center justify-between gap-3 rounded-lg px-1 py-1.5 text-right text-sm font-semibold text-gray-700 transition-[color,background-color,transform] hover:bg-gray-100 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-45 dark:text-gray-200 dark:hover:bg-white/[0.06]"
+        >
+            <span>{label}</span>
+            <span className={`relative h-6 w-11 shrink-0 rounded-full border transition-[background-color,border-color] ${checked ? 'border-primary bg-primary' : 'border-gray-300 bg-gray-200 dark:border-white/15 dark:bg-white/10'}`}>
+                <span className={`absolute top-[3px] h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${checked ? '-translate-x-[22px]' : '-translate-x-1'}`} />
+            </span>
+        </button>
     );
 }
 
@@ -695,6 +728,42 @@ function OptionCard({ option, isActive, onSelect }) {
     );
 }
 
+function FlowPreviewSummary({ draft }) {
+    const flow = draft.flowCanvas || DEFAULT_ORG_CHART.flowCanvas;
+    const edgeLabels = {
+        smoothstep: 'רגיל',
+        default: 'מעוגל',
+        straight: 'ישר',
+        step: 'מדורג',
+        simplebezier: 'מעוגל עדין',
+    };
+    const backgroundLabels = { dots: 'נקודות', lines: 'קווים', cross: 'צלב' };
+    const layoutLabels = { center: 'מרכוז', rtl: 'ימין לשמאל', ltr: 'שמאל לימין' };
+    const cardLabels = { command: 'פיקודי מודגש', clean: 'נקי להצגה', minimal: 'מינימלי מהיר' };
+    const navigationLabels = { map: 'ניווט חופשי', design: 'עריכה מדויקת' };
+    const summary = [
+        ['מראה כרטיסים', cardLabels[flow.nodeVisualStyle] || flow.nodeVisualStyle],
+        ['קווים', `${edgeLabels[flow.edgeType] || flow.edgeType} · ${flow.edgeStrokeWidth}px · ${flow.edgeOpacityPercent}%`],
+        ['רקע', `${backgroundLabels[flow.backgroundVariant] || flow.backgroundVariant} · ${flow.backgroundGap}px`],
+        ['יישור', layoutLabels[flow.autoLayoutDirection] || flow.autoLayoutDirection],
+        ['היררכיה', flow.hierarchySizing ? `${flow.levelScaleStepPercent}% לכל דרג` : 'כבויה'],
+        ['ניווט', navigationLabels[flow.viewportMode] || flow.viewportMode],
+    ];
+
+    return (
+        <section className="mt-3 overflow-hidden rounded-xl bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.08),0_2px_8px_rgba(15,23,42,0.05)] dark:bg-white/[0.04] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]" aria-label="הגדרות הקנבס">
+            <dl className="grid grid-cols-1 gap-x-5 px-4 py-2 sm:grid-cols-2">
+                {summary.map(([label, value]) => (
+                    <div key={label} className="flex min-h-9 items-center justify-between gap-3 border-b border-dotted border-gray-200 py-2 text-xs last:border-0 dark:border-white/10">
+                        <dt className="text-gray-500 dark:text-gray-400">{label}</dt>
+                        <dd className="m-0 text-left font-mono text-[11px] font-bold tabular-nums text-gray-800 dark:text-gray-200">{value}</dd>
+                    </div>
+                ))}
+            </dl>
+        </section>
+    );
+}
+
 function PreviewMonitor({ draft, activeTab, onSaveFlowPositions, onFlowSettingChange }) {
     const isFlowTab = activeTab === 'design-flow';
     const isFlowLayout = draft.layoutDirection === 'flow-canvas';
@@ -703,18 +772,6 @@ function PreviewMonitor({ draft, activeTab, onSaveFlowPositions, onFlowSettingCh
     const effectivePreviewPaneTab = isFlowTab ? previewPaneTab : 'preview';
     const isManualPositionTabActive = effectivePreviewPaneTab === 'manual-position';
     const showFlowRuntimePreview = isFlowTab && isFlowLayout && !isManualPositionTabActive;
-    const widthStats = useMemo(() => {
-        let leaves = 0;
-        let maxSiblings = 0;
-        const visit = (node) => {
-            const children = Array.isArray(node?.children) ? node.children : [];
-            maxSiblings = Math.max(maxSiblings, children.length);
-            if (children.length === 0) leaves += 1;
-            children.forEach(visit);
-        };
-        (Array.isArray(draft.nodes) ? draft.nodes : []).forEach(visit);
-        return { leaves, maxSiblings, wide: leaves > 12 || maxSiblings > 6 };
-    }, [draft.nodes]);
 
     return (
         <div className={`sticky top-[128px] ${isFlowTab ? 'max-h-[calc(100vh-145px)] overflow-y-auto custom-scrollbar pr-1' : ''}`}>
@@ -724,16 +781,16 @@ function PreviewMonitor({ draft, activeTab, onSaveFlowPositions, onFlowSettingCh
             </div> */}
 
             {isFlowTab && (
-                <div className="mb-4 rounded-2xl border border-gray-200 bg-white/80 p-1.5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
-                    <div className="flex flex-wrap gap-2 items-center">
-                        <Monitor size={20} className="text-primary dark:text-primary-600" />
+                <div className="mb-3 flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 shadow-[0_0_0_1px_rgba(15,23,42,0.08),0_2px_8px_rgba(15,23,42,0.05)] dark:bg-white/[0.045] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary"><Monitor size={16} /></span>
                         <button
                             type="button"
                             onClick={() => setPreviewPaneTab('preview')}
-                            className={`rounded-lg border px-3 py-0.5 text-xs font-bold transition ${
+                            className={`min-h-9 rounded-lg px-3 py-1.5 text-xs font-bold transition-[background-color,color,box-shadow,transform] active:scale-[0.96] ${
                                 previewPaneTab === 'preview'
-                                    ? 'border-primary bg-primary/10 text-primary'
-                                    : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-[#1b1f2a] text-gray-500 dark:text-gray-300 hover:border-primary/40 hover:text-gray-900 dark:hover:text-white'
+                                    ? 'bg-gray-900 text-white shadow-sm dark:bg-white dark:text-gray-900'
+                                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
                             }`}
                         >
                             תצוגה מקדימה
@@ -741,32 +798,21 @@ function PreviewMonitor({ draft, activeTab, onSaveFlowPositions, onFlowSettingCh
                         <button
                             type="button"
                             onClick={() => setPreviewPaneTab('manual-position')}
-                            className={`rounded-lg border px-3 py-0.5 text-xs font-bold transition ${
+                            className={`min-h-9 rounded-lg px-3 py-1.5 text-xs font-bold transition-[background-color,color,box-shadow,transform] active:scale-[0.96] ${
                                 previewPaneTab === 'manual-position'
-                                    ? 'border-primary bg-primary/10 text-primary'
-                                    : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-[#1b1f2a] text-gray-500 dark:text-gray-300 hover:border-primary/40 hover:text-gray-900 dark:hover:text-white'
+                                    ? 'bg-gray-900 text-white shadow-sm dark:bg-white dark:text-gray-900'
+                                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
                             }`}
                         >
                             עריכת מיקום ידנית
                         </button>
                     </div>
-                </div>
-            )}
-
-            {isFlowTab && isFlowLayout && widthStats.wide && draft.flowCanvas?.autoLayoutDirection !== 'compact' && (
-                <div dir="rtl" className="mb-4 rounded-2xl border border-amber-300/50 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-100">
-                    <div className="flex items-start gap-2">
-                        <AlertTriangle size={18} className="mt-0.5 shrink-0" />
-                        <div>
-                            <div className="font-black">זוהה מבנה רחב וצפוף</div>
-                            <p className="mt-1">מומלץ להפעיל פריסה קומפקטית כדי לשמור על גודל תצוגה נוח.</p>
-                        </div>
-                    </div>
+                    <span className="flex shrink-0 items-center gap-2 text-[11px] font-bold text-gray-500 dark:text-gray-400"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary shadow-[0_0_0_3px_hsl(var(--color-primary)/0.12)]" />חי</span>
                 </div>
             )}
 
             {showFlowRuntimePreview && (
-                <div className="h-[420px] min-h-[360px] rounded-[28px] border border-gray-200 bg-white/90 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                <div className="h-[420px] min-h-[360px] overflow-hidden rounded-xl bg-white p-2 shadow-[0_0_0_1px_rgba(15,23,42,0.08),0_8px_26px_rgba(15,23,42,0.08)] dark:bg-white/[0.04] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]">
                     <OrgChartFlow config={draft} isEditable={false} />
                 </div>
             )}
@@ -821,7 +867,7 @@ function PreviewMonitor({ draft, activeTab, onSaveFlowPositions, onFlowSettingCh
                         </div>
                     </div>
 
-                    <div className="h-[360px] min-h-[320px] md:h-[420px]">
+                    <div className="h-[520px] min-h-[460px] md:h-[620px]">
                         <OrgChartFlow
                             config={draft}
                             isEditable={isFlowLayout}
@@ -832,6 +878,8 @@ function PreviewMonitor({ draft, activeTab, onSaveFlowPositions, onFlowSettingCh
                     </div>
                 </div>
             )}
+
+            {isFlowTab && isFlowLayout && !isManualPositionTabActive && <FlowPreviewSummary draft={draft} />}
         </div>
     );
 }
@@ -1176,64 +1224,6 @@ export default function AdminOrgChart() {
                 {
                     ...(prev.flowCanvas || DEFAULT_ORG_CHART.flowCanvas),
                     [field]: value,
-                },
-                DEFAULT_ORG_CHART.flowCanvas
-            ),
-        }));
-    }, []);
-
-    const applyFlowVisualPreset = useCallback((preset) => {
-        const PRESET_MAP = {
-            command: {
-                nodeVisualStyle: 'command',
-                hierarchySizing: true,
-                rootScalePercent: 112,
-                levelScaleStepPercent: 6,
-                minScalePercent: 84,
-                showAvatar: true,
-                showRank: true,
-                showRole: true,
-                edgeAnimated: false,
-                edgeStrokeWidth: 2,
-                edgeOpacityPercent: 88,
-            },
-            clean: {
-                nodeVisualStyle: 'clean',
-                hierarchySizing: true,
-                rootScalePercent: 108,
-                levelScaleStepPercent: 4,
-                minScalePercent: 86,
-                showAvatar: true,
-                showRank: true,
-                showRole: true,
-                edgeAnimated: false,
-                edgeStrokeWidth: 2,
-                edgeOpacityPercent: 82,
-            },
-            minimal: {
-                nodeVisualStyle: 'minimal',
-                hierarchySizing: false,
-                rootScalePercent: 104,
-                levelScaleStepPercent: 2,
-                minScalePercent: 90,
-                showAvatar: false,
-                showRank: false,
-                showRole: true,
-                edgeAnimated: true,
-                edgeStrokeWidth: 1,
-                edgeOpacityPercent: 72,
-            },
-        };
-
-        const patch = PRESET_MAP[preset];
-        if (!patch) return;
-
-        setDraft((prev) => ({
-            ...prev,
-            flowCanvas: normalizeFlowCanvasSettings(
-                {
-                    ...(prev.flowCanvas || DEFAULT_ORG_CHART.flowCanvas),
-                    ...patch,
                 },
                 DEFAULT_ORG_CHART.flowCanvas
             ),
@@ -1650,12 +1640,28 @@ export default function AdminOrgChart() {
             </SettingCard>}
 
             {activeTab === 'design-flow' && <SettingCard
-                title="קנבס זרימה - עריכה מתקדמת"
-                description="כאן מסדרים את העץ בצורה חזותית, שומרים מיקומים, ומגדירים איך הוא ייראה למשתמשים."
+                title="הגדרות קנבס"
+                description="שליטה במראה, בפריסה ובהתנהגות של עץ המבנה. כל שינוי משתקף מיד בתצוגה המקדימה."
                 helpTitle="קנבס זרימה"
                 helpDescription="פשוט לגרור, ליישר ולשמור. אין צורך בידע טכני כדי לסדר את המבנה."
             >
-                <div className="space-y-4 [&_select]:rounded-2xl [&_select]:border [&_select]:border-gray-200 [&_select]:bg-white [&_select]:font-semibold [&_select]:shadow-sm dark:[&_select]:border-white/10 dark:[&_select]:bg-white/[0.06] [&_input[type='number']]:rounded-2xl [&_input[type='number']]:border [&_input[type='number']]:border-gray-200 [&_input[type='number']]:bg-white [&_input[type='number']]:shadow-sm dark:[&_input[type='number']]:border-white/10 dark:[&_input[type='number']]:bg-white/[0.06]">
+                <div className="space-y-4 [&_select]:rounded-lg [&_select]:border [&_select]:border-gray-200 [&_select]:bg-white [&_select]:font-semibold [&_select]:shadow-none dark:[&_select]:border-white/10 dark:[&_select]:bg-white/[0.06] [&_input[type='number']]:rounded-lg [&_input[type='number']]:border [&_input[type='number']]:border-gray-200 [&_input[type='number']]:bg-white [&_input[type='number']]:font-mono [&_input[type='number']]:tabular-nums [&_input[type='number']]:shadow-none dark:[&_input[type='number']]:border-white/10 dark:[&_input[type='number']]:bg-white/[0.06]">
+                    <nav aria-label="ניווט בין קבוצות הגדרות הקנבס" className="sticky top-0 z-20 -mx-1 flex gap-1 overflow-x-auto rounded-xl bg-gray-50/95 p-1.5 shadow-[0_0_0_1px_rgba(15,23,42,0.07)] backdrop-blur-md custom-scrollbar dark:bg-[#171a22]/95 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
+                        {FLOW_SETTING_SECTIONS.map((section) => {
+                            const SectionIcon = section.icon;
+                            return (
+                                <button
+                                    key={section.id}
+                                    type="button"
+                                    onClick={() => document.getElementById(section.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                                    className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-bold text-gray-600 transition-[background-color,color,transform] hover:bg-white hover:text-gray-900 active:scale-[0.96] dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
+                                >
+                                    {React.createElement(SectionIcon, { size: 14 })}
+                                    {section.label}
+                                </button>
+                            );
+                        })}
+                    </nav>
                     {/* <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-[#1b1f2a]">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div>
@@ -1745,10 +1751,13 @@ export default function AdminOrgChart() {
                         </div>
                     </div>
 
-                    <div className="rounded-2xl border border-gray-200/70 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-white/[0.03]">
-                        <h3 className="text-sm font-black text-gray-900 dark:text-white">סקשן 1: מראה קווים ורקע</h3>
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">בחרו איך הקווים והרקע נראים, כדי שהעץ יהיה ברור ונעים לעין.</p>
-                    </div>
+                    <FlowSectionHeader
+                        id="flow-appearance"
+                        number={1}
+                        title="מראה קווים ורקע"
+                        description="בחרו איך הקווים והרקע נראים, כדי שהעץ יהיה ברור ונעים לעין."
+                        icon={Palette}
+                    />
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-[#1b1f2a]">
@@ -1785,15 +1794,11 @@ export default function AdminOrgChart() {
                                 עיצוב קווים
                             </HelpLabel>
 
-                            <label className="flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/70 px-3 py-2 text-sm text-gray-700 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
-                                <input
-                                    type="checkbox"
-                                    checked={draft.flowCanvas?.edgeAnimated ?? DEFAULT_ORG_CHART.flowCanvas.edgeAnimated}
-                                    onChange={(event) => updateFlowCanvasField('edgeAnimated', event.target.checked)}
-                                    className="h-4 w-4 rounded-md border border-primary/30 bg-white accent-primary shadow-sm dark:bg-white/10"
-                                />
-                                קווים מונפשים
-                            </label>
+                            <FlowToggle
+                                checked={draft.flowCanvas?.edgeAnimated ?? DEFAULT_ORG_CHART.flowCanvas.edgeAnimated}
+                                onChange={(checked) => updateFlowCanvasField('edgeAnimated', checked)}
+                                label="קווים מונפשים"
+                            />
 
                             <div className="mt-3 grid grid-cols-2 gap-3">
                                 <div>
@@ -1885,46 +1890,16 @@ export default function AdminOrgChart() {
                             </div>
                         </div>
 
-
-                    <div className="rounded-2xl border border-primary/20 bg-white p-4 dark:border-primary/30 dark:bg-[#1b1f2a]">
-                        <HelpLabel
-                            as="span"
-                            className="text-sm font-bold text-gray-900 dark:text-white"
-                            wrapperClassName="mb-2 flex items-center gap-2"
-                            helpTitle="פריסטים לתצוגה"
-                            helpDescription="בחירה מהירה שמעדכנת כמה הגדרות יחד לקבלת מראה שונה של הכרטיסים והקווים."
-                        >
-                            מצבי תצוגה מהירים
-                        </HelpLabel>
-                        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                            {FLOW_VISUAL_PRESET_OPTIONS.map((preset) => {
-                                const isActive = draft.flowCanvas?.nodeVisualStyle === preset.value;
-                                return (
-                                    <button
-                                        key={preset.value}
-                                        type="button"
-                                        onClick={() => applyFlowVisualPreset(preset.value)}
-                                        className={`rounded-xl border px-3 py-2 text-right transition ${
-                                            isActive
-                                                ? 'border-primary/45 bg-primary/15 text-primary dark:text-primary'
-                                                : 'border-gray-200 bg-white/70 text-gray-700 hover:bg-gray-100 dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:bg-white/10'
-                                        }`}
-                                    >
-                                        <div className="text-xs font-black">{preset.label}</div>
-                                        <div className="mt-1 text-[11px] leading-5 opacity-90">{preset.description}</div>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-gray-200/70 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-white/[0.03]">
-                        <h3 className="text-sm font-black text-gray-900 dark:text-white">סקשן 2: מראה כרטיסים והיררכיה</h3>
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">הגדירו מה יוצג בכרטיס, ומי יופיע בולט יותר לפי רמת הפיקוד.</p>
-                    </div>
+                    <FlowSectionHeader
+                        id="flow-cards"
+                        number={2}
+                        title="מראה כרטיסים והיררכיה"
+                        description="הגדירו מה יוצג בכרטיס, ומי יופיע בולט יותר לפי רמת הפיקוד."
+                        icon={GitBranch}
+                    />
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-[#1b1f2a]">
+                        <div className="order-2 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-[#1b1f2a] md:order-2">
                             <HelpLabel
                                 as="span"
                                 className="text-sm font-bold text-gray-800 dark:text-gray-200"
@@ -1932,50 +1907,42 @@ export default function AdminOrgChart() {
                                 helpTitle="סגנון כרטיס"
                                 helpDescription="בחירה בין סגנון פיקודי מודגש, נקי או מינימלי."
                             >
-                                מראה כרטיסים
+                                סגנון
                             </HelpLabel>
-                            <select
-                                value={draft.flowCanvas?.nodeVisualStyle ?? 'command'}
-                                onChange={(event) => updateFlowCanvasField('nodeVisualStyle', event.target.value)}
-                                className={inputCls}
-                            >
-                                <option value="command">פיקודי מודגש</option>
-                                <option value="clean">נקי להצגה</option>
-                                <option value="minimal">מינימלי מהיר</option>
-                            </select>
+                            <div className="grid grid-cols-3 gap-2">
+                                {[
+                                    { value: 'command', label: 'פיקודי מודגש', description: 'כרטיס בולט וברור' },
+                                    { value: 'clean', label: 'נקי להצגה', description: 'מראה מאוזן ועדין' },
+                                    { value: 'minimal', label: 'מינימלי', description: 'פחות עומס על המסך' },
+                                ].map((style) => {
+                                    const isActive = (draft.flowCanvas?.nodeVisualStyle ?? 'command') === style.value;
+                                    return (
+                                        <button
+                                            key={style.value}
+                                            type="button"
+                                            aria-pressed={isActive}
+                                            onClick={() => updateFlowCanvasField('nodeVisualStyle', style.value)}
+                                            className={`min-h-16 rounded-xl border px-3 py-2 text-right transition-[background-color,border-color,color,transform,box-shadow] active:scale-[0.96] ${
+                                                isActive
+                                                    ? 'border-primary/45 bg-primary/10 text-primary shadow-sm'
+                                                    : 'border-gray-200 bg-white/70 text-gray-700 hover:border-primary/30 hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200 dark:hover:bg-white/10'
+                                            }`}
+                                        >
+                                            <span className="block text-xs font-black">{style.label}</span>
+                                            <span className="mt-1 block text-[11px] text-gray-500 dark:text-gray-400">{style.description}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
 
                             <div className="mt-3 space-y-2">
-                                <label className="flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/70 px-3 py-2 text-sm text-gray-700 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
-                                    <input
-                                        type="checkbox"
-                                        checked={draft.flowCanvas?.showAvatar ?? true}
-                                        onChange={(event) => updateFlowCanvasField('showAvatar', event.target.checked)}
-                                        className="h-4 w-4 rounded-md border border-primary/30 bg-white accent-primary shadow-sm dark:bg-white/10"
-                                    />
-                                    הצג אווטאר
-                                </label>
-                                <label className="flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/70 px-3 py-2 text-sm text-gray-700 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
-                                    <input
-                                        type="checkbox"
-                                        checked={draft.flowCanvas?.showRank ?? true}
-                                        onChange={(event) => updateFlowCanvasField('showRank', event.target.checked)}
-                                        className="h-4 w-4 rounded-md border border-primary/30 bg-white accent-primary shadow-sm dark:bg-white/10"
-                                    />
-                                    הצג דרגה
-                                </label>
-                                <label className="flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/70 px-3 py-2 text-sm text-gray-700 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
-                                    <input
-                                        type="checkbox"
-                                        checked={draft.flowCanvas?.showRole ?? true}
-                                        onChange={(event) => updateFlowCanvasField('showRole', event.target.checked)}
-                                        className="h-4 w-4 rounded-md border border-primary/30 bg-white accent-primary shadow-sm dark:bg-white/10"
-                                    />
-                                    הצג תפקיד
-                                </label>
+                                <FlowToggle checked={draft.flowCanvas?.showAvatar ?? true} onChange={(checked) => updateFlowCanvasField('showAvatar', checked)} label="הצג אווטאר" />
+                                <FlowToggle checked={draft.flowCanvas?.showRank ?? true} onChange={(checked) => updateFlowCanvasField('showRank', checked)} label="הצג דרגה" />
+                                <FlowToggle checked={draft.flowCanvas?.showRole ?? true} onChange={(checked) => updateFlowCanvasField('showRole', checked)} label="הצג תפקיד" />
                             </div>
                         </div>
 
-                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-[#1b1f2a]">
+                        <div className="order-1 rounded-2xl border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-[#1b1f2a] md:order-1">
                             <HelpLabel
                                 as="span"
                                 className="text-sm font-bold text-gray-800 dark:text-gray-200"
@@ -1986,18 +1953,9 @@ export default function AdminOrgChart() {
                                 היררכיה דינמית
                             </HelpLabel>
 
-                            <label className="flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/70 px-3 py-2 text-sm text-gray-700 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
-                                <input
-                                    type="checkbox"
-                                    checked={draft.flowCanvas?.hierarchySizing ?? true}
-                                    onChange={(event) => updateFlowCanvasField('hierarchySizing', event.target.checked)}
-                                    className="h-4 w-4 rounded-md border border-primary/30 bg-white accent-primary shadow-sm dark:bg-white/10"
-                                />
-                                הפעל יחס קבוע בין דרגות
-                            </label>
+                            <FlowToggle checked={draft.flowCanvas?.hierarchySizing ?? true} onChange={(checked) => updateFlowCanvasField('hierarchySizing', checked)} label="הפעל יחס קבוע בין דרגות" />
 
-                            {(draft.flowCanvas?.hierarchySizing ?? true) && (
-                                <>
+                            <div className={`mt-3 transition-[opacity,filter] ${draft.flowCanvas?.hierarchySizing ?? true ? '' : 'opacity-45 grayscale'}`}>
                                     <p className="mt-3 rounded-xl border border-primary/20 bg-primary/[0.05] px-3 py-2 text-xs text-gray-700 dark:border-primary/30 dark:bg-primary/[0.10] dark:text-gray-200">
                                         כלל פשוט: כל דרג מתחת קטן ב־<span className="font-black">{draft.flowCanvas?.levelScaleStepPercent ?? 6}%</span> מהדרג שמעליו.
                                     </p>
@@ -2006,6 +1964,7 @@ export default function AdminOrgChart() {
                                         <button
                                             type="button"
                                             onClick={() => applyHierarchyPreset('subtle')}
+                                            disabled={!(draft.flowCanvas?.hierarchySizing ?? true)}
                                             className="rounded-xl border border-gray-200 bg-white/80 px-3 py-2 text-xs font-black text-gray-700 transition hover:bg-gray-100 dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:bg-white/10"
                                         >
                                             עדין (4%)
@@ -2013,6 +1972,7 @@ export default function AdminOrgChart() {
                                         <button
                                             type="button"
                                             onClick={() => applyHierarchyPreset('balanced')}
+                                            disabled={!(draft.flowCanvas?.hierarchySizing ?? true)}
                                             className="rounded-xl border border-gray-200 bg-white/80 px-3 py-2 text-xs font-black text-gray-700 transition hover:bg-gray-100 dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:bg-white/10"
                                         >
                                             מאוזן (6%)
@@ -2020,6 +1980,7 @@ export default function AdminOrgChart() {
                                         <button
                                             type="button"
                                             onClick={() => applyHierarchyPreset('strong')}
+                                            disabled={!(draft.flowCanvas?.hierarchySizing ?? true)}
                                             className="rounded-xl border border-gray-200 bg-white/80 px-3 py-2 text-xs font-black text-gray-700 transition hover:bg-gray-100 dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:bg-white/10"
                                         >
                                             מודגש (8%)
@@ -2033,13 +1994,14 @@ export default function AdminOrgChart() {
                                             min={1}
                                             max={20}
                                             value={draft.flowCanvas?.levelScaleStepPercent ?? 6}
+                                            disabled={!(draft.flowCanvas?.hierarchySizing ?? true)}
                                             onChange={(event) => updateFlowCanvasField('levelScaleStepPercent', Number(event.target.value))}
                                             className={inputCls}
                                         />
                                     </div>
 
                                     <details className="mt-3 rounded-xl border border-gray-200/80 bg-white/70 p-3 dark:border-white/10 dark:bg-white/[0.04]">
-                                        <summary className="cursor-pointer text-xs font-black text-gray-700 dark:text-gray-200">
+                                                <summary className="cursor-pointer text-xs font-black text-gray-700 dark:text-gray-200">
                                             הגדרות מתקדמות
                                         </summary>
                                         <div className="mt-3 grid grid-cols-1 gap-3">
@@ -2050,6 +2012,7 @@ export default function AdminOrgChart() {
                                                     min={100}
                                                     max={150}
                                                     value={draft.flowCanvas?.rootScalePercent ?? 112}
+                                                        disabled={!(draft.flowCanvas?.hierarchySizing ?? true)}
                                                     onChange={(event) => updateFlowCanvasField('rootScalePercent', Number(event.target.value))}
                                                     className={inputCls}
                                                 />
@@ -2061,21 +2024,26 @@ export default function AdminOrgChart() {
                                                     min={70}
                                                     max={100}
                                                     value={draft.flowCanvas?.minScalePercent ?? 84}
+                                                        disabled={!(draft.flowCanvas?.hierarchySizing ?? true)}
                                                     onChange={(event) => updateFlowCanvasField('minScalePercent', Number(event.target.value))}
                                                     className={inputCls}
                                                 />
                                             </div>
                                         </div>
                                     </details>
-                                </>
-                            )}
+                            </div>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div className="md:col-span-2 rounded-2xl border border-gray-200/70 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-white/[0.03]">
-                            <h3 className="text-sm font-black text-gray-900 dark:text-white">סקשן 3: ניווט ובקרה</h3>
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">כאן קובעים איך לזוז על הקנבס ואילו כפתורי ניווט להציג.</p>
+                        <div className="md:col-span-2">
+                            <FlowSectionHeader
+                                id="flow-navigation"
+                                number={3}
+                                title="ניווט ובקרה"
+                                description="כאן קובעים איך לזוז על הקנבס ואילו כפתורי ניווט להציג."
+                                icon={MousePointer2}
+                            />
                         </div>
                         <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-[#1b1f2a]">
                             <HelpLabel
@@ -2096,24 +2064,10 @@ export default function AdminOrgChart() {
                                 <option value="design">עריכה מדויקת</option>
                             </select>
 
-                            <label className="mt-3 flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/70 px-3 py-2 text-sm text-gray-700 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
-                                <input
-                                    type="checkbox"
-                                    checked={draft.flowCanvas?.panOnScroll ?? false}
-                                    onChange={(event) => updateFlowCanvasField('panOnScroll', event.target.checked)}
-                                    className="h-4 w-4 rounded-md border border-primary/30 bg-white accent-primary shadow-sm dark:bg-white/10"
-                                />
-                                גרירה בעזרת הגלגלת
-                            </label>
-                            <label className="mt-2 flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/70 px-3 py-2 text-sm text-gray-700 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
-                                <input
-                                    type="checkbox"
-                                    checked={draft.flowCanvas?.zoomOnDoubleClick ?? true}
-                                    onChange={(event) => updateFlowCanvasField('zoomOnDoubleClick', event.target.checked)}
-                                    className="h-4 w-4 rounded-md border border-primary/30 bg-white accent-primary shadow-sm dark:bg-white/10"
-                                />
-                                זום בלחיצה כפולה
-                            </label>
+                            <div className="mt-3 space-y-1">
+                                <FlowToggle checked={draft.flowCanvas?.panOnScroll ?? false} onChange={(checked) => updateFlowCanvasField('panOnScroll', checked)} label="גרירה בעזרת הגלגלת" />
+                                <FlowToggle checked={draft.flowCanvas?.zoomOnDoubleClick ?? true} onChange={(checked) => updateFlowCanvasField('zoomOnDoubleClick', checked)} label="זום בלחיצה כפולה" />
+                            </div>
                         </div>
 
                         <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-[#1b1f2a]">
@@ -2127,70 +2081,16 @@ export default function AdminOrgChart() {
                                 כלי ניווט
                             </HelpLabel>
 
-                            <label className="flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/70 px-3 py-2 text-sm text-gray-700 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
-                                <input
-                                    type="checkbox"
-                                    checked={draft.flowCanvas?.showMiniMap ?? true}
-                                    onChange={(event) => updateFlowCanvasField('showMiniMap', event.target.checked)}
-                                    className="h-4 w-4 rounded-md border border-primary/30 bg-white accent-primary shadow-sm dark:bg-white/10"
-                                />
-                                הצג מפת ניווט
-                            </label>
-                            <label className="mt-2 flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/70 px-3 py-2 text-sm text-gray-700 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
-                                <input
-                                    type="checkbox"
-                                    checked={draft.flowCanvas?.miniMapPannable ?? true}
-                                    onChange={(event) => updateFlowCanvasField('miniMapPannable', event.target.checked)}
-                                    className="h-4 w-4 rounded-md border border-primary/30 bg-white accent-primary shadow-sm dark:bg-white/10"
-                                />
-                                גרירה במפת הניווט
-                            </label>
-                            <label className="mt-2 flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/70 px-3 py-2 text-sm text-gray-700 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
-                                <input
-                                    type="checkbox"
-                                    checked={draft.flowCanvas?.miniMapZoomable ?? false}
-                                    onChange={(event) => updateFlowCanvasField('miniMapZoomable', event.target.checked)}
-                                    className="h-4 w-4 rounded-md border border-primary/30 bg-white accent-primary shadow-sm dark:bg-white/10"
-                                />
-                                זום במפת הניווט
-                            </label>
-
-                            <label className="mt-3 flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/70 px-3 py-2 text-sm text-gray-700 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
-                                <input
-                                    type="checkbox"
-                                    checked={draft.flowCanvas?.showControls ?? true}
-                                    onChange={(event) => updateFlowCanvasField('showControls', event.target.checked)}
-                                    className="h-4 w-4 rounded-md border border-primary/30 bg-white accent-primary shadow-sm dark:bg-white/10"
-                                />
-                                הצג בקרי ניווט
-                            </label>
-                            <label className="mt-2 flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/70 px-3 py-2 text-sm text-gray-700 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
-                                <input
-                                    type="checkbox"
-                                    checked={draft.flowCanvas?.showControlZoom ?? true}
-                                    onChange={(event) => updateFlowCanvasField('showControlZoom', event.target.checked)}
-                                    className="h-4 w-4 rounded-md border border-primary/30 bg-white accent-primary shadow-sm dark:bg-white/10"
-                                />
-                                כפתורי זום
-                            </label>
-                            <label className="mt-2 flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/70 px-3 py-2 text-sm text-gray-700 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
-                                <input
-                                    type="checkbox"
-                                    checked={draft.flowCanvas?.showControlFitView ?? true}
-                                    onChange={(event) => updateFlowCanvasField('showControlFitView', event.target.checked)}
-                                    className="h-4 w-4 rounded-md border border-primary/30 bg-white accent-primary shadow-sm dark:bg-white/10"
-                                />
-                                כפתור התאמה למסך
-                            </label>
-                            <label className="mt-2 flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/70 px-3 py-2 text-sm text-gray-700 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
-                                <input
-                                    type="checkbox"
-                                    checked={draft.flowCanvas?.showControlInteractive ?? false}
-                                    onChange={(event) => updateFlowCanvasField('showControlInteractive', event.target.checked)}
-                                    className="h-4 w-4 rounded-md border border-primary/30 bg-white accent-primary shadow-sm dark:bg-white/10"
-                                />
-                                כפתור נעילה/עריכה
-                            </label>
+                            <div className="space-y-1">
+                                <FlowToggle checked={draft.flowCanvas?.showMiniMap ?? true} onChange={(checked) => updateFlowCanvasField('showMiniMap', checked)} label="הצג מפת ניווט" />
+                                <FlowToggle checked={draft.flowCanvas?.miniMapPannable ?? true} onChange={(checked) => updateFlowCanvasField('miniMapPannable', checked)} label="גרירה במפת הניווט" disabled={!(draft.flowCanvas?.showMiniMap ?? true)} />
+                                <FlowToggle checked={draft.flowCanvas?.miniMapZoomable ?? false} onChange={(checked) => updateFlowCanvasField('miniMapZoomable', checked)} label="זום במפת הניווט" disabled={!(draft.flowCanvas?.showMiniMap ?? true)} />
+                                <div className="my-2 border-t border-gray-200 dark:border-white/10" />
+                                <FlowToggle checked={draft.flowCanvas?.showControls ?? true} onChange={(checked) => updateFlowCanvasField('showControls', checked)} label="הצג בקרי ניווט" />
+                                <FlowToggle checked={draft.flowCanvas?.showControlZoom ?? true} onChange={(checked) => updateFlowCanvasField('showControlZoom', checked)} label="כפתורי זום" disabled={!(draft.flowCanvas?.showControls ?? true)} />
+                                <FlowToggle checked={draft.flowCanvas?.showControlFitView ?? true} onChange={(checked) => updateFlowCanvasField('showControlFitView', checked)} label="כפתור התאמה למסך" disabled={!(draft.flowCanvas?.showControls ?? true)} />
+                                <FlowToggle checked={draft.flowCanvas?.showControlInteractive ?? false} onChange={(checked) => updateFlowCanvasField('showControlInteractive', checked)} label="כפתור נעילה/עריכה" disabled={!(draft.flowCanvas?.showControls ?? true)} />
+                            </div>
 
                             {/* <div className="mt-3">
                                 <HelpLabel
@@ -2215,33 +2115,31 @@ export default function AdminOrgChart() {
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div className="md:col-span-2 rounded-2xl border border-gray-200/70 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-white/[0.03]">
-                            <h3 className="text-sm font-black text-gray-900 dark:text-white">סקשן 4: דיוק וביצועים</h3>
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">קבעו הצמדה לגריד ושפרו מהירות בעבודה על מבנים גדולים.</p>
+                        <div className="md:col-span-2">
+                            <FlowSectionHeader
+                                id="flow-performance"
+                                number={4}
+                                title="סידור הצמתים וגודל התצוגה"
+                                description="קבעו איך הצמתים מסתדרים בזמן גרירה וכמה מקום יישאר סביב העץ."
+                                icon={Gauge}
+                            />
                         </div>
                         <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-[#1b1f2a]">
                             <HelpLabel
                                 as="span"
                                 className="text-sm font-bold text-gray-800 dark:text-gray-200"
                                 wrapperClassName="mb-2 flex items-center gap-2"
-                                helpTitle="הצמדה לרשת"
-                                helpDescription="מסייע ליישר צמתים בדיוק על קווים קבועים."
+                                helpTitle="סידור אוטומטי בזמן גרירה"
+                                helpDescription="כאשר האפשרות פעילה, כל צומת שתגררו יעצור במרווחים קבועים. כך קל לשמור על שורות ומרחקים אחידים."
                             >
-                                הצמדה לרשת
+                                סידור אוטומטי בזמן גרירה
                             </HelpLabel>
-                            <label className="flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/70 px-3 py-2 text-sm text-gray-700 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
-                                <input
-                                    type="checkbox"
-                                    checked={draft.flowCanvas?.snapToGrid ?? false}
-                                    onChange={(event) => updateFlowCanvasField('snapToGrid', event.target.checked)}
-                                    className="h-4 w-4 rounded-md border border-primary/30 bg-white accent-primary shadow-sm dark:bg-white/10"
-                                />
-                                הפעל הצמדה
-                            </label>
+                            <p className="mb-3 text-xs leading-5 text-gray-500 dark:text-gray-400">הפעלת האפשרות תעזור לצמתים לעמוד בשורות ישרות ובמרחקים אחידים.</p>
+                            <FlowToggle checked={draft.flowCanvas?.snapToGrid ?? false} onChange={(checked) => updateFlowCanvasField('snapToGrid', checked)} label="סדר את הצמתים אוטומטית בזמן גרירה" />
 
                             <div className="mt-3 grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="mb-1 block text-xs font-bold text-gray-600 dark:text-gray-300">מרווח אופקי</label>
+                                    <label className="mb-1 block text-xs font-bold text-gray-600 dark:text-gray-300">צעד אופקי</label>
                                     <input
                                         type="number"
                                         min={8}
@@ -2252,7 +2150,7 @@ export default function AdminOrgChart() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="mb-1 block text-xs font-bold text-gray-600 dark:text-gray-300">מרווח אנכי</label>
+                                    <label className="mb-1 block text-xs font-bold text-gray-600 dark:text-gray-300">צעד אנכי</label>
                                     <input
                                         type="number"
                                         min={8}
@@ -2270,22 +2168,15 @@ export default function AdminOrgChart() {
                                 as="span"
                                 className="text-sm font-bold text-gray-800 dark:text-gray-200"
                                 wrapperClassName="mb-2 flex items-center gap-2"
-                                helpTitle="ביצועים ותיחום תצוגה"
-                                helpDescription="שפרו ביצועים במבנים גדולים והגדירו שוליים אוטומטיים לתצוגה."
+                                helpTitle="הצגת עצים גדולים"
+                                helpDescription="בעץ גדול אפשר לצייר רק את הצמתים שרואים כרגע על המסך. האפשרות השנייה קובעת כמה שטח ריק יישאר סביב העץ לאחר התאמתו למסך."
                             >
-                                ביצועים
+                                הצגת עצים גדולים
                             </HelpLabel>
-                            <label className="flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/70 px-3 py-2 text-sm text-gray-700 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
-                                <input
-                                    type="checkbox"
-                                    checked={draft.flowCanvas?.onlyRenderVisibleElements ?? false}
-                                    onChange={(event) => updateFlowCanvasField('onlyRenderVisibleElements', event.target.checked)}
-                                    className="h-4 w-4 rounded-md border border-primary/30 bg-white accent-primary shadow-sm dark:bg-white/10"
-                                />
-                                טען רק פריטים שנמצאים על המסך
-                            </label>
+                            <p className="mb-3 text-xs leading-5 text-gray-500 dark:text-gray-400">בעצים עם הרבה אנשים ניתן להציג בכל רגע רק את החלק שנמצא מולכם, כדי שהתנועה תהיה חלקה יותר.</p>
+                            <FlowToggle checked={draft.flowCanvas?.onlyRenderVisibleElements ?? false} onChange={(checked) => updateFlowCanvasField('onlyRenderVisibleElements', checked)} label="בעץ גדול, הצג רק את החלק שרואים עכשיו" />
                             <div className="mt-3">
-                                <label className="mb-1 block text-xs font-bold text-gray-600 dark:text-gray-300">שוליים בהתאמה למסך (%)</label>
+                                <label className="mb-1 block text-xs font-bold text-gray-600 dark:text-gray-300">כמה שטח ריק להשאיר סביב העץ (%)</label>
                                 <input
                                     type="number"
                                     min={5}
@@ -2753,6 +2644,15 @@ export default function AdminOrgChart() {
                         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">בונה ויזואלי מלא למבנה היררכי: עיצוב בצד אחד, בניית השרשרת בצד השני, ותצוגה מקדימה חיה בכל רגע.</p>
                     </div>
                     <div className="flex items-center gap-3">
+                        <a
+                            href="#/org-chart"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-bold text-primary transition-[background-color,border-color,transform] hover:border-primary/50 hover:bg-primary/15 active:scale-[0.96]"
+                        >
+                            <ExternalLink size={16} />
+                            הצג באתר
+                        </a>
                         <AdminPageHelpButton pageId="org-chart" />
                         <AdminWidgetAIAssistant
                             ref={aiAssistantRef}
