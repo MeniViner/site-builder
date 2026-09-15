@@ -17,6 +17,8 @@ import {
     COMMANDER_IMAGE_OFFSET_Y,
     COMMANDER_IMAGE_OFFSET_X,
     COMMANDER_IMAGE_SCALE,
+    DEFAULT_COMMANDER_RANK,
+    DEFAULT_COMMANDER_RANK_STYLE,
     DEFAULT_COMMANDER_IMAGE_PATH,
     normalizeCommanderImageSettings,
 } from '../utils/commanderImage';
@@ -1161,6 +1163,12 @@ export const DEFAULT_CONFIG_V1 = {
             imageUrl: DEFAULT_COMMANDER_IMAGE_PATH,
             imageSource: 'default',
             imageAvatar: '',
+            imageRank: DEFAULT_COMMANDER_RANK,
+            imageRankStyle: DEFAULT_COMMANDER_RANK_STYLE,
+            imageRankBackdrop: true,
+            imageRankOrientation: 'native',
+            imageRankRotation: 0,
+            imageRankMirrored: false,
             customImageUrl: '',
             imageScale: COMMANDER_IMAGE_SCALE.defaultValue,
             imageOffsetX: COMMANDER_IMAGE_OFFSET_X.defaultValue,
@@ -1343,6 +1351,7 @@ export const DEFAULT_CONFIG_V1 = {
                 ],
             },
             alerts: {
+                enabled: true,
                 items: [
                     {
                         id: 'al-1',
@@ -1657,6 +1666,12 @@ export function migrateLegacyToV1(legacyData) {
     migrated.content.commander.imageUrl = commanderImageSettings.imageUrl;
     migrated.content.commander.imageSource = commanderImageSettings.imageSource;
     migrated.content.commander.imageAvatar = commanderImageSettings.imageAvatar;
+    migrated.content.commander.imageRank = commanderImageSettings.imageRank;
+    migrated.content.commander.imageRankStyle = commanderImageSettings.imageRankStyle;
+    migrated.content.commander.imageRankBackdrop = commanderImageSettings.imageRankBackdrop;
+    migrated.content.commander.imageRankOrientation = commanderImageSettings.imageRankOrientation;
+    migrated.content.commander.imageRankRotation = commanderImageSettings.imageRankRotation;
+    migrated.content.commander.imageRankMirrored = commanderImageSettings.imageRankMirrored;
     migrated.content.commander.customImageUrl = commanderImageSettings.customImageUrl;
     migrated.content.commander.imageScale = commanderImageSettings.imageScale;
     migrated.content.commander.imageOffsetX = commanderImageSettings.imageOffsetX;
@@ -1855,6 +1870,12 @@ export function validateAndNormalize(config) {
                 imageUrl: commanderImageSettings.imageUrl,
                 imageSource: commanderImageSettings.imageSource,
                 imageAvatar: commanderImageSettings.imageAvatar,
+                imageRank: commanderImageSettings.imageRank,
+                imageRankStyle: commanderImageSettings.imageRankStyle,
+                imageRankBackdrop: commanderImageSettings.imageRankBackdrop,
+                imageRankOrientation: commanderImageSettings.imageRankOrientation,
+                imageRankRotation: commanderImageSettings.imageRankRotation,
+                imageRankMirrored: commanderImageSettings.imageRankMirrored,
                 customImageUrl: commanderImageSettings.customImageUrl,
                 imageScale: commanderImageSettings.imageScale,
                 imageOffsetX: commanderImageSettings.imageOffsetX,
@@ -1888,6 +1909,7 @@ export function validateAndNormalize(config) {
             data: {
                 events: normalizeEventsBranch(resolveWidgetDataBranch(widgetsSource, 'events')),
                 alerts: {
+                    enabled: resolveWidgetDataBranch(widgetsSource, 'alerts')?.enabled !== false,
                     items: normalizeNotifications(
                         resolveWidgetDataBranch(widgetsSource, 'alerts')?.items ?? resolveWidgetDataBranch(widgetsSource, 'alerts')
                     ),

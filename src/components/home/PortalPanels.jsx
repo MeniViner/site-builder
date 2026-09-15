@@ -6,6 +6,7 @@ import { DEFAULT_ACTIVE_WIDGETS } from '../../utils/widgetDisplay';
 import { isTacticalStyle, normalizeBorderStyle, tacticalClip } from '../../utils/borderStyles';
 import ResolvedSiteImage from '../ResolvedSiteImage';
 import { getCommanderImageSettings } from '../../utils/commanderImage';
+import CommanderRankInsignia from '../CommanderRankInsignia';
 
 function TacticalPanel({ borderStyle, cornerSize, className, children, glowLine, showBorder = true, showBackground = true, showShadow = true }) {
   const normalizedStyle = normalizeBorderStyle(borderStyle);
@@ -47,8 +48,21 @@ function CommanderSection({ commander, messages }) {
   return (
     <div className="relative p-6 [@media(max-height:850px)]:p-4 flex flex-col sm:flex-row items-stretch h-full w-full">
       <div className="w-full sm:w-[45%] relative shrink-0 sm:-ml-4 flex items-center justify-center overflow-hidden mb-6 sm:mb-0 isolate">
-        <div className="absolute left-1/2 top-1/2 -translate-x-[40%] -translate-y-[60%] w-28 lg:w-32 xl:w-36 h-28 lg:h-32 xl:h-36 bg-primary z-[1] hidden sm:block shadow-[0_0_25px_var(--color-primary-600),0_0_50px_var(--color-primary-900)]" aria-hidden="true" />
-        {commander.image && (
+        {(commander.imageSource !== 'rank' || commander.imageRankBackdrop !== false) && <div data-commander-image-backdrop className="absolute left-1/2 top-1/2 -translate-x-[40%] -translate-y-[60%] w-28 lg:w-32 xl:w-36 h-28 lg:h-32 xl:h-36 bg-primary z-[1] hidden sm:block shadow-[0_0_25px_var(--color-primary-600),0_0_50px_var(--color-primary-900)]" aria-hidden="true" />}
+        {commander.imageSource === 'rank' ? (
+          <CommanderRankInsignia
+            rank={commander.imageRank}
+            styleId={commander.imageRankStyle}
+            orientation={commander.imageRankOrientation}
+            rotation={commander.imageRankRotation}
+            mirrored={commander.imageRankMirrored}
+            className="relative z-[2] h-auto w-full max-w-[19rem] transition-transform duration-200 ease-out"
+            style={{
+              transform: `translate(${imageOffsetX}px, ${imageOffsetY}px) scale(${imageScale / 100})`,
+              transformOrigin: 'center',
+            }}
+          />
+        ) : commander.image ? (
           <ResolvedSiteImage
             source={commander.image}
             className="w-full sm:w-44 lg:w-52 xl:w-60 h-40 sm:h-full object-contain object-center relative z-[2] border-b sm:border-b-0 border-theme-subtle transition-transform duration-200 ease-out"
@@ -58,7 +72,7 @@ function CommanderSection({ commander, messages }) {
             }}
             alt="Commander"
           />
-        )}
+        ) : null}
       </div>
       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/3 h-[2px] shadow-[0_0_15px_var(--color-primary-hex)] z-20" style={{ backgroundColor: 'var(--color-primary-hex)' }} />
       <div className="flex-1 flex flex-col justify-between items-start sm:border-r border-theme-subtle sm:pr-6 [@media(max-height:850px)]:pr-4 pt-2 pb-1 relative z-20 overflow-hidden">

@@ -1,0 +1,49 @@
+import { useState } from 'react';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import CommanderRankInsignia from './CommanderRankInsignia';
+import CommanderRankPicker from './CommanderRankPicker';
+
+function PickerHarness() {
+    const [rank, setRank] = useState('אל"ם');
+    return <CommanderRankPicker value={rank} styleId="formal" onChange={setRank} />;
+}
+
+describe('CommanderRankPicker', () => {
+    it('shows rank names only inside the selection dialog', () => {
+        render(<PickerHarness />);
+
+        expect(screen.queryByText('אל"ם')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'בחירת דרגה' }));
+        expect(screen.getByRole('dialog', { name: 'בחירת דרגה' })).toBeInTheDocument();
+        expect(screen.getByText('סרן')).toBeInTheDocument();
+        expect(screen.queryByText('קצינים אקדמיים')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'קמ"א' })).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'סרן' }));
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(screen.queryByText('סרן')).not.toBeInTheDocument();
+        expect(screen.getByRole('img', { name: 'סרן, שלושה ארונות' })).toBeInTheDocument();
+    });
+
+    it('closes without changing the rank when Escape is pressed', () => {
+        const onChange = vi.fn();
+        render(<CommanderRankPicker value="סגן" styleId="minimal" onChange={onChange} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'בחירת דרגה' }));
+        fireEvent.keyDown(document, { key: 'Escape' });
+
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(onChange).not.toHaveBeenCalled();
+    });
+});
+
+describe('CommanderRankInsignia', () => {
+    it('renders the selected rank using shapes only', () => {
+        const { container } = render(<CommanderRankInsignia rank={'רא"ל'} styleId="field" />);
+
+        expect(container.querySelector('svg')).toHaveAttribute('viewBox', '0 0 300 140');
+        expect(container.querySelector('svg')).toHaveAttribute('data-rank-style', 'field');
+        expect(container.querySelector('text')).not.toBeInTheDocument();
+    });
+});

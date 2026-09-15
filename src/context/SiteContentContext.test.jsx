@@ -3,7 +3,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SiteContentProvider, useSiteContent } from './SiteContentContext';
 import {
-    COMMANDER_BUILTIN_AVATARS,
     COMMANDER_IMAGE_OFFSET_X,
     COMMANDER_IMAGE_OFFSET_Y,
     COMMANDER_IMAGE_SCALE,
@@ -45,8 +44,9 @@ function SiteContentHarness() {
                         imageScale: 215,
                         imageOffsetX: -120,
                         imageOffsetY: 88,
-                        imageSource: 'builtin',
-                        imageAvatar: 'teal',
+                        imageSource: 'rank',
+                        imageRank: 'סרן',
+                        imageRankStyle: 'field',
                     },
                 })}
             >
@@ -145,9 +145,11 @@ describe('SiteContentContext Commander geometry persistence', () => {
             imageScale: 215,
             imageOffsetX: -120,
             imageOffsetY: 88,
-            imageSource: 'builtin',
-            imageAvatar: 'teal',
-            imageUrl: COMMANDER_BUILTIN_AVATARS.find((avatar) => avatar.id === 'teal').path,
+            imageSource: 'rank',
+            imageAvatar: '',
+            imageRank: 'סרן',
+            imageRankStyle: 'field',
+            imageUrl: '',
         });
 
         view.unmount();
@@ -155,8 +157,8 @@ describe('SiteContentContext Commander geometry persistence', () => {
         expect(screen.getByTestId('commander-scale')).toHaveTextContent('215');
         expect(screen.getByTestId('commander-offset')).toHaveTextContent('-120');
         expect(screen.getByTestId('commander-offset-y')).toHaveTextContent('88');
-        expect(screen.getByTestId('commander-source')).toHaveTextContent('builtin');
-        expect(screen.getByTestId('commander-image')).toHaveTextContent('commander-teal.svg');
+        expect(screen.getByTestId('commander-source')).toHaveTextContent('rank');
+        expect(screen.getByTestId('commander-image')).toBeEmptyDOMElement();
 
         fireEvent.click(screen.getByRole('button', { name: 'update offset field' }));
         expect(mocks.config.content.commander).toMatchObject({

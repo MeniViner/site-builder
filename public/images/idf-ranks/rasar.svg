@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   version="1.0"
+   width="172"
+   height="86"
+   id="svg11152"
+   inkscape:version="0.92.3 (2405546, 2018-03-11)"
+   sodipodi:docname="IDF_Ranks_Rasar_Horizontal.svg">
+  <metadata
+     id="metadata11">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <sodipodi:namedview
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1"
+     objecttolerance="10"
+     gridtolerance="10"
+     guidetolerance="10"
+     inkscape:pageopacity="0"
+     inkscape:pageshadow="2"
+     inkscape:window-width="1920"
+     inkscape:window-height="1001"
+     id="namedview9"
+     showgrid="false"
+     inkscape:zoom="4.6093751"
+     inkscape:cx="60.306881"
+     inkscape:cy="46.893766"
+     inkscape:window-x="-9"
+     inkscape:window-y="-9"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg11152" />
+  <defs
+     id="defs11154">
+    <inkscape:perspective
+       sodipodi:type="inkscape:persp3d"
+       inkscape:vp_x="0 : 86 : 1"
+       inkscape:vp_y="0 : 1000 : 0"
+       inkscape:vp_z="86 : 86 : 1"
+       inkscape:persp3d-origin="43 : 57.333333 : 1"
+       id="perspective13" />
+  </defs>
+  <rect
+     width="86"
+     height="172"
+     x="9.3017579e-006"
+     y="-172"
+     id="rect10567"
+     style="fill:#00252c;fill-opacity:1;stroke:none"
+     transform="rotate(90)" />
+  <path
+     d="M 20.2671,43.01563 44.84522,10.65849 h -12.5 l -24.5625,32.35714 24.5625,32.3259 h 12.5 z"
+     id="path10571"
+     style="fill:#b6d4ca;fill-opacity:1;stroke:#1d5e48;stroke-width:1.5;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     inkscape:connector-curvature="0" />
+  <path
+     inkscape:connector-curvature="0"
+     style="fill:#b6d4ca;fill-opacity:1;stroke:#1d5e48;stroke-width:1.5;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     id="path842"
+     d="M 38.26711,43.01563 62.84523,10.65849 h -12.5 l -24.5625,32.35714 24.5625,32.3259 h 12.5 z" />
+</svg>

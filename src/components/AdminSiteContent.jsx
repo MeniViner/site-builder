@@ -6,7 +6,7 @@ import SiteContentLivePreview from './SiteContentLivePreview';
 import {
     AlertTriangle, Plus, Trash2, Edit2, X,
     Image as ImageIcon, Type, MessageSquare,
-    ChevronDown, ChevronUp, Upload, Loader2, Sparkles
+    ChevronDown, ChevronUp, Upload, Loader2, Sparkles, RectangleHorizontal, RectangleVertical, RotateCw, FlipHorizontal2
 } from 'lucide-react';
 import { uploadImage } from '../utils/sharepointUtils';
 import ResolvedSiteImage from './ResolvedSiteImage';
@@ -15,12 +15,18 @@ import Tooltip from './Tooltip';
 import { DEFAULT_OVERLAY_IMAGE, normalizeOverlayImageConfig } from '../utils/overlayImageConfig';
 import {
     clampCommanderImageValue,
-    COMMANDER_BUILTIN_AVATARS,
     COMMANDER_IMAGE_OFFSET_X,
     COMMANDER_IMAGE_OFFSET_Y,
     COMMANDER_IMAGE_SCALE,
     COMMANDER_IMAGE_SOURCE,
+    COMMANDER_RANK_STYLES,
     DEFAULT_COMMANDER_IMAGE_PATH,
+    DEFAULT_COMMANDER_RANK,
+    DEFAULT_COMMANDER_RANK_BACKDROP,
+    DEFAULT_COMMANDER_RANK_ORIENTATION,
+    DEFAULT_COMMANDER_RANK_ROTATION,
+    DEFAULT_COMMANDER_RANK_MIRRORED,
+    DEFAULT_COMMANDER_RANK_STYLE,
     normalizeCommanderImageSettings,
 } from '../utils/commanderImage';
 import { confirmToast } from '../utils/confirmToast';
@@ -30,6 +36,9 @@ import DismissibleNotice from './DismissibleNotice';
 import AIService from '../services/AIService';
 import { getSafeAiRuntimeConfig } from '../config/ai.config';
 import { UI_FEATURES } from '../config/uiFeatures.config';
+import CommanderRankInsignia from './CommanderRankInsignia';
+import CommanderRankPicker from './CommanderRankPicker';
+import { resolveRankOrientation } from './commanderRanks/rankCatalog';
 
 const MAX_COMMANDER_MESSAGES = 5;
 
@@ -55,6 +64,12 @@ const COMMANDER_DEFAULTS = {
     image: DEFAULT_COMMANDER_IMAGE_PATH,
     imageSource: COMMANDER_IMAGE_SOURCE.default,
     imageAvatar: '',
+    imageRank: DEFAULT_COMMANDER_RANK,
+    imageRankStyle: DEFAULT_COMMANDER_RANK_STYLE,
+    imageRankBackdrop: DEFAULT_COMMANDER_RANK_BACKDROP,
+    imageRankOrientation: DEFAULT_COMMANDER_RANK_ORIENTATION,
+    imageRankRotation: DEFAULT_COMMANDER_RANK_ROTATION,
+    imageRankMirrored: DEFAULT_COMMANDER_RANK_MIRRORED,
     customImageUrl: '',
     imageScale: COMMANDER_IMAGE_SCALE.defaultValue,
     imageOffsetX: COMMANDER_IMAGE_OFFSET_X.defaultValue,
@@ -1051,7 +1066,7 @@ export default function AdminSiteContent() {
                                             <div className="mt-5 rounded-[28px] bg-gray-50 p-5 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)] dark:bg-[#1e212b] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
                                                 <fieldset>
                                                     <legend className="text-sm font-black text-gray-900 dark:text-white">מקור התמונה</legend>
-                                                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
                                                         {[
                                                             { source: COMMANDER_IMAGE_SOURCE.default, label: 'תמונת ברירת מחדל', image: DEFAULT_COMMANDER_IMAGE_PATH },
                                                             { source: COMMANDER_IMAGE_SOURCE.custom, label: 'תמונה שהועלתה', image: commander.customImageUrl },
@@ -1096,32 +1111,112 @@ export default function AdminSiteContent() {
                                                             );
                                                         })}
                                                     </div>
-                                                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                                                        {COMMANDER_BUILTIN_AVATARS.map((avatar) => {
-                                                            const selected = commander.imageSource === COMMANDER_IMAGE_SOURCE.builtin && commander.imageAvatar === avatar.id;
-                                                            return (
+                                                    <div className="mt-6 border-t border-gray-200 pt-5 dark:border-white/10">
+                                                        <div className="mb-3 text-sm font-black text-gray-900 dark:text-white">סמל דרגה</div>
+                                                        <CommanderRankPicker
+                                                            value={commander.imageRank}
+                                                            styleId={commander.imageRankStyle}
+                                                            orientation={commander.imageRankOrientation}
+                                                            rotation={commander.imageRankRotation}
+                                                            mirrored={commander.imageRankMirrored}
+                                                            onChange={(imageRank) => setCommander((prev) => normalizeCommanderImageSettings({
+                                                                ...prev,
+                                                                imageRank,
+                                                                imageSource: COMMANDER_IMAGE_SOURCE.rank,
+                                                            }))}
+                                                        />
+                                                        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                                            {COMMANDER_RANK_STYLES.map((style) => {
+                                                                const selected = commander.imageSource === COMMANDER_IMAGE_SOURCE.rank && commander.imageRankStyle === style.id;
+                                                                return (
+                                                                    <button
+                                                                        key={style.id}
+                                                                        type="button"
+                                                                        onClick={() => setCommander((prev) => normalizeCommanderImageSettings({
+                                                                            ...prev,
+                                                                            imageSource: COMMANDER_IMAGE_SOURCE.rank,
+                                                                            imageRankStyle: style.id,
+                                                                        }))}
+                                                                        aria-pressed={selected}
+                                                                        aria-label={`סגנון ${style.label}`}
+                                                                        className={`min-h-28 rounded-xl p-2 text-center text-xs font-bold transition-[box-shadow,transform] active:scale-[0.96] ${selected ? 'bg-primary/10 text-primary shadow-[inset_0_0_0_2px_currentColor]' : 'bg-white text-gray-600 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)] hover:shadow-[inset_0_0_0_1px_rgba(59,130,246,0.45)] dark:bg-white/5 dark:text-gray-300 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]'}`}
+                                                                    >
+                                                                        <span className="flex h-20 items-center justify-center px-1">
+                                                                            <CommanderRankInsignia rank={commander.imageRank} styleId={style.id} orientation={commander.imageRankOrientation} rotation={commander.imageRankRotation} mirrored={commander.imageRankMirrored} className="h-auto w-full" />
+                                                                        </span>
+                                                                        <span className="mt-1 block">{style.label}</span>
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                        <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+                                                            <label className="flex cursor-pointer items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 text-sm font-bold text-gray-700 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)] dark:bg-white/5 dark:text-gray-200 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={commander.imageRankBackdrop !== false}
+                                                                    onChange={(event) => setCommander((prev) => normalizeCommanderImageSettings({
+                                                                        ...prev,
+                                                                        imageSource: COMMANDER_IMAGE_SOURCE.rank,
+                                                                        imageRankBackdrop: event.target.checked,
+                                                                    }))}
+                                                                    className="h-4 w-4 accent-primary"
+                                                                />
+                                                                הצגת ריבוע רקע וצל מאחורי הדרגה
+                                                            </label>
+                                                            <div className="inline-flex rounded-xl bg-gray-50 p-1 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)] dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]" role="group" aria-label="כיוון סמל הדרגה">
+                                                                {[
+                                                                    { id: 'landscape', label: 'שוכב', Icon: RectangleHorizontal },
+                                                                    { id: 'portrait', label: 'עומד', Icon: RectangleVertical },
+                                                                ].map(({ id, label, Icon }) => {
+                                                                    const selected = resolveRankOrientation(commander.imageRank, commander.imageRankOrientation) === id;
+                                                                    return (
+                                                                        <button
+                                                                            key={id}
+                                                                            type="button"
+                                                                            onClick={() => setCommander((prev) => normalizeCommanderImageSettings({
+                                                                                ...prev,
+                                                                                imageSource: COMMANDER_IMAGE_SOURCE.rank,
+                                                                                imageRankOrientation: id,
+                                                                            }))}
+                                                                            aria-pressed={selected}
+                                                                            className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-bold transition-[background-color,color,box-shadow,transform] active:scale-[0.96] ${selected ? 'bg-white text-primary shadow-sm dark:bg-white/10' : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'}`}
+                                                                        >
+                                                                            {React.createElement(Icon, { size: 17, 'aria-hidden': true })}
+                                                                            {label}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                            <div className="inline-flex rounded-xl bg-gray-50 p-1 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)] dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]" role="group" aria-label="התאמות סמל הדרגה">
                                                                 <button
-                                                                    key={avatar.id}
                                                                     type="button"
                                                                     onClick={() => setCommander((prev) => normalizeCommanderImageSettings({
                                                                         ...prev,
-                                                                        imageSource: COMMANDER_IMAGE_SOURCE.builtin,
-                                                                        imageAvatar: avatar.id,
+                                                                        imageSource: COMMANDER_IMAGE_SOURCE.rank,
+                                                                        imageRankRotation: (prev.imageRankRotation || 0) + 90,
                                                                     }))}
-                                                                    aria-pressed={selected}
-                                                                    className={`min-h-24 rounded-2xl p-2 text-center text-xs font-bold transition-[box-shadow,transform] active:scale-[0.96] ${
-                                                                        selected
-                                                                            ? 'bg-primary/10 text-primary shadow-[inset_0_0_0_2px_currentColor]'
-                                                                            : 'bg-white text-gray-600 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)] hover:shadow-[inset_0_0_0_1px_rgba(59,130,246,0.45)] dark:bg-white/5 dark:text-gray-300 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]'
-                                                                    }`}
+                                                                    aria-label="סובב סמל דרגה ב-90 מעלות"
+                                                                    className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-bold text-gray-600 transition-[background-color,color,transform] hover:bg-white hover:text-gray-950 active:scale-[0.96] dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
                                                                 >
-                                                                    <span className="flex h-14 items-center justify-center overflow-hidden rounded-xl bg-white/70 dark:bg-black/15">
-                                                                        <img src={avatar.path} alt="" className="h-full w-full object-contain outline outline-1 outline-black/10 dark:outline-white/10" />
-                                                                    </span>
-                                                                    <span className="mt-1.5 block">{avatar.label}</span>
+                                                                    <RotateCw size={17} aria-hidden="true" />
+                                                                    סובב 90°
                                                                 </button>
-                                                            );
-                                                        })}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setCommander((prev) => normalizeCommanderImageSettings({
+                                                                        ...prev,
+                                                                        imageSource: COMMANDER_IMAGE_SOURCE.rank,
+                                                                        imageRankMirrored: !prev.imageRankMirrored,
+                                                                    }))}
+                                                                    aria-label="היפוך מראה לסמל הדרגה"
+                                                                    aria-pressed={commander.imageRankMirrored === true}
+                                                                    className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-bold transition-[background-color,color,box-shadow,transform] active:scale-[0.96] ${commander.imageRankMirrored ? 'bg-white text-primary shadow-sm dark:bg-white/10' : 'text-gray-600 hover:bg-white hover:text-gray-950 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'}`}
+                                                                >
+                                                                    <FlipHorizontal2 size={17} aria-hidden="true" />
+                                                                    היפוך מראה
+                                                                </button>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                     <label className={`mt-3 flex min-h-10 items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white px-4 py-2 text-sm text-gray-600 transition-[border-color,color,transform] hover:border-primary/50 hover:text-gray-800 active:scale-[0.96] dark:border-gray-700/50 dark:bg-white/5 dark:text-gray-300 ${uploadingCommander ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}>
                                                         {uploadingCommander ? <><Loader2 size={16} className="animate-spin text-primary" />מעלה תמונה...</> : <><Upload size={16} />העלאת תמונה אישית</>}

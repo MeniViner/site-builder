@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONFIG_V1, migrateLegacyToV1, validateAndNormalize } from './AppSchema';
 import {
-    COMMANDER_BUILTIN_AVATARS,
     COMMANDER_IMAGE_OFFSET_X,
     COMMANDER_IMAGE_OFFSET_Y,
     COMMANDER_IMAGE_SCALE,
@@ -187,8 +186,9 @@ describe('migrateLegacyToV1', () => {
                     imageScale: 187,
                     imageOffsetX: -91,
                     imageOffsetY: 63,
-                    imageSource: 'builtin',
-                    imageAvatar: 'navy',
+                    imageSource: 'rank',
+                    imageRank: 'סרן',
+                    imageRankStyle: 'field',
                 },
             },
         });
@@ -197,9 +197,11 @@ describe('migrateLegacyToV1', () => {
             imageScale: 187,
             imageOffsetX: -91,
             imageOffsetY: 63,
-            imageSource: 'builtin',
-            imageAvatar: 'navy',
-            imageUrl: COMMANDER_BUILTIN_AVATARS.find((avatar) => avatar.id === 'navy').path,
+            imageSource: 'rank',
+            imageAvatar: '',
+            imageRank: 'סרן',
+            imageRankStyle: 'field',
+            imageUrl: '',
         });
 
         const clamped = validateAndNormalize({
