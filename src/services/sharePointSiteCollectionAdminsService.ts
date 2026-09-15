@@ -302,6 +302,82 @@ export const ensureUserByIdentity = async (identityInput: string, logs: AdminLog
     return ensureUserFromNormalizedIdentity(normalized, logs);
 };
 
+export const searchSharePointUsers = async (searchText: string, logs: AdminLogEntry[] = []) => {
+    const query = String(searchText || '').trim();
+    if (query.length < 2) return [];
+
+    const escapedQuery = encodeURIComponent(query.replace(/'/g, "''"));
+    const endpoint = buildEndpoint(
+        `/_api/web/siteusers?$select=Id,Title,Email,LoginName,PrincipalType&$filter=(startswith(Title,'${escapedQuery}') or startswith(Email,'${escapedQuery}'))&$top=12`,
+        logs,
+    );
+    const response = await spAdminFetchWithLogs({
+        prefix: PREFIX,
+        logs,
+        step: 'search-site-users',
+        purpose: 'Search SharePoint users for BOOM task assignment',
+        endpoint,
+        headers: { Accept: ODATA_ACCEPT },
+    });
+    const data = await parseJson<{
+        d?: { results?: Array<{ Id?: number; Title?: string; Email?: string; LoginName?: string; PrincipalType?: number }> };
+    }>(response);
+    const users = Array.isArray(data?.d?.results) ? data.d.results : [];
+    return users.filter((user) => Number(user.Id) > 0 && Number(user.PrincipalType || 1) === 1);
+};
+
+export const listSharePointGroupMembersByIdentity = async (groupIdentityInput: string, logs: AdminLogEntry[] = []) => {
+    const input = String(groupIdentityInput || '').trim();
+    if (!input) throw new Error('sharepoint-group-identity-required');
+
+    const groupId = /^\d+$/.test(input) ? Number(input) : 0;
+    const groupPath = groupId > 0
+        ? `/_api/web/sitegroups/getbyid(${groupId})?$select=Id,Title`
+        : `/_api/web/sitegroups/getbyname('${encodeURIComponent(input.replace(/'/g, "''"))}')?$select=Id,Title`;
+    const groupEndpoint = buildEndpoint(groupPath, logs);
+    const groupResponse = await spAdminFetchWithLogs({
+        prefix: PREFIX,
+        logs,
+        step: 'resolve-site-group',
+        purpose: 'Resolve SharePoint site group for notification audience',
+        endpoint: groupEndpoint,
+        headers: { Accept: ODATA_ACCEPT },
+    });
+    const groupData = await parseJson<{ d?: { Id?: number; Title?: string } }>(groupResponse);
+    const resolvedGroupId = Number(groupData?.d?.Id);
+    if (!Number.isInteger(resolvedGroupId) || resolvedGroupId <= 0) {
+        throw new Error('sharepoint-group-not-found');
+    }
+
+    const membersEndpoint = buildEndpoint(
+        `/_api/web/sitegroups(${resolvedGroupId})/users?$select=Id,Title,Email,LoginName,PrincipalType`,
+        logs,
+    );
+    const membersResponse = await spAdminFetchWithLogs({
+        prefix: PREFIX,
+        logs,
+        step: 'list-site-group-members',
+        purpose: 'List SharePoint site group members for notification audience',
+        endpoint: membersEndpoint,
+        headers: { Accept: ODATA_ACCEPT },
+    });
+    const membersData = await parseJson<{
+        d?: { results?: Array<{ Id?: number; Title?: string; Email?: string; LoginName?: string; PrincipalType?: number }> };
+    }>(membersResponse);
+    const members = Array.isArray(membersData?.d?.results) ? membersData.d.results : [];
+
+    addAdminLogEntry(logs, PREFIX, 'info', 'site-group-members-resolved', 'Resolved SharePoint site group members for notification audience', {
+        groupId: resolvedGroupId,
+        groupTitle: groupData?.d?.Title,
+        memberCount: members.length,
+    });
+    return {
+        id: resolvedGroupId,
+        title: String(groupData?.d?.Title || input),
+        members,
+    };
+};
+
 const mapFetchedAdminToSiteUserRow = (admin: Record<string, unknown>, idx: number) => {
     const normalized = normalizeAdminRecord(admin, idx);
     const idStr = String(admin?.id ?? normalized.id ?? '');
