@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
     error: null,
     saveBoom: vi.fn(),
     reloadBoom: vi.fn(),
+    config: { widgets: { data: { alerts: { items: [] } } } },
+    updateConfig: vi.fn(),
+    saveNow: vi.fn(),
 }));
 
 vi.mock('../context/BoomContext', () => ({
@@ -26,9 +29,28 @@ vi.mock('../context/BoomContext', () => ({
 
 vi.mock('../context/ConfigProvider', () => ({
     useConfig: () => ({
-        updateConfig: vi.fn(),
-        saveNow: vi.fn().mockResolvedValue(true),
+        config: mocks.config,
+        updateConfig: mocks.updateConfig,
+        saveNow: mocks.saveNow,
     }),
+}));
+
+vi.mock('./BoomAssigneePicker', () => ({
+    default: ({ onAssigneeChange }) => (
+        <button
+            type="button"
+            aria-label="בחירת אחראי משימה"
+            onClick={() => onAssigneeChange({
+                identityKey: 'sp:17',
+                sharePointUserId: 17,
+                displayName: 'נועה',
+                email: 'noa@army.idf.il',
+                loginName: 'i:0#.f|membership|noa@army.idf.il',
+            })}
+        >
+            בחירת אחראי משימה
+        </button>
+    ),
 }));
 
 const initialBoom = {
@@ -68,6 +90,11 @@ describe('AdminBoom', () => {
         mocks.error = null;
         mocks.saveBoom.mockReset().mockImplementation(async (value) => value);
         mocks.reloadBoom.mockReset().mockResolvedValue(mocks.boom);
+        mocks.config = { widgets: { data: { alerts: { items: [] } } } };
+        mocks.updateConfig.mockReset().mockImplementation((updater) => {
+            mocks.config = updater(mocks.config);
+        });
+        mocks.saveNow.mockReset().mockResolvedValue(true);
         vi.spyOn(window, 'confirm').mockReturnValue(true);
     });
 
@@ -155,6 +182,27 @@ describe('AdminBoom', () => {
         await waitFor(() => expect(mocks.saveBoom).toHaveBeenCalledWith(
             expect.objectContaining({ pageTitle: 'חדר מצב מעודכן' })
         ));
+    });
+
+    it('sends a BOOM assignment notification only to the selected SharePoint user', async () => {
+        render(<MemoryRouter><AdminBoom /></MemoryRouter>);
+        fireEvent.click(screen.getByRole('tab', { name: 'ניהול משימות' }));
+        fireEvent.click(screen.getByRole('button', { name: 'משימה חדשה' }));
+        fireEvent.change(screen.getByLabelText('שם המשימה'), { target: { value: 'בדיקת שיוך' } });
+        fireEvent.click(screen.getByRole('button', { name: 'בחירת אחראי משימה' }));
+        expect(screen.getByLabelText('אחראי משימה')).toHaveValue('נועה');
+        fireEvent.click(screen.getByRole('button', { name: 'הוספת משימה' }));
+
+        await waitFor(() => expect(mocks.config.widgets.data.alerts.items).toEqual([
+            expect.objectContaining({
+                title: 'משימת BOOM חדשה',
+                source: 'boom-assignment',
+                audience: expect.objectContaining({
+                    type: 'users',
+                    identities: expect.arrayContaining(['sp:17']),
+                }),
+            }),
+        ]), { timeout: 1800 });
     });
 
     it('loads and clears demo tasks only after deliberate actions', async () => {

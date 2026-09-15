@@ -45,7 +45,7 @@ import {
 import { AdminAddonTabs, AdminAddonToggle } from './AdminAddonControls';
 import TaskManagementTable, { TASK_STATUS_META } from './TaskManagementTable';
 import BoomPresentation from './BoomPresentation';
-import VerifiedIdentityField from './VerifiedIdentityField';
+import BoomAssigneePicker from './BoomAssigneePicker';
 
 const panelClass = 'rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-[#1b1f2a]';
 const fieldClass = 'min-h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-2 focus:ring-primary/15 dark:border-white/10 dark:bg-white/5 dark:text-white';
@@ -91,19 +91,19 @@ function BoomTaskDialog({ modal, categories, onChange, onClose, onSubmit }) {
                             {categories.map((category) => <option key={category.id} value={category.name} />)}
                         </datalist>
                     </label>
-                    <label>
-                        <span className={labelClass}>אחראי משימה</span>
-                        <input className={fieldClass} value={form.owner} onChange={(event) => onChange({ owner: event.target.value })} placeholder="שם בעל המשימה" />
-                    </label>
-                    <VerifiedIdentityField
-                        identityInput={form.identityInput || ''}
-                        linkedUser={form.linkedAssignee}
-                        onIdentityChange={(identityInput) => onChange({ identityInput })}
-                        onLinkedUserChange={(linkedAssignee) => onChange({
-                            linkedAssignee,
-                            ...(linkedAssignee?.displayName ? { owner: linkedAssignee.displayName } : {}),
-                        })}
-                    />
+                    <div>
+                        <label htmlFor="boom-task-assignee" className={labelClass}>אחראי משימה</label>
+                        <div className="relative">
+                            <input id="boom-task-assignee" aria-label="אחראי משימה" className={`${fieldClass} pl-12`} value={form.owner} readOnly placeholder="בחירת אחראי משימה" />
+                            <BoomAssigneePicker
+                                linkedAssignee={form.linkedAssignee}
+                                onAssigneeChange={(linkedAssignee) => onChange({
+                                    linkedAssignee,
+                                    owner: linkedAssignee?.displayName || '',
+                                })}
+                            />
+                        </div>
+                    </div>
                     <label>
                         <span className={labelClass}>סטטוס</span>
                         <select className={fieldClass} value={form.status} onChange={(event) => onChange({ status: event.target.value })}>
@@ -307,7 +307,6 @@ export default function AdminBoom() {
             mode: 'add',
             form: {
                 ...createBoomTask({ category: category?.name || 'כללי', color: category?.color || BOOM_COLOR_OPTIONS[0] }),
-                identityInput: '',
             },
             error: '',
         });
@@ -832,25 +831,13 @@ export default function AdminBoom() {
                             onAssign={(task) => setModal({
                                 mode: 'edit',
                                 taskId: task.id,
-                                form: {
-                                    ...task,
-                                    identityInput: task.linkedAssignee?.personalNumber
-                                        || task.linkedAssignee?.email
-                                        || task.linkedAssignee?.loginName
-                                        || '',
-                                },
+                                form: { ...task },
                                 error: '',
                             })}
                             onEdit={(task) => setModal({
                                 mode: 'edit',
                                 taskId: task.id,
-                                form: {
-                                    ...task,
-                                    identityInput: task.linkedAssignee?.personalNumber
-                                        || task.linkedAssignee?.email
-                                        || task.linkedAssignee?.loginName
-                                        || '',
-                                },
+                                form: { ...task },
                                 error: '',
                             })}
                             onDuplicate={duplicateTask}
