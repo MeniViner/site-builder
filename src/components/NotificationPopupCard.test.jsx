@@ -38,7 +38,7 @@ describe('NotificationPopupCard actions', () => {
         expect(screen.getByRole('link', { name: 'פתיחת טופס' })).toHaveAttribute('href', 'https://example.com/form');
     });
 
-    it('shows the action button instead of acknowledgement when both are configured', () => {
+    it('requires the action button before a popup with a CTA can close', () => {
         const onClose = vi.fn();
         render(
             <NotificationPopupCard
@@ -55,7 +55,9 @@ describe('NotificationPopupCard actions', () => {
 
         expect(screen.getByRole('link', { name: 'מעבר לטופס' })).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'קראתי ואישרתי' })).not.toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'סגירת התראה' })).not.toBeDisabled();
+        expect(screen.getByRole('button', { name: 'סגירת התראה' })).toBeDisabled();
+        fireEvent.click(screen.getByRole('link', { name: 'מעבר לטופס' }));
+        expect(onClose).toHaveBeenCalledOnce();
     });
 
     it('shows a disabled action button in preview while its URL is still being entered', () => {

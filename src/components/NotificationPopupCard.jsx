@@ -10,6 +10,8 @@ export default function NotificationPopupCard({
 }) {
     const hasCta = Boolean(item?.ctaLabel && (preview || item?.ctaUrl));
     const requiresAcknowledgement = item?.requiresAcknowledgement === true && !hasCta;
+    const requiresActionButton = hasCta && !preview;
+    const closeDisabled = !preview && (requiresAcknowledgement || requiresActionButton);
 
     return (
         <div
@@ -20,8 +22,8 @@ export default function NotificationPopupCard({
                 type="button"
                 onClick={onClose}
                 aria-label="סגירת התראה"
-                disabled={requiresAcknowledgement && !preview}
-                title={requiresAcknowledgement && !preview ? 'יש לאשר קריאה לפני סגירת ההתראה' : undefined}
+                disabled={closeDisabled}
+                title={requiresActionButton ? 'יש ללחוץ על כפתור הפעולה לפני סגירת ההתראה' : (requiresAcknowledgement && !preview ? 'יש לאשר קריאה לפני סגירת ההתראה' : undefined)}
                 className="absolute left-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-xl text-theme-muted transition-[background-color,color,opacity,transform] hover:bg-theme-card-hover hover:text-theme active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-35"
             >
                 <X size={18} />
@@ -84,6 +86,9 @@ export default function NotificationPopupCard({
                     </div>
                     {requiresAcknowledgement && (
                         <span className="text-xs font-bold text-theme-muted">לא ניתן לסגור ללא אישור</span>
+                    )}
+                    {requiresActionButton && (
+                        <span className="text-xs font-bold text-theme-muted">יש ללחוץ על כפתור הפעולה כדי לסגור</span>
                     )}
                 </div>
             )}

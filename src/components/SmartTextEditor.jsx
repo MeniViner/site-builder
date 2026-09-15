@@ -1,7 +1,6 @@
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
     Bold,
-    CornerDownLeft,
     Italic,
     Link as LinkIcon,
     List,
@@ -288,6 +287,44 @@ function readSmartTextTokensFromElement(root) {
     return normalizeSmartTextTokens(tokens);
 }
 
+function getListMarkerAtSelection(root) {
+    const selection = window.getSelection?.();
+    if (!selection || selection.rangeCount === 0) return '';
+
+    const range = selection.getRangeAt(0);
+    if (!root.contains(range.startContainer)) return '';
+
+    const startElement = range.startContainer.nodeType === Node.ELEMENT_NODE
+        ? range.startContainer
+        : range.startContainer.parentElement;
+    const listItem = startElement?.closest?.('li');
+    const list = listItem?.parentElement;
+    if (!listItem || !list) return '';
+
+    if (list.tagName === 'UL') return '• ';
+    if (list.tagName !== 'OL') return '';
+
+    const start = Number.parseInt(list.getAttribute('start') || '1', 10) || 1;
+    const position = Array.from(list.children).indexOf(listItem);
+    return `${start + Math.max(0, position)}. `;
+}
+
+function getEnterText(root, continueList) {
+    const selectionOffsets = getSelectionOffsets(root);
+    if (!selectionOffsets || !continueList) return '\n';
+
+    const plainText = smartTextTokensToPlainText(readSmartTextTokensFromElement(root));
+    const caretOffset = Math.min(selectionOffsets.start, plainText.length);
+    const lineStart = plainText.lastIndexOf('\n', Math.max(0, caretOffset - 1)) + 1;
+    const nextLineBreak = plainText.indexOf('\n', caretOffset);
+    const line = plainText.slice(lineStart, nextLineBreak === -1 ? plainText.length : nextLineBreak);
+    const orderedMatch = line.match(/^\s*(\d+)\.\s/);
+
+    if (orderedMatch) return `\n${Number(orderedMatch[1]) + 1}. `;
+    if (/^\s*•\s/.test(line)) return '\n• ';
+    return '\n';
+}
+
 function insertPlainTextAtSelection(root, text) {
     if (!root) return;
     const selection = window.getSelection?.();
@@ -377,8 +414,17 @@ export default function SmartTextEditor({
 
         if (typeof document.execCommand === 'function') {
             document.execCommand(command, false, null);
-            pendingSelectionRef.current = getSelectionOffsets(editor) || selectionOffsets;
-            commitTokens(readSmartTextTokensFromElement(editor), pendingSelectionRef.current);
+            const listMarker = command === 'insertUnorderedList' || command === 'insertOrderedList'
+                ? getListMarkerAtSelection(editor)
+                : '';
+            const nextSelection = listMarker && selectionOffsets
+                ? {
+                    start: selectionOffsets.start + listMarker.length,
+                    end: selectionOffsets.end + listMarker.length,
+                }
+                : (getSelectionOffsets(editor) || selectionOffsets);
+            pendingSelectionRef.current = nextSelection;
+            commitTokens(readSmartTextTokensFromElement(editor), nextSelection);
         }
     }, [commitTokens]);
 
@@ -394,14 +440,6 @@ export default function SmartTextEditor({
             commitTokens(readSmartTextTokensFromElement(editor), pendingSelectionRef.current);
         }
     }, [commitTokens]);
-
-    const insertLineBreak = useCallback(() => {
-        const editor = editorRef.current;
-        if (!editor) return;
-        editor.focus({ preventScroll: true });
-        insertPlainTextAtSelection(editor, '\n');
-        syncFromDom();
-    }, [syncFromDom]);
 
     const openLinkDialog = useCallback(() => {
         const editor = editorRef.current;
@@ -535,18 +573,6 @@ export default function SmartTextEditor({
                     type="button"
                     onMouseDown={(event) => {
                         event.preventDefault();
-                        insertLineBreak();
-                    }}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-theme-subtle bg-theme-elevated text-theme transition-[background-color,transform] hover:bg-theme-card-hover active:scale-[0.96]"
-                    title="ירידת שורה"
-                    aria-label="ירידת שורה"
-                >
-                    <CornerDownLeft size={15} />
-                </button>
-                <button
-                    type="button"
-                    onMouseDown={(event) => {
-                        event.preventDefault();
                         resetToPlainText();
                     }}
                     className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-theme-subtle bg-theme-elevated px-2.5 text-xs font-bold text-theme transition-[background-color,transform] hover:bg-theme-card-hover active:scale-[0.96]"
@@ -580,6 +606,14 @@ export default function SmartTextEditor({
                         syncFromDom();
                     }}
                     onKeyDown={(event) => {
+                        if (event.key === 'Enter' && !event.metaKey && !event.ctrlKey) {
+                            event.preventDefault();
+                            const editor = editorRef.current;
+                            if (!editor) return;
+                            insertPlainTextAtSelection(editor, getEnterText(editor, !event.shiftKey));
+                            syncFromDom();
+                            return;
+                        }
                         if (!event.metaKey && !event.ctrlKey) return;
                         const key = String(event.key || '').toLowerCase();
                         const command = key === 'b' ? 'bold' : (key === 'i' ? 'italic' : (key === 'u' ? 'underline' : ''));

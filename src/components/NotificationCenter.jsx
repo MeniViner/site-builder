@@ -15,7 +15,7 @@ function readDismissed(key) {
     }
 }
 
-export default function NotificationCenter({ items, currentUser, autoOpen = true }) {
+export default function NotificationCenter({ items, currentUser, autoOpen = true, enabled = true }) {
     const siteIdentity = typeof window === 'undefined'
         ? 'server'
         : `${window.location.origin}${window.location.pathname}`;
@@ -68,6 +68,8 @@ export default function NotificationCenter({ items, currentUser, autoOpen = true
         markAsRead(selected?.id);
         setSelected(null);
     };
+
+    if (!enabled) return null;
 
     return (
         <>

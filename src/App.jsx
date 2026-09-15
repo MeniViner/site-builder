@@ -211,6 +211,7 @@ export function Home({ isPreview = false }) {
           items={config?.widgets?.data?.alerts?.items || []}
           currentUser={currentUser}
           autoOpen={!isPreview}
+          enabled={config?.widgets?.data?.alerts?.enabled !== false}
         />
 
         <div

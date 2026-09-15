@@ -57,6 +57,45 @@ describe('notificationData', () => {
         })).toHaveLength(1);
     });
 
+    it('keeps multiple resolved audience members while merging their stable identities', () => {
+        const notification = normalizeNotification({
+            id: 'group-target',
+            text: 'לצוות בלבד',
+            audience: {
+                type: 'users',
+                targets: [
+                    {
+                        displayName: 'נועה',
+                        sharePointUserId: 17,
+                        email: 'noa@army.idf.il',
+                        groupId: 9,
+                        groupTitle: 'צוות מבצעים',
+                    },
+                    {
+                        displayName: 'דנה',
+                        sharePointUserId: 18,
+                        email: 'dana@army.idf.il',
+                        groupId: 9,
+                        groupTitle: 'צוות מבצעים',
+                    },
+                ],
+            },
+        });
+
+        expect(notification.audience.identities).toEqual([
+            'sp:17',
+            'email:noa@army.idf.il',
+            'sp:18',
+            'email:dana@army.idf.il',
+        ]);
+        expect(notification.audience.targets).toHaveLength(2);
+        expect(notification.audience.targets[0]).toMatchObject({
+            displayName: 'נועה',
+            groupTitle: 'צוות מבצעים',
+        });
+        expect(filterNotificationsForUser([notification], { email: 'DANA@ARMY.IDF.IL' })).toHaveLength(1);
+    });
+
     it('deduplicates BOOM assignment notifications across repeated autosaves', () => {
         const task = { id: 'task-1', title: 'בדיקה', assignmentVersion: 1 };
         const assignee = { identityKey: 'sp:17' };

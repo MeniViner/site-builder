@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     AlertTriangle,
+    ArrowLeft,
     Bell,
     CalendarClock,
     Check,
@@ -15,13 +16,12 @@ import { toast } from 'react-toastify';
 import { useConfig } from '../context/ConfigProvider';
 import {
     getNotificationEffectiveStatus,
-    getStableUserIdentities,
     normalizeNotification,
     normalizeNotifications,
 } from '../utils/notificationData';
 import { sanitizeSmartHref, smartTextTokensToPlainText } from '../utils/smartText';
 import SmartTextEditor from './SmartTextEditor';
-import VerifiedIdentityField from './VerifiedIdentityField';
+import NotificationAudienceTargets from './NotificationAudienceTargets';
 import NotificationPopupCard from './NotificationPopupCard';
 
 const inputClass = 'min-h-11 w-full rounded-xl border border-theme-subtle bg-theme-elevated px-4 py-2.5 text-sm text-theme outline-none transition-[border-color,box-shadow] focus:border-primary/50 focus:ring-2 focus:ring-primary/20';
@@ -59,9 +59,12 @@ const emptyForm = () => ({
     eventKey: '',
     createdAt: '',
     updatedAt: '',
-    targetIdentityInput: '',
-    linkedTarget: null,
 });
+
+function createTargetedAudience(targets) {
+    const identities = [...new Set(targets.flatMap((target) => Array.isArray(target.identities) ? target.identities : []))];
+    return { type: 'users', identities, ...(targets.length > 0 ? { targets } : {}) };
+}
 
 function formatDate(value) {
     if (!value) return '—';
@@ -81,13 +84,13 @@ function formSnapshot(form) {
     return JSON.stringify({
         ...normalizeNotification(form),
         ctaUrlDraft: form.ctaUrl,
-        targetIdentityInput: form.targetIdentityInput,
     });
 }
 
 export default function AdminAlerts() {
     const { config, updateConfig, saveNow, error } = useConfig();
     const [list, setList] = useState([]);
+    const [alertsEnabled, setAlertsEnabled] = useState(true);
     const [activeTab, setActiveTab] = useState('list');
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(emptyForm);
@@ -95,16 +98,19 @@ export default function AdminAlerts() {
     const [query, setQuery] = useState('');
     const [filter, setFilter] = useState('all');
     const [isSaving, setIsSaving] = useState(false);
+    const [discardAction, setDiscardAction] = useState(null);
     const lastSavedRef = useRef('');
     const rootRef = useRef(null);
     const dirtyRef = useRef(false);
 
     useEffect(() => {
-        const serverItems = normalizeNotifications(config?.widgets?.data?.alerts?.items);
+        const alertsBranch = config?.widgets?.data?.alerts;
+        const serverItems = normalizeNotifications(alertsBranch?.items);
         const snapshot = JSON.stringify(serverItems);
+        setAlertsEnabled(alertsBranch?.enabled !== false);
         setList(serverItems);
         lastSavedRef.current = snapshot;
-    }, [config?.widgets?.data?.alerts?.items]);
+    }, [config?.widgets?.data?.alerts]);
 
     const isDirty = Boolean(editingId && formSnapshot(form) !== baseline);
     const bodyLength = smartTextTokensToPlainText(form.richContent).trim().length || form.text.trim().length;
@@ -125,12 +131,12 @@ export default function AdminAlerts() {
             if (!dirtyRef.current || rootRef.current?.contains(event.target)) return;
             const interactive = event.target.closest?.('a,button');
             if (!interactive) return;
-            if (window.confirm('יש שינויים שלא נשמרו. לעבור ללא שמירה?')) {
-                dirtyRef.current = false;
-                return;
-            }
             event.preventDefault();
             event.stopPropagation();
+            setDiscardAction(() => () => {
+                dirtyRef.current = false;
+                interactive.click();
+            });
         };
         window.addEventListener('beforeunload', handleBeforeUnload);
         document.addEventListener('click', handleExternalNavigation, true);
@@ -140,7 +146,7 @@ export default function AdminAlerts() {
         };
     }, []);
 
-    const persistNotifications = useCallback(async (nextList) => {
+    const persistNotifications = useCallback(async (nextList, nextEnabled = alertsEnabled) => {
         setIsSaving(true);
         try {
             updateConfig((current) => ({
@@ -149,17 +155,28 @@ export default function AdminAlerts() {
                     ...current.widgets,
                     data: {
                         ...current.widgets?.data,
-                        alerts: { ...current.widgets?.data?.alerts, items: nextList },
+                        alerts: { ...current.widgets?.data?.alerts, enabled: nextEnabled, items: nextList },
                     },
                 },
             }));
             await saveNow();
             lastSavedRef.current = JSON.stringify(nextList);
             setList(nextList);
+            setAlertsEnabled(nextEnabled);
         } finally {
             setIsSaving(false);
         }
-    }, [saveNow, updateConfig]);
+    }, [alertsEnabled, saveNow, updateConfig]);
+
+    const toggleAlerts = async () => {
+        const nextEnabled = !alertsEnabled;
+        try {
+            await persistNotifications(list, nextEnabled);
+            toast.success(nextEnabled ? 'מרכז ההתראות הופעל' : 'מרכז ההתראות כובה');
+        } catch (saveError) {
+            toast.error(saveError?.message || 'שמירת הגדרת ההתראות נכשלה.');
+        }
+    };
 
     const visibleItems = useMemo(() => {
         const normalizedQuery = query.trim().toLocaleLowerCase('he');
@@ -170,10 +187,6 @@ export default function AdminAlerts() {
         });
     }, [filter, list, query]);
 
-    const confirmDiscard = () => (
-        !isDirty || window.confirm('יש שינויים שלא נשמרו. לעבור ללא שמירה?')
-    );
-
     const selectForm = (nextForm, id, tab = 'content') => {
         const normalized = { ...emptyForm(), ...nextForm };
         setForm(normalized);
@@ -182,28 +195,40 @@ export default function AdminAlerts() {
         setActiveTab(tab);
     };
 
+    const requestDiscard = (action) => {
+        if (!isDirty) {
+            action();
+            return;
+        }
+        setDiscardAction(() => action);
+    };
+
+    const discardChangesAndContinue = () => {
+        const action = discardAction;
+        setDiscardAction(null);
+        dirtyRef.current = false;
+        action?.();
+    };
+
     const openNew = () => {
-        if (!confirmDiscard()) return;
-        selectForm({ ...emptyForm(), id: makeId() }, 'new');
+        requestDiscard(() => selectForm({ ...emptyForm(), id: makeId() }, 'new'));
     };
 
     const openEdit = (item) => {
-        if (!confirmDiscard()) return;
-        selectForm({
-            ...normalizeNotification(item),
-            targetIdentityInput: '',
-            linkedTarget: null,
-        }, item.id);
+        requestDiscard(() => selectForm(normalizeNotification(item), item.id));
     };
 
     const goToTab = (tab) => {
-        if (tab === 'list' && !confirmDiscard()) return;
-        setActiveTab(tab);
         if (tab === 'list') {
-            setEditingId(null);
-            setForm(emptyForm());
-            setBaseline('');
+            requestDiscard(() => {
+                setActiveTab('list');
+                setEditingId(null);
+                setForm(emptyForm());
+                setBaseline('');
+            });
+            return;
         }
+        setActiveTab(tab);
     };
 
     const resetEditorToList = () => {
@@ -294,7 +319,24 @@ export default function AdminAlerts() {
                         <h1 className="flex items-center gap-2 text-balance text-3xl font-black">התראות</h1>
                         <p className="mt-1 text-pretty text-sm text-theme-muted">ניהול ההודעות שמוצגות למשתמשים בכניסה למערכת.</p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-3">
+                        <div className="text-left">
+                            <div className="text-sm font-black">דף ההתראות באתר</div>
+                            <div className={`mt-0.5 text-xs font-bold ${alertsEnabled ? 'text-emerald-600 dark:text-emerald-300' : 'text-theme-muted'}`}>
+                                {alertsEnabled ? 'פעיל ומוצג באתר' : 'לא פעיל ולא מוצג באתר'}
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            role="switch"
+                            aria-checked={alertsEnabled}
+                            aria-label="הפעלת דף ההתראות באתר"
+                            disabled={isSaving}
+                            onClick={toggleAlerts}
+                            className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:cursor-wait disabled:opacity-60 ${alertsEnabled ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                        >
+                            <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-[right] ${alertsEnabled ? 'right-6' : 'right-1'}`} />
+                        </button>
                         {isSaving && <span className="text-sm font-bold text-theme-muted">שומר...</span>}
                         {isDirty && <span className="inline-flex items-center gap-2 text-sm font-bold text-amber-600"><i className="h-2 w-2 rounded-full bg-current" />שינויים שלא נשמרו</span>}
                     </div>
@@ -504,6 +546,9 @@ export default function AdminAlerts() {
                                                 <span className="mb-1.5 block text-sm font-black">כתובת הכפתור</span>
                                                 <input dir="ltr" className={`${inputClass} text-left`} value={form.ctaUrl} onChange={(event) => setForm((current) => ({ ...current, ctaUrl: event.target.value }))} placeholder="https://" />
                                             </label>
+                                            <p className="sm:col-span-2 text-pretty text-xs leading-5 text-theme-muted">
+                                                הוספת טקסט וכתובת מפעילה כפתור פעולה. כשהוא מופיע בפופאפ, המשתמש חייב ללחוץ עליו כדי לסגור את ההתראה.
+                                            </p>
                                         </div>
                                     </>
                                 ) : (
@@ -541,7 +586,7 @@ export default function AdminAlerts() {
                                                 <div className="text-sm font-black">דרישת אישור קריאה</div>
                                                 <p className="mt-0.5 text-pretty text-xs text-theme-muted">
                                                     {hasActionButton
-                                                        ? 'כבר הוגדר כפתור פעולה. כפתור הפעולה מחליף את ״קראתי ואישרתי״.'
+                                                        ? 'כבר הוגדר כפתור פעולה. הפופאפ ייסגר רק בלחיצה על הכפתור, ולכן הוא מחליף את ״קראתי ואישרתי״.'
                                                         : 'המשתמש יידרש ללחוץ ״קראתי ואישרתי״ לפני סגירת הפופאפ.'}
                                                 </p>
                                             </div>
@@ -556,19 +601,16 @@ export default function AdminAlerts() {
                                         <div className="rounded-2xl border border-theme-subtle p-4">
                                             <div className="mb-3 text-sm font-black">קהל יעד</div>
                                             <div className="flex flex-wrap gap-4">
-                                                <label className="flex min-h-10 items-center gap-2"><input type="radio" checked={form.audience.type === 'all'} onChange={() => setForm((current) => ({ ...current, audience: { type: 'all', identities: [] }, linkedTarget: null }))} />כל המשתמשים</label>
-                                                <label className="flex min-h-10 items-center gap-2"><input type="radio" checked={form.audience.type === 'users'} onChange={() => setForm((current) => ({ ...current, audience: { type: 'users', identities: [] } }))} />משתמש מסוים</label>
+                                                <label className="flex min-h-10 items-center gap-2"><input type="radio" checked={form.audience.type === 'all'} onChange={() => setForm((current) => ({ ...current, audience: { type: 'all', identities: [] } }))} />כל המשתמשים</label>
+                                                <label className="flex min-h-10 items-center gap-2"><input type="radio" checked={form.audience.type === 'users'} onChange={() => setForm((current) => ({ ...current, audience: { type: 'users', identities: [] } }))} />משתמשים מסוימים או קבוצה</label>
                                             </div>
                                             {form.audience.type === 'users' && (
                                                 <div className="mt-4">
-                                                    <VerifiedIdentityField
-                                                        identityInput={form.targetIdentityInput}
-                                                        linkedUser={form.linkedTarget}
-                                                        onIdentityChange={(targetIdentityInput) => setForm((current) => ({ ...current, targetIdentityInput }))}
-                                                        onLinkedUserChange={(linkedTarget) => setForm((current) => ({
+                                                    <NotificationAudienceTargets
+                                                        selectedTargets={form.audience.targets || []}
+                                                        onSelectedTargetsChange={(targets) => setForm((current) => ({
                                                             ...current,
-                                                            linkedTarget,
-                                                            audience: { type: 'users', identities: linkedTarget ? getStableUserIdentities(linkedTarget) : [] },
+                                                            audience: createTargetedAudience(targets),
                                                         }))}
                                                     />
                                                 </div>
@@ -579,8 +621,14 @@ export default function AdminAlerts() {
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 border-t border-theme-subtle bg-theme-elevated p-4">
-                                <button type="button" onClick={() => commitEdit('published')} disabled={!form.text.trim() || bodyLength > 280 || isSaving} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-white transition-[filter,transform] hover:brightness-110 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-45"><Send size={16} />פרסום ההתראה</button>
-                                <button type="button" onClick={() => commitEdit('draft')} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-theme-card px-4 text-sm font-black shadow-[0_0_0_1px_rgba(15,23,42,0.1)] transition-[background-color,transform] hover:bg-theme-card-hover active:scale-[0.96] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]"><Check size={16} />שמירה כטיוטה</button>
+                                {activeTab === 'content' ? (
+                                    <button type="button" onClick={() => setActiveTab('delivery')} disabled={!form.text.trim() || bodyLength > 280} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-white transition-[filter,transform] hover:brightness-110 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-45"><ArrowLeft size={16} />המשך להצגה ותזמון</button>
+                                ) : (
+                                    <>
+                                        <button type="button" onClick={() => commitEdit('published')} disabled={!form.text.trim() || bodyLength > 280 || isSaving} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-white transition-[filter,transform] hover:brightness-110 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-45"><Send size={16} />פרסום ההתראה</button>
+                                        <button type="button" onClick={() => commitEdit('draft')} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-theme-card px-4 text-sm font-black shadow-[0_0_0_1px_rgba(15,23,42,0.1)] transition-[background-color,transform] hover:bg-theme-card-hover active:scale-[0.96] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]"><Check size={16} />שמירה כטיוטה</button>
+                                    </>
+                                )}
                             </div>
                         </div>
 
@@ -613,6 +661,24 @@ export default function AdminAlerts() {
                     </section>
                 )}
             </div>
+
+            {discardAction ? (
+                <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setDiscardAction(null)}>
+                    <div className="w-full max-w-md rounded-xl border border-theme-subtle bg-theme-card p-5 text-right shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="discard-changes-title">
+                        <div className="flex items-start gap-3">
+                            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-300"><AlertTriangle size={19} /></span>
+                            <div>
+                                <h2 id="discard-changes-title" className="text-lg font-black text-theme">שינויים שלא נשמרו</h2>
+                                <p className="mt-1 text-sm leading-6 text-theme-muted">העריכה הנוכחית תימחק אם תעברו למסך אחר. אפשר להישאר ולסיים את ההגדרות.</p>
+                            </div>
+                        </div>
+                        <div className="mt-5 flex flex-wrap gap-3">
+                            <button type="button" onClick={() => setDiscardAction(null)} className="min-h-10 flex-1 rounded-xl border border-theme-subtle bg-theme-elevated px-4 text-sm font-black text-theme transition hover:bg-theme-card-hover">המשך בעריכה</button>
+                            <button type="button" onClick={discardChangesAndContinue} className="min-h-10 flex-1 rounded-xl bg-red-600 px-4 text-sm font-black text-white transition hover:bg-red-700">מעבר ללא שמירה</button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
         </div>
     );
 }

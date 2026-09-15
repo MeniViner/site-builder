@@ -40,4 +40,11 @@ describe('NotificationCenter unread state', () => {
         expect(screen.queryByText('ראשונה')).not.toBeInTheDocument();
         expect(screen.getByText('שנייה')).toBeInTheDocument();
     });
+
+    it('does not render the notification icon or popup when disabled', () => {
+        render(<NotificationCenter enabled={false} items={items} currentUser={currentUser} />);
+
+        expect(screen.queryByRole('button', { name: 'מרכז ההתראות' })).not.toBeInTheDocument();
+        expect(screen.queryByText('ראשונה')).not.toBeInTheDocument();
+    });
 });

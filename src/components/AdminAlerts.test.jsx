@@ -18,10 +18,6 @@ vi.mock('../context/ConfigProvider', () => ({
     }),
 }));
 
-vi.mock('./VerifiedIdentityField', () => ({
-    default: () => <div>identity field</div>,
-}));
-
 vi.mock('./SmartTextEditor', () => ({
     default: ({ plainText, onChange }) => (
         <textarea
@@ -63,12 +59,14 @@ describe('AdminAlerts popup composer', () => {
             target: { value: 'https://example.com/form' },
         });
         expect(screen.getByRole('link', { name: 'מעבר לטופס' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'פרסום ההתראה' })).not.toBeInTheDocument();
 
-        fireEvent.click(screen.getByRole('tab', { name: 'הצגה ותזמון' }));
+        fireEvent.click(screen.getByRole('button', { name: 'המשך להצגה ותזמון' }));
         expect(screen.getByRole('radio', { name: /פופאפ בכניסה/ })).toBeChecked();
+        expect(screen.getByRole('button', { name: 'פרסום ההתראה' })).toBeInTheDocument();
         expect(screen.getByRole('checkbox', { name: /דרישת אישור קריאה/ })).toBeDisabled();
         expect(screen.getByText(/התזמון אופציונלי/)).toBeInTheDocument();
-        expect(screen.getByText(/כבר הוגדר כפתור פעולה/)).toBeInTheDocument();
+        expect(screen.getByText(/הפופאפ ייסגר רק בלחיצה על הכפתור/)).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'מעבר לטופס' })).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'קראתי ואישרתי' })).not.toBeInTheDocument();
 
@@ -76,5 +74,35 @@ describe('AdminAlerts popup composer', () => {
         await waitFor(() => expect(mocks.saveNow).toHaveBeenCalledOnce());
         expect(screen.getByRole('tab', { name: 'התראות שמורות' })).toHaveAttribute('aria-selected', 'true');
         expect(screen.getByText('טיוטה')).toBeInTheDocument();
+    });
+
+    it('uses a styled dialog before discarding alert edits', () => {
+        render(<AdminAlerts />);
+        fireEvent.click(screen.getByRole('button', { name: 'התראה חדשה' }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'תוכן ההתראה' }), {
+            target: { value: 'טיוטה שלא נשמרה' },
+        });
+
+        fireEvent.click(screen.getByRole('tab', { name: 'התראות שמורות' }));
+        expect(screen.getByRole('dialog', { name: 'שינויים שלא נשמרו' })).toBeInTheDocument();
+        expect(screen.getByText(/העריכה הנוכחית תימחק/)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'המשך בעריכה' }));
+        expect(screen.queryByRole('dialog', { name: 'שינויים שלא נשמרו' })).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('tab', { name: 'התראות שמורות' }));
+        fireEvent.click(screen.getByRole('button', { name: 'מעבר ללא שמירה' }));
+        expect(screen.getByRole('tab', { name: 'התראות שמורות' })).toHaveAttribute('aria-selected', 'true');
+    });
+
+    it('persists the global notification icon setting', async () => {
+        render(<AdminAlerts />);
+
+        fireEvent.click(screen.getByRole('switch', { name: 'הפעלת דף ההתראות באתר' }));
+
+        await waitFor(() => expect(mocks.updateConfig).toHaveBeenCalled());
+        const update = mocks.updateConfig.mock.calls.at(-1)[0];
+        const nextConfig = update(mocks.config);
+        expect(nextConfig.widgets.data.alerts.enabled).toBe(false);
     });
 });

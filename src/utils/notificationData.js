@@ -37,15 +37,48 @@ export function getStableUserIdentities(user) {
     return [...new Set(identities)];
 }
 
+function normalizeNotificationAudienceTarget(targetLike) {
+    const source = isObject(targetLike) ? targetLike : {};
+    const identities = [
+        ...(Array.isArray(source.identities) ? source.identities.map(normalizeIdentityKey) : []),
+        ...getStableUserIdentities(source),
+    ].filter(Boolean);
+    const uniqueIdentities = [...new Set(identities)];
+    if (uniqueIdentities.length === 0) return null;
+
+    const sharePointUserId = Number(source.sharePointUserId ?? source.Id ?? source.id);
+    const personalNumber = text(source.personalNumber).replace(/\D/g, '');
+    const groupId = Number(source.groupId);
+    return {
+        identityKey: normalizeIdentityKey(source.identityKey) || uniqueIdentities[0],
+        identities: uniqueIdentities,
+        displayName: text(source.displayName ?? source.Title ?? source.name) || uniqueIdentities[0],
+        ...(Number.isInteger(sharePointUserId) && sharePointUserId > 0 ? { sharePointUserId } : {}),
+        ...(text(source.loginName ?? source.LoginName) ? { loginName: text(source.loginName ?? source.LoginName) } : {}),
+        ...(text(source.email ?? source.Email) ? { email: text(source.email ?? source.Email).toLowerCase() } : {}),
+        ...(personalNumber ? { personalNumber } : {}),
+        ...(Number.isInteger(groupId) && groupId > 0 ? { groupId } : {}),
+        ...(text(source.groupTitle) ? { groupTitle: text(source.groupTitle) } : {}),
+    };
+}
+
 export function normalizeNotificationAudience(audienceLike) {
     const source = isObject(audienceLike) ? audienceLike : {};
     const type = source.type === 'users' ? 'users' : 'all';
     if (type === 'all') return { type: 'all', identities: [] };
 
-    const identities = (Array.isArray(source.identities) ? source.identities : [])
-        .map(normalizeIdentityKey)
+    const targets = (Array.isArray(source.targets) ? source.targets : [])
+        .map(normalizeNotificationAudienceTarget)
         .filter(Boolean);
-    return { type, identities: [...new Set(identities)] };
+    const identities = [
+        ...(Array.isArray(source.identities) ? source.identities.map(normalizeIdentityKey) : []),
+        ...targets.flatMap((target) => target.identities),
+    ].filter(Boolean);
+    return {
+        type,
+        identities: [...new Set(identities)],
+        ...(targets.length > 0 ? { targets } : {}),
+    };
 }
 
 export function normalizeNotification(itemLike, index = 0) {
