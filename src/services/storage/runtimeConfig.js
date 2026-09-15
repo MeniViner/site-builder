@@ -98,7 +98,7 @@ function createDevelopmentFallback() {
   return normalizeCandidate({
     schemaVersion: 2,
     storageBackend: import.meta.env.VITE_STORAGE_BACKEND || 'txt',
-    backendApiUrl: import.meta.env.VITE_BACKEND_API_URL,
+    dailyDataApiUrl: import.meta.env.VITE_DAILY_DATA_API_URL || import.meta.env.VITE_BACKEND_API_URL,
     siteId: import.meta.env.VITE_SITE_ID || import.meta.env.VITE_SP_SITE_CODE,
     host: import.meta.env.VITE_SP_HOST,
     siteCode: import.meta.env.VITE_SP_SITE_CODE,
@@ -128,7 +128,7 @@ function createLegacyBuildConfig() {
   const config = normalizeCandidate({
     schemaVersion: 2,
     storageBackend: import.meta.env.VITE_STORAGE_BACKEND || 'txt',
-    backendApiUrl: import.meta.env.VITE_BACKEND_API_URL,
+    dailyDataApiUrl: import.meta.env.VITE_DAILY_DATA_API_URL || import.meta.env.VITE_BACKEND_API_URL,
     siteId: import.meta.env.VITE_SITE_ID || import.meta.env.VITE_SP_SITE_CODE,
     host: import.meta.env.VITE_SP_HOST,
     siteCode: import.meta.env.VITE_SP_SITE_CODE,
@@ -183,7 +183,7 @@ function normalizeCandidate(candidate = {}, { source = 'runtime config', require
   }
   const rawBackend = candidate.storageBackend;
   const storageBackend = sanitizeBackend(rawBackend, { allowEmpty: true });
-  const backendApiUrl = asString(candidate.backendApiUrl || candidate.backendUrl || candidate.apiUrl || candidate.API_URL);
+  const dailyDataApiUrl = asString(candidate.dailyDataApiUrl || candidate.backendApiUrl || candidate.backendUrl || candidate.apiUrl || candidate.API_URL);
   const rawSiteId = asString(candidate.siteId || candidate.site || candidate.siteCode);
   const releaseVersion = asString(candidate.releaseVersion || candidate.siteBuilderVersion || candidate.appVersion || candidate.version);
   const releaseId = asString(candidate.releaseId);
@@ -196,7 +196,7 @@ function normalizeCandidate(candidate = {}, { source = 'runtime config', require
 
   if (
     !storageBackend
-    && !backendApiUrl
+    && !dailyDataApiUrl
     && !rawSiteId
     && !releaseVersion
     && !releaseId
@@ -242,7 +242,10 @@ function normalizeCandidate(candidate = {}, { source = 'runtime config', require
   return Object.freeze({
     schemaVersion: Number(candidate.schemaVersion || 2),
     storageBackend,
-    backendApiUrl,
+    dailyDataApiUrl,
+    // Compatibility for pre-central-server diagnostic consumers only. New
+    // deployments emit dailyDataApiUrl and the transport never sends an API key.
+    backendApiUrl: dailyDataApiUrl,
     siteId: rawSiteId || sharePointDescriptor?.siteCode || '',
     releaseVersion,
     releaseId,
@@ -589,7 +592,8 @@ export function getRuntimeValue(key, fallback = '') {
   if (Object.prototype.hasOwnProperty.call(config, key)) return config[key] || fallback;
   switch (key) {
     case 'storageBackend': return config.storageBackend || '';
-    case 'backendApiUrl': return config.backendApiUrl || '';
+    case 'dailyDataApiUrl': return config.dailyDataApiUrl || '';
+    case 'backendApiUrl': return config.dailyDataApiUrl || '';
     case 'siteId': return config.siteId || '';
     case 'siteRoot': return config.siteRoot || '';
     case 'releaseVersion':

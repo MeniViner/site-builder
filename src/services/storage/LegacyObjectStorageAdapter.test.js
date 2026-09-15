@@ -77,25 +77,24 @@ describe('LegacyObjectStorageAdapter', () => {
         await expect(adapter.load()).rejects.toMatchObject({ code: 'invalid_backend_response' });
     });
 
-    it('fails closed when Mongo frontend mode is missing VITE_BACKEND_API_URL', async () => {
+    it('fails closed when Mongo frontend mode is missing VITE_DAILY_DATA_API_URL', async () => {
         const fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
         vi.stubEnv('VITE_STORAGE_BACKEND', 'mongo');
         vi.stubEnv('VITE_BACKEND_API_URL', '');
 
-        await expect(backendApiClient.request('/api/healthz')).rejects.toMatchObject({
-            code: 'missing_backend_url',
+        await expect(backendApiClient.request('/healthz')).rejects.toMatchObject({
+            code: 'missing_daily_data_url',
         });
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
-  it('allows the explicit development-only API key for local Mongo tools', async () => {
+  it('uses the central daily-data namespace without a browser API key', async () => {
         setRuntimeConfigForTests({
             storageBackend: 'mongo',
             backendApiUrl: 'http://127.0.0.1:3001',
             siteId: 'alpha',
         });
-        vi.stubEnv('VITE_SITE_BUILDER_DEV_API_KEY', 'secret');
         const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ ok: true, backups: [] }), {
             status: 200,
             headers: { 'content-type': 'application/json' },
@@ -108,21 +107,21 @@ describe('LegacyObjectStorageAdapter', () => {
         await backendApiClient.deleteBackup('alpha', 'one', { expectedVersion: 1 });
         await backendApiClient.restoreBackup('alpha', 'one');
 
-        expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://127.0.0.1:3001/api/sites/alpha/backups', expect.objectContaining({
+        expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://127.0.0.1:3001/sites/alpha/backups', expect.objectContaining({
             method: 'GET',
-            headers: expect.objectContaining({ 'X-API-Key': 'secret' }),
+            headers: expect.not.objectContaining({ 'X-API-Key': expect.anything() }),
         }));
-        expect(fetchMock).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:3001/api/sites/alpha/backups', expect.objectContaining({
+        expect(fetchMock).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:3001/sites/alpha/backups', expect.objectContaining({
             method: 'POST',
         }));
-        expect(fetchMock).toHaveBeenNthCalledWith(3, 'http://127.0.0.1:3001/api/sites/alpha/backups/one', expect.objectContaining({
+        expect(fetchMock).toHaveBeenNthCalledWith(3, 'http://127.0.0.1:3001/sites/alpha/backups/one', expect.objectContaining({
             method: 'GET',
         }));
-        expect(fetchMock).toHaveBeenNthCalledWith(4, 'http://127.0.0.1:3001/api/sites/alpha/backups/one', expect.objectContaining({
+        expect(fetchMock).toHaveBeenNthCalledWith(4, 'http://127.0.0.1:3001/sites/alpha/backups/one', expect.objectContaining({
             method: 'DELETE',
             body: JSON.stringify({ expectedVersion: 1 }),
         }));
-        expect(fetchMock).toHaveBeenNthCalledWith(5, 'http://127.0.0.1:3001/api/sites/alpha/backups/one/restore', expect.objectContaining({
+        expect(fetchMock).toHaveBeenNthCalledWith(5, 'http://127.0.0.1:3001/sites/alpha/backups/one/restore', expect.objectContaining({
             method: 'POST',
             body: JSON.stringify({ allowSiteIdMismatch: false }),
         }));

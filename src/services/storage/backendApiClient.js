@@ -1,4 +1,4 @@
-import { requireBackendApiBaseUrl } from './storageBackend';
+import { requireDailyDataApiBaseUrl } from './storageBackend';
 
 export class BackendStorageError extends Error {
     constructor(message, { status = 0, code = 'backend_error', details = null } = {}) {
@@ -11,27 +11,21 @@ export class BackendStorageError extends Error {
     }
 }
 
-const developmentApiKey = () => {
-    if (import.meta.env.DEV !== true) return '';
-    return String(import.meta.env.VITE_SITE_BUILDER_DEV_API_KEY || '').trim();
-};
-
 class BackendApiClient {
     async request(path, options = {}) {
         let baseUrl;
         try {
-            baseUrl = requireBackendApiBaseUrl();
+            baseUrl = requireDailyDataApiBaseUrl();
         } catch (error) {
             throw new BackendStorageError(error.message, {
                 status: 0,
-                code: 'missing_backend_url',
+                code: 'missing_daily_data_url',
             });
         }
         const url = `${baseUrl}${path}`;
         const headers = {
             Accept: 'application/json',
             ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-            ...(developmentApiKey() ? { 'X-API-Key': developmentApiKey() } : {}),
             ...(options.headers || {}),
         };
 
@@ -92,11 +86,11 @@ class BackendApiClient {
     }
 
     readLegacyObject(siteId, key) {
-        return this.request(`/api/sites/${encodeURIComponent(siteId)}/legacy-object?key=${encodeURIComponent(key)}`);
+        return this.request(`/sites/${encodeURIComponent(siteId)}/legacy-object?key=${encodeURIComponent(key)}`);
     }
 
     writeLegacyObject(siteId, { key, data, expectedVersion, allowEmptyOverwrite = false }) {
-        return this.request(`/api/sites/${encodeURIComponent(siteId)}/legacy-object`, {
+        return this.request(`/sites/${encodeURIComponent(siteId)}/legacy-object`, {
             method: 'PUT',
             body: {
                 key,
@@ -108,22 +102,22 @@ class BackendApiClient {
     }
 
     listBackups(siteId) {
-        return this.request(`/api/sites/${encodeURIComponent(siteId)}/backups`);
+        return this.request(`/sites/${encodeURIComponent(siteId)}/backups`);
     }
 
     createBackup(siteId, payload = {}) {
-        return this.request(`/api/sites/${encodeURIComponent(siteId)}/backups`, {
+        return this.request(`/sites/${encodeURIComponent(siteId)}/backups`, {
             method: 'POST',
             body: payload,
         });
     }
 
     getBackup(siteId, backupId) {
-        return this.request(`/api/sites/${encodeURIComponent(siteId)}/backups/${encodeURIComponent(backupId)}`);
+        return this.request(`/sites/${encodeURIComponent(siteId)}/backups/${encodeURIComponent(backupId)}`);
     }
 
     deleteBackup(siteId, backupId, { expectedVersion } = {}) {
-        return this.request(`/api/sites/${encodeURIComponent(siteId)}/backups/${encodeURIComponent(backupId)}`, {
+        return this.request(`/sites/${encodeURIComponent(siteId)}/backups/${encodeURIComponent(backupId)}`, {
             method: 'DELETE',
             body: expectedVersion === undefined ? {} : { expectedVersion },
         });
@@ -135,7 +129,7 @@ class BackendApiClient {
         selectedRestoreUnitIds,
         preRestoreBackupId,
     } = {}) {
-        return this.request(`/api/sites/${encodeURIComponent(siteId)}/backups/${encodeURIComponent(backupId)}/restore`, {
+        return this.request(`/sites/${encodeURIComponent(siteId)}/backups/${encodeURIComponent(backupId)}/restore`, {
             method: 'POST',
             body: {
                 allowSiteIdMismatch,

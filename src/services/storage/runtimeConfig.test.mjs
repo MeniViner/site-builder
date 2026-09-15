@@ -254,14 +254,14 @@ describe('runtimeConfig and storage descriptor', () => {
     expect(getStorageBackend()).toBe('txt');
     expect(getStorageDescriptor()).toMatchObject({
       source: 'development-env',
-      siteId: 'local-dev-site',
+      siteId: 'schedule',
       siteRoot: '/sites/schedule',
     });
   });
 
   it('fails closed when Mongo is missing a URL or site ID', () => {
     setRuntimeConfigForTests({ storageBackend: 'mongo', siteId: 'alpha' });
-    expect(() => getStorageDescriptor()).toThrow('backendApiUrl is required');
+    expect(() => getStorageDescriptor()).toThrow('dailyDataApiUrl is required');
 
     clearStorageDescriptorForTests();
     clearRuntimeConfigForTests();
@@ -285,7 +285,7 @@ describe('runtimeConfig and storage descriptor', () => {
       backendApiUrl: 'http://127.0.0.1:3001',
       siteId: 'alpha',
     });
-    expect(() => getStorageDescriptor()).toThrow('cannot use an insecure Mongo backendApiUrl');
+    expect(() => getStorageDescriptor()).toThrow('cannot use an insecure central dailyDataApiUrl');
   });
 
   it('accepts only the exact lowercase backend values and rejects URL query credentials', () => {

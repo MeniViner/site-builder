@@ -190,10 +190,10 @@ function validateSiteId(value, { required = true } = {}) {
     return siteId;
 }
 
-function validateBackendUrl(value) {
+function validateDailyDataUrl(value) {
     const raw = text(value).replace(/\/+$/g, '');
     if (!raw) {
-        throw new StorageConfigurationError('backendApiUrl is required when storageBackend=mongo.', {
+        throw new StorageConfigurationError('dailyDataApiUrl is required when storageBackend=mongo.', {
             code: 'missing_backend_url',
         });
     }
@@ -202,27 +202,27 @@ function validateBackendUrl(value) {
     try {
         url = new URL(raw);
     } catch {
-        throw new StorageConfigurationError('backendApiUrl must be an absolute HTTP(S) URL.', {
+        throw new StorageConfigurationError('dailyDataApiUrl must be an absolute HTTP(S) URL.', {
             code: 'invalid_backend_url',
         });
     }
     if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-        throw new StorageConfigurationError('backendApiUrl must use HTTP or HTTPS.', {
+        throw new StorageConfigurationError('dailyDataApiUrl must use HTTP or HTTPS.', {
             code: 'invalid_backend_url',
         });
     }
     if (url.username || url.password) {
-        throw new StorageConfigurationError('backendApiUrl must not contain embedded credentials.', {
+        throw new StorageConfigurationError('dailyDataApiUrl must not contain embedded credentials.', {
             code: 'credentialed_backend_url',
         });
     }
     if (url.search || url.hash) {
-        throw new StorageConfigurationError('backendApiUrl must not contain a query string or fragment.', {
+        throw new StorageConfigurationError('dailyDataApiUrl must not contain a query string or fragment.', {
             code: 'invalid_backend_url',
         });
     }
     if (typeof window !== 'undefined' && window.location?.protocol === 'https:' && url.protocol !== 'https:') {
-        throw new StorageConfigurationError('An HTTPS page cannot use an insecure Mongo backendApiUrl.', {
+        throw new StorageConfigurationError('An HTTPS page cannot use an insecure central dailyDataApiUrl.', {
             code: 'insecure_backend_url',
         });
     }
@@ -263,13 +263,13 @@ function buildDescriptor() {
 
     let siteId;
     let siteRoot = '';
-    let backendApiUrl = '';
+    let dailyDataApiUrl = '';
     if (backend === STORAGE_BACKENDS.MONGO) {
         siteId = validateSiteId(
             runtimeConfig.siteId,
         );
-        backendApiUrl = validateBackendUrl(
-            runtimeConfig.backendApiUrl,
+        dailyDataApiUrl = validateDailyDataUrl(
+            runtimeConfig.dailyDataApiUrl,
         );
     } else {
         const configuredRoot = configuredTxtSiteRoot(runtimeConfig);
@@ -289,7 +289,8 @@ function buildDescriptor() {
         source,
         siteId,
         siteRoot,
-        backendApiUrl,
+        dailyDataApiUrl,
+        backendApiUrl: dailyDataApiUrl,
         runtimeConfigSource: runtimeSource || source,
     });
 }
@@ -354,7 +355,7 @@ export function isSharePointReadonlyBackend() {
 }
 
 export function getBackendApiBaseUrl() {
-    return getStorageDescriptor().backendApiUrl;
+    return getStorageDescriptor().dailyDataApiUrl;
 }
 
 export function requireBackendApiBaseUrl() {
@@ -364,7 +365,15 @@ export function requireBackendApiBaseUrl() {
             code: 'wrong_storage_backend',
         });
     }
-    return descriptor.backendApiUrl;
+    return descriptor.dailyDataApiUrl;
+}
+
+export function getDailyDataApiBaseUrl() {
+    return getStorageDescriptor().dailyDataApiUrl;
+}
+
+export function requireDailyDataApiBaseUrl() {
+    return requireBackendApiBaseUrl();
 }
 
 export function getSiteId() {
@@ -430,8 +439,9 @@ export function getStorageDiagnostics() {
         source: descriptor.source,
         siteId: descriptor.siteId,
         siteRoot: descriptor.siteRoot,
-        backendApiUrl: descriptor.backendApiUrl,
-        repository: descriptor.backend === STORAGE_BACKENDS.MONGO ? 'mongo-api' : 'sharepoint-txt',
+        dailyDataApiUrl: descriptor.dailyDataApiUrl,
+        backendApiUrl: descriptor.dailyDataApiUrl,
+        repository: descriptor.backend === STORAGE_BACKENDS.MONGO ? 'central-mongo-api' : 'sharepoint-txt',
         runtimeConfigSource: descriptor.runtimeConfigSource,
         runtimeAttempts: runtimeLog.attempts,
         lastRuntimeError: runtimeLog.error,
