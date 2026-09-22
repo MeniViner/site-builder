@@ -1,4 +1,5 @@
 import { getRankDefinition, resolveRankOrientation } from './rankCatalog';
+import { resolveSiteImageUrl } from '../../utils/assetUrl';
 
 function CivilianIdentity() {
     return (
@@ -53,7 +54,7 @@ export default function RankInsignia({ rank, orientation = 'native', rotation = 
             {definition.asset && (
                 <g data-rank-mirror-transform={mirrored ? 'true' : 'false'} transform={mirrored ? 'translate(240 0) scale(-1 1)' : undefined}>
                     <image
-                        href={`/images/idf-ranks/${definition.asset}`}
+                        href={resolveSiteImageUrl(`/images/idf-ranks/${definition.asset}`)}
                         x={assetLayout.x}
                         y={assetLayout.y}
                         width={assetLayout.width}

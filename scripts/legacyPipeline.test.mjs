@@ -368,7 +368,8 @@ describe('historical Legacy pipeline isolation', () => {
     expect(commands).toHaveLength(3);
     expect(commands[0]).toContain(`"${transport.stagingRoot}" "${anchor}" /E /XF "index.html"`);
     expect(commands[0]).not.toContain(`"${transport.stagingRoot}" "${target}"`);
-    expect(commands[1]).toContain(`"${transport.stagedDistRoot}" "${target}" /MIR /XF "index.html"`);
+    expect(commands[1]).toContain(`"${transport.stagedDistRoot}" "${target}" /E /XF "index.html"`);
+    expect(commands[1]).not.toContain('/MIR');
     expect(commands[2]).toContain(`"${target}" "index.html"`);
     expect(result.completeReport.verifiedFiles).toBe(result.completeReport.expectedFiles);
     expect(fs.readFileSync(path.join(target, 'index.html'), 'utf8')).toContain('index-B');

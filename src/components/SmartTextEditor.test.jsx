@@ -51,4 +51,67 @@ describe('SmartTextEditor formatting toolbar', () => {
 
         expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ plainText: expectedText }));
     });
+
+    it('preserves an intentional blank line when Enter is pressed twice in a row', () => {
+        const onChange = vi.fn();
+        render(<SmartTextEditor value={[{ type: 'text', text: 'שורה ראשונה' }]} onChange={onChange} />);
+
+        const editor = screen.getByRole('textbox');
+        placeCaretAtEnd(editor);
+        fireEvent.keyDown(editor, { key: 'Enter' });
+        fireEvent.keyDown(editor, { key: 'Enter' });
+
+        expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ plainText: 'שורה ראשונה\n\n' }));
+    });
+
+    it('does not continue a bullet marker on Shift+Enter', () => {
+        const onChange = vi.fn();
+        render(<SmartTextEditor value={[{ type: 'text', text: '• פריט ראשון' }]} onChange={onChange} />);
+
+        const editor = screen.getByRole('textbox');
+        placeCaretAtEnd(editor);
+        fireEvent.keyDown(editor, { key: 'Enter', shiftKey: true });
+
+        expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ plainText: '• פריט ראשון\n' }));
+    });
+
+    it('ignores Enter key presses while an IME composition is in progress', () => {
+        const onChange = vi.fn();
+        render(<SmartTextEditor value={[{ type: 'text', text: 'שורה ראשונה' }]} onChange={onChange} />);
+
+        const editor = screen.getByRole('textbox');
+        placeCaretAtEnd(editor);
+        fireEvent.keyDown(editor, { key: 'Enter', isComposing: true });
+
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('renders an editor-only caret placeholder for a trailing blank line without persisting it', () => {
+        const onChange = vi.fn();
+        const value = [
+            { type: 'text', text: 'שורה ראשונה', marks: [] },
+            { type: 'break' },
+        ];
+        render(<SmartTextEditor value={value} onChange={onChange} />);
+
+        const editor = screen.getByRole('textbox');
+        const placeholderBr = editor.querySelector('br[data-caret-placeholder="true"]');
+        expect(placeholderBr).not.toBeNull();
+
+        fireEvent.input(editor);
+
+        expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ plainText: 'שורה ראשונה\n' }));
+    });
+
+    it('shows a neutral Hebrew link instruction regardless of whether text is selected', () => {
+        const onChange = vi.fn();
+        render(<SmartTextEditor value={[{ type: 'text', text: 'שורה ראשונה' }]} onChange={onChange} />);
+
+        const editor = screen.getByRole('textbox');
+        placeCaretAtEnd(editor);
+        fireEvent.mouseDown(screen.getByRole('button', { name: 'הוספת קישור' }));
+
+        expect(screen.getByText('מלאו שם שיוצג בטקסט ואת הכתובת שאליה הוא יוביל.')).toBeInTheDocument();
+        expect(screen.queryByText(/בחרת|טקסט מסומן|הטקסט שנבחר/)).not.toBeInTheDocument();
+    });
 });

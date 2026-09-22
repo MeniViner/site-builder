@@ -31,13 +31,20 @@ const PRESENTATION_STYLES = Object.freeze({
     },
 });
 
-function PresentationSurface({ styleId, colors }) {
-    if (styleId === 'minimal') return null;
+function PresentationSurface({ styleId, colors, backgroundColor }) {
+    const surfaceColor = backgroundColor || colors.surface;
+    if (styleId === 'minimal') {
+        return backgroundColor ? (
+            <g aria-hidden="true">
+                <rect data-rank-presentation-surface x="5" y="5" width="290" height="130" rx="12" fill={surfaceColor} />
+            </g>
+        ) : null;
+    }
 
     if (styleId === 'field') {
         return (
             <g aria-hidden="true">
-                <rect x="5" y="5" width="290" height="130" rx="14" fill={colors.surface} stroke={colors.edge} strokeWidth="2" />
+                <rect data-rank-presentation-surface x="5" y="5" width="290" height="130" rx="14" fill={surfaceColor} stroke={colors.edge} strokeWidth="2" />
                 <rect x="13" y="13" width="274" height="114" rx="9" fill="none" stroke={colors.accent} strokeWidth="1.5" strokeDasharray="5 5" />
                 <path d="M18 28 H282 M18 112 H282" stroke="#ffffff" strokeOpacity="0.035" strokeWidth="8" />
             </g>
@@ -47,7 +54,7 @@ function PresentationSurface({ styleId, colors }) {
     if (styleId === 'ceremonial') {
         return (
             <g aria-hidden="true">
-                <rect x="5" y="5" width="290" height="130" rx="10" fill={colors.surface} stroke={colors.edge} strokeWidth="1.5" />
+                <rect data-rank-presentation-surface x="5" y="5" width="290" height="130" rx="10" fill={surfaceColor} stroke={colors.edge} strokeWidth="1.5" />
                 <path d="M22 19 H278 M22 121 H278" stroke={colors.accent} strokeWidth="1" />
                 <circle cx="24" cy="70" r="3" fill={colors.accent} />
                 <circle cx="276" cy="70" r="3" fill={colors.accent} />
@@ -57,13 +64,13 @@ function PresentationSurface({ styleId, colors }) {
 
     return (
         <g aria-hidden="true">
-            <rect x="5" y="5" width="290" height="130" rx="12" fill={colors.surface} stroke={colors.edge} strokeWidth="1.5" />
+            <rect data-rank-presentation-surface x="5" y="5" width="290" height="130" rx="12" fill={surfaceColor} stroke={colors.edge} strokeWidth="1.5" />
             <path d="M18 24 V16 H26 M274 16 H282 V24 M18 116 V124 H26 M274 124 H282 V116" fill="none" stroke={colors.accent} strokeWidth="2" />
         </g>
     );
 }
 
-export default function RankPresentation({ rank, styleId = 'formal', orientation = 'native', rotation = 0, mirrored = false, className = '', style }) {
+export default function RankPresentation({ rank, styleId = 'formal', orientation = 'native', rotation = 0, mirrored = false, backgroundColor = '', className = '', style }) {
     const normalizedStyle = PRESENTATION_STYLES[styleId] ? styleId : 'formal';
     const colors = PRESENTATION_STYLES[normalizedStyle];
 
@@ -77,7 +84,7 @@ export default function RankPresentation({ rank, styleId = 'formal', orientation
             data-rank-presentation-orientation={orientation}
             xmlns="http://www.w3.org/2000/svg"
         >
-            <PresentationSurface styleId={normalizedStyle} colors={colors} />
+            <PresentationSurface styleId={normalizedStyle} colors={colors} backgroundColor={backgroundColor} />
             <RankInsignia
                 rank={rank}
                 orientation={orientation}

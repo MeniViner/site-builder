@@ -10,6 +10,23 @@ function PickerHarness() {
 }
 
 describe('CommanderRankPicker', () => {
+    it('applies a preset color behind rank previews without recoloring the insignia', () => {
+        const { container } = render(
+            <CommanderRankPicker value="סגן" styleId="formal" backdropColor="crimson" onChange={vi.fn()} />
+        );
+
+        const triggerBackdrop = container.querySelector('[data-rank-picker-backdrop="trigger"]');
+        const insignia = triggerBackdrop.querySelector('svg[data-rank]');
+        expect(triggerBackdrop).toHaveStyle({ backgroundColor: '#dc2626' });
+        expect(insignia).not.toHaveStyle({ color: '#dc2626' });
+
+        fireEvent.click(screen.getByRole('button', { name: 'בחירת דרגה' }));
+        const optionBackdrop = screen.getByRole('button', { name: 'סגן' })
+            .querySelector('[data-rank-picker-backdrop="option"]');
+        expect(optionBackdrop).toHaveStyle({ backgroundColor: '#dc2626' });
+        expect(optionBackdrop.querySelector('svg[data-rank]')).not.toHaveStyle({ color: '#dc2626' });
+    });
+
     it('shows rank names only inside the selection dialog', () => {
         render(<PickerHarness />);
 

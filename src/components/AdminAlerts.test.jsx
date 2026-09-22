@@ -2,6 +2,8 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminAlerts from './AdminAlerts';
+import AdminEditSessionGuard from './AdminEditSessionGuard';
+import { resetAdminEditSessionForTests } from '../utils/adminEditSession';
 
 const mocks = vi.hoisted(() => ({
     config: { widgets: { data: { alerts: { items: [] } } } },
@@ -30,6 +32,7 @@ vi.mock('./SmartTextEditor', () => ({
 
 describe('AdminAlerts popup composer', () => {
     beforeEach(() => {
+        resetAdminEditSessionForTests();
         mocks.updateConfig.mockReset();
         mocks.saveNow.mockReset().mockResolvedValue(true);
     });
@@ -104,5 +107,26 @@ describe('AdminAlerts popup composer', () => {
         const update = mocks.updateConfig.mock.calls.at(-1)[0];
         const nextConfig = update(mocks.config);
         expect(nextConfig.widgets.data.alerts.enabled).toBe(false);
+    });
+
+    it('routes outside navigation and beforeunload through the shared dirty-editor coordinator', () => {
+        render(
+            <>
+                <AdminEditSessionGuard />
+                <AdminAlerts />
+                <button type="button">ניווט חיצוני</button>
+            </>,
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'התראה חדשה' }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'תוכן ההתראה' }), {
+            target: { value: 'טיוטה שלא נשמרה' },
+        });
+
+        const unloadEvent = new Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(unloadEvent);
+        expect(unloadEvent.defaultPrevented).toBe(true);
+
+        fireEvent.click(screen.getByRole('button', { name: 'ניווט חיצוני' }));
+        expect(screen.getByRole('dialog', { name: 'שינויים שלא נשמרו' })).toBeInTheDocument();
     });
 });

@@ -1,25 +1,22 @@
 import React, { useMemo, useState } from 'react';
 import { CheckCircle2, Loader2, Search, Trash2, Users } from 'lucide-react';
 import {
-    ensureUserByIdentity,
     listSharePointGroupMembersByIdentity,
     normalizeSharePointIdentityInput,
 } from '../services/sharePointSiteCollectionAdminsService';
-import { mapSharePointErrorToHebrewMessage } from '../services/adminManagementLogger';
+import {
+    isConfirmedUserPrincipal,
+    resolveExactSharePointIdentity,
+} from '../services/sharePointIdentityResolver';
 import { getStableUserIdentities } from '../utils/notificationData';
 
-function toAudienceTarget(resolved, normalizedIdentity = {}, group = null) {
-    const sharePointUserId = Number(resolved?.Id);
-    const loginName = String(resolved?.LoginName || '').trim();
-    const email = String(resolved?.Email || normalizedIdentity?.email || '').trim().toLowerCase();
-    const personalNumber = String(normalizedIdentity?.personalNumber || '').replace(/^s/i, '').replace(/\D/g, '');
-    const identities = getStableUserIdentities({ sharePointUserId, loginName, email, personalNumber });
-    if (identities.length === 0) return null;
-
+function toAudienceTargetFromPrincipal(principal, group = null) {
+    if (!principal) return null;
+    const { identityKey, identities, displayName, sharePointUserId, loginName, email, personalNumber } = principal;
     return {
-        identityKey: identities[0],
+        identityKey,
         identities,
-        displayName: String(resolved?.Title || email || loginName || identities[0]).trim(),
+        displayName,
         ...(Number.isInteger(sharePointUserId) && sharePointUserId > 0 ? { sharePointUserId } : {}),
         ...(loginName ? { loginName } : {}),
         ...(email ? { email } : {}),
@@ -27,6 +24,24 @@ function toAudienceTarget(resolved, normalizedIdentity = {}, group = null) {
         ...(group?.id ? { groupId: group.id } : {}),
         ...(group?.title ? { groupTitle: group.title } : {}),
     };
+}
+
+function toAudienceTargetFromGroupMember(member, group) {
+    if (!isConfirmedUserPrincipal(member)) return null;
+    const sharePointUserId = Number(member?.Id);
+    const loginName = String(member?.LoginName || '').trim();
+    const email = String(member?.Email || '').trim().toLowerCase();
+    const identities = getStableUserIdentities({ sharePointUserId, loginName, email });
+    if (identities.length === 0) return null;
+
+    return toAudienceTargetFromPrincipal({
+        identityKey: identities[0],
+        identities,
+        displayName: String(member?.Title || email || loginName || identities[0]).trim(),
+        sharePointUserId,
+        loginName,
+        email,
+    }, group);
 }
 
 function mergeAudienceTargets(currentTargets, incomingTargets) {
@@ -61,13 +76,18 @@ export default function NotificationAudienceTargets({ selectedTargets = [], onSe
         setResolving(true);
         setError('');
         try {
-            const resolved = await ensureUserByIdentity(identityInput, []);
-            const target = toAudienceTarget(resolved, normalizedIdentity);
-            if (!target) throw new Error('sharepoint-user-incomplete');
+            const resolution = await resolveExactSharePointIdentity(identityInput, []);
+            if (!resolution.ok) {
+                setError(resolution.error);
+                return;
+            }
+            const target = toAudienceTargetFromPrincipal(resolution.principal);
+            if (!target) {
+                setError('למשתמש שנבחר חסרים פרטי זיהוי של SharePoint.');
+                return;
+            }
             addTargets([target]);
             setIdentityInput('');
-        } catch (resolveError) {
-            setError(mapSharePointErrorToHebrewMessage(resolveError));
         } finally {
             setResolving(false);
         }
@@ -84,7 +104,7 @@ export default function NotificationAudienceTargets({ selectedTargets = [], onSe
         try {
             const group = await listSharePointGroupMembersByIdentity(groupInput, []);
             const targets = group.members
-                .map((member) => toAudienceTarget(member, {}, group))
+                .map((member) => toAudienceTargetFromGroupMember(member, group))
                 .filter(Boolean);
             if (targets.length === 0) {
                 setError('לא נמצאו חברים שניתן לשלוח להם התראה בקבוצה זו.');

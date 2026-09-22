@@ -205,6 +205,27 @@ describe('AdminBoom', () => {
         ]), { timeout: 1800 });
     });
 
+    it('does not publish an assignment notification until the BOOM task persistence succeeds', async () => {
+        let resolveSave;
+        mocks.saveBoom.mockImplementation((value) => new Promise((resolve) => {
+            resolveSave = () => resolve(value);
+        }));
+        render(<MemoryRouter><AdminBoom /></MemoryRouter>);
+        fireEvent.click(screen.getByRole('tab', { name: 'ניהול משימות' }));
+        fireEvent.click(screen.getByRole('button', { name: 'משימה חדשה' }));
+        fireEvent.change(screen.getByLabelText('שם המשימה'), { target: { value: 'בדיקת סדר שמירה' } });
+        fireEvent.click(screen.getByRole('button', { name: 'בחירת אחראי משימה' }));
+        fireEvent.click(screen.getByRole('button', { name: 'הוספת משימה' }));
+
+        await waitFor(() => expect(mocks.saveBoom).toHaveBeenCalled(), { timeout: 1800 });
+        expect(mocks.updateConfig).not.toHaveBeenCalled();
+
+        resolveSave();
+
+        await waitFor(() => expect(mocks.updateConfig).toHaveBeenCalledOnce());
+        expect(mocks.saveNow).toHaveBeenCalledOnce();
+    });
+
     it('loads and clears demo tasks only after deliberate actions', async () => {
         render(<MemoryRouter><AdminBoom /></MemoryRouter>);
 

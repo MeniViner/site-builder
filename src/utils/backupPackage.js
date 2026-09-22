@@ -46,12 +46,14 @@ export function countBackupFileRecords(fileName, data) {
     return isObject(data) && Object.keys(data).length > 0 ? 1 : 0;
 }
 
-export function deriveBackupFileRecordCount(fileName, textValue, fallback = 0) {
+export function deriveBackupFileRecordCount(fileName, textValue, fallback = null) {
     try {
         const data = typeof textValue === 'string' ? JSON.parse(textValue) : textValue;
         return countBackupFileRecords(fileName, data);
     } catch {
-        return Number.isFinite(Number(fallback)) ? Number(fallback) : 0;
+        return fallback !== null && fallback !== undefined && Number.isFinite(Number(fallback))
+            ? Number(fallback)
+            : null;
     }
 }
 
@@ -60,6 +62,108 @@ function createId(prefix = 'backup') {
         return `${prefix}-${crypto.randomUUID()}`;
     }
     return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function textFingerprint(text) {
+    const value = String(text ?? '');
+    let hash = 2166136261;
+    for (let index = 0; index < value.length; index += 1) {
+        hash ^= value.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+    }
+    return `${calculateTextSizeBytes(value)}-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+}
+
+export function createBackupOperationId(prefix = 'backup') {
+    return createId(prefix);
+}
+
+export function createBackupManifest({
+    operationId = createBackupOperationId(),
+    requiredFileNames = [],
+    fileTextsByName = new Map(),
+    createdAt = new Date().toISOString(),
+} = {}) {
+    const required = [...new Set(
+        (Array.isArray(requiredFileNames) ? requiredFileNames : [])
+            .map((name) => String(name || '').trim())
+            .filter(Boolean),
+    )];
+    const files = required.map((name) => {
+        const text = fileTextsByName instanceof Map ? fileTextsByName.get(name) : fileTextsByName?.[name];
+        return {
+            name,
+            required: true,
+            fingerprint: typeof text === 'string' ? textFingerprint(text) : null,
+        };
+    });
+    return {
+        kind: 'bihs-txt-backup-manifest',
+        version: 1,
+        operationId,
+        status: 'pending',
+        createdAt,
+        requiredFileCount: required.length,
+        verifiedFileCount: 0,
+        files,
+    };
+}
+
+export function verifyBackupManifest(manifest, readBackTextsByName) {
+    const files = Array.isArray(manifest?.files) ? manifest.files : [];
+    const required = files.filter((file) => file?.required);
+    if (required.length === 0) {
+        throw new Error('לא ניתן להשלים גיבוי ללא קבצים נדרשים.');
+    }
+
+    const results = required.map((file) => {
+        const text = readBackTextsByName instanceof Map
+            ? readBackTextsByName.get(file.name)
+            : readBackTextsByName?.[file.name];
+        const verified = typeof text === 'string'
+            && typeof file.fingerprint === 'string'
+            && textFingerprint(text) === file.fingerprint;
+        return { ...file, verified };
+    });
+    const verifiedFileCount = results.filter((file) => file.verified).length;
+    return {
+        ...manifest,
+        status: verifiedFileCount === required.length ? 'complete' : 'partial',
+        verifiedAt: new Date().toISOString(),
+        verifiedFileCount,
+        files: results,
+    };
+}
+
+export function validateRestorePlan({
+    selectedEntries = [],
+    fileTextsByName = new Map(),
+    targetByFileName = {},
+} = {}) {
+    if (!Array.isArray(selectedEntries) || selectedEntries.length === 0) {
+        throw new Error('יש לבחור לפחות פריט אחד לשחזור.');
+    }
+
+    const ids = new Set();
+    return selectedEntries.map((entry) => {
+        const id = String(entry?.restoreUnitId || '').trim();
+        const fileName = String(entry?.fileName || entry?.name || '').trim();
+        if (!id || ids.has(id)) throw new Error(`מזהה שחזור חסר או כפול עבור ${fileName || 'פריט לא ידוע'}.`);
+        ids.add(id);
+        if (entry?.canRestore !== true) throw new Error(`הפריט ${fileName} אינו זמין לשחזור.`);
+        const target = String(targetByFileName[fileName] || '').trim();
+        if (!target) throw new Error(`לא נמצא יעד שחזור עבור ${fileName}.`);
+        const text = fileTextsByName instanceof Map
+            ? fileTextsByName.get(fileName)
+            : fileTextsByName?.[fileName];
+        if (typeof text !== 'string') throw new Error(`לא נמצא תוכן לשחזור עבור ${fileName}.`);
+        try {
+            JSON.parse(text);
+        } catch {
+            throw new Error(`הקובץ ${fileName} אינו JSON תקין.`);
+        }
+        return { ...entry, restoreUnitId: id, fileName, target, text };
+    });
 }
 
 export function calculateTextSizeBytes(text) {

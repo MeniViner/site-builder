@@ -5,7 +5,7 @@ import { useWidget } from '../../context/WidgetContext';
 import { DEFAULT_ACTIVE_WIDGETS } from '../../utils/widgetDisplay';
 import { isTacticalStyle, normalizeBorderStyle, tacticalClip } from '../../utils/borderStyles';
 import ResolvedSiteImage from '../ResolvedSiteImage';
-import { getCommanderImageSettings } from '../../utils/commanderImage';
+import { getCommanderImageSettings, getCommanderRankBackdropColorHex } from '../../utils/commanderImage';
 import CommanderRankInsignia from '../CommanderRankInsignia';
 
 function TacticalPanel({ borderStyle, cornerSize, className, children, glowLine, showBorder = true, showBackground = true, showShadow = true }) {
@@ -34,6 +34,7 @@ function CommanderSection({ commander, messages }) {
   const hasMultiple = messages.length > 1;
   const decorativeElement = commander?.decorativeElement || 'line-diamond-line';
   const { imageScale, imageOffsetX, imageOffsetY } = getCommanderImageSettings(commander);
+  const backdropColorHex = getCommanderRankBackdropColorHex(commander?.imageRankBackdropColor);
 
   useEffect(() => {
     if (!hasMultiple) return;
@@ -48,7 +49,14 @@ function CommanderSection({ commander, messages }) {
   return (
     <div className="relative p-6 [@media(max-height:850px)]:p-4 flex flex-col sm:flex-row items-stretch h-full w-full">
       <div className="w-full sm:w-[45%] relative shrink-0 sm:-ml-4 flex items-center justify-center overflow-hidden mb-6 sm:mb-0 isolate">
-        {(commander.imageSource !== 'rank' || commander.imageRankBackdrop !== false) && <div data-commander-image-backdrop className="absolute left-1/2 top-1/2 -translate-x-[40%] -translate-y-[60%] w-28 lg:w-32 xl:w-36 h-28 lg:h-32 xl:h-36 bg-primary z-[1] hidden sm:block shadow-[0_0_25px_var(--color-primary-600),0_0_50px_var(--color-primary-900)]" aria-hidden="true" />}
+        {(commander.imageSource !== 'rank' || commander.imageRankBackdrop !== false) && (
+          <div
+            data-commander-image-backdrop
+            className={`absolute left-1/2 top-1/2 -translate-x-[40%] -translate-y-[60%] w-28 lg:w-32 xl:w-36 h-28 lg:h-32 xl:h-36 z-[1] hidden sm:block ${backdropColorHex ? '' : 'bg-primary shadow-[0_0_25px_var(--color-primary-600),0_0_50px_var(--color-primary-900)]'}`}
+            style={backdropColorHex ? { backgroundColor: backdropColorHex, boxShadow: `0 0 25px ${backdropColorHex}` } : undefined}
+            aria-hidden="true"
+          />
+        )}
         {commander.imageSource === 'rank' ? (
           <CommanderRankInsignia
             rank={commander.imageRank}
@@ -56,6 +64,7 @@ function CommanderSection({ commander, messages }) {
             orientation={commander.imageRankOrientation}
             rotation={commander.imageRankRotation}
             mirrored={commander.imageRankMirrored}
+            backdropColor={commander.imageRankBackdropColor}
             className="relative z-[2] h-auto w-full max-w-[19rem] transition-transform duration-200 ease-out"
             style={{
               transform: `translate(${imageOffsetX}px, ${imageOffsetY}px) scale(${imageScale / 100})`,

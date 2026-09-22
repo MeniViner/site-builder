@@ -64,8 +64,13 @@ function renderToken(token, index, linkClassName) {
     );
 }
 
+function isCaretPlaceholderNode(node) {
+    return node?.nodeName === 'BR' && node.dataset?.caretPlaceholder === 'true';
+}
+
 function getTextLength(node) {
     if (!node) return 0;
+    if (isCaretPlaceholderNode(node)) return 0;
     if (node.nodeType === Node.TEXT_NODE) return node.nodeValue.length;
     if (node.nodeName === 'BR') return 1;
     return Array.from(node.childNodes || []).reduce((sum, child) => sum + getTextLength(child), 0);
@@ -131,6 +136,7 @@ function findPositionForOffset(root, offset) {
         }
 
         if (node.nodeName === 'BR') {
+            if (isCaretPlaceholderNode(node)) return null;
             if (remaining <= 1) {
                 const parent = node.parentNode || root;
                 return { node: parent, offset: Array.from(parent.childNodes).indexOf(node) + 1 };
@@ -189,7 +195,9 @@ function getElementMarks(element, inheritedMarks) {
 function pushRawToken(tokens, token) {
     if (!token) return;
     if (token.type === SMART_TEXT_TOKEN_TYPES.break) {
-        if (tokens[tokens.length - 1]?.type !== SMART_TEXT_TOKEN_TYPES.break) tokens.push(token);
+        // Every line break is significant: consecutive breaks represent an
+        // intentional blank line and must not be collapsed into one.
+        tokens.push(token);
         return;
     }
 
@@ -239,6 +247,10 @@ function readSmartTextTokensFromElement(root) {
         }
 
         if (node.nodeName === 'BR') {
+            // The trailing caret placeholder <br> exists only so the browser
+            // renders/positions the caret on an empty final line; it is not
+            // part of the authored content and must never be persisted.
+            if (node.dataset?.caretPlaceholder === 'true') return;
             pushRawToken(tokens, { type: SMART_TEXT_TOKEN_TYPES.break });
             return;
         }
@@ -606,7 +618,11 @@ export default function SmartTextEditor({
                         syncFromDom();
                     }}
                     onKeyDown={(event) => {
+                        const isComposing = event.nativeEvent?.isComposing || event.keyCode === 229;
                         if (event.key === 'Enter' && !event.metaKey && !event.ctrlKey) {
+                            // While an IME composition is in progress, Enter finalizes
+                            // the composed text; let the browser handle it natively.
+                            if (isComposing) return;
                             event.preventDefault();
                             const editor = editorRef.current;
                             if (!editor) return;
@@ -627,6 +643,12 @@ export default function SmartTextEditor({
                     className={`min-h-[108px] w-full whitespace-pre-wrap rounded-xl border border-theme-subtle bg-theme-elevated px-4 py-3 text-sm leading-6 text-theme outline-none transition focus:border-blue-500 ${editorClassName}`}
                 >
                     {tokens.map((token, index) => renderToken(token, index, linkClassName))}
+                    {tokens[tokens.length - 1]?.type === SMART_TEXT_TOKEN_TYPES.break ? (
+                        // Editor-only filler so the browser renders/positions the
+                        // caret on the trailing blank line; never persisted (see
+                        // readSmartTextTokensFromElement).
+                        <br key="caret-placeholder" data-caret-placeholder="true" aria-hidden="true" />
+                    ) : null}
                 </div>
             </div>
 

@@ -80,21 +80,130 @@ describe('ConfigAdapter TXT persistence', () => {
         const initial = JSON.stringify({ schemaVersion: '1.0.0', title: 'Initial' });
         const fetchMock = vi.fn()
             .mockResolvedValueOnce(response(initial, { etag: '"v1"' }))
-            .mockResolvedValueOnce(response('conflict', { status: 412 }));
+            .mockResolvedValueOnce(response('conflict', { status: 412 }))
+            .mockResolvedValueOnce(response(JSON.stringify({ schemaVersion: '1.0.0', title: 'Other' }), { etag: '"v2"' }));
         vi.stubGlobal('fetch', fetchMock);
         const adapter = new ConfigAdapter({ useMock: false });
 
         await adapter.load();
         await expect(adapter.save(JSON.stringify({ schemaVersion: '1.0.0', title: 'Next' }))).rejects.toMatchObject({
-            code: 'conflict',
+            code: 'version_conflict',
             isConflict: true,
         });
-        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(fetchMock).toHaveBeenCalledTimes(3);
         expect(getStorageDiagnostics().lastStorageError).toMatchObject({
-            code: 'conflict',
+            code: 'version_conflict',
             operation: 'save-master-config',
             repository: 'txt',
         });
+    });
+
+    it('classifies a SharePoint 409 separately from an ETag version conflict', async () => {
+        const initial = JSON.stringify({ schemaVersion: '1.0.0', title: 'Initial' });
+        vi.stubGlobal('fetch', vi.fn()
+            .mockResolvedValueOnce(response(initial, { etag: '"v1"' }))
+            .mockResolvedValueOnce(response('locked', { status: 409 })));
+        const adapter = new ConfigAdapter({ useMock: false });
+
+        await adapter.load();
+        await expect(adapter.save(JSON.stringify({ schemaVersion: '1.0.0', title: 'Next' }))).rejects.toMatchObject({
+            code: 'path_conflict',
+            isConflict: false,
+            category: 'collision',
+        });
+    });
+
+    it('never adopts a mismatched verification body or ETag as the accepted baseline', async () => {
+        const initial = JSON.stringify({ schemaVersion: '1.0.0', title: 'Initial' });
+        const submitted = JSON.stringify({ schemaVersion: '1.0.0', title: 'Submitted' });
+        const mismatched = JSON.stringify({ schemaVersion: '1.0.0', title: 'Other tab' });
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(response(initial, { etag: '"v1"' }))
+            .mockResolvedValueOnce(response('', { etag: '"v2"' }))
+            .mockResolvedValueOnce(response(mismatched, { etag: '"v3"' }))
+            .mockResolvedValueOnce(response('locked', { status: 409 }));
+        vi.stubGlobal('fetch', fetchMock);
+        const adapter = new ConfigAdapter({ useMock: false });
+
+        await adapter.load();
+        await expect(adapter.save(submitted)).rejects.toMatchObject({ code: 'txt_readback_mismatch' });
+        await expect(adapter.save(submitted)).rejects.toMatchObject({ code: 'path_conflict' });
+
+        expect(fetchMock.mock.calls[3][1].headers['If-Match']).toBe('"v1"');
+        expect(adapter.getConcurrencyState()).toMatchObject({
+            accepted: { text: initial, etag: '"v1"' },
+            draft: { text: submitted },
+            observedRemote: { text: mismatched, etag: '"v3"' },
+        });
+    });
+
+    it('merges a proven non-overlapping simultaneous edit by array ID and retries with the refreshed ETag', async () => {
+        const baseline = JSON.stringify({
+            schemaVersion: '1.0.0',
+            items: [{ id: 'a', title: 'A', color: 'red' }, { id: 'b', title: 'B' }],
+        });
+        const draft = JSON.stringify({
+            schemaVersion: '1.0.0',
+            items: [{ id: 'a', title: 'A local', color: 'red' }, { id: 'b', title: 'B' }],
+        });
+        const remote = JSON.stringify({
+            schemaVersion: '1.0.0',
+            items: [{ id: 'a', title: 'A', color: 'blue' }, { id: 'b', title: 'B' }],
+        });
+        const expectedMerged = JSON.stringify({
+            schemaVersion: '1.0.0',
+            items: [{ id: 'a', title: 'A local', color: 'blue' }, { id: 'b', title: 'B' }],
+        }, null, 2);
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(response(baseline, { etag: '"v1"' }))
+            .mockResolvedValueOnce(response('precondition', { status: 412 }))
+            .mockResolvedValueOnce(response(remote, { etag: '"v2"' }))
+            .mockResolvedValueOnce(response('', { etag: '"v3"' }))
+            .mockResolvedValueOnce(response(expectedMerged, { etag: '"v3"' }));
+        vi.stubGlobal('fetch', fetchMock);
+        const adapter = new ConfigAdapter({ useMock: false });
+
+        await adapter.load();
+        await expect(adapter.save(draft)).resolves.toMatchObject({ ok: true, merged: true });
+        const merged = JSON.parse(fetchMock.mock.calls[3][1].body);
+        expect(merged.items[0]).toMatchObject({ id: 'a', title: 'A local', color: 'blue' });
+        expect(fetchMock.mock.calls[3][1].headers['If-Match']).toBe('"v2"');
+    });
+
+    it('preserves the draft and exposes Hebrew resolution guidance for overlapping edits', async () => {
+        const baseline = JSON.stringify({ schemaVersion: '1.0.0', title: 'Initial' });
+        const draft = JSON.stringify({ schemaVersion: '1.0.0', title: 'Local' });
+        const remote = JSON.stringify({ schemaVersion: '1.0.0', title: 'Remote' });
+        vi.stubGlobal('fetch', vi.fn()
+            .mockResolvedValueOnce(response(baseline, { etag: '"v1"' }))
+            .mockResolvedValueOnce(response('precondition', { status: 412 }))
+            .mockResolvedValueOnce(response(remote, { etag: '"v2"' })));
+        const adapter = new ConfigAdapter({ useMock: false });
+
+        await adapter.load();
+        await expect(adapter.save(draft)).rejects.toMatchObject({
+            code: 'version_conflict',
+            category: 'version',
+            resolutionMessage: expect.stringMatching(/[א-ת]/),
+        });
+        expect(adapter.getConcurrencyState()).toMatchObject({
+            draft: { text: draft },
+            observedRemote: { text: remote, etag: '"v2"' },
+        });
+    });
+
+    it('accepts an uncertain network outcome only when a bounded read-back proves the draft was stored', async () => {
+        const baseline = JSON.stringify({ schemaVersion: '1.0.0', title: 'Initial' });
+        const draft = JSON.stringify({ schemaVersion: '1.0.0', title: 'Saved despite disconnect' });
+        vi.stubGlobal('fetch', vi.fn()
+            .mockResolvedValueOnce(response(baseline, { etag: '"v1"' }))
+            .mockRejectedValueOnce(new TypeError('connection reset'))
+            .mockResolvedValueOnce(response(draft, { etag: '"v2"' })));
+        const adapter = new ConfigAdapter({ useMock: false });
+
+        await adapter.load();
+        await expect(adapter.save(draft)).resolves.toMatchObject({ ok: true, uncertainOutcomeVerified: true });
+        expect(adapter.getConcurrencyState().accepted).toEqual({ text: draft, etag: '"v2"' });
     });
 
     it('rejects an HTML read-back even when SharePoint returns 200', async () => {

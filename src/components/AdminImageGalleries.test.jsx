@@ -41,4 +41,47 @@ describe('AdminImageGalleries moving-strip style controls', () => {
         expect(screen.getByLabelText('כיוון שורה 3')).toBeInTheDocument();
         expect(view.container.querySelector('.magal-style-miniature')).toBeInTheDocument();
     });
+
+    it('adjusts row angle in .5 steps via +/- buttons with keyboard support, clamped to -12..12', () => {
+        render(<AdminImageGalleries />);
+        fireEvent.click(screen.getByRole('button', { name: 'יצירת גלריה ראשונה' }));
+        fireEvent.click(screen.getByRole('button', { name: /רצועות בתנועה/ }));
+
+        const angleInput = screen.getByLabelText('זווית שורה 1');
+        const decreaseButton = screen.getByRole('button', { name: 'הקטן זווית שורה 1' });
+        const increaseButton = screen.getByRole('button', { name: 'הגדל זווית שורה 1' });
+
+        expect(angleInput).toHaveAttribute('step', '0.5');
+        expect(angleInput).toHaveAttribute('min', '-12');
+        expect(angleInput).toHaveAttribute('max', '12');
+
+        const startValue = Number(angleInput.value);
+        fireEvent.click(increaseButton);
+        expect(Number(angleInput.value)).toBeCloseTo(startValue + 0.5);
+        fireEvent.click(decreaseButton);
+        fireEvent.click(decreaseButton);
+        expect(Number(angleInput.value)).toBeCloseTo(startValue - 0.5);
+
+        // Arrow-key presses on the angle field step by 0.5 and are clamped like the buttons.
+        fireEvent.keyDown(angleInput, { key: 'ArrowUp' });
+        expect(Number(angleInput.value)).toBeCloseTo(startValue);
+        fireEvent.keyDown(angleInput, { key: 'ArrowDown' });
+        expect(Number(angleInput.value)).toBeCloseTo(startValue - 0.5);
+
+        // Typed values beyond the bounds are clamped.
+        fireEvent.change(angleInput, { target: { value: '45' } });
+        expect(Number(angleInput.value)).toBe(12);
+        expect(increaseButton).toBeDisabled();
+        expect(decreaseButton).not.toBeDisabled();
+
+        fireEvent.change(angleInput, { target: { value: '-45' } });
+        expect(Number(angleInput.value)).toBe(-12);
+        expect(decreaseButton).toBeDisabled();
+        expect(increaseButton).not.toBeDisabled();
+
+        fireEvent.change(angleInput, { target: { value: '1.24' } });
+        expect(Number(angleInput.value)).toBe(1);
+        fireEvent.change(angleInput, { target: { value: '1.26' } });
+        expect(Number(angleInput.value)).toBe(1.5);
+    });
 });

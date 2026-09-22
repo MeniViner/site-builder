@@ -26,6 +26,7 @@ import { toast } from 'react-toastify';
 import { useImageGalleries } from '../context/ImageGalleryContext';
 import { uploadGalleryImage } from '../services/galleryMediaStorage';
 import { confirmToast } from '../utils/confirmToast';
+import { toSafeHebrewError } from '../utils/userFacingError';
 import {
     createEmptyImageGallery,
     createImageGalleryImageId,
@@ -105,17 +106,30 @@ function GalleryStyleSelector({ value, onChange }) {
     );
 }
 
+const MAGAL_ROW_ANGLE_MIN = -12;
+const MAGAL_ROW_ANGLE_MAX = 12;
+const MAGAL_ROW_ANGLE_STEP = 0.5;
+
+function clampMagalRowAngle(value) {
+    if (!Number.isFinite(value)) return 0;
+    const clamped = Math.min(MAGAL_ROW_ANGLE_MAX, Math.max(MAGAL_ROW_ANGLE_MIN, value));
+    return Math.round(clamped / MAGAL_ROW_ANGLE_STEP) * MAGAL_ROW_ANGLE_STEP;
+}
+
 function MovingStripsSettingsEditor({ settings, onChange }) {
     const updateSettings = (patch) => onChange({ ...settings, ...patch });
     const updateRow = (rowIndex, patch) => updateSettings({
         rows: settings.rows.map((row, index) => (index === rowIndex ? { ...row, ...patch } : row)),
+    });
+    const stepRowAngle = (rowIndex, currentAngle, delta) => updateRow(rowIndex, {
+        angleDegrees: clampMagalRowAngle(currentAngle + delta),
     });
 
     return (
         <div className="mt-5 rounded-2xl bg-slate-50 p-4 shadow-[0_0_0_1px_rgba(15,23,42,0.08),0_8px_24px_-20px_rgba(15,23,42,0.45)] dark:bg-slate-950/45 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.10)]" data-testid="magal-settings">
             <div>
                 <h3 className="font-black text-gray-900 dark:text-white">הגדרות רצועות בתנועה</h3>
-                <p className="mt-1 text-pretty text-xs leading-5 text-gray-500 dark:text-gray-400">הכיוונים הם פיזיים ונשמרים גם בממשק RTL. התצוגה המקדימה מושהית כדי להקל על העריכה.</p>
+                <p className="mt-1 text-pretty text-xs leading-5 text-gray-500 dark:text-gray-400">הכיוונים הם פיזיים ונשמרים גם בממשק RTL. התצוגה המקדימה נעה במהירות ובכיוון שיפורסמו, ואפשר להשהות אותה בכפתור הייעודי.</p>
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -147,7 +161,45 @@ function MovingStripsSettingsEditor({ settings, onChange }) {
                                 <input type="number" min="10" max="120" step="1" value={row.durationSeconds} onChange={(event) => updateRow(rowIndex, { durationSeconds: Number(event.target.value) })} className="min-h-10 rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-left text-sm tabular-nums dark:border-white/15 dark:bg-slate-900" aria-label={`מהירות שורה ${rowIndex + 1}`} />
                             </label>
                             <label className="grid gap-1 text-xs font-bold">זווית (°)
-                                <input type="number" min="-12" max="12" step="0.5" value={row.angleDegrees} onChange={(event) => updateRow(rowIndex, { angleDegrees: Number(event.target.value) })} className="min-h-10 rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-left text-sm tabular-nums dark:border-white/15 dark:bg-slate-900" aria-label={`זווית שורה ${rowIndex + 1}`} />
+                                <div className="flex min-h-10 items-stretch gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => stepRowAngle(rowIndex, row.angleDegrees, -MAGAL_ROW_ANGLE_STEP)}
+                                        disabled={row.angleDegrees <= MAGAL_ROW_ANGLE_MIN}
+                                        className="min-h-10 min-w-10 rounded-lg border border-gray-300 bg-white text-sm font-black leading-none disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/15 dark:bg-slate-900"
+                                        aria-label={`הקטן זווית שורה ${rowIndex + 1}`}
+                                    >
+                                        −
+                                    </button>
+                                    <input
+                                        type="number"
+                                        min={MAGAL_ROW_ANGLE_MIN}
+                                        max={MAGAL_ROW_ANGLE_MAX}
+                                        step={MAGAL_ROW_ANGLE_STEP}
+                                        value={row.angleDegrees}
+                                        onChange={(event) => updateRow(rowIndex, { angleDegrees: clampMagalRowAngle(Number(event.target.value)) })}
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'ArrowUp') {
+                                                event.preventDefault();
+                                                stepRowAngle(rowIndex, row.angleDegrees, MAGAL_ROW_ANGLE_STEP);
+                                            } else if (event.key === 'ArrowDown') {
+                                                event.preventDefault();
+                                                stepRowAngle(rowIndex, row.angleDegrees, -MAGAL_ROW_ANGLE_STEP);
+                                            }
+                                        }}
+                                        className="min-h-10 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-left text-sm tabular-nums dark:border-white/15 dark:bg-slate-900"
+                                        aria-label={`זווית שורה ${rowIndex + 1}`}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => stepRowAngle(rowIndex, row.angleDegrees, MAGAL_ROW_ANGLE_STEP)}
+                                        disabled={row.angleDegrees >= MAGAL_ROW_ANGLE_MAX}
+                                        className="min-h-10 min-w-10 rounded-lg border border-gray-300 bg-white text-sm font-black leading-none disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/15 dark:bg-slate-900"
+                                        aria-label={`הגדל זווית שורה ${rowIndex + 1}`}
+                                    >
+                                        +
+                                    </button>
+                                </div>
                             </label>
                         </div>
                     </fieldset>
@@ -253,7 +305,8 @@ function GalleryEditor({ initialGallery, onClose }) {
             return true;
         } catch (error) {
             setAutoSaveState('error');
-            toast.error(error?.message || 'השמירה האוטומטית של הגלריה נכשלה.');
+            console.error('[Image galleries] Automatic save failed.', error);
+            toast.error(toSafeHebrewError(error, 'השמירה האוטומטית של הגלריה נכשלה. נסו שוב.'));
             return false;
         } finally {
             if (scheduledSnapshotRef.current === snapshot) scheduledSnapshotRef.current = '';
@@ -322,7 +375,8 @@ function GalleryEditor({ initialGallery, onClose }) {
             });
             toast.success(replaceImageId ? 'התמונה הוחלפה.' : `${uploaded.length} תמונות נוספו לגלריה.`);
         } catch (error) {
-            toast.error(error?.message || 'העלאת התמונה נכשלה.');
+            console.error('[Image galleries] Image upload failed.', error);
+            toast.error(toSafeHebrewError(error, 'העלאת התמונה נכשלה. בדקו את הקובץ ונסו שוב.'));
         } finally {
             setUploading(false);
             setReplaceImageId(null);
@@ -562,7 +616,8 @@ export default function AdminImageGalleries() {
         try {
             await saveGalleries((current) => reorderImageGalleryItems(current, sourceId, targetId));
         } catch (saveError) {
-            toast.error(saveError?.message || 'עדכון סדר הגלריות נכשל.');
+            console.error('[Image galleries] Reordering galleries failed.', saveError);
+            toast.error(toSafeHebrewError(saveError, 'עדכון סדר הגלריות נכשל. נסו שוב.'));
         }
     };
 
@@ -570,7 +625,8 @@ export default function AdminImageGalleries() {
         try {
             await saveGallery({ ...gallery, active });
         } catch (saveError) {
-            toast.error(saveError?.message || 'עדכון הגלריה נכשל.');
+            console.error('[Image galleries] Updating the gallery failed.', saveError);
+            toast.error(toSafeHebrewError(saveError, 'עדכון הגלריה נכשל. נסו שוב.'));
         }
     };
 
@@ -587,7 +643,8 @@ export default function AdminImageGalleries() {
             await deleteGallery(gallery.id);
             toast.success('הגלריה נמחקה.');
         } catch (deleteError) {
-            toast.error(deleteError?.message || 'מחיקת הגלריה נכשלה.');
+            console.error('[Image galleries] Deleting the gallery failed.', deleteError);
+            toast.error(toSafeHebrewError(deleteError, 'מחיקת הגלריה נכשלה. נסו שוב.'));
         }
     };
 

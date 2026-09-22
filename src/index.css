@@ -599,12 +599,35 @@ select,
 .magal-strips {
   --magal-render-card-size: var(--magal-card-size, 180px);
   --magal-render-gap: var(--magal-card-gap, 12px);
+  position: relative;
   display: grid;
   width: 100%;
   min-width: 0;
   gap: clamp(0.15rem, 0.8vw, 0.65rem);
   overflow: hidden;
   direction: ltr;
+}
+
+.magal-strips__toggle {
+  position: absolute;
+  inset-block-start: 0.5rem;
+  inset-inline-end: 0.5rem;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  border: 1px solid rgb(255 255 255 / 0.25);
+  background: rgb(15 23 42 / 0.55);
+  color: #fff;
+  backdrop-filter: blur(6px);
+}
+
+.magal-strips__toggle:focus-visible {
+  outline: 2px solid hsl(var(--color-primary));
+  outline-offset: 2px;
 }
 
 .magal-strips__viewport {
@@ -670,7 +693,7 @@ select,
   padding-block: 1.35rem;
 }
 
-.magal-strips--preview .magal-strips__track,
+.magal-strips--paused .magal-strips__track,
 .magal-strips--reduced-motion .magal-strips__track {
   animation-play-state: paused;
 }

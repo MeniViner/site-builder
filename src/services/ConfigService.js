@@ -92,7 +92,10 @@ export class ConfigService {
 
     async _saveNormalizedConfig(config) {
         const text = JSON.stringify(config, null, 2);
-        await this.adapter.save(text);
+        const result = await this.adapter.save(text);
+        if (typeof result?.text === 'string') {
+            return validateAndNormalize(JSON.parse(result.text));
+        }
         return config;
     }
 

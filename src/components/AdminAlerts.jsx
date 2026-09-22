@@ -15,6 +15,11 @@ import {
 import { toast } from 'react-toastify';
 import { useConfig } from '../context/ConfigProvider';
 import {
+    clearAdminRecoveryDraft,
+    readAdminRecoveryDraft,
+    registerAdminRecoveryParticipant,
+} from '../utils/adminEditSession';
+import {
     getNotificationEffectiveStatus,
     normalizeNotification,
     normalizeNotifications,
@@ -122,11 +127,6 @@ export default function AdminAlerts() {
     }, [isDirty]);
 
     useEffect(() => {
-        const handleBeforeUnload = (event) => {
-            if (!dirtyRef.current) return;
-            event.preventDefault();
-            event.returnValue = '';
-        };
         const handleExternalNavigation = (event) => {
             if (!dirtyRef.current || rootRef.current?.contains(event.target)) return;
             const interactive = event.target.closest?.('a,button');
@@ -138,12 +138,32 @@ export default function AdminAlerts() {
                 interactive.click();
             });
         };
-        window.addEventListener('beforeunload', handleBeforeUnload);
         document.addEventListener('click', handleExternalNavigation, true);
         return () => {
-            window.removeEventListener('beforeunload', handleBeforeUnload);
             document.removeEventListener('click', handleExternalNavigation, true);
         };
+    }, []);
+
+    useEffect(() => registerAdminRecoveryParticipant({
+        id: 'admin-alerts',
+        isDirty: () => dirtyRef.current,
+        captureDraft: () => ({
+            activeTab,
+            editingId,
+            form,
+            baseline,
+        }),
+    }), [activeTab, baseline, editingId, form]);
+
+    useEffect(() => {
+        const recovered = readAdminRecoveryDraft('admin-alerts');
+        if (!recovered?.editingId || !recovered?.form) return;
+        setActiveTab(recovered.activeTab || 'content');
+        setEditingId(recovered.editingId);
+        setForm({ ...emptyForm(), ...recovered.form });
+        setBaseline(recovered.baseline || '');
+        clearAdminRecoveryDraft('admin-alerts');
+        toast.info('טיוטת ההתראה שוחזרה.');
     }, []);
 
     const persistNotifications = useCallback(async (nextList, nextEnabled = alertsEnabled) => {

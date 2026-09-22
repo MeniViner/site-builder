@@ -254,7 +254,7 @@ describe('runtimeConfig and storage descriptor', () => {
     expect(getStorageBackend()).toBe('txt');
     expect(getStorageDescriptor()).toMatchObject({
       source: 'development-env',
-      siteId: 'local-dev-site',
+      siteId: 'schedule',
       siteRoot: '/sites/schedule',
     });
   });

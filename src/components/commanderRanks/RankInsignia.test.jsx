@@ -1,8 +1,9 @@
 import { render } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import RankInsignia from './RankInsignia';
 import RankPresentation, { PRESENTATION_STYLES } from './RankPresentation';
 import { RANK_CATALOG, RANK_GROUPS } from './rankCatalog';
+import { resolveSiteImageUrl } from '../../utils/assetUrl';
 
 describe('RANK_CATALOG', () => {
     it('maps every commander rank exactly once without academic ranks', () => {
@@ -20,7 +21,7 @@ describe('RANK_CATALOG', () => {
 
     it.each(Object.entries(RANK_CATALOG).filter(([, definition]) => definition.asset))('renders %s from its dedicated reference asset', (rank, definition) => {
         const { container } = render(<RankInsignia rank={rank} />);
-        expect(container.querySelector('[data-rank-asset]')).toHaveAttribute('href', `/images/idf-ranks/${definition.asset}`);
+        expect(container.querySelector('[data-rank-asset]')).toHaveAttribute('href', resolveSiteImageUrl(`/images/idf-ranks/${definition.asset}`));
     });
 
     it('maps every military insignia to a unique asset', () => {
@@ -63,9 +64,69 @@ describe('RANK_CATALOG', () => {
 });
 
 describe('RankPresentation', () => {
+    it.each(Object.entries(PRESENTATION_STYLES))('applies an optional preset background to the %s presentation without changing insignia colors', (styleId, colors) => {
+        const { container } = render(
+            <RankPresentation rank="סגן" styleId={styleId} backgroundColor="#dc2626" />
+        );
+
+        expect(container.querySelector('[data-rank-presentation-surface]'))
+            .toHaveAttribute('fill', '#dc2626');
+        expect(container.querySelector('svg[data-rank]')).toHaveStyle({
+            color: colors.insignia,
+        });
+    });
+
+    it('preserves the existing style surface when no optional background is selected', () => {
+        const { container } = render(<RankPresentation rank="סגן" styleId="formal" />);
+
+        expect(container.querySelector('[data-rank-presentation-surface]'))
+            .toHaveAttribute('fill', PRESENTATION_STYLES.formal.surface);
+    });
+
+    it('keeps the minimal presentation undecorated when applying a preset background', () => {
+        const { container } = render(
+            <RankPresentation rank="סגן" styleId="minimal" backgroundColor="#dc2626" />
+        );
+
+        expect(container.querySelector('svg > g[aria-hidden="true"] path')).not.toBeInTheDocument();
+    });
+
     it.each(Object.keys(PRESENTATION_STYLES))('keeps rank identity unchanged in %s mode', (styleId) => {
         const { container } = render(<RankPresentation rank={'סמ"ר'} styleId={styleId} />);
         expect(container.querySelector('[data-rank-style]')).toHaveAttribute('data-rank-style', styleId);
-        expect(container.querySelector('[data-rank-asset]')).toHaveAttribute('href', '/images/idf-ranks/samar.png');
+        expect(container.querySelector('[data-rank-asset]')).toHaveAttribute('href', resolveSiteImageUrl('/images/idf-ranks/samar.png'));
+    });
+});
+
+describe('rank asset resolution through resolveSiteImageUrl', () => {
+    afterEach(() => {
+        vi.doUnmock('../../utils/assetUrl');
+        vi.resetModules();
+    });
+
+    it('routes every rank asset href through resolveSiteImageUrl for a nested deployment base, never a bare imagesRoot path', async () => {
+        const NESTED_DEPLOYMENT_BASE = '/sites/example-org/SiteAssets/nested-app';
+        vi.resetModules();
+        vi.doMock('../../utils/assetUrl', () => ({
+            resolveSiteImageUrl: vi.fn((value) => `${NESTED_DEPLOYMENT_BASE}${value}`),
+        }));
+
+        const { default: NestedRankInsignia } = await import('./RankInsignia');
+        const { resolveSiteImageUrl: mockedResolveSiteImageUrl } = await import('../../utils/assetUrl');
+
+        const assetEntries = Object.entries(RANK_CATALOG).filter(([, definition]) => definition.asset);
+        // Artifact coverage: every rank asset in the catalog must be exercised.
+        expect(assetEntries).toHaveLength(17);
+
+        assetEntries.forEach(([rank, definition]) => {
+            const { container, unmount } = render(<NestedRankInsignia rank={rank} />);
+            const expectedHref = `${NESTED_DEPLOYMENT_BASE}/images/idf-ranks/${definition.asset}`;
+            expect(mockedResolveSiteImageUrl).toHaveBeenCalledWith(`/images/idf-ranks/${definition.asset}`);
+            expect(container.querySelector('[data-rank-asset]')).toHaveAttribute('href', expectedHref);
+            expect(container.querySelector('[data-rank-asset]')).not.toHaveAttribute('href', `/images/idf-ranks/${definition.asset}`);
+            unmount();
+        });
+
+        expect(mockedResolveSiteImageUrl).not.toHaveBeenCalledWith(expect.stringContaining('imagesRoot'));
     });
 });

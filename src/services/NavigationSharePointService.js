@@ -202,6 +202,14 @@ function toProvisioningError(error) {
             error,
         );
     }
+    if (code === 'FOLDER_RECONCILIATION_REQUIRED' || code === 'FOLDER_PROBE_INCONCLUSIVE') {
+        return new NavigationSharePointProvisioningError(
+            code,
+            'התיקייה נראית ב-SharePoint אך אינה מחוברת באופן תקין לספריית המסמכים. לא בוצעה מחיקה או יצירה מחדש; יש לבדוק את פרטי האבחון ולבצע תיקון מבוקר.',
+            error,
+            { filesystemDetails: error?.details || null },
+        );
+    }
     return new NavigationSharePointProvisioningError(
         code || 'SHAREPOINT_PROVISIONING_FAILED',
         'יצירת היעד ב-SharePoint נכשלה. יש לבדוק הרשאות וחיבור ולנסות שוב, או לעבור ליעד קיים/ידני.',
@@ -372,33 +380,35 @@ export function createNavigationSharePointService(dependencies = {}) {
             purpose: 'navigation-folder-collision-check',
         });
         assertProbeAuthorized(collisionProbe, 'SharePoint folder collision check access denied.');
-        if (collisionProbe.exists && !collisionProbe.ready) {
-            throw new NavigationSharePointProvisioningError(
-                'SHAREPOINT_FOLDER_INCOMPLETE',
-                'קיים אובייקט תיקייה ב-SharePoint שעדיין אינו מחובר לפריט בספרייה. יש להמתין לסיום העיבוד ולנסות שוב.',
-                null,
-                { folderPath, collisionProbe },
-            );
-        }
-        if (collisionProbe.ready && !isVerifiedIdempotentRetry({
+        const idempotentRecovery = isVerifiedIdempotentRetry({
             existingBinding,
             expectedPath: folderPath,
             provisionKey,
             retryOfProvisionKey,
             listId: binding.listId,
-        })) {
+        });
+        if (collisionProbe.ready && !idempotentRecovery) {
             throwTargetCollision(NAVIGATION_TARGET_KINDS.FOLDER, { folderPath, collisionProbe });
         }
 
-        attempt.mutated = true;
-        const folder = await ensureFolder({
-            webUrl: currentWebUrl,
-            siteRoot,
-            folderRel: folderPath,
-            libraries,
-            digest: session.digest,
-            request: session.request,
-        });
+        let folder;
+        try {
+            folder = await ensureFolder({
+                webUrl: currentWebUrl,
+                siteRoot,
+                folderRel: folderPath,
+                libraries: [{
+                    ...libraries[0],
+                    id: binding.listId,
+                }],
+                digest: session.digest,
+                request: session.request,
+            });
+            attempt.mutated = Boolean(folder?.created);
+        } catch (error) {
+            attempt.mutated = Boolean(error?.details?.creationAttempted);
+            throw error;
+        }
         if (!folder?.probe?.ready || !sameSharePointPath(folder.path, folderPath)) {
             throw new NavigationSharePointProvisioningError(
                 'FOLDER_VERIFICATION_FAILED',
@@ -406,6 +416,13 @@ export function createNavigationSharePointService(dependencies = {}) {
                 null,
                 { folder, folderPath },
             );
+        }
+        if (folder.existed && !idempotentRecovery) {
+            throwTargetCollision(NAVIGATION_TARGET_KINDS.FOLDER, {
+                folderPath,
+                collisionProbe,
+                recoveredProbe: folder.probe,
+            });
         }
         const targetBinding = normalizeNavigationTargetBinding({
             mode: NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO,

@@ -42,6 +42,7 @@ import {
     appendNotificationOnce,
     buildBoomAssignmentNotification,
 } from '../utils/notificationData';
+import { toSafeHebrewError } from '../utils/userFacingError';
 import { AdminAddonTabs, AdminAddonToggle } from './AdminAddonControls';
 import TaskManagementTable, { TASK_STATUS_META } from './TaskManagementTable';
 import BoomPresentation from './BoomPresentation';
@@ -250,11 +251,13 @@ export default function AdminBoom() {
             try {
                 await publishPendingAssignments(saved);
             } catch (notificationError) {
-                toast.error(notificationError?.message || 'שמירת התראת השיוך נכשלה');
+                console.error('[BOOM] Failed to persist the assignment notification.', notificationError);
+                toast.error(toSafeHebrewError(notificationError, 'שמירת התראת השיוך נכשלה. נסו שוב.'));
             }
         } catch (saveError) {
             setAutoSaveState('error');
-            toast.error(saveError?.message || 'שמירת נתוני BOOM נכשלה');
+            console.error('[BOOM] Failed to persist BOOM data.', saveError);
+            toast.error(toSafeHebrewError(saveError, 'שמירת נתוני BOOM נכשלה. בדקו את הנתונים ונסו שוב.'));
         }
     }, [publishPendingAssignments, saveBoom]);
 

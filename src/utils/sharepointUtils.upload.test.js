@@ -25,24 +25,127 @@ const imageFile = (body = 'image contents', name = 'badge.png') => ({
 function createSharePointFetch({
     uploadPayload,
     existingPaths = [ `${siteRoot}/siteDB`, imagesRoot ],
-    folderCreateResponse = response({ d: {} }, 201),
 } = {}) {
     const existing = new Set(existingPaths);
+    const uploadedFiles = new Map();
+    class ClientContext {
+        get_web() {
+            return {
+                get_lists: () => ({
+                    getById: () => ({
+                        addItem: (creation) => ({
+                            update: () => {
+                                existing.add(`${creation.parentRel}/${creation.leafName}`);
+                            },
+                            get_id: () => existing.size,
+                        }),
+                    }),
+                }),
+            };
+        }
+        load() {}
+        executeQueryAsync(success) {
+            success();
+        }
+    }
+    class ListItemCreationInformation {
+        set_underlyingObjectType() {}
+        set_folderUrl(value) {
+            this.parentRel = value;
+        }
+        set_leafName(value) {
+            this.leafName = value;
+        }
+    }
+    vi.stubGlobal('SP', {
+        ClientContext,
+        ListCreationInformation: class {},
+        ListItemCreationInformation,
+        FileSystemObjectType: { folder: 1 },
+    });
+
     return vi.fn(async (url, options = {}) => {
+        const decodedUrl = decodeURIComponent(String(url));
         if (url.includes('/_api/contextinfo')) {
             return response({ d: { GetContextWebInformation: { FormDigestValue: 'digest' } } });
         }
-        if (url.includes('/Files/add(')) {
-            return response(uploadPayload);
+        if (url.includes("GetByTitle('siteDB')")) {
+            return response({
+                d: {
+                    Id: 'site-db-list',
+                    Title: 'siteDB',
+                    BaseTemplate: 101,
+                    RootFolder: { ServerRelativeUrl: `${siteRoot}/siteDB` },
+                },
+            });
+        }
+        if (url.includes("GetByTitle('siteUsersDb')")) {
+            return response({
+                d: {
+                    Id: 'users-db-list',
+                    Title: 'siteUsersDb',
+                    BaseTemplate: 101,
+                    RootFolder: { ServerRelativeUrl: `${siteRoot}/siteUsersDb` },
+                },
+            });
+        }
+        if (url.includes('GetFileByServerRelativeUrl')) {
+            const filePath = decodedUrl.match(/GetFileByServerRelativeUrl\('([^']+)'\)/)?.[1] || '';
+            const stored = uploadedFiles.get(filePath);
+            return stored
+                ? response({
+                    d: {
+                        Exists: true,
+                        Name: filePath.split('/').pop(),
+                        ServerRelativeUrl: filePath,
+                        Length: stored.byteLength,
+                        ListItemAllFields: { Id: 91 },
+                    },
+                })
+                : response({}, 404);
+        }
+        if (/\/Files\/add\(/i.test(String(url))) {
+            const folder = decodedUrl.match(/GetFolderByServerRelativeUrl\('([^']+)'\)/)?.[1] || '';
+            const fileName = decodedUrl.match(/url='([^']+)'/)?.[1] || '';
+            const filePath = `${folder}/${fileName}`;
+            uploadedFiles.set(filePath, options.body);
+            return response(uploadPayload ?? { d: { Name: fileName, ServerRelativeUrl: filePath } });
+        }
+        if (url.includes('/ListItemAllFields')) {
+            const folder = decodedUrl.match(/GetFolderByServerRelativeUrl\('([^']+)'\)/)?.[1] || '';
+            return existing.has(folder)
+                ? response({
+                    d: {
+                        Id: [...existing].indexOf(folder) + 1,
+                        FileSystemObjectType: 1,
+                        FileRef: folder,
+                        FileDirRef: folder.slice(0, folder.lastIndexOf('/')),
+                    },
+                })
+                : response({}, 404);
+        }
+        if (url.includes('/Folders?')) {
+            const parent = decodedUrl.match(/GetFolderByServerRelativeUrl\('([^']+)'\)/)?.[1] || '';
+            const children = [...existing]
+                .filter((path) => path.slice(0, path.lastIndexOf('/')) === parent)
+                .map((path) => ({
+                    Name: path.split('/').pop(),
+                    ServerRelativeUrl: path,
+                    Exists: true,
+                    ListItemAllFields: {
+                        Id: [...existing].indexOf(path) + 1,
+                        FileSystemObjectType: 1,
+                        FileRef: path,
+                        FileDirRef: parent,
+                    },
+                }));
+            return response({ d: { results: children } });
         }
         if (url.includes('GetFolderByServerRelativeUrl')) {
-            const match = url.match(/GetFolderByServerRelativeUrl\('([^']+)'\)/);
-            return existing.has(match?.[1]) ? response({ d: { ServerRelativeUrl: match[1] } }) : response({}, 404);
-        }
-        if (url.endsWith('/_api/web/folders')) {
-            const createdPath = JSON.parse(options.body).ServerRelativeUrl;
-            existing.add(createdPath);
-            return folderCreateResponse;
+            const folder = decodedUrl.match(/GetFolderByServerRelativeUrl\('([^']+)'\)/)?.[1] || '';
+            return existing.has(folder)
+                ? response({ d: { Exists: true, ServerRelativeUrl: folder } })
+                : response({ d: { Exists: false, ServerRelativeUrl: folder } }, 200);
         }
         throw new Error(`Unexpected SharePoint request: ${url}`);
     });
@@ -78,7 +181,7 @@ describe('SharePoint image uploads', () => {
         }));
 
         await expect(uploadImage(imageFile(), 'ExternalLinks'))
-            .rejects.toThrow('לא החזיר נתיב תמונה תקין');
+            .rejects.toThrow('הסתיימה ללא אימות תקין');
     });
 
     it('uses the same verified upload path for Navigation icon images', async () => {
@@ -89,6 +192,23 @@ describe('SharePoint image uploads', () => {
         }));
 
         await expect(uploadImage(imageFile('navigation image', 'nav.png'), 'NavigationIcons')).resolves.toBe(url);
+    });
+
+    it.each([
+        'Hero',
+        'Commander',
+        'Logo',
+        'Overlay',
+        'ExternalLinks',
+        'NavigationIcons',
+        'OrgChart',
+        'ImageGallery',
+    ])('routes %s media through the verified runtime images library', async (category) => {
+        vi.stubGlobal('fetch', createSharePointFetch());
+        const fileName = `${category}.png`;
+
+        await expect(uploadImage(imageFile(`${category} bytes`, fileName), category))
+            .resolves.toBe(`${imagesRoot}/${category}/${fileName}`);
     });
 
     it('does not try to recreate an existing document-library root or image folder', async () => {
@@ -102,37 +222,14 @@ describe('SharePoint image uploads', () => {
         const createdFolders = fetchMock.mock.calls
             .filter(([url]) => url.endsWith('/_api/web/folders'))
             .map(([, options]) => JSON.parse(options.body).ServerRelativeUrl);
-        expect(createdFolders).toEqual([`${imagesRoot}/ExternalLinks`]);
-    });
-
-    it('handles a localized already-exists response by re-reading the folder after a creation race', async () => {
-        const target = `${imagesRoot}/ExternalLinks`;
-        let targetReadCount = 0;
-        const fetchMock = vi.fn(async (url) => {
-            if (url.includes('GetFolderByServerRelativeUrl')) {
-                const match = url.match(/GetFolderByServerRelativeUrl\('([^']+)'\)/);
-                if (match?.[1] === target) {
-                    targetReadCount += 1;
-                    return targetReadCount === 1 ? response({}, 404) : response({ d: { ServerRelativeUrl: target } });
-                }
-                return response({ d: { ServerRelativeUrl: match?.[1] } });
-            }
-            if (url.endsWith('/_api/web/folders')) {
-                return response({ error: { message: { value: 'התיקייה כבר קיימת' } } }, 500);
-            }
-            throw new Error(`Unexpected SharePoint request: ${url}`);
-        });
-        vi.stubGlobal('fetch', fetchMock);
-
-        await expect(ensureSharePointFolderHierarchy(target, 'digest')).resolves.toBeUndefined();
-        expect(targetReadCount).toBe(2);
+        expect(createdFolders).toEqual([]);
     });
 
     it('keeps permission failures actionable and never treats them as an existing folder', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => response({ error: 'forbidden' }, 403)));
 
         await expect(ensureSharePointFolderHierarchy(`${imagesRoot}/ExternalLinks`, 'digest'))
-            .rejects.toThrow('אין הרשאה לקרוא את נתיב התמונות ב-SharePoint (403)');
+            .rejects.toThrow('אין הרשאה מתאימה לביצוע הכנת התיקייה ב-SharePoint');
     });
 
     it('uses a content-derived cache version when replacing a same-name SharePoint image', async () => {

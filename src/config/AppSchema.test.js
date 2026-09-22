@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONFIG_V1, migrateLegacyToV1, validateAndNormalize } from './AppSchema';
 import {
+    COMMANDER_RANK_BACKDROP_COLORS,
     COMMANDER_IMAGE_OFFSET_X,
     COMMANDER_IMAGE_OFFSET_Y,
     COMMANDER_IMAGE_SCALE,
+    DEFAULT_COMMANDER_RANK_BACKDROP_COLOR,
 } from '../utils/commanderImage';
 
 describe('migrateLegacyToV1', () => {
@@ -251,6 +253,40 @@ describe('migrateLegacyToV1', () => {
             imageOffsetY: COMMANDER_IMAGE_OFFSET_Y.defaultValue,
             imageSource: 'custom',
         });
+    });
+
+    it('persists only validated Commander rank backdrop preset IDs through schema normalization and migration', () => {
+        const preset = COMMANDER_RANK_BACKDROP_COLORS.find((color) => color.id === 'crimson');
+        const normalized = validateAndNormalize({
+            content: {
+                commander: {
+                    imageSource: 'rank',
+                    imageRankBackdropColor: preset.id,
+                },
+            },
+        });
+        const migrated = migrateLegacyToV1({
+            siteContent: {
+                commander: {
+                    imageSource: 'rank',
+                    imageRankBackdropColor: preset.id,
+                },
+            },
+        });
+        const invalid = validateAndNormalize({
+            content: {
+                commander: {
+                    imageRankBackdropColor: '#ff0000',
+                },
+            },
+        });
+
+        expect(DEFAULT_CONFIG_V1.content.commander.imageRankBackdropColor)
+            .toBe(DEFAULT_COMMANDER_RANK_BACKDROP_COLOR);
+        expect(normalized.content.commander.imageRankBackdropColor).toBe(preset.id);
+        expect(migrated.content.commander.imageRankBackdropColor).toBe(preset.id);
+        expect(invalid.content.commander.imageRankBackdropColor)
+            .toBe(DEFAULT_COMMANDER_RANK_BACKDROP_COLOR);
     });
 
     it('normalizes Image Gallery records as a backward-compatible master-config branch', () => {

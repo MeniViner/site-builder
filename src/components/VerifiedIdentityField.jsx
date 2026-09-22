@@ -1,21 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { CheckCircle2, Loader2, Search, Trash2 } from 'lucide-react';
-import {
-    ensureUserByIdentity,
-    normalizeSharePointIdentityInput,
-} from '../services/sharePointSiteCollectionAdminsService';
-import { mapSharePointErrorToHebrewMessage } from '../services/adminManagementLogger';
-import { getStableUserIdentity } from '../utils/notificationData';
+import { normalizeSharePointIdentityInput } from '../services/sharePointSiteCollectionAdminsService';
+import { resolveExactSharePointIdentity } from '../services/sharePointIdentityResolver';
 
-function toLinkedSharePointUser(resolved, normalizedIdentity) {
-    if (!resolved?.Id || !resolved?.LoginName) return null;
+function toLinkedSharePointUser(principal) {
+    if (!principal?.sharePointUserId || !principal?.loginName) return null;
     return {
-        displayName: String(resolved.Title || resolved.Email || resolved.LoginName).trim(),
-        personalNumber: String(normalizedIdentity?.personalNumber || '').replace(/^s/i, '').replace(/\D/g, ''),
-        loginName: String(resolved.LoginName || '').trim(),
-        email: String(resolved.Email || normalizedIdentity?.email || '').trim().toLowerCase(),
-        sharePointUserId: Number(resolved.Id),
-        identityKey: getStableUserIdentity({ sharePointUserId: resolved.Id }),
+        displayName: principal.displayName,
+        personalNumber: String(principal.personalNumber || ''),
+        loginName: principal.loginName,
+        email: principal.email || '',
+        sharePointUserId: principal.sharePointUserId,
+        identityKey: principal.identityKey,
     };
 }
 
@@ -35,13 +31,19 @@ export default function VerifiedIdentityField({ identityInput, linkedUser, onIde
         setResolving(true);
         setError('');
         try {
-            const resolved = await ensureUserByIdentity(identityInput, []);
-            const linked = toLinkedSharePointUser(resolved, normalized);
-            if (!linked) throw new Error('SharePoint returned an incomplete user identity.');
+            const resolution = await resolveExactSharePointIdentity(identityInput, []);
+            if (!resolution.ok) {
+                onLinkedUserChange(null);
+                setError(resolution.error);
+                return;
+            }
+            const linked = toLinkedSharePointUser(resolution.principal);
+            if (!linked) {
+                onLinkedUserChange(null);
+                setError('לא ניתן לזהות משתמש מאומת יחיד עבור הערך שהוזן.');
+                return;
+            }
             onLinkedUserChange(linked);
-        } catch (resolveError) {
-            onLinkedUserChange(null);
-            setError(mapSharePointErrorToHebrewMessage(resolveError));
         } finally {
             setResolving(false);
         }

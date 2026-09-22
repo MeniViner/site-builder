@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Expand, ImageOff, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Expand, ImageOff, Pause, Play, X } from 'lucide-react';
 import { isLocalGalleryMediaReference, resolveLocalGalleryMedia } from '../../services/galleryMediaStorage';
 import { useResolvedSiteImageUrl } from '../ResolvedSiteImage';
 import {
@@ -407,21 +407,40 @@ function MasonryGallery({ gallery, direction }) {
 export function MagalStripsGallery({ gallery, direction, preview = false }) {
     const settings = normalizeMagalStripsSettings(gallery?.display?.magalStrips);
     const reducedMotion = useReducedMotion();
+    const [manuallyPaused, setManuallyPaused] = useState(false);
+    const paused = manuallyPaused || reducedMotion;
     const rows = settings.rows.slice(0, settings.rowCount);
     const sectionStyle = {
         '--magal-card-size': `${settings.cardSizePx}px`,
         '--magal-card-gap': `${settings.gapPx}px`,
     };
+    const stripLabel = reducedMotion
+        ? 'גלריית תמונות – התנועה מושהית בשל העדפת המשתמש'
+        : (manuallyPaused ? 'גלריית תמונות – התנועה מושהית' : 'גלריית תמונות נעה ברצועות');
 
     return (
         <GalleryFrame gallery={gallery} fullBleed preview={preview} className="image-gallery-frame--magal">
             <div
-                className={`magal-strips ${preview ? 'magal-strips--preview' : ''} ${reducedMotion ? 'magal-strips--reduced-motion' : ''}`}
+                className={`magal-strips ${preview ? 'magal-strips--preview' : ''} ${reducedMotion ? 'magal-strips--reduced-motion' : ''} ${paused ? 'magal-strips--paused' : ''}`}
                 style={sectionStyle}
                 dir={direction}
                 data-testid="magal-strips"
                 data-reduced-motion={reducedMotion ? 'true' : 'false'}
+                aria-label={stripLabel}
             >
+                <button
+                    type="button"
+                    className="magal-strips__toggle"
+                    onClick={() => setManuallyPaused((current) => !current)}
+                    disabled={reducedMotion}
+                    aria-pressed={manuallyPaused ? 'true' : 'false'}
+                    aria-label={reducedMotion
+                        ? 'התנועה מושהית לפי העדפת הפחתת תנועה'
+                        : (manuallyPaused ? 'הפעל תנועת רצועות' : 'השהה תנועת רצועות')}
+                    data-testid="magal-play-pause-toggle"
+                >
+                    {manuallyPaused ? <Play size={16} aria-hidden="true" /> : <Pause size={16} aria-hidden="true" />}
+                </button>
                 {rows.map((row, rowIndex) => {
                     const loopItems = buildMagalStripLoopItems(gallery.images, rowIndex);
                     const rowStyle = {

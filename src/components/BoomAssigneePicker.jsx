@@ -1,18 +1,17 @@
 import React, { useState } from 'react';
 import { CheckCircle2, Loader2, Search, UserRound, X } from 'lucide-react';
-import { searchSharePointUsers } from '../services/sharePointSiteCollectionAdminsService';
-import { getStableUserIdentities } from '../utils/notificationData';
+import {
+    isConfirmedUserPrincipal,
+    resolveConfirmedSinglePrincipalFromCandidate,
+    searchSharePointIdentityCandidates,
+} from '../services/sharePointIdentityResolver';
 
-function toLinkedAssignee(user) {
-    const sharePointUserId = Number(user?.Id);
-    const loginName = String(user?.LoginName || '').trim();
-    const email = String(user?.Email || '').trim().toLowerCase();
-    const identities = getStableUserIdentities({ sharePointUserId, loginName, email });
-    if (identities.length === 0) return null;
-
+function toLinkedAssignee(principal) {
+    if (!principal) return null;
+    const { identityKey, displayName, sharePointUserId, loginName, email } = principal;
     return {
-        identityKey: identities[0],
-        displayName: String(user?.Title || email || loginName || identities[0]).trim(),
+        identityKey,
+        displayName,
         ...(Number.isInteger(sharePointUserId) && sharePointUserId > 0 ? { sharePointUserId } : {}),
         ...(loginName ? { loginName } : {}),
         ...(email ? { email } : {}),
@@ -24,6 +23,7 @@ export default function BoomAssigneePicker({ linkedAssignee, onAssigneeChange })
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [isResolving, setIsResolving] = useState(false);
     const [error, setError] = useState('');
 
     const close = () => {
@@ -42,25 +42,42 @@ export default function BoomAssigneePicker({ linkedAssignee, onAssigneeChange })
         setIsSearching(true);
         setError('');
         try {
-            const users = await searchSharePointUsers(query, []);
-            setResults(users);
-            if (users.length === 0) setError('לא נמצאו משתמשים תואמים באתר SharePoint.');
-        } catch {
-            setResults([]);
-            setError('לא ניתן לחפש משתמשים כעת. בדקו התחברות והרשאות ל־SharePoint.');
+            const searchResult = await searchSharePointIdentityCandidates(query, []);
+            if (!searchResult.ok) {
+                setResults([]);
+                setError(searchResult.error);
+                return;
+            }
+            setResults(searchResult.candidates);
+            if (searchResult.candidates.length === 0) setError('לא נמצאו משתמשים תואמים באתר SharePoint.');
         } finally {
             setIsSearching(false);
         }
     };
 
-    const selectAssignee = (user) => {
-        const assignee = toLinkedAssignee(user);
-        if (!assignee) {
-            setError('למשתמש שנבחר חסרים פרטי זיהוי של SharePoint.');
+    const selectAssignee = async (candidate) => {
+        setError('');
+        if (!isConfirmedUserPrincipal(candidate)) {
+            setError('ניתן לבחור משתמש יחיד ומאומת בלבד. לא ניתן לשייך קבוצה כאחראי.');
             return;
         }
-        onAssigneeChange?.(assignee);
-        close();
+        setIsResolving(true);
+        try {
+            const resolution = await resolveConfirmedSinglePrincipalFromCandidate(candidate, []);
+            if (!resolution.ok) {
+                setError(resolution.error);
+                return;
+            }
+            const assignee = toLinkedAssignee(resolution.principal);
+            if (!assignee) {
+                setError('למשתמש שנבחר חסרים פרטי זיהוי של SharePoint.');
+                return;
+            }
+            onAssigneeChange?.(assignee);
+            close();
+        } finally {
+            setIsResolving(false);
+        }
     };
 
     return (
@@ -132,8 +149,15 @@ export default function BoomAssigneePicker({ linkedAssignee, onAssigneeChange })
                             <ul className="mt-4 overflow-hidden rounded-xl border border-gray-200 divide-y divide-gray-200 dark:border-white/10 dark:divide-white/10">
                                 {results.map((user) => (
                                     <li key={user.Id}>
-                                        <button type="button" onClick={() => selectAssignee(user)} className="flex w-full items-center gap-3 px-3 py-3 text-right transition hover:bg-primary/5">
-                                            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><UserRound size={16} /></span>
+                                        <button
+                                            type="button"
+                                            onClick={() => void selectAssignee(user)}
+                                            disabled={isResolving}
+                                            className="flex w-full items-center gap-3 px-3 py-3 text-right transition hover:bg-primary/5 disabled:cursor-wait disabled:opacity-60"
+                                        >
+                                            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                                                {isResolving ? <Loader2 size={16} className="animate-spin" /> : <UserRound size={16} />}
+                                            </span>
                                             <span className="min-w-0 flex-1">
                                                 <span className="block truncate text-sm font-black text-gray-900 dark:text-white">{user.Title || user.Email || user.LoginName}</span>
                                                 <span dir="ltr" className="block truncate text-xs text-gray-500 dark:text-gray-400">{user.Email || user.LoginName}</span>

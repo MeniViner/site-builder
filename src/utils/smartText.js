@@ -79,8 +79,8 @@ function pushTextToken(tokens, text, marks = []) {
 }
 
 function pushBreakToken(tokens) {
-    const last = tokens[tokens.length - 1];
-    if (last?.type === SMART_TEXT_TOKEN_TYPES.break) return;
+    // Every line break is significant: consecutive breaks represent an
+    // intentional blank line and must not be collapsed into one.
     tokens.push({ type: SMART_TEXT_TOKEN_TYPES.break });
 }
 

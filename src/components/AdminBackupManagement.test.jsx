@@ -230,6 +230,8 @@ function mockMongoList(backups = [listBackup]) {
     mocks.backendApiClient.listBackups.mockResolvedValue({ ok: true, backups });
 }
 
+let createdSafetyPackage = null;
+
 describe('AdminBackupManagement', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -242,8 +244,19 @@ describe('AdminBackupManagement', () => {
         mocks.reloadBoom.mockResolvedValue(true);
         mocks.reloadGantt.mockResolvedValue(true);
         mockMongoList();
-        mocks.backendApiClient.createBackup.mockResolvedValue({ ok: true, backup: listBackup });
-        mocks.backendApiClient.getBackup.mockResolvedValue({ ok: true, backup: { ...listBackup, backupPackage } });
+        createdSafetyPackage = null;
+        mocks.backendApiClient.createBackup.mockImplementation(async (_siteId, payload) => {
+            if (String(payload?.description || '').startsWith('Safety backup')) {
+                createdSafetyPackage = payload.backupPackage;
+                return { ok: true, backup: { ...listBackup, id: 'safety-one', backupPackage: createdSafetyPackage } };
+            }
+            return { ok: true, backup: listBackup };
+        });
+        mocks.backendApiClient.getBackup.mockImplementation(async (_siteId, backupId) => (
+            backupId === 'safety-one'
+                ? { ok: true, backup: { ...listBackup, id: 'safety-one', backupPackage: createdSafetyPackage } }
+                : { ok: true, backup: { ...listBackup, backupPackage } }
+        ));
         mocks.backendApiClient.deleteBackup.mockResolvedValue({ ok: true, backup: { ...listBackup, deletedAt: '2026-06-10T11:00:00.000Z' } });
         mocks.backendApiClient.restoreBackup.mockResolvedValue({ ok: true, restoredFiles: 1 });
         vi.stubGlobal('URL', {
@@ -263,6 +276,17 @@ describe('AdminBackupManagement', () => {
         expect(await screen.findByText('1 פריטים')).toBeInTheDocument();
         expect(screen.getByText(/גיבויים נשמרים ב-Mongo/)).toBeInTheDocument();
         expect(mocks.backendApiClient.listBackups).toHaveBeenCalledWith('alpha');
+    });
+
+    it('shows and blocks a pending backup instead of opening restore preview', async () => {
+        mockMongoList([{ ...listBackup, status: 'pending' }]);
+        render(<AdminBackupManagement />);
+
+        expect(await screen.findByText('מצב: בתהליך')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /בחר גיבוי מלא/ }));
+
+        expect(mocks.backendApiClient.getBackup).not.toHaveBeenCalled();
+        expect(mocks.toast.error).toHaveBeenCalledWith('הגיבוי אינו שלם ומאומת ולכן לא ניתן לשחזר ממנו.');
     });
 
     it('creates Mongo backups through the backend and does not write localStorage', async () => {

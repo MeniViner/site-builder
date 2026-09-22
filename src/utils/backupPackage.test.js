@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
     BACKUP_PACKAGE_KIND,
+    createBackupManifest,
     createBackupPackage,
+    deriveBackupFileRecordCount,
     normalizeImportedBackupPackage,
     packageToFileTextsMap,
     countBackupFileRecords,
     packageToBackupListItem,
+    validateRestorePlan,
+    verifyBackupManifest,
 } from './backupPackage';
+import { beginTxtBackup, finalizeTxtBackup } from './txtBackupPersistence';
 
 describe('backupPackage', () => {
     it('creates a portable package with normalized text files', () => {
@@ -99,6 +104,109 @@ describe('backupPackage', () => {
             rowCount: 2,
             cardSizePx: 196,
             gapPx: 16,
+        });
+    });
+
+    it('reports an unknown record count instead of turning unreadable payloads into zero', () => {
+        expect(deriveBackupFileRecordCount('events_data.txt', '{bad json')).toBeNull();
+    });
+
+    it('cannot complete a manifest with zero required files', () => {
+        const manifest = createBackupManifest({ operationId: 'op-1', requiredFileNames: [] });
+        expect(() => verifyBackupManifest(manifest, new Map())).toThrow(/קבצים נדרשים/);
+    });
+
+    it('marks a backup complete only after every required TXT payload reads back exactly', () => {
+        const files = new Map([
+            ['master.txt', '{"ok":true}'],
+            ['events.txt', '[]'],
+        ]);
+        const manifest = createBackupManifest({
+            operationId: 'op-1',
+            requiredFileNames: [...files.keys()],
+            fileTextsByName: files,
+        });
+
+        expect(manifest.status).toBe('pending');
+        expect(verifyBackupManifest(manifest, files)).toMatchObject({
+            status: 'complete',
+            verifiedFileCount: 2,
+        });
+        expect(verifyBackupManifest(manifest, new Map([['master.txt', '{"ok":false}']]))).toMatchObject({
+            status: 'partial',
+        });
+    });
+
+    it('validates every selected payload and destination before any restore write is allowed', () => {
+        expect(() => validateRestorePlan({
+            selectedEntries: [
+                { restoreUnitId: 'one', fileName: 'master.txt', canRestore: true },
+                { restoreUnitId: 'two', fileName: 'unknown.txt', canRestore: true },
+            ],
+            fileTextsByName: new Map([
+                ['master.txt', '{"ok":true}'],
+                ['unknown.txt', '{bad'],
+            ]),
+            targetByFileName: { 'master.txt': '/site/master.txt' },
+        })).toThrow(/unknown\.txt/);
+    });
+
+    it('round-trips a SharePoint TXT fixture through pending and complete manifests', async () => {
+        const folder = '/sites/alpha/siteAssets/Backups/backup-1';
+        const storage = new Map([
+            [`${folder}/master.txt`, '{"schemaVersion":"1.0.0"}'],
+            [`${folder}/events.txt`, '{"events":[]}'],
+        ]);
+        const writes = [];
+        const expectedTextsByName = new Map([
+            ['master.txt', '{"schemaVersion":"1.0.0"}'],
+            ['events.txt', '{"events":[]}'],
+        ]);
+        const io = {
+            readText: async (path) => storage.get(path),
+            writeText: async (path, text) => {
+                writes.push(JSON.parse(text).status);
+                storage.set(path, text);
+            },
+        };
+        const pendingManifest = await beginTxtBackup({
+            backupFolderPath: folder,
+            requiredFileNames: ['master.txt', 'events.txt'],
+            expectedTextsByName,
+            operationId: 'fixture-operation',
+            ...io,
+        });
+        const manifest = await finalizeTxtBackup({
+            backupFolderPath: folder,
+            requiredFileNames: ['master.txt', 'events.txt'],
+            expectedTextsByName,
+            pendingManifest,
+            ...io,
+        });
+
+        expect(writes).toEqual(['pending', 'complete']);
+        expect(manifest).toMatchObject({
+            operationId: 'fixture-operation',
+            status: 'complete',
+            verifiedFileCount: 2,
+        });
+    });
+
+    it('classifies a SharePoint 409 manifest collision instead of accepting it', async () => {
+        await expect(beginTxtBackup({
+            backupFolderPath: '/sites/alpha/siteAssets/Backups/backup-1',
+            requiredFileNames: ['master.txt'],
+            readText: async () => '{}',
+            expectedTextsByName: new Map([['master.txt', '{}']]),
+            writeText: async () => {
+                const error = new Error('SharePoint save failed (409): collision');
+                error.status = 409;
+                throw error;
+            },
+        })).rejects.toMatchObject({
+            code: 'backup_path_conflict',
+            category: 'collision',
+            status: 409,
         });
     });
 });

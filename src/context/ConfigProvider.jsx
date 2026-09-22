@@ -7,6 +7,7 @@ import React, {
     useRef,
 } from 'react';
 import ConfigService from '../services/ConfigService';
+import { mergeConfigTexts } from '../services/ConfigAdapter';
 import { ensureSharePointBootstrapFiles, overwriteSharePointBootstrapFiles } from '../services/SharePointBootstrapService';
 import { DEFAULT_CONFIG_V1, validateAndNormalize } from '../config/AppSchema';
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
@@ -16,7 +17,15 @@ import { toast } from 'react-toastify';
 import { isMongoStorageBackend, isSharePointReadonlyBackend } from '../services/storage/storageBackend';
 import { isKasharDemoProfile } from '../demo-data/demoProfile';
 import KasharDraftRecoveryPanel from '../components/KasharDraftRecoveryPanel';
-import { assertAdminEditSessionFresh, isStaleAdminEditError } from '../utils/adminEditSession';
+import {
+    assertAdminEditSessionFresh,
+    approveAdminReload,
+    clearAdminRecoveryDraft,
+    completeAdminRecoveryRevalidation,
+    readAdminRecoveryDraft,
+    registerAdminPersistenceController,
+    isStaleAdminEditError,
+} from '../utils/adminEditSession';
 
 const STATUS = {
     LOADING: 'loading',
@@ -31,6 +40,13 @@ const PERSISTENCE_STATUS = Object.freeze({
     SAVED: 'saved',
     ERROR: 'error',
 });
+const createUnresolvedConflictError = () => Object.assign(
+    new Error('הטיוטה נשמרה מקומית, אך יש שינויים חופפים מול השרת. יש לטעון מחדש ולבחור אילו שינויים להשאיר.'),
+    {
+        code: 'UNRESOLVED_CONFIG_CONFLICT',
+        resolutionMessage: 'הטיוטה נשמרה מקומית. נדרש פתרון התנגשות לפני שמירה נוספת.',
+    },
+);
 const MASTER_CONFIG_MOCK_KEY = import.meta.env.VITE_SP_MASTER_CONFIG_MOCK_KEY || 'bihs_master_config_v1';
 const USE_LOCAL_MOCK_STORAGE = SHAREPOINT_CONFIG.useMockStorage === true;
 const SKIP_LEGACY_MIGRATION_ONCE_KEY = 'bihs_skip_legacy_migration_once';
@@ -232,8 +248,10 @@ export const ConfigProvider = ({ children }) => {
     const isMountedRef = useRef(true);
     const requestIdRef = useRef(0);
     const configRef = useRef(normalizeConfigSafely(DEFAULT_CONFIG_V1));
+    const acceptedConfigRef = useRef(normalizeConfigSafely(DEFAULT_CONFIG_V1));
     const bootstrapAttemptedRef = useRef(false);
     const loadFailedRef = useRef(false);
+    const saveBlockedByConflictRef = useRef(false);
     const revisionRef = useRef(0);
     const persistedRevisionRef = useRef(0);
     const saveLoopPromiseRef = useRef(null);
@@ -250,7 +268,7 @@ export const ConfigProvider = ({ children }) => {
         };
     }, []);
 
-    const loadConfig = useCallback(async () => {
+    const loadConfig = useCallback(async ({ discardRecoveryDraft = false } = {}) => {
         const requestId = ++requestIdRef.current;
         if (isMountedRef.current) {
             setStatus(STATUS.LOADING);
@@ -314,21 +332,48 @@ export const ConfigProvider = ({ children }) => {
             if (!isMountedRef.current || requestId !== requestIdRef.current) {
                 return resolvedConfig;
             }
-            configRef.current = resolvedConfig;
-            setConfig(resolvedConfig);
-            revisionRef.current = 0;
+            acceptedConfigRef.current = resolvedConfig;
+            const recoveredEnvelope = discardRecoveryDraft
+                ? null
+                : readAdminRecoveryDraft('persistence:master-config');
+            const recoveredDraft = recoveredEnvelope?.draft || recoveredEnvelope;
+            const recoveredBaseline = recoveredEnvelope?.baseline || null;
+            let normalizedDraft = recoveredDraft ? normalizeConfigStrict(recoveredDraft) : null;
+            let recoveryConflict = false;
+            if (normalizedDraft && recoveredBaseline) {
+                const merged = mergeConfigTexts(
+                    JSON.stringify(normalizeConfigStrict(recoveredBaseline)),
+                    JSON.stringify(normalizedDraft),
+                    JSON.stringify(resolvedConfig),
+                );
+                if (merged.ok) {
+                    normalizedDraft = normalizeConfigStrict(JSON.parse(merged.text));
+                } else {
+                    recoveryConflict = true;
+                }
+            }
+            saveBlockedByConflictRef.current = recoveryConflict;
+            const hasRecoveredDraft = Boolean(
+                normalizedDraft
+                && JSON.stringify(normalizedDraft) !== JSON.stringify(resolvedConfig),
+            );
+            const visibleConfig = hasRecoveredDraft ? normalizedDraft : resolvedConfig;
+            configRef.current = visibleConfig;
+            setConfig(visibleConfig);
+            revisionRef.current = hasRecoveredDraft ? 1 : 0;
             persistedRevisionRef.current = 0;
             setPersistence({
-                status: PERSISTENCE_STATUS.CLEAN,
-                revision: 0,
+                status: hasRecoveredDraft ? PERSISTENCE_STATUS.DIRTY : PERSISTENCE_STATUS.CLEAN,
+                revision: hasRecoveredDraft ? 1 : 0,
                 persistedRevision: 0,
-                dirty: false,
+                dirty: hasRecoveredDraft,
                 saving: false,
                 savedAt: null,
-                error: null,
+                error: recoveryConflict ? 'הטיוטה נשמרה, אך יש שינויים חופפים מול השרת.' : null,
             });
-            setError(null);
-            return resolvedConfig;
+            if (discardRecoveryDraft || !hasRecoveredDraft) clearAdminRecoveryDraft('persistence:master-config');
+            setError(recoveryConflict ? 'הטיוטה נשמרה. יש לבחור אילו שינויים להשאיר מול הגרסה העדכנית.' : null);
+            return visibleConfig;
         } catch (err) {
             const fatalLoad = isKasharDemoProfile()
                 || ConfigService.adapter?.isLoadFailureFatal?.(err)
@@ -445,13 +490,13 @@ export const ConfigProvider = ({ children }) => {
 
                 let normalizedSaved;
                 try {
-                    assertAdminEditSessionFresh();
+                    assertAdminEditSessionFresh({ allowFrozen: true, allowStale: true });
                     const saved = await ConfigService.saveConfig(snapshot);
                     normalizedSaved = normalizeConfigStrict(saved);
                 } catch (err) {
                     if (isMountedRef.current) {
                         setStatus(STATUS.ERROR);
-                        setError(err?.message || 'Failed to save configuration');
+                        setError(err?.resolutionMessage || err?.message || 'Failed to save configuration');
                         setPersistence((prev) => ({
                             ...prev,
                             status: PERSISTENCE_STATUS.ERROR,
@@ -459,7 +504,7 @@ export const ConfigProvider = ({ children }) => {
                             persistedRevision: persistedRevisionRef.current,
                             dirty: true,
                             saving: false,
-                            error: err?.message || 'Failed to save configuration',
+                            error: err?.resolutionMessage || err?.message || 'Failed to save configuration',
                         }));
                     }
                     settleSaveWaiters(persistedRevisionRef.current, null, err);
@@ -467,9 +512,43 @@ export const ConfigProvider = ({ children }) => {
                 }
 
                 persistedRevisionRef.current = savingRevision;
+                acceptedConfigRef.current = normalizedSaved;
+                if (persistedRevisionRef.current >= revisionRef.current) {
+                    clearAdminRecoveryDraft('persistence:master-config');
+                }
                 if (revisionRef.current === savingRevision) {
                     configRef.current = normalizedSaved;
                     if (isMountedRef.current) setConfig(normalizedSaved);
+                } else {
+                    const rebased = mergeConfigTexts(
+                        JSON.stringify(snapshot),
+                        JSON.stringify(configRef.current),
+                        JSON.stringify(normalizedSaved),
+                    );
+                    if (rebased.ok) {
+                        const normalizedRebased = normalizeConfigStrict(JSON.parse(rebased.text));
+                        configRef.current = normalizedRebased;
+                        if (isMountedRef.current) setConfig(normalizedRebased);
+                    } else {
+                        const conflictError = createUnresolvedConflictError();
+                        saveBlockedByConflictRef.current = true;
+                        if (isMountedRef.current) {
+                            setStatus(STATUS.ERROR);
+                            setError(conflictError.message);
+                            setPersistence({
+                                status: PERSISTENCE_STATUS.ERROR,
+                                revision: revisionRef.current,
+                                persistedRevision: persistedRevisionRef.current,
+                                dirty: true,
+                                saving: false,
+                                savedAt: null,
+                                error: conflictError.resolutionMessage,
+                            });
+                        }
+                        settleSaveWaiters(savingRevision, normalizedSaved);
+                        settleSaveWaiters(persistedRevisionRef.current, null, conflictError);
+                        return;
+                    }
                 }
                 settleSaveWaiters(savingRevision, normalizedSaved);
 
@@ -504,6 +583,9 @@ export const ConfigProvider = ({ children }) => {
     }, [settleSaveWaiters]);
 
     const saveNow = useCallback(() => {
+        if (saveBlockedByConflictRef.current) {
+            return Promise.reject(createUnresolvedConflictError());
+        }
         try {
             assertAdminEditSessionFresh();
         } catch (staleError) {
@@ -525,9 +607,42 @@ export const ConfigProvider = ({ children }) => {
         return waiter;
     }, [ensureSaveLoop]);
 
-    const reload = useCallback(async () => {
-        return loadConfig();
-    }, [loadConfig]);
+    useEffect(() => registerAdminPersistenceController({
+        id: 'master-config',
+        getState: () => ({
+            revision: revisionRef.current,
+            persistedRevision: persistedRevisionRef.current,
+            dirty: revisionRef.current > persistedRevisionRef.current,
+            saving: Boolean(saveLoopPromiseRef.current),
+        }),
+        captureDraft: () => ({
+            baseline: acceptedConfigRef.current,
+            draft: configRef.current,
+        }),
+        flush: async () => {
+            if (saveBlockedByConflictRef.current) {
+                throw createUnresolvedConflictError();
+            }
+            if (persistedRevisionRef.current < revisionRef.current) {
+                await ensureSaveLoop();
+            } else if (saveLoopPromiseRef.current) {
+                await saveLoopPromiseRef.current;
+            }
+            if (persistedRevisionRef.current < revisionRef.current) {
+                throw new Error('שמירת ההגדרות טרם הושלמה.');
+            }
+            return configRef.current;
+        },
+    }), [ensureSaveLoop]);
+
+    const reload = useCallback(async ({ discardLocal = false, completeRecovery = false } = {}) => {
+        if (!discardLocal && revisionRef.current > persistedRevisionRef.current) {
+            await saveNow();
+        }
+        const loaded = await loadConfig({ discardRecoveryDraft: discardLocal });
+        if (!loadFailedRef.current && completeRecovery) completeAdminRecoveryRevalidation();
+        return loaded;
+    }, [loadConfig, saveNow]);
 
     const factoryReset = useCallback(async () => {
         if (isKasharDemoProfile()) {
@@ -572,10 +687,22 @@ export const ConfigProvider = ({ children }) => {
 
             if (isMountedRef.current) {
                 configRef.current = normalizedReset;
+                revisionRef.current = 0;
+                persistedRevisionRef.current = 0;
                 setConfig(normalizedReset);
                 setStatus(STATUS.IDLE);
+                setPersistence({
+                    status: PERSISTENCE_STATUS.SAVED,
+                    revision: 0,
+                    persistedRevision: 0,
+                    dirty: false,
+                    saving: false,
+                    savedAt: new Date().toISOString(),
+                    error: null,
+                });
             }
 
+            approveAdminReload('factory-reset');
             window.location.reload();
             return true;
         } catch (err) {
@@ -627,6 +754,7 @@ export const ConfigProvider = ({ children }) => {
                 });
             }
 
+            approveAdminReload('kashar-reset');
             window.location.reload();
             return true;
         } catch (err) {
@@ -700,6 +828,7 @@ export const ConfigProvider = ({ children }) => {
             if (importResult.warning) {
                 toast.warn(importResult.warning);
             }
+            approveAdminReload('kashar-import');
             window.location.reload();
             return true;
         } catch (err) {

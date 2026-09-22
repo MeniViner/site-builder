@@ -220,8 +220,11 @@ describe('exact-name collision behaviour', () => {
         expect(ensureFolder).not.toHaveBeenCalled();
     });
 
-    it('does not report or mutate a temporarily incomplete folder object as an ordinary collision', async () => {
-        const ensureFolder = vi.fn();
+    it('reconciles a temporarily incomplete folder without issuing a second create', async () => {
+        const ensureFolder = vi.fn().mockRejectedValue(Object.assign(
+            new Error('historical folder requires repair'),
+            { code: 'FOLDER_RECONCILIATION_REQUIRED', details: { destructiveRepairAllowed: false } },
+        ));
         const service = createService({
             ensureFolder,
             probeFolder: probeFolderFor({
@@ -240,10 +243,47 @@ describe('exact-name collision behaviour', () => {
             provisionKey: 'k',
             parentBinding: libraryBinding,
         })).rejects.toMatchObject({
-            code: 'SHAREPOINT_FOLDER_INCOMPLETE',
+            code: 'FOLDER_RECONCILIATION_REQUIRED',
             mutationAttempted: false,
         });
-        expect(ensureFolder).not.toHaveBeenCalled();
+        expect(ensureFolder).toHaveBeenCalledOnce();
+    });
+
+    it('recovers delayed list-item materialization only for the verified operation key', async () => {
+        const ensureFolder = vi.fn(async ({ folderRel }) => ({
+            existed: true,
+            created: false,
+            path: folderRel,
+            probe: { ready: true, id: 44 },
+        }));
+        const service = createService({
+            ensureFolder,
+            probeFolder: probeFolderFor({
+                [LIBRARY_ROOT]: readyLibraryProbe(),
+                [LEVEL_2_FOLDER]: {
+                    ready: false,
+                    exists: true,
+                    reason: 'FOLDER_OBJECT_VISIBLE_WAITING_FOR_LIST_ITEM',
+                    status: 200,
+                },
+            }),
+        });
+
+        await expect(service.provisionSubcategory({
+            displayName: 'תכניות עבודה',
+            provisionKey: 'k',
+            retryOfProvisionKey: 'k',
+            parentBinding: libraryBinding,
+        })).resolves.toMatchObject({
+            targetBinding: {
+                serverRelativeUrl: LEVEL_2_FOLDER,
+                itemId: 44,
+            },
+            provisioning: {
+                existed: true,
+                created: false,
+            },
+        });
     });
 
     it('still succeeds for a genuine idempotent retry of the same provisioning attempt', async () => {
@@ -292,6 +332,26 @@ describe('exact-name collision behaviour', () => {
         });
         await expect(unverified.provisionSubcategory({ displayName: 'תכנון', provisionKey: 'k', parentBinding: libraryBinding }))
             .rejects.toMatchObject({ code: 'FOLDER_VERIFICATION_FAILED', mutationAttempted: true });
+    });
+
+    it('does not arm operation recovery when a confirmed-missing probe fails before creation', async () => {
+        const ensureFolder = vi.fn().mockRejectedValue(Object.assign(
+            new Error('probe became inconclusive'),
+            { code: 'FOLDER_PROBE_INCONCLUSIVE' },
+        ));
+        const service = createService({
+            ensureFolder,
+            probeFolder: probeFolderFor({ [LIBRARY_ROOT]: readyLibraryProbe() }),
+        });
+
+        await expect(service.provisionSubcategory({
+            displayName: 'תכניות עבודה',
+            provisionKey: 'k',
+            parentBinding: libraryBinding,
+        })).rejects.toMatchObject({
+            code: 'FOLDER_PROBE_INCONCLUSIVE',
+            mutationAttempted: false,
+        });
     });
 
     it('treats an already-verified binding for the same path as an idempotent retry', async () => {
@@ -399,7 +459,7 @@ describe('three-level SharePoint hierarchy', () => {
         expect(ensureFolder).toHaveBeenCalledWith(expect.objectContaining({
             siteRoot: '/sites/alphateam',
             folderRel: LEVEL_2_FOLDER,
-            libraries: [{ title: 'מסמכים מקצועיים', rootRel: LIBRARY_ROOT }],
+            libraries: [{ id: 'list-guid', title: 'מסמכים מקצועיים', rootRel: LIBRARY_ROOT }],
         }));
         expect(result.targetBinding).toMatchObject({
             targetKind: 'folder',
@@ -427,7 +487,7 @@ describe('three-level SharePoint hierarchy', () => {
         expect(ensureFolder).toHaveBeenCalledWith(expect.objectContaining({
             folderRel: LEVEL_3_FOLDER,
             // The owning library, not the immediate parent folder, stays the isolation boundary.
-            libraries: [{ title: 'מסמכים מקצועיים', rootRel: LIBRARY_ROOT }],
+            libraries: [{ id: 'list-guid', title: 'מסמכים מקצועיים', rootRel: LIBRARY_ROOT }],
         }));
         expect(result.url).toBe(LEVEL_3_FOLDER);
         expect(result.targetBinding).toMatchObject({

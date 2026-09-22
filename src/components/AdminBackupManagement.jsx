@@ -42,7 +42,14 @@ import {
     packageToBackupListItem,
     packageToFileTextsMap,
     deriveBackupFileRecordCount,
+    validateRestorePlan,
 } from '../utils/backupPackage';
+import {
+    beginAdminPersistenceSuspension,
+    clearAllAdminRecoveryDrafts,
+    endAdminPersistenceSuspension,
+    quiesceAdminPersistence,
+} from '../utils/adminEditSession';
 import ConfigService from '../services/ConfigService';
 import { useConfig } from '../context/ConfigProvider';
 import { useBoom } from '../context/BoomContext';
@@ -146,6 +153,13 @@ const RESTORE_STATUS_LABELS = {
 const RESTORE_ACTION_LABELS = {
     will_restore: 'ישוחזר',
     skipped: 'ידולג',
+};
+
+const BACKUP_STATUS_LABELS = {
+    complete: 'מאומת',
+    partial: 'חלקי',
+    pending: 'בתהליך',
+    legacy: 'פורמט ישן',
 };
 
 const DEPENDENCY_DISABLED_MESSAGE = 'פריט זה תלוי בנתון אחר שלא נבחר.';
@@ -257,6 +271,34 @@ const buildPreviewFromBackupTexts = (fileTextsByName) => {
         gantt,
         boom,
     };
+};
+
+const mergeSelectedLegacyFilesIntoMaster = (currentConfig, selectedFileTexts) => {
+    let next = validateAndNormalize(currentConfig);
+    const fileNameFor = (url) => String(url || '').split('/').pop();
+    const mappings = [
+        [fileNameFor(SHAREPOINT_CONFIG.fileServerRelativeUrl), 'events', (migrated) => ({
+            ...next,
+            widgets: {
+                ...next.widgets,
+                data: { ...next.widgets?.data, events: migrated.widgets.data.events },
+            },
+        })],
+        [fileNameFor(SHAREPOINT_CONFIG.navFileServerRelativeUrl), 'navigation', (migrated) => ({ ...next, navigation: migrated.navigation })],
+        [fileNameFor(SHAREPOINT_CONFIG.siteContentFileServerRelativeUrl), 'siteContent', (migrated) => ({ ...next, content: migrated.content })],
+        [fileNameFor(SHAREPOINT_CONFIG.themeFileServerRelativeUrl), 'theme', (migrated) => ({ ...next, theme: migrated.theme })],
+        [fileNameFor(SHAREPOINT_CONFIG.widgetsFileServerRelativeUrl), 'widgets', (migrated) => ({ ...next, widgets: migrated.widgets })],
+        [fileNameFor(SHAREPOINT_CONFIG.externalLinksFileServerRelativeUrl), 'externalLinks', (migrated) => ({ ...next, externalLinks: migrated.externalLinks })],
+        [fileNameFor(SHAREPOINT_CONFIG.usersFileServerRelativeUrl), 'users', (migrated) => ({ ...next, admins: migrated.admins })],
+    ];
+
+    mappings.forEach(([fileName, legacyKey, apply]) => {
+        if (!fileName || !selectedFileTexts.has(fileName)) return;
+        const parsed = parseBackupJson(fileName, selectedFileTexts.get(fileName));
+        const migrated = validateAndNormalize(migrateLegacyToV1({ [legacyKey]: parsed }));
+        next = validateAndNormalize(apply(migrated));
+    });
+    return next;
 };
 
 const getRestoreStatus = (entry = {}) => {
@@ -447,7 +489,7 @@ export default function AdminBackupManagement() {
     const { reloadGantt } = useGantt();
     const { fetchWidgetConfig = async () => true } = useWidget() || {};
     const reloadRestoredData = () => Promise.all([
-        reload(),
+        reload({ discardLocal: true, completeRecovery: false }),
         reloadGantt(),
         reloadBoom(),
         fetchWidgetConfig(),
@@ -486,19 +528,26 @@ export default function AdminBackupManagement() {
         };
     }, [backups]);
 
-    const restoreEntries = Array.isArray(restoreModal?.restoreEntries) ? restoreModal.restoreEntries : [];
-    const selectedRestoreUnitIds = Array.isArray(restoreModal?.selectedRestoreUnitIds)
-        ? restoreModal.selectedRestoreUnitIds
-        : [];
+    const restoreModalEntries = restoreModal?.restoreEntries;
+    const restoreModalSelectedIds = restoreModal?.selectedRestoreUnitIds;
+    const restoreEntries = useMemo(
+        () => (Array.isArray(restoreModalEntries) ? restoreModalEntries : []),
+        [restoreModalEntries],
+    );
+    const selectedRestoreUnitIds = useMemo(
+        () => (Array.isArray(restoreModalSelectedIds) ? restoreModalSelectedIds : []),
+        [restoreModalSelectedIds],
+    );
     const selectedRestoreUnitSet = useMemo(
         () => new Set(selectedRestoreUnitIds),
-        [selectedRestoreUnitIds.join('|')],
+        [selectedRestoreUnitIds],
     );
     const restoreSelectionSummary = useMemo(() => {
         const selected = [];
         const selectable = [];
         const nonRestorable = [];
         let selectedRecordCount = 0;
+        let selectedRecordCountKnown = true;
         let destructiveSelected = false;
 
         restoreEntries.forEach((entry) => {
@@ -510,10 +559,20 @@ export default function AdminBackupManagement() {
             }
             if (selectedRestoreUnitSet.has(entry.restoreUnitId) && canRestore) {
                 selected.push(entry);
-                selectedRecordCount += Number(entry.recordCount || 0);
+                if (entry.recordCount === null || entry.recordCount === undefined) {
+                    selectedRecordCountKnown = false;
+                } else {
+                    selectedRecordCount += Number(entry.recordCount);
+                }
                 if (isDestructiveRestoreEntry(entry)) destructiveSelected = true;
             }
         });
+
+        const masterSelected = selected.find((entry) => entry.fileName === MASTER_CONFIG_FILE_NAME);
+        if (masterSelected) {
+            selectedRecordCountKnown = masterSelected.recordCount !== null && masterSelected.recordCount !== undefined;
+            selectedRecordCount = selectedRecordCountKnown ? Number(masterSelected.recordCount) : 0;
+        }
 
         return {
             selected,
@@ -521,7 +580,7 @@ export default function AdminBackupManagement() {
             selectableCount: selectable.length,
             nonRestorableCount: nonRestorable.length,
             nonRestorableItems: nonRestorable,
-            selectedRecordCount,
+            selectedRecordCount: selectedRecordCountKnown ? selectedRecordCount : null,
             destructiveSelected,
             allSelected: selectable.length > 0 && selectable.every((entry) => selectedRestoreUnitSet.has(entry.restoreUnitId)),
         };
@@ -923,6 +982,10 @@ export default function AdminBackupManagement() {
 
     const handleSelectBackup = async (backup) => {
         if (!backup?.serverRelativeUrl) return;
+        if (backup.status && !['complete', 'legacy'].includes(backup.status)) {
+            toast.error('הגיבוי אינו שלם ומאומת ולכן לא ניתן לשחזר ממנו.');
+            return;
+        }
         setSelectedBackupPath(backup.serverRelativeUrl);
 
         setFilesLoading(true);
@@ -1046,17 +1109,22 @@ export default function AdminBackupManagement() {
 
         const toastId = `backup:manual:${Date.now()}`;
         setIsCreatingBackup(true);
-        const result = await createBackup({
-            trigger: 'manual',
-            onProgress: (progress) => {
-                updateBackupProgressToast({
-                    toastId,
-                    title: 'גיבוי מערכת ידני',
-                    message: progress?.message || 'מגבה נתונים...',
-                    percent: progress?.percent ?? 0,
-                });
-            },
-        });
+        let result;
+        try {
+            result = await createBackup({
+                trigger: 'manual',
+                onProgress: (progress) => {
+                    updateBackupProgressToast({
+                        toastId,
+                        title: 'גיבוי מערכת ידני',
+                        message: progress?.message || 'מגבה נתונים...',
+                        percent: progress?.percent ?? 0,
+                    });
+                },
+            });
+        } catch (createError) {
+            result = { success: false, error: createError?.message || 'אימות הגיבוי נכשל.' };
+        }
         closeBackupProgressToast(toastId);
         setIsCreatingBackup(false);
 
@@ -1090,12 +1158,27 @@ export default function AdminBackupManagement() {
             return;
         }
 
+        let restorePlan;
+        try {
+            restorePlan = validateRestorePlan({
+                selectedEntries: selectedItems,
+                fileTextsByName: restoreModal.fileTextsByName,
+                targetByFileName: RESTORE_TARGET_BY_FILE_NAME,
+            });
+        } catch (validationError) {
+            toast.error(validationError.message);
+            setRestoreModal((prev) => prev ? { ...prev, error: validationError.message } : prev);
+            return;
+        }
+
         const restoreUnitIds = selectedItems.map((entry) => entry.restoreUnitId).filter(Boolean);
         const selectedFileNames = new Set(selectedItems.map((entry) => entry.fileName).filter(Boolean));
         const selectedItemLabels = selectedItems.map((entry) => `• ${getBackupFileDisplayName(entry.fileName)}${entry.scope ? ` (${entry.scope})` : ''}`);
         const confirmationMessageParts = [
             `גיבוי: ${getBackupDisplayName(restoreModal.backup)}`,
-            `נבחרו ${selectedItems.length} פריטים (כ־${restoreSelectionSummary.selectedRecordCount} רשומות).`,
+            restoreSelectionSummary.selectedRecordCount === null
+                ? `נבחרו ${selectedItems.length} פריטים (מספר הרשומות לא ידוע).`
+                : `נבחרו ${selectedItems.length} פריטים (כ־${restoreSelectionSummary.selectedRecordCount} רשומות).`,
             '',
             'פריטים לשחזור:',
             ...selectedItemLabels,
@@ -1119,22 +1202,12 @@ export default function AdminBackupManagement() {
 
         const restoreResultSummary = {
             status: 'completed',
-            restored: selectedItems.map((entry) => ({
-                restoreUnitId: entry.restoreUnitId,
-                fileName: entry.fileName,
-                scope: entry.scope || '',
-                entityId: entry.entityId || '',
-                status: entry.status || 'hasData',
-                restoreAction: getRestoreAction(entry),
-                recordCount: Number(entry.recordCount || 0),
-                selected: true,
-                outcome: 'restored',
-            })),
+            restored: [],
             failed: [],
             notSelected: restoreEntries
                 .filter((entry) => !selectedRestoreUnitSet.has(entry.restoreUnitId)),
             selectedRestoreUnitIds: restoreUnitIds,
-            restoredFiles: selectedItems.length,
+            restoredFiles: 0,
             selectedItemCount: selectedItems.length,
             restoredRecordCount: selectedItems.reduce((sum, entry) => sum + (Number(entry.recordCount) || 0), 0),
         };
@@ -1152,6 +1225,11 @@ export default function AdminBackupManagement() {
 
         setIsRestoring(true);
         try {
+            const suspension = beginAdminPersistenceSuspension('restore');
+            if (suspension.recoveryRequired && !suspension.verified) {
+                throw new Error('לא ניתן לאבטח את הטיוטה המקומית ולכן השחזור נעצר.');
+            }
+            await quiesceAdminPersistence();
             if (mongoBackupStore) {
                 const safetyPackage = buildMongoBackupPackage({ trigger: 'pre-restore' });
                 const safetyBackup = await backendApiClient.createBackup(currentSiteId, {
@@ -1161,7 +1239,27 @@ export default function AdminBackupManagement() {
                 });
                 const preRestoreBackupId = safetyBackup?.backup?.id || safetyBackup?.backup?.backupId || safetyBackup?.backup?.entityId;
                 if (!preRestoreBackupId) throw new Error('גיבוי הבטיחות לא נשמר עם מזהה תקין.');
-                await backendApiClient.getBackup(currentSiteId, preRestoreBackupId);
+                const verifiedSafetyBackup = await backendApiClient.getBackup(currentSiteId, preRestoreBackupId);
+                if (!verifiedSafetyBackup?.backup?.backupPackage?.files?.length) {
+                    throw new Error('גיבוי הבטיחות לא אומת ולכן השחזור נעצר.');
+                }
+                const expectedSafetyFiles = packageToFileTextsMap(safetyPackage);
+                const verifiedSafetyFiles = packageToFileTextsMap(
+                    normalizeImportedBackupPackage(verifiedSafetyBackup.backup.backupPackage, {
+                        masterFileName: MASTER_CONFIG_FILE_NAME,
+                    }),
+                );
+                const safetyMatches = [...expectedSafetyFiles.entries()].every(([fileName, text]) => {
+                    const verifiedText = verifiedSafetyFiles.get(fileName);
+                    try {
+                        return JSON.stringify(JSON.parse(verifiedText)) === JSON.stringify(JSON.parse(text));
+                    } catch {
+                        return verifiedText === text;
+                    }
+                });
+                if (!safetyMatches) {
+                    throw new Error('תוכן גיבוי הבטיחות אינו תואם למצב הנוכחי.');
+                }
                 restorePayload.preRestoreBackupId = preRestoreBackupId;
 
                 const restoreResponse = await backendApiClient.restoreBackup(currentSiteId, restoreTargetId, restorePayload);
@@ -1177,19 +1275,42 @@ export default function AdminBackupManagement() {
                 restoreResultSummary.selectedItemCount = restoreResponse?.selectedItemCount || selectedItems.length;
                 restoreResultSummary.skippedItemCount = restoreResponse?.skippedItemCount;
                 restoreResultSummary.clearOrReplaceActions = restoreResponse?.clearOrReplaceActions || [];
+                if (restoreResultSummary.failed.length > 0 || Number(restoreResultSummary.failedFiles || 0) > 0) {
+                    restoreResultSummary.status = 'partial';
+                }
                 await reloadRestoredData();
-                toast.success('השחזור בוצע דרך Mongo ונתוני האתר נטענו מחדש.');
+                if (restoreResultSummary.status === 'partial') {
+                    toast.info('השחזור הושלם חלקית. מוצגים הפריטים שלא שוחזרו.');
+                } else {
+                    toast.success('השחזור בוצע דרך Mongo ונתוני האתר נטענו מחדש.');
+                }
             } else {
-                const selectedFileTexts = new Map(
-                    [...restoreModal.fileTextsByName.entries()].filter(([fileName]) => selectedFileNames.has(fileName)),
-                );
+                const selectedFileTexts = new Map(restorePlan.map((entry) => [entry.fileName, entry.text]));
                 const shouldRestoreMasterConfig = selectedFileNames.has(MASTER_CONFIG_FILE_NAME);
-                const selectedConfig = restoreModal.preview?.config;
+                const freshMasterEnvelope = useLocalBackupStore
+                    ? null
+                    : await ConfigService.loadConfigEnvelope();
+                const selectedConfig = shouldRestoreMasterConfig
+                    ? restoreModal.preview?.config
+                    : mergeSelectedLegacyFilesIntoMaster(
+                        useLocalBackupStore
+                            ? config
+                            : freshMasterEnvelope.config,
+                        selectedFileTexts,
+                    );
+                const shouldWriteAuthoritativeMaster = shouldRestoreMasterConfig
+                    || [...selectedFileNames].some((fileName) => ![
+                        String(SHAREPOINT_CONFIG.ganttFileServerRelativeUrl || '').split('/').pop(),
+                        String(SHAREPOINT_CONFIG.boomFileServerRelativeUrl || '').split('/').pop(),
+                    ].includes(fileName));
 
                     if (useLocalBackupStore) {
-                        upsertDevBackupPackage(buildDevBackupPackage({ trigger: 'pre-restore' }));
+                        const safetyPackage = upsertDevBackupPackage(buildDevBackupPackage({ trigger: 'pre-restore' }));
+                        if (!safetyPackage?.files?.length) {
+                            throw new Error('גיבוי הבטיחות לא אומת ולכן השחזור נעצר.');
+                        }
 
-                        if (shouldRestoreMasterConfig) {
+                        if (shouldWriteAuthoritativeMaster) {
                             const normalizedConfig = validateAndNormalize(selectedConfig);
                             await ConfigService.saveConfig(normalizedConfig);
                         }
@@ -1212,17 +1333,19 @@ export default function AdminBackupManagement() {
                         toast.success('השחזור במצב פיתוח הושלם. הנתונים נטענו מחדש מהגיבוי.');
                     } else {
                         const safetyBackup = await createBackup({ trigger: 'pre-restore' });
-                        if (!safetyBackup?.success) {
+                        if (
+                            !safetyBackup?.success
+                            || safetyBackup?.manifest?.status !== 'complete'
+                            || Number(safetyBackup?.copiedFiles) <= 0
+                        ) {
                             throw new Error(safetyBackup?.error || 'יצירת גיבוי בטיחות לפני שחזור נכשלה.');
                         }
 
-                    if (shouldRestoreMasterConfig) {
+                    if (shouldWriteAuthoritativeMaster) {
                         const normalizedConfig = validateAndNormalize(selectedConfig);
-                        await upsertSharePointTextFile({
-                            serverRelativeUrl: MASTER_CONFIG_TARGET_URL,
-                            text: JSON.stringify(normalizedConfig, null, 2),
-                            contentType: 'text/plain; charset=utf-8',
-                        });
+                        await ConfigService.saveConfig(normalizedConfig);
+                        const masterEntry = selectedItems.find((entry) => entry.fileName === MASTER_CONFIG_FILE_NAME);
+                        if (masterEntry) restoreResultSummary.restored.push({ ...masterEntry, selected: true, outcome: 'restored' });
                     }
 
                     const selectedWriteEntries = [...selectedFileTexts.entries()]
@@ -1235,11 +1358,16 @@ export default function AdminBackupManagement() {
                                 text,
                                 contentType: 'text/plain; charset=utf-8',
                             });
+                            const verifiedText = await readSharePointTextFile(RESTORE_TARGET_BY_FILE_NAME[fileName]);
+                            if (JSON.stringify(JSON.parse(verifiedText)) !== JSON.stringify(JSON.parse(text))) {
+                                throw new Error(`אימות השחזור נכשל עבור ${fileName}.`);
+                            }
+                            const restoredEntry = selectedItems.find((entry) => entry.fileName === fileName);
+                            if (restoredEntry) restoreResultSummary.restored.push({ ...restoredEntry, selected: true, outcome: 'restored' });
                         }
 
-                        restoreResultSummary.restored = [...selectedItems];
-                        restoreResultSummary.restoredFiles = selectedItems.length;
-                        restoreResultSummary.restoredRecordCount = selectedItems.reduce((sum, entry) => sum + (Number(entry.recordCount) || 0), 0);
+                        restoreResultSummary.restoredFiles = restoreResultSummary.restored.length;
+                        restoreResultSummary.restoredRecordCount = restoreResultSummary.restored.reduce((sum, entry) => sum + (Number(entry.recordCount) || 0), 0);
                         restoreResultSummary.selectedItemCount = selectedItems.length;
                         restoreResultSummary.clearOrReplaceActions = selectedItems
                             .filter((entry) => entry.empty)
@@ -1262,12 +1390,23 @@ export default function AdminBackupManagement() {
                 ...prev,
                 restoreResult: restoreResultSummary,
             } : prev);
+            clearAllAdminRecoveryDrafts();
+            endAdminPersistenceSuspension({ revalidated: true });
         } catch (restoreError) {
             toast.error(restoreError?.message || 'שחזור הגיבוי נכשל.');
+            if (restoreResultSummary.restored.length > 0) {
+                restoreResultSummary.status = 'partial';
+                restoreResultSummary.restoredFiles = restoreResultSummary.restored.length;
+                restoreResultSummary.failed = selectedItems
+                    .filter((entry) => !restoreResultSummary.restored.some((restored) => restored.restoreUnitId === entry.restoreUnitId))
+                    .map((entry) => ({ ...entry, outcome: 'failed', error: restoreError?.message || 'השחזור נכשל.' }));
+            }
             setRestoreModal((prev) => prev ? {
                 ...prev,
                 error: restoreError?.message || 'שחזור הגיבוי נכשל.',
+                restoreResult: restoreResultSummary.status === 'partial' ? restoreResultSummary : prev.restoreResult,
             } : prev);
+            endAdminPersistenceSuspension();
         } finally {
             setIsRestoring(false);
         }
@@ -1561,6 +1700,11 @@ export default function AdminBackupManagement() {
                                                         <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                                             {backup.fileCount} קבצים · {formatBytes(backup.totalSizeBytes)}
                                                         </div>
+                                                        {backup.status && (
+                                                            <div className="mt-1 text-xs font-bold text-gray-600 dark:text-gray-300">
+                                                                מצב: {BACKUP_STATUS_LABELS[backup.status] || backup.status}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <div
                                                         className="flex items-center gap-2"
@@ -1829,9 +1973,9 @@ export default function AdminBackupManagement() {
                                                                                         {entry.scope}
                                                                                     </span>
                                                                                 )}
-                                                                                {Number.isFinite(Number(entry.recordCount)) && (
+                                                                                {entry.recordCount !== null && entry.recordCount !== undefined && Number.isFinite(Number(entry.recordCount)) ? (
                                                                                     <span>{Number(entry.recordCount)} רשומות</span>
-                                                                                )}
+                                                                                ) : <span>מספר רשומות לא ידוע</span>}
                                                                                 {isDestructive && (
                                                                                     <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
                                                                                         הרסני

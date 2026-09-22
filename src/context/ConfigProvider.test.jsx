@@ -2,6 +2,13 @@ import React, { useEffect } from 'react';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigProvider, useConfig } from './ConfigProvider';
+import {
+    ADMIN_RECOVERY_DRAFT_STORAGE_KEY,
+    beginAdminPersistenceSuspension,
+    endAdminPersistenceSuspension,
+    quiesceAdminPersistence,
+    resetAdminEditSessionForTests,
+} from '../utils/adminEditSession';
 
 const mocks = vi.hoisted(() => ({
     loadConfigEnvelope: vi.fn(),
@@ -98,6 +105,8 @@ describe('ConfigProvider persistence queue', () => {
     beforeEach(() => {
         providerApi = null;
         localStorage.clear();
+        sessionStorage.clear();
+        resetAdminEditSessionForTests();
         mocks.loadConfigEnvelope.mockReset().mockResolvedValue({
             source: 'test',
             config: {
@@ -150,6 +159,107 @@ describe('ConfigProvider persistence queue', () => {
             dirty: false,
             saving: false,
             status: 'saved',
+        });
+    });
+
+    it('rebases edits made during an in-flight write onto the verified saved response', async () => {
+        const firstSave = deferred();
+        mocks.saveConfig
+            .mockImplementationOnce(() => firstSave.promise)
+            .mockImplementationOnce(async (config) => config);
+        await renderLoadedProvider();
+
+        act(() => {
+            providerApi.updateConfig((config) => withTitle(config, 'first'));
+            providerApi.saveNow();
+        });
+        await waitFor(() => expect(mocks.saveConfig).toHaveBeenCalledTimes(1));
+
+        act(() => {
+            providerApi.updateConfig((config) => ({
+                ...config,
+                content: {
+                    ...config.content,
+                    hero: { ...config.content.hero, subtitle: 'edit while saving' },
+                },
+            }));
+            providerApi.saveNow();
+        });
+
+        const verifiedFirst = {
+            ...mocks.saveConfig.mock.calls[0][0],
+            content: {
+                ...mocks.saveConfig.mock.calls[0][0].content,
+                hero: {
+                    ...mocks.saveConfig.mock.calls[0][0].content.hero,
+                    logoUrl: '/remote-logo.svg',
+                },
+            },
+        };
+        await act(async () => {
+            firstSave.resolve(verifiedFirst);
+            await firstSave.promise;
+        });
+        await waitFor(() => expect(mocks.saveConfig).toHaveBeenCalledTimes(2));
+
+        expect(mocks.saveConfig.mock.calls[1][0].content.hero).toMatchObject({
+            title: 'first',
+            subtitle: 'edit while saving',
+            logoUrl: '/remote-logo.svg',
+        });
+    });
+
+    it('blocks a follow-up save when an in-flight edit overlaps the verified remote response', async () => {
+        const firstSave = deferred();
+        mocks.saveConfig.mockImplementationOnce(() => firstSave.promise);
+        await renderLoadedProvider();
+
+        let firstWaiter;
+        act(() => {
+            providerApi.updateConfig((config) => withTitle(config, 'first'));
+            firstWaiter = providerApi.saveNow();
+        });
+        await waitFor(() => expect(mocks.saveConfig).toHaveBeenCalledTimes(1));
+
+        let conflictingWaiter;
+        act(() => {
+            providerApi.updateConfig((config) => ({
+                ...config,
+                content: {
+                    ...config.content,
+                    hero: { ...config.content.hero, subtitle: 'local subtitle' },
+                },
+            }));
+            conflictingWaiter = providerApi.saveNow();
+        });
+        const conflictingResult = conflictingWaiter.catch((error) => error);
+
+        const verifiedRemote = {
+            ...mocks.saveConfig.mock.calls[0][0],
+            content: {
+                ...mocks.saveConfig.mock.calls[0][0].content,
+                hero: {
+                    ...mocks.saveConfig.mock.calls[0][0].content.hero,
+                    subtitle: 'remote subtitle',
+                },
+            },
+        };
+        await act(async () => {
+            firstSave.resolve(verifiedRemote);
+            await firstSave.promise;
+        });
+
+        await expect(firstWaiter).resolves.toMatchObject({
+            content: { hero: { title: 'first' } },
+        });
+        await expect(conflictingResult).resolves.toMatchObject({
+            code: 'UNRESOLVED_CONFIG_CONFLICT',
+        });
+        await waitFor(() => expect(providerApi.persistence.status).toBe('error'));
+        expect(providerApi.config.content.hero.subtitle).toBe('local subtitle');
+        expect(mocks.saveConfig).toHaveBeenCalledTimes(1);
+        await expect(providerApi.retrySave()).rejects.toMatchObject({
+            code: 'UNRESOLVED_CONFIG_CONFLICT',
         });
     });
 
@@ -264,5 +374,71 @@ describe('ConfigProvider persistence queue', () => {
             dirty: false,
         });
         expect(mocks.saveConfig).not.toHaveBeenCalled();
+    });
+
+    it('hydrates a recoverable local draft only after loading fresh server state', async () => {
+        sessionStorage.setItem(ADMIN_RECOVERY_DRAFT_STORAGE_KEY, JSON.stringify({
+            version: 1,
+            participants: {
+                'persistence:master-config': {
+                    schemaVersion: '1.0.0',
+                    content: { hero: { title: 'recovered draft' } },
+                },
+            },
+        }));
+
+        await renderLoadedProvider();
+
+        expect(mocks.loadConfigEnvelope).toHaveBeenCalledOnce();
+        expect(providerApi.config.content.hero.title).toBe('recovered draft');
+        expect(providerApi.persistence).toMatchObject({
+            revision: 1,
+            persistedRevision: 0,
+            dirty: true,
+        });
+    });
+
+    it('blocks new mutations while allowing the registered persistence controller to quiesce', async () => {
+        await renderLoadedProvider();
+        act(() => {
+            providerApi.updateConfig((config) => withTitle(config, 'queued before freeze'));
+        });
+
+        beginAdminPersistenceSuspension('restore');
+        expect(() => providerApi.updateConfig((config) => withTitle(config, 'blocked'))).toThrow('מוקפאת');
+        await act(async () => {
+            await quiesceAdminPersistence();
+        });
+
+        expect(mocks.saveConfig).toHaveBeenCalledOnce();
+        expect(providerApi.persistence).toMatchObject({ dirty: false, saving: false });
+        endAdminPersistenceSuspension();
+    });
+
+    it('discards a recovery draft when an authoritative restore reload is requested', async () => {
+        sessionStorage.setItem(ADMIN_RECOVERY_DRAFT_STORAGE_KEY, JSON.stringify({
+            version: 1,
+            participants: {
+                'persistence:master-config': {
+                    baseline: {
+                        schemaVersion: '1.0.0',
+                        content: { hero: { title: 'initial' } },
+                    },
+                    draft: {
+                        schemaVersion: '1.0.0',
+                        content: { hero: { title: 'stale local draft' } },
+                    },
+                },
+            },
+        }));
+        await renderLoadedProvider();
+        expect(providerApi.config.content.hero.title).toBe('stale local draft');
+
+        await act(async () => {
+            await providerApi.reload({ discardLocal: true });
+        });
+
+        expect(providerApi.config.content.hero.title).toBe('initial');
+        expect(providerApi.persistence.dirty).toBe(false);
     });
 });

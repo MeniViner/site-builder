@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+    autoLinkSmartTextTokens,
     classifySmartLink,
     createSmartTextLinkToken,
     findSmartLinkMatches,
     insertSmartTextLinkToken,
     isConservativePhoneNumber,
     normalizeSmartLinkInput,
+    normalizeSmartTextTokens,
     SMART_LINK_TYPES,
+    smartTextTokensToPlainText,
     tokenizeSmartText,
 } from './smartText';
 
@@ -170,5 +173,40 @@ describe('smartText', () => {
             },
             { type: 'text', text: ' עד מחר', marks: [] },
         ]);
+    });
+
+    it('preserves an intentional blank line when tokenizing plain text', () => {
+        const tokens = tokenizeSmartText('שורה ראשונה\n\nשורה שלישית');
+
+        expect(tokens).toEqual([
+            { type: 'text', text: 'שורה ראשונה', marks: [] },
+            { type: 'break' },
+            { type: 'break' },
+            { type: 'text', text: 'שורה שלישית', marks: [] },
+        ]);
+        expect(smartTextTokensToPlainText(tokens)).toBe('שורה ראשונה\n\nשורה שלישית');
+    });
+
+    it('preserves a trailing blank line (Enter at the end) when tokenizing plain text', () => {
+        const tokens = tokenizeSmartText('שורה ראשונה\n\n');
+
+        expect(tokens).toEqual([
+            { type: 'text', text: 'שורה ראשונה', marks: [] },
+            { type: 'break' },
+            { type: 'break' },
+        ]);
+        expect(smartTextTokensToPlainText(tokens)).toBe('שורה ראשונה\n\n');
+    });
+
+    it('keeps consecutive break tokens intact when re-normalizing or auto-linking', () => {
+        const tokens = [
+            { type: 'text', text: 'a', marks: [] },
+            { type: 'break' },
+            { type: 'break' },
+            { type: 'text', text: 'b', marks: [] },
+        ];
+
+        expect(normalizeSmartTextTokens(tokens)).toEqual(tokens);
+        expect(autoLinkSmartTextTokens(tokens)).toEqual(tokens);
     });
 });

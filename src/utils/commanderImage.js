@@ -38,6 +38,26 @@ export const COMMANDER_RANK_STYLES = Object.freeze([
     { id: 'field', label: 'מבצעי' },
 ]);
 
+export const DEFAULT_COMMANDER_RANK_BACKDROP_COLOR = '';
+
+export const COMMANDER_RANK_BACKDROP_COLORS = Object.freeze([
+    { id: '', hex: '', label: 'ברירת מחדל (צבע ראשי)' },
+    { id: 'crimson', hex: '#dc2626', label: 'אדום' },
+    { id: 'amber', hex: '#d97706', label: 'ענבר' },
+    { id: 'emerald', hex: '#16a34a', label: 'ירוק' },
+    { id: 'sky', hex: '#0891b2', label: 'תכלת' },
+    { id: 'indigo', hex: '#2563eb', label: 'כחול' },
+    { id: 'slate', hex: '#334155', label: 'אפור כהה' },
+]);
+
+const RANK_BACKDROP_COLOR_IDS = new Set(COMMANDER_RANK_BACKDROP_COLORS.map((color) => color.id));
+
+/** Returns the preset hex for a persisted backdrop-color id, or '' for the theme-default preset. */
+export function getCommanderRankBackdropColorHex(colorId) {
+    const preset = COMMANDER_RANK_BACKDROP_COLORS.find((color) => color.id === colorId);
+    return preset?.hex || '';
+}
+
 const RANK_STYLE_IDS = new Set(COMMANDER_RANK_STYLES.map((style) => style.id));
 const RANK_ORIENTATION_IDS = new Set(['native', 'landscape', 'portrait']);
 const REMOVED_COMMANDER_RANKS = new Set(['קמ"א', 'קא"ב']);
@@ -114,6 +134,9 @@ export function normalizeCommanderImageSettings(commander = {}) {
     const imageRankMirrored = typeof commander?.imageRankMirrored === 'boolean'
         ? commander.imageRankMirrored
         : DEFAULT_COMMANDER_RANK_MIRRORED;
+    const imageRankBackdropColor = RANK_BACKDROP_COLOR_IDS.has(commander?.imageRankBackdropColor)
+        ? commander.imageRankBackdropColor
+        : DEFAULT_COMMANDER_RANK_BACKDROP_COLOR;
     return {
         ...commander,
         ...getCommanderImageSettings(commander),
@@ -125,6 +148,7 @@ export function normalizeCommanderImageSettings(commander = {}) {
         imageRankOrientation,
         imageRankRotation,
         imageRankMirrored,
+        imageRankBackdropColor,
         customImageUrl: source.customImageUrl,
         image: source.imageUrl,
         imageUrl: source.imageUrl,

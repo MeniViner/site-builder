@@ -101,9 +101,10 @@ describe('ImageGallerySection', () => {
         expect(rowTwo.slice(0, images.length).map((item) => item.image.id)).toEqual(['two', 'three', 'one']);
     });
 
-    it('pauses Magal movement in admin preview and under reduced-motion preference', () => {
+    it('does not force-pause Magal movement in admin preview, but still respects the reduced-motion preference', () => {
         const view = render(<ImageGalleryRenderer gallery={gallery('magal-strips')} direction="rtl" preview />);
         expect(screen.getByTestId('magal-strips')).toHaveClass('magal-strips--preview');
+        expect(screen.getByTestId('magal-strips')).not.toHaveClass('magal-strips--paused');
         view.unmount();
 
         vi.stubGlobal('matchMedia', vi.fn(() => ({
@@ -114,6 +115,54 @@ describe('ImageGallerySection', () => {
         render(<ImageGalleryRenderer gallery={gallery('magal-strips')} direction="rtl" />);
         expect(screen.getByTestId('magal-strips')).toHaveAttribute('data-reduced-motion', 'true');
         expect(screen.getByTestId('magal-strips')).toHaveClass('magal-strips--reduced-motion');
+        expect(screen.getByTestId('magal-strips')).toHaveClass('magal-strips--paused');
+    });
+
+    it('animates rows using their published duration and direction even in preview', () => {
+        render(<ImageGalleryRenderer gallery={gallery('magal-strips')} direction="rtl" preview />);
+        const rows = screen.getAllByTestId('magal-row');
+        expect(rows[0].style.getPropertyValue('--magal-row-duration')).toBe('34s');
+        expect(rows[0].style.getPropertyValue('--magal-row-animation-direction')).toBe('normal');
+        expect(rows[1].style.getPropertyValue('--magal-row-animation-direction')).toBe('reverse');
+    });
+
+    it('offers an explicit pause/play control that toggles the paused state and label', () => {
+        render(<ImageGalleryRenderer gallery={gallery('magal-strips')} direction="rtl" />);
+        const strip = screen.getByTestId('magal-strips');
+        const toggle = screen.getByRole('button', { name: 'השהה תנועת רצועות' });
+
+        expect(strip).not.toHaveClass('magal-strips--paused');
+        expect(toggle).toHaveAttribute('aria-pressed', 'false');
+        expect(strip).toHaveAttribute('aria-label', 'גלריית תמונות נעה ברצועות');
+
+        fireEvent.click(toggle);
+        expect(strip).toHaveClass('magal-strips--paused');
+        expect(toggle).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByRole('button', { name: 'הפעל תנועת רצועות' })).toBe(toggle);
+        expect(strip).toHaveAttribute('aria-label', 'גלריית תמונות – התנועה מושהית');
+
+        fireEvent.click(toggle);
+        expect(strip).not.toHaveClass('magal-strips--paused');
+        expect(screen.getByRole('button', { name: 'השהה תנועת רצועות' })).toBe(toggle);
+    });
+
+    it('reflects the reduced-motion preference accurately in the strip label', () => {
+        vi.stubGlobal('matchMedia', vi.fn(() => ({
+            matches: true,
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+        })));
+        render(<ImageGalleryRenderer gallery={gallery('magal-strips')} direction="rtl" />);
+        expect(screen.getByTestId('magal-strips')).toHaveAttribute('aria-label', 'גלריית תמונות – התנועה מושהית בשל העדפת המשתמש');
+        expect(screen.getByRole('button', { name: 'התנועה מושהית לפי העדפת הפחתת תנועה' })).toBeDisabled();
+    });
+
+    it('does not remount the animated track when toggling pause/play', () => {
+        render(<ImageGalleryRenderer gallery={gallery('magal-strips')} direction="rtl" />);
+        const trackBefore = screen.getAllByTestId('magal-track')[0];
+        fireEvent.click(screen.getByRole('button', { name: 'השהה תנועת רצועות' }));
+        const trackAfter = screen.getAllByTestId('magal-track')[0];
+        expect(trackAfter).toBe(trackBefore);
     });
 
     it('keeps every gallery frame centered in normal document flow', () => {

@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { CommanderPanel } from './PortalPanels';
 import { RANK_GROUPS, getRankDefinition } from '../commanderRanks/rankCatalog';
+import { COMMANDER_RANK_BACKDROP_COLORS, DEFAULT_COMMANDER_RANK_BACKDROP_COLOR } from '../../utils/commanderImage';
 
 const COMMANDER_RANKS = RANK_GROUPS.flatMap((group) => group.ranks);
 
@@ -111,5 +112,71 @@ describe('CommanderPanel image geometry', () => {
         );
 
         expect(screen.getByRole('img', { name: getRankDefinition(rank).ariaLabel })).toBeInTheDocument();
+    });
+});
+
+describe('CommanderPanel backdrop background color', () => {
+    it('applies the theme-default primary color with no inline override when unset', () => {
+        const { container } = render(
+            <CommanderPanel
+                commander={{ imageSource: 'rank', imageRank: 'סגן', imageRankBackdropColor: DEFAULT_COMMANDER_RANK_BACKDROP_COLOR }}
+                messages={[]}
+                borderStyle="standard"
+            />
+        );
+
+        const backdrop = container.querySelector('[data-commander-image-backdrop]');
+        expect(backdrop).toHaveClass('bg-primary');
+        expect(backdrop).not.toHaveAttribute('style', expect.stringContaining('background-color'));
+    });
+
+    it.each(COMMANDER_RANK_BACKDROP_COLORS.filter((color) => color.id))('applies the persisted %s preset color to the backdrop only', (preset) => {
+        const { container } = render(
+            <CommanderPanel
+                commander={{ imageSource: 'rank', imageRank: 'סגן', imageRankStyle: 'formal', imageRankBackdropColor: preset.id }}
+                messages={[]}
+                borderStyle="standard"
+            />
+        );
+
+        const backdrop = container.querySelector('[data-commander-image-backdrop]');
+        expect(backdrop).toHaveStyle({ backgroundColor: preset.hex });
+        expect(backdrop).not.toHaveClass('bg-primary');
+        expect(container.querySelector('[data-rank-presentation-surface]'))
+            .toHaveAttribute('fill', preset.hex);
+    });
+
+    it('never recolors the rank insignia itself when a custom backdrop color is chosen', () => {
+        const { container: defaultContainer } = render(
+            <CommanderPanel
+                commander={{ imageSource: 'rank', imageRank: 'סגן', imageRankStyle: 'formal' }}
+                messages={[]}
+                borderStyle="standard"
+            />
+        );
+        const { container: customContainer } = render(
+            <CommanderPanel
+                commander={{ imageSource: 'rank', imageRank: 'סגן', imageRankStyle: 'formal', imageRankBackdropColor: 'crimson' }}
+                messages={[]}
+                borderStyle="standard"
+            />
+        );
+
+        const defaultInsignia = defaultContainer.querySelector('[data-rank-style] svg[data-rank]');
+        const customInsignia = customContainer.querySelector('[data-rank-style] svg[data-rank]');
+        expect(customInsignia.style.color).toBe(defaultInsignia.style.color);
+    });
+
+    it('falls back to the theme-default preset for a corrupted or unknown persisted color', () => {
+        const { container } = render(
+            <CommanderPanel
+                commander={{ imageSource: 'rank', imageRank: 'סגן', imageRankBackdropColor: 'not-a-real-preset' }}
+                messages={[]}
+                borderStyle="standard"
+            />
+        );
+
+        const backdrop = container.querySelector('[data-commander-image-backdrop]');
+        expect(backdrop).toHaveClass('bg-primary');
     });
 });

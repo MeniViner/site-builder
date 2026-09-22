@@ -19,10 +19,12 @@ import {
     COMMANDER_IMAGE_OFFSET_Y,
     COMMANDER_IMAGE_SCALE,
     COMMANDER_IMAGE_SOURCE,
+    COMMANDER_RANK_BACKDROP_COLORS,
     COMMANDER_RANK_STYLES,
     DEFAULT_COMMANDER_IMAGE_PATH,
     DEFAULT_COMMANDER_RANK,
     DEFAULT_COMMANDER_RANK_BACKDROP,
+    DEFAULT_COMMANDER_RANK_BACKDROP_COLOR,
     DEFAULT_COMMANDER_RANK_ORIENTATION,
     DEFAULT_COMMANDER_RANK_ROTATION,
     DEFAULT_COMMANDER_RANK_MIRRORED,
@@ -39,6 +41,7 @@ import { UI_FEATURES } from '../config/uiFeatures.config';
 import CommanderRankInsignia from './CommanderRankInsignia';
 import CommanderRankPicker from './CommanderRankPicker';
 import { resolveRankOrientation } from './commanderRanks/rankCatalog';
+import { toSafeHebrewError } from '../utils/userFacingError';
 
 const MAX_COMMANDER_MESSAGES = 5;
 
@@ -70,6 +73,7 @@ const COMMANDER_DEFAULTS = {
     imageRankOrientation: DEFAULT_COMMANDER_RANK_ORIENTATION,
     imageRankRotation: DEFAULT_COMMANDER_RANK_ROTATION,
     imageRankMirrored: DEFAULT_COMMANDER_RANK_MIRRORED,
+    imageRankBackdropColor: DEFAULT_COMMANDER_RANK_BACKDROP_COLOR,
     customImageUrl: '',
     imageScale: COMMANDER_IMAGE_SCALE.defaultValue,
     imageOffsetX: COMMANDER_IMAGE_OFFSET_X.defaultValue,
@@ -345,7 +349,10 @@ export default function AdminSiteContent() {
             }));
         } catch (err) {
             spLog.error('שגיאה בהעלאת תמונת מפקד:', err);
-            setSaveMessage({ type: 'error', text: `שגיאה בהעלאת תמונה: ${err.message}` });
+            setSaveMessage({
+                type: 'error',
+                text: toSafeHebrewError(err, 'העלאת תמונת המפקד נכשלה. בדקו את הקובץ ונסו שוב.'),
+            });
             setTimeout(() => setSaveMessage(null), 4000);
         } finally {
             setUploadingCommander(false);
@@ -1111,6 +1118,10 @@ export default function AdminSiteContent() {
                                                             );
                                                         })}
                                                     </div>
+                                                    <label className={`mt-4 flex min-h-10 items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white px-4 py-2 text-sm text-gray-600 transition-[border-color,color,transform] hover:border-primary/50 hover:text-gray-800 active:scale-[0.96] dark:border-gray-700/50 dark:bg-white/5 dark:text-gray-300 ${uploadingCommander ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}>
+                                                        {uploadingCommander ? <><Loader2 size={16} className="animate-spin text-primary" />מעלה תמונה...</> : <><Upload size={16} />העלאת תמונה אישית</>}
+                                                        <input ref={commanderFileInputRef} type="file" accept="image/*" onChange={handleCommanderFileUpload} className="hidden" disabled={uploadingCommander} />
+                                                    </label>
                                                     <div className="mt-6 border-t border-gray-200 pt-5 dark:border-white/10">
                                                         <div className="mb-3 text-sm font-black text-gray-900 dark:text-white">סמל דרגה</div>
                                                         <CommanderRankPicker
@@ -1119,6 +1130,7 @@ export default function AdminSiteContent() {
                                                             orientation={commander.imageRankOrientation}
                                                             rotation={commander.imageRankRotation}
                                                             mirrored={commander.imageRankMirrored}
+                                                            backdropColor={commander.imageRankBackdropColor}
                                                             onChange={(imageRank) => setCommander((prev) => normalizeCommanderImageSettings({
                                                                 ...prev,
                                                                 imageRank,
@@ -1142,7 +1154,7 @@ export default function AdminSiteContent() {
                                                                         className={`min-h-28 rounded-xl p-2 text-center text-xs font-bold transition-[box-shadow,transform] active:scale-[0.96] ${selected ? 'bg-primary/10 text-primary shadow-[inset_0_0_0_2px_currentColor]' : 'bg-white text-gray-600 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)] hover:shadow-[inset_0_0_0_1px_rgba(59,130,246,0.45)] dark:bg-white/5 dark:text-gray-300 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]'}`}
                                                                     >
                                                                         <span className="flex h-20 items-center justify-center px-1">
-                                                                            <CommanderRankInsignia rank={commander.imageRank} styleId={style.id} orientation={commander.imageRankOrientation} rotation={commander.imageRankRotation} mirrored={commander.imageRankMirrored} className="h-auto w-full" />
+                                                                            <CommanderRankInsignia rank={commander.imageRank} styleId={style.id} orientation={commander.imageRankOrientation} rotation={commander.imageRankRotation} mirrored={commander.imageRankMirrored} backdropColor={commander.imageRankBackdropColor} className="h-auto w-full" />
                                                                         </span>
                                                                         <span className="mt-1 block">{style.label}</span>
                                                                     </button>
@@ -1217,11 +1229,43 @@ export default function AdminSiteContent() {
                                                                 </button>
                                                             </div>
                                                         </div>
+                                                        <div className="mt-4">
+                                                            <div className="mb-2 flex items-center justify-between gap-2">
+                                                                <span className="text-xs font-bold text-gray-600 dark:text-gray-300">צבע רקע לדרגה</span>
+                                                            </div>
+                                                            <div className="flex flex-wrap items-center gap-2" role="group" aria-label="צבע רקע לדרגה">
+                                                                {COMMANDER_RANK_BACKDROP_COLORS.filter((color) => color.id).map((color) => {
+                                                                    const selected = commander.imageRankBackdropColor === color.id;
+                                                                    return (
+                                                                        <button
+                                                                            key={color.id}
+                                                                            type="button"
+                                                                            onClick={() => setCommander((prev) => normalizeCommanderImageSettings({
+                                                                                ...prev,
+                                                                                imageRankBackdropColor: color.id,
+                                                                            }))}
+                                                                            aria-pressed={selected}
+                                                                            aria-label={color.label}
+                                                                            title={color.label}
+                                                                            className={`h-8 w-8 shrink-0 rounded-full transition-[box-shadow,transform] active:scale-[0.9] ${selected ? 'shadow-[0_0_0_2px_white,0_0_0_4px_var(--color-primary-hex)] dark:shadow-[0_0_0_2px_#1b1f2a,0_0_0_4px_var(--color-primary-hex)]' : 'shadow-[inset_0_0_0_1px_rgba(15,23,42,0.15)] hover:scale-105'}`}
+                                                                            style={{ backgroundColor: color.hex }}
+                                                                        />
+                                                                    );
+                                                                })}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setCommander((prev) => normalizeCommanderImageSettings({
+                                                                        ...prev,
+                                                                        imageRankBackdropColor: DEFAULT_COMMANDER_RANK_BACKDROP_COLOR,
+                                                                    }))}
+                                                                    disabled={(commander.imageRankBackdropColor || DEFAULT_COMMANDER_RANK_BACKDROP_COLOR) === DEFAULT_COMMANDER_RANK_BACKDROP_COLOR}
+                                                                    className="mr-1 inline-flex min-h-8 items-center rounded-lg px-3 text-xs font-bold text-gray-500 transition-[background-color,color] hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+                                                                >
+                                                                    איפוס לצבע ברירת מחדל
+                                                                </button>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <label className={`mt-3 flex min-h-10 items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white px-4 py-2 text-sm text-gray-600 transition-[border-color,color,transform] hover:border-primary/50 hover:text-gray-800 active:scale-[0.96] dark:border-gray-700/50 dark:bg-white/5 dark:text-gray-300 ${uploadingCommander ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}>
-                                                        {uploadingCommander ? <><Loader2 size={16} className="animate-spin text-primary" />מעלה תמונה...</> : <><Upload size={16} />העלאת תמונה אישית</>}
-                                                        <input ref={commanderFileInputRef} type="file" accept="image/*" onChange={handleCommanderFileUpload} className="hidden" disabled={uploadingCommander} />
-                                                    </label>
                                                 </fieldset>
 
                                                 {commander.imageSource !== COMMANDER_IMAGE_SOURCE.none && (

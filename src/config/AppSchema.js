@@ -18,6 +18,7 @@ import {
     COMMANDER_IMAGE_OFFSET_X,
     COMMANDER_IMAGE_SCALE,
     DEFAULT_COMMANDER_RANK,
+    DEFAULT_COMMANDER_RANK_BACKDROP_COLOR,
     DEFAULT_COMMANDER_RANK_STYLE,
     DEFAULT_COMMANDER_IMAGE_PATH,
     normalizeCommanderImageSettings,
@@ -1166,6 +1167,7 @@ export const DEFAULT_CONFIG_V1 = {
             imageRank: DEFAULT_COMMANDER_RANK,
             imageRankStyle: DEFAULT_COMMANDER_RANK_STYLE,
             imageRankBackdrop: true,
+            imageRankBackdropColor: DEFAULT_COMMANDER_RANK_BACKDROP_COLOR,
             imageRankOrientation: 'native',
             imageRankRotation: 0,
             imageRankMirrored: false,
@@ -1669,6 +1671,7 @@ export function migrateLegacyToV1(legacyData) {
     migrated.content.commander.imageRank = commanderImageSettings.imageRank;
     migrated.content.commander.imageRankStyle = commanderImageSettings.imageRankStyle;
     migrated.content.commander.imageRankBackdrop = commanderImageSettings.imageRankBackdrop;
+    migrated.content.commander.imageRankBackdropColor = commanderImageSettings.imageRankBackdropColor;
     migrated.content.commander.imageRankOrientation = commanderImageSettings.imageRankOrientation;
     migrated.content.commander.imageRankRotation = commanderImageSettings.imageRankRotation;
     migrated.content.commander.imageRankMirrored = commanderImageSettings.imageRankMirrored;
@@ -1873,6 +1876,7 @@ export function validateAndNormalize(config) {
                 imageRank: commanderImageSettings.imageRank,
                 imageRankStyle: commanderImageSettings.imageRankStyle,
                 imageRankBackdrop: commanderImageSettings.imageRankBackdrop,
+                imageRankBackdropColor: commanderImageSettings.imageRankBackdropColor,
                 imageRankOrientation: commanderImageSettings.imageRankOrientation,
                 imageRankRotation: commanderImageSettings.imageRankRotation,
                 imageRankMirrored: commanderImageSettings.imageRankMirrored,
