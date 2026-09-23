@@ -563,12 +563,16 @@ export default function AdminBackupManagement() {
 
     const stats = useMemo(() => {
         const count = backups.length;
+        // An unknown count must not be folded in as 0: that would report a
+        // confident total that is quietly too low.
+        const unknownFileCounts = backups.filter((backup) => backup?.fileCount == null).length;
         const totalSizeBytes = backups.reduce((sum, backup) => sum + (Number(backup?.totalSizeBytes) || 0), 0);
         const totalFiles = backups.reduce((sum, backup) => sum + (Number(backup?.fileCount) || 0), 0);
         const latest = [...backups].sort((a, b) => parseComparableTimestamp(b) - parseComparableTimestamp(a))[0] || null;
 
         return {
             count,
+            unknownFileCounts,
             totalSizeBytes,
             totalFiles,
             latest,
@@ -1727,7 +1731,16 @@ export default function AdminBackupManagement() {
                             <Files size={14} />
                             סה״כ קבצים
                         </div>
-                        <div className="mt-3 text-3xl font-black text-gray-900 dark:text-white">{stats.totalFiles}</div>
+                        <div className="mt-3 text-3xl font-black text-gray-900 dark:text-white">
+                            {stats.unknownFileCounts > 0 && stats.totalFiles === 0 ? '—' : stats.totalFiles}
+                        </div>
+                        {stats.unknownFileCounts > 0 && (
+                            <div className="mt-1 text-xs font-bold text-amber-600 dark:text-amber-400">
+                                {stats.unknownFileCounts === 1
+                                    ? 'לגיבוי אחד לא ניתן היה לקרוא את רשימת הקבצים'
+                                    : `ל-${stats.unknownFileCounts} גיבויים לא ניתן היה לקרוא את רשימת הקבצים`}
+                            </div>
+                        )}
                     </div>
                     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-[#232733]">
                         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -1776,7 +1789,11 @@ export default function AdminBackupManagement() {
                                                             {formatDateTime(backup.timeLastModified || backup.timeCreated)}
                                                         </div>
                                                         <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                            {backup.fileCount} קבצים · {formatBytes(backup.totalSizeBytes)}
+                                                            {backup.fileCount == null
+                                                                ? 'מספר הקבצים אינו ידוע'
+                                                                : `${backup.fileCount} קבצים`}
+                                                            {' · '}
+                                                            {backup.totalSizeBytes == null ? 'גודל לא ידוע' : formatBytes(backup.totalSizeBytes)}
                                                         </div>
                                                         {backup.status && (
                                                             <div className="mt-1 text-xs font-bold text-gray-600 dark:text-gray-300">

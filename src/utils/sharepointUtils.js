@@ -1070,6 +1070,10 @@ export const listSharePointBackups = async ({ includeFiles = true } = {}) => {
     const backups = await Promise.all(
         backupFolders.map(async (folder) => {
             let files = [];
+            // A listing that FAILED is not an empty backup. Swallowing the error
+            // and leaving files empty made a 500 indistinguishable from a folder
+            // with nothing in it, and the UI then stated "0 files" as fact.
+            let fileListingFailed = false;
             if (includeFiles) {
                 try {
                     files = await listSharePointBackupFiles(folder.serverRelativeUrl, {
@@ -1077,6 +1081,7 @@ export const listSharePointBackups = async ({ includeFiles = true } = {}) => {
                         includeManifest: true,
                     });
                 } catch (error) {
+                    fileListingFailed = true;
                     spLog.warn(`לא ניתן לקרוא קבצים מתיקיית גיבוי "${folder.name}"`, error);
                 }
             }
@@ -1097,8 +1102,12 @@ export const listSharePointBackups = async ({ includeFiles = true } = {}) => {
                 status: manifest?.status || (manifestFile ? 'partial' : 'legacy'),
                 manifest,
                 files: dataFiles,
-                fileCount: includeFiles ? dataFiles.length : Math.max(0, folder.itemCount),
-                totalSizeBytes,
+                // null means UNKNOWN. Callers must not coerce it to 0.
+                fileCount: fileListingFailed
+                    ? null
+                    : (includeFiles ? dataFiles.length : Math.max(0, folder.itemCount)),
+                totalSizeBytes: fileListingFailed ? null : totalSizeBytes,
+                fileListingFailed,
             };
         }),
     );

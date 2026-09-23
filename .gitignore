@@ -36,3 +36,7 @@ dev-ai.env
 offline-artifacts/docker/*.tar
 .site-builder-source
 tmp/agent-runs/
+
+# Playwright run output
+/test-results/
+/playwright-report/
