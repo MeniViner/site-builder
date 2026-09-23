@@ -16,6 +16,7 @@ import { toast } from 'react-toastify';
 import { useConfig } from '../context/ConfigProvider';
 import {
     clearAdminRecoveryDraft,
+    isAdminRecoveryActionTarget,
     readAdminRecoveryDraft,
     registerAdminRecoveryParticipant,
 } from '../utils/adminEditSession';
@@ -129,6 +130,7 @@ export default function AdminAlerts() {
     useEffect(() => {
         const handleExternalNavigation = (event) => {
             if (!dirtyRef.current || rootRef.current?.contains(event.target)) return;
+            if (isAdminRecoveryActionTarget(event.target)) return;
             const interactive = event.target.closest?.('a,button');
             if (!interactive) return;
             event.preventDefault();

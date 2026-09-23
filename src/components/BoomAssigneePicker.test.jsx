@@ -5,11 +5,13 @@ import BoomAssigneePicker from './BoomAssigneePicker';
 
 const mocks = vi.hoisted(() => ({
     searchSharePointIdentityCandidates: vi.fn(),
+    resolveExactSharePointIdentity: vi.fn(),
     resolveConfirmedSinglePrincipalFromCandidate: vi.fn(),
 }));
 
 vi.mock('../services/sharePointIdentityResolver', () => ({
     isConfirmedUserPrincipal: (candidate) => Number(candidate?.Id) > 0 && Number(candidate?.PrincipalType ?? 1) === 1,
+    resolveExactSharePointIdentity: mocks.resolveExactSharePointIdentity,
     resolveConfirmedSinglePrincipalFromCandidate: mocks.resolveConfirmedSinglePrincipalFromCandidate,
     searchSharePointIdentityCandidates: mocks.searchSharePointIdentityCandidates,
 }));
@@ -27,7 +29,30 @@ function PickerHarness({ initialAssignee = null }) {
 describe('BoomAssigneePicker', () => {
     beforeEach(() => {
         mocks.searchSharePointIdentityCandidates.mockReset();
+        mocks.resolveExactSharePointIdentity.mockReset();
         mocks.resolveConfirmedSinglePrincipalFromCandidate.mockReset();
+    });
+
+    it('resolves a personal number directly before running the limited name search', async () => {
+        mocks.resolveExactSharePointIdentity.mockResolvedValue({
+            ok: true,
+            principal: {
+                identityKey: 'sp:44',
+                identities: ['sp:44', 'pn:1234567'],
+                displayName: 'רוני',
+                sharePointUserId: 44,
+                personalNumber: '1234567',
+            },
+        });
+        render(<PickerHarness />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'בחירת אחראי משימה' }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'חיפוש אחראי משימה' }), { target: { value: '1234567' } });
+        fireEvent.click(screen.getByRole('button', { name: 'חיפוש' }));
+
+        await waitFor(() => expect(screen.getByText('אחראי נבחר: רוני')).toBeInTheDocument());
+        expect(mocks.resolveExactSharePointIdentity).toHaveBeenCalledWith('1234567', []);
+        expect(mocks.searchSharePointIdentityCandidates).not.toHaveBeenCalled();
     });
 
     it('searches SharePoint users, performs an explicit final resolve, and replaces the selected single assignee', async () => {

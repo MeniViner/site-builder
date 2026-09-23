@@ -6,6 +6,7 @@ import {
     beginAdminEditSession,
     endAdminEditSession,
     getAdminRecoveryState,
+    isAdminRecoveryActionTarget,
     isAdminEditSessionStale,
     prepareAdminSafeReload,
     recordAdminActivity,
@@ -23,7 +24,7 @@ export default function AdminEditSessionGuard({ reloadPage = () => window.locati
         const onMutationInteraction = (event) => {
             recordAdminActivity();
             if (!isAdminEditSessionStale()) return;
-            if (event.target?.closest?.('[data-admin-recovery-control="true"]')) return;
+            if (isAdminRecoveryActionTarget(event.target)) return;
             event.preventDefault();
             event.stopPropagation();
             event.stopImmediatePropagation?.();

@@ -1,9 +1,6 @@
-import React, { useMemo, useState } from 'react';
-import { CheckCircle2, Loader2, Search, Trash2, Users } from 'lucide-react';
-import {
-    listSharePointGroupMembersByIdentity,
-    normalizeSharePointIdentityInput,
-} from '../services/sharePointSiteCollectionAdminsService';
+import React, { useState } from 'react';
+import { CheckCircle2, Loader2, Search, Trash2 } from 'lucide-react';
+import { listSharePointGroupMembersByIdentity } from '../services/sharePointSiteCollectionAdminsService';
 import {
     isConfirmedUserPrincipal,
     resolveExactSharePointIdentity,
@@ -53,56 +50,50 @@ function mergeAudienceTargets(currentTargets, incomingTargets) {
     }, currentTargets);
 }
 
+function isExactIdentityInput(value) {
+    const input = String(value || '').trim();
+    return /^\d{6,8}$/.test(input)
+        || /^s\d{6,8}$/i.test(input)
+        || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input)
+        || /[|\\]/.test(input)
+        || /^[ic]:/i.test(input);
+}
+
 export default function NotificationAudienceTargets({ selectedTargets = [], onSelectedTargetsChange }) {
-    const [targetKind, setTargetKind] = useState('user');
     const [identityInput, setIdentityInput] = useState('');
     const [resolving, setResolving] = useState(false);
     const [error, setError] = useState('');
-    const normalizedIdentity = useMemo(
-        () => normalizeSharePointIdentityInput(identityInput),
-        [identityInput],
-    );
-
     const addTargets = (targets) => {
         const mergedTargets = mergeAudienceTargets(selectedTargets, targets);
         onSelectedTargetsChange?.(mergedTargets);
     };
 
-    const addUser = async () => {
-        if (!normalizedIdentity.ok) {
-            setError(normalizedIdentity.message);
+    const addTarget = async () => {
+        const input = identityInput.trim();
+        if (!input) {
+            setError('יש להזין שם, מספר אישי, מייל או LoginName.');
             return;
         }
         setResolving(true);
         setError('');
         try {
-            const resolution = await resolveExactSharePointIdentity(identityInput, []);
-            if (!resolution.ok) {
-                setError(resolution.error);
+            if (isExactIdentityInput(input)) {
+                const resolution = await resolveExactSharePointIdentity(input, []);
+                if (!resolution.ok) {
+                    setError(resolution.error);
+                    return;
+                }
+                const target = toAudienceTargetFromPrincipal(resolution.principal);
+                if (!target) {
+                    setError('למשתמש שנבחר חסרים פרטי זיהוי של SharePoint.');
+                    return;
+                }
+                addTargets([target]);
+                setIdentityInput('');
                 return;
             }
-            const target = toAudienceTargetFromPrincipal(resolution.principal);
-            if (!target) {
-                setError('למשתמש שנבחר חסרים פרטי זיהוי של SharePoint.');
-                return;
-            }
-            addTargets([target]);
-            setIdentityInput('');
-        } finally {
-            setResolving(false);
-        }
-    };
 
-    const addGroup = async () => {
-        const groupInput = identityInput.trim();
-        if (!groupInput) {
-            setError('יש להזין שם או מזהה של קבוצת SharePoint.');
-            return;
-        }
-        setResolving(true);
-        setError('');
-        try {
-            const group = await listSharePointGroupMembersByIdentity(groupInput, []);
+            const group = await listSharePointGroupMembersByIdentity(input, []);
             const targets = group.members
                 .map((member) => toAudienceTargetFromGroupMember(member, group))
                 .filter(Boolean);
@@ -113,7 +104,7 @@ export default function NotificationAudienceTargets({ selectedTargets = [], onSe
             addTargets(targets);
             setIdentityInput('');
         } catch {
-            setError('לא ניתן לטעון את חברי הקבוצה מ־SharePoint. בדוק את השם או המזהה ואת ההרשאות.');
+            setError('לא ניתן לזהות יעד ב־SharePoint. בדקו את השם או המזהה ואת ההרשאות.');
         } finally {
             setResolving(false);
         }
@@ -123,53 +114,34 @@ export default function NotificationAudienceTargets({ selectedTargets = [], onSe
         onSelectedTargetsChange?.(selectedTargets.filter((target) => target.identityKey !== identityKey));
     };
 
-    const isUserTarget = targetKind === 'user';
-    const canAdd = isUserTarget ? normalizedIdentity.ok : Boolean(identityInput.trim());
+    const canAdd = Boolean(identityInput.trim());
 
     return (
         <div className="space-y-3">
-            <div className="grid gap-2 sm:grid-cols-[minmax(150px,0.38fr)_minmax(0,1fr)_auto]">
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                 <label>
-                    <span className="mb-1.5 block text-xs font-black text-theme-muted">סוג יעד</span>
-                    <select
-                        aria-label="סוג יעד"
-                        value={targetKind}
-                        onChange={(event) => {
-                            setTargetKind(event.target.value);
-                            setIdentityInput('');
-                            setError('');
-                        }}
-                        disabled={resolving}
-                        className="min-h-11 w-full rounded-xl border border-theme-subtle bg-theme-elevated px-3 text-sm font-semibold text-theme outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
-                    >
-                        <option value="user">משתמש</option>
-                        <option value="group">קבוצת SharePoint</option>
-                    </select>
-                </label>
-                <label>
-                    <span className="mb-1.5 block text-xs font-black text-theme-muted">
-                        {isUserTarget ? 'מספר אישי / זהות SharePoint' : 'שם או מזהה קבוצת SharePoint'}
-                    </span>
+                    <span className="mb-1.5 block text-xs font-black text-theme-muted">יעד התראה</span>
                     <input
-                        dir={isUserTarget ? 'ltr' : 'auto'}
+                        aria-label="יעד התראה"
+                        dir="auto"
                         className="min-h-11 w-full rounded-xl border border-theme-subtle bg-theme-elevated px-3 text-sm text-theme outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
                         value={identityInput}
                         onChange={(event) => {
                             setIdentityInput(event.target.value);
                             setError('');
                         }}
-                        placeholder={isUserTarget ? 's1234567 / email / LoginName' : 'לדוגמה: צוות מבצעים או 12'}
+                        placeholder="מספר אישי, מייל, LoginName או שם קבוצת SharePoint"
                         disabled={resolving}
                     />
                 </label>
                 <button
                     type="button"
-                    onClick={isUserTarget ? addUser : addGroup}
+                    onClick={addTarget}
                     disabled={!canAdd || resolving}
                     className="mt-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-4 text-sm font-black text-primary transition hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                    {resolving ? <Loader2 size={16} className="animate-spin" /> : isUserTarget ? <Search size={16} /> : <Users size={16} />}
-                    {isUserTarget ? 'הוסף משתמש' : 'הוסף קבוצה'}
+                    {resolving ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+                    הוסף יעד
                 </button>
             </div>
 

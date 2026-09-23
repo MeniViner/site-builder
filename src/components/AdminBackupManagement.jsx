@@ -353,6 +353,34 @@ const summarizeFileForRestore = (file = {}) => {
     };
 };
 
+const hydrateRestoreFiles = (files = [], fileTextsByName = new Map()) => files.map((file) => {
+    const fileName = file?.name || file?.fileName || '';
+    const text = fileTextsByName.get(fileName);
+    if (typeof text !== 'string') {
+        return { ...file, missing: true, invalid: false, empty: false, status: 'missing', restoreStatus: 'missing' };
+    }
+
+    try {
+        JSON.parse(text);
+        const recordCount = deriveBackupFileRecordCount(fileName, text);
+        const empty = recordCount === 0;
+        return {
+            ...file,
+            text,
+            recordCount,
+            missing: false,
+            invalid: false,
+            empty,
+            status: empty ? 'empty' : 'hasData',
+            restoreStatus: empty ? 'empty' : 'hasData',
+            restoreAction: 'will_restore',
+            willRestore: true,
+        };
+    } catch {
+        return { ...file, text, recordCount: null, missing: false, invalid: true, empty: false, status: 'invalid', restoreStatus: 'invalid' };
+    }
+});
+
 const getRestoreDisableReason = (entry = {}) => {
     if (!entry || entry.canRestore) return '';
     if (entry.restoreAction === 'skipped' && entry.restoreStatus === 'empty' && !entry.empty && !entry.missing && !entry.invalid) {
@@ -508,6 +536,7 @@ export default function AdminBackupManagement() {
     const [isRestoring, setIsRestoring] = useState(false);
     const [exportingBackupPath, setExportingBackupPath] = useState('');
     const [isImportingBackup, setIsImportingBackup] = useState(false);
+    const restorePreviewRequestRef = useRef(0);
 
     const selectedBackup = useMemo(
         () => backups.find((backup) => backup.serverRelativeUrl === selectedBackupPath) || null,
@@ -923,6 +952,7 @@ export default function AdminBackupManagement() {
     };
 
     const openRestorePreview = async (backup, files) => {
+        const requestId = ++restorePreviewRequestRef.current;
         const restoreEntries = buildRestoreEntriesFromBackup(backup, files);
 
         setRestoreModal({
@@ -952,20 +982,24 @@ export default function AdminBackupManagement() {
                 await getBackupFileText(file, backup),
             ]));
             const fileTextsByName = new Map(fileTextEntries);
+            const hydratedFiles = hydrateRestoreFiles(files, fileTextsByName);
+            const hydratedEntries = buildRestoreEntriesFromBackup(backup, hydratedFiles);
             const preview = buildPreviewFromBackupTexts(fileTextsByName);
+            if (requestId !== restorePreviewRequestRef.current) return;
 
             setRestoreModal({
                 backup,
-                files,
+                files: hydratedFiles,
                 loading: false,
                 error: '',
                 preview,
                 fileTextsByName,
-                restoreEntries,
-                selectedRestoreUnitIds: buildRestoreSelectionState(restoreEntries),
+                restoreEntries: hydratedEntries,
+                selectedRestoreUnitIds: buildRestoreSelectionState(hydratedEntries),
                 restoreResult: null,
             });
         } catch (previewError) {
+            if (requestId !== restorePreviewRequestRef.current) return;
             setRestoreModal({
                 backup,
                 files,

@@ -50,6 +50,20 @@ function safeParticipantDirty(participant) {
     return participant?.isDirty?.() === true;
 }
 
+export function isAdminRecoveryActionTarget(target) {
+    if (!target || typeof target !== 'object') return false;
+    if (typeof target.closest === 'function') {
+        return Boolean(target.closest('[data-admin-recovery-control="true"]'));
+    }
+
+    let current = target.parentElement;
+    while (current) {
+        if (current.getAttribute?.('data-admin-recovery-control') === 'true') return true;
+        current = current.parentElement;
+    }
+    return false;
+}
+
 function safePersistenceState(controller) {
     const state = controller?.getState?.();
     return state && typeof state === 'object' ? state : {};

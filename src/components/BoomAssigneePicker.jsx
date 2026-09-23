@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { CheckCircle2, Loader2, Search, UserRound, X } from 'lucide-react';
 import {
     isConfirmedUserPrincipal,
+    resolveExactSharePointIdentity,
     resolveConfirmedSinglePrincipalFromCandidate,
     searchSharePointIdentityCandidates,
 } from '../services/sharePointIdentityResolver';
@@ -18,6 +19,15 @@ function toLinkedAssignee(principal) {
     };
 }
 
+function isExactIdentityInput(value) {
+    const input = String(value || '').trim();
+    return /^\d{6,8}$/.test(input)
+        || /^s\d{6,8}$/i.test(input)
+        || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input)
+        || /[|\\]/.test(input)
+        || /^[ic]:/i.test(input);
+}
+
 export default function BoomAssigneePicker({ linkedAssignee, onAssigneeChange }) {
     const [isOpen, setIsOpen] = useState(false);
     const [query, setQuery] = useState('');
@@ -25,24 +35,42 @@ export default function BoomAssigneePicker({ linkedAssignee, onAssigneeChange })
     const [isSearching, setIsSearching] = useState(false);
     const [isResolving, setIsResolving] = useState(false);
     const [error, setError] = useState('');
+    const requestVersionRef = useRef(0);
 
     const close = () => {
+        requestVersionRef.current += 1;
         setIsOpen(false);
         setQuery('');
         setResults([]);
         setError('');
+        setIsResolving(false);
     };
 
     const search = async () => {
-        if (query.trim().length < 2) {
+        const exactIdentity = isExactIdentityInput(query);
+        if (!exactIdentity && query.trim().length < 2) {
             setError('יש להזין לפחות שני תווים לחיפוש.');
             setResults([]);
             return;
         }
+        const requestVersion = ++requestVersionRef.current;
         setIsSearching(true);
         setError('');
         try {
+            if (exactIdentity) {
+                const resolution = await resolveExactSharePointIdentity(query, []);
+                if (requestVersion !== requestVersionRef.current) return;
+                if (!resolution.ok) {
+                    setResults([]);
+                    setError(resolution.error);
+                    return;
+                }
+                onAssigneeChange?.(toLinkedAssignee(resolution.principal));
+                close();
+                return;
+            }
             const searchResult = await searchSharePointIdentityCandidates(query, []);
+            if (requestVersion !== requestVersionRef.current) return;
             if (!searchResult.ok) {
                 setResults([]);
                 setError(searchResult.error);
@@ -51,11 +79,12 @@ export default function BoomAssigneePicker({ linkedAssignee, onAssigneeChange })
             setResults(searchResult.candidates);
             if (searchResult.candidates.length === 0) setError('לא נמצאו משתמשים תואמים באתר SharePoint.');
         } finally {
-            setIsSearching(false);
+            if (requestVersion === requestVersionRef.current) setIsSearching(false);
         }
     };
 
     const selectAssignee = async (candidate) => {
+        const requestVersion = requestVersionRef.current;
         setError('');
         if (!isConfirmedUserPrincipal(candidate)) {
             setError('ניתן לבחור משתמש יחיד ומאומת בלבד. לא ניתן לשייך קבוצה כאחראי.');
@@ -64,6 +93,7 @@ export default function BoomAssigneePicker({ linkedAssignee, onAssigneeChange })
         setIsResolving(true);
         try {
             const resolution = await resolveConfirmedSinglePrincipalFromCandidate(candidate, []);
+            if (requestVersion !== requestVersionRef.current) return;
             if (!resolution.ok) {
                 setError(resolution.error);
                 return;
@@ -74,9 +104,10 @@ export default function BoomAssigneePicker({ linkedAssignee, onAssigneeChange })
                 return;
             }
             onAssigneeChange?.(assignee);
+            setIsResolving(false);
             close();
         } finally {
-            setIsResolving(false);
+            if (requestVersion === requestVersionRef.current) setIsResolving(false);
         }
     };
 
@@ -123,8 +154,11 @@ export default function BoomAssigneePicker({ linkedAssignee, onAssigneeChange })
                                 autoFocus
                                 value={query}
                                 onChange={(event) => {
+                                    requestVersionRef.current += 1;
                                     setQuery(event.target.value);
                                     setError('');
+                                    setResults([]);
+                                    setIsResolving(false);
                                 }}
                                 onKeyDown={(event) => {
                                     if (event.key === 'Escape') close();
@@ -134,7 +168,7 @@ export default function BoomAssigneePicker({ linkedAssignee, onAssigneeChange })
                                     }
                                 }}
                                 className="min-h-11 min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-2 focus:ring-primary/15 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                placeholder="שם או מייל"
+                                placeholder="שם, מספר אישי, מייל או LoginName"
                                 aria-label="חיפוש אחראי משימה"
                                 disabled={isSearching}
                             />

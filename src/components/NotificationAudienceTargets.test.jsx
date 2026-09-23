@@ -53,17 +53,16 @@ describe('NotificationAudienceTargets', () => {
         });
         render(<TargetPickerHarness />);
 
-        fireEvent.change(screen.getByRole('textbox', { name: 'מספר אישי / זהות SharePoint' }), {
+        fireEvent.change(screen.getByRole('textbox', { name: 'יעד התראה' }), {
             target: { value: 'uri@army.idf.il' },
         });
-        fireEvent.click(screen.getByRole('button', { name: 'הוסף משתמש' }));
+        fireEvent.click(screen.getByRole('button', { name: 'הוסף יעד' }));
         await screen.findByText('אורי');
 
-        fireEvent.change(screen.getByRole('combobox', { name: 'סוג יעד' }), { target: { value: 'group' } });
-        fireEvent.change(screen.getByRole('textbox', { name: 'שם או מזהה קבוצת SharePoint' }), {
+        fireEvent.change(screen.getByRole('textbox', { name: 'יעד התראה' }), {
             target: { value: 'צוות מבצעים' },
         });
-        fireEvent.click(screen.getByRole('button', { name: 'הוסף קבוצה' }));
+        fireEvent.click(screen.getByRole('button', { name: 'הוסף יעד' }));
 
         await waitFor(() => expect(screen.getByText('נועה')).toBeInTheDocument());
         expect(screen.getByText('דנה')).toBeInTheDocument();
@@ -78,10 +77,10 @@ describe('NotificationAudienceTargets', () => {
         });
         render(<TargetPickerHarness />);
 
-        fireEvent.change(screen.getByRole('textbox', { name: 'מספר אישי / זהות SharePoint' }), {
-            target: { value: 'ops-group' },
+        fireEvent.change(screen.getByRole('textbox', { name: 'יעד התראה' }), {
+            target: { value: 's1234567' },
         });
-        fireEvent.click(screen.getByRole('button', { name: 'הוסף משתמש' }));
+        fireEvent.click(screen.getByRole('button', { name: 'הוסף יעד' }));
 
         await waitFor(() => expect(screen.getByText('ניתן לבחור משתמש יחיד ומאומת בלבד. לא ניתן לשייך קבוצה כאחראי.')).toBeInTheDocument());
         expect(screen.queryByText('משתמשים שנבחרו')).not.toBeInTheDocument();
@@ -98,11 +97,10 @@ describe('NotificationAudienceTargets', () => {
         });
         render(<TargetPickerHarness />);
 
-        fireEvent.change(screen.getByRole('combobox', { name: 'סוג יעד' }), { target: { value: 'group' } });
-        fireEvent.change(screen.getByRole('textbox', { name: 'שם או מזהה קבוצת SharePoint' }), {
+        fireEvent.change(screen.getByRole('textbox', { name: 'יעד התראה' }), {
             target: { value: 'צוות מבצעים' },
         });
-        fireEvent.click(screen.getByRole('button', { name: 'הוסף קבוצה' }));
+        fireEvent.click(screen.getByRole('button', { name: 'הוסף יעד' }));
 
         await waitFor(() => expect(screen.getByText('נועה')).toBeInTheDocument());
         expect(screen.queryByText('תת-קבוצה מקוננת')).not.toBeInTheDocument();
