@@ -91,6 +91,17 @@ export function getAdminRecoveryStorageKey() {
     return scopeStorageKey();
 }
 
+/**
+ * Whether a recovery scope has been installed yet.
+ *
+ * The scope is set asynchronously once the signed-in user is known, so a screen
+ * that reads a recovered draft at mount can run before there is anything to read
+ * from. This lets such a screen wait for the scope instead of silently giving up.
+ */
+export function hasAdminRecoveryScope() {
+    return Boolean(recoveryScope);
+}
+
 function emit(name) {
     if (typeof window === 'undefined') return;
     window.dispatchEvent(new CustomEvent(name));

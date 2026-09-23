@@ -47,6 +47,19 @@ export async function installBackupRoutes(page, initialBackups = []) {
         /** Replaces the fixture used by every subsequent request. */
         setBackups(next) { fixture.backups = next; },
         find(name) { return fixture.backups.find((backup) => backup.name === name); },
+        /**
+         * Releases every gate still held open. A route handler parked on an
+         * unresolved promise keeps a request in flight while Playwright closes
+         * the context, which makes tracing drop its recording file; tests call
+         * this from afterEach so an intentionally abandoned request never
+         * destabilises the next spec.
+         */
+        releaseAllGates() {
+            fixture.backups.forEach((backup) => {
+                backup.filesGate?.release?.();
+                backup.files.forEach((file) => file.gate?.release?.());
+            });
+        },
     };
 
     const decodeFolderPath = (url) => {

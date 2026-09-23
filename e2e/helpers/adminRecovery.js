@@ -53,6 +53,26 @@ export async function installRecoveryHarness(context, { docLoadKey = DOC_LOAD_KE
             return nativeSetItem.call(this, storageKey, value);
         };
 
+        // Snapshot any recovery envelope present at DOCUMENT START, before React
+        // mounts. A screen that restores its draft legitimately CONSUMES the
+        // envelope, so reading localStorage after the app has booted cannot tell
+        // "never written" apart from "written and correctly adopted".
+        window.__e2eEnvelopeAtLoad = (() => {
+            const found = {};
+            try {
+                // Envelopes live in sessionStorage (adminEditSession.js:345).
+                for (let i = 0; i < sessionStorage.length; i += 1) {
+                    const storageKey = sessionStorage.key(i);
+                    if (storageKey && storageKey.includes('adminRecoveryDraft')) {
+                        found[storageKey] = sessionStorage.getItem(storageKey);
+                    }
+                }
+            } catch {
+                // Blocked storage is not this harness's concern.
+            }
+            return found;
+        })();
+
         try {
             sessionStorage.setItem(key, String(Number(sessionStorage.getItem(key) || '0') + 1));
         } catch {
@@ -226,3 +246,21 @@ export const readPersistedAlerts = (page) => page.evaluate((key) => {
     }
     return found;
 }, KASHAR_DRAFT_KEY);
+
+/**
+ * The recovery envelopes that existed when the current document started, before
+ * any screen could adopt and clear one.
+ */
+export const readEnvelopeAtLoad = (page, editorId) => page.evaluate((id) => {
+    const snapshot = window.__e2eEnvelopeAtLoad || {};
+    for (const raw of Object.values(snapshot)) {
+        try {
+            const parsed = JSON.parse(raw);
+            const editors = parsed?.participants || parsed?.editors || parsed;
+            if (editors && Object.prototype.hasOwnProperty.call(editors, id)) return editors[id];
+        } catch {
+            // A malformed envelope is reported as absent.
+        }
+    }
+    return null;
+}, editorId);

@@ -10,9 +10,9 @@ import {
     makeSessionGenuinelyStale,
     openAdmin,
     readDocumentLoads,
-    readRecoveryDraftViaApp,
     readRecoveryState,
     refreshButton,
+    readEnvelopeAtLoad,
 } from './helpers/adminRecovery.js';
 
 /**
@@ -136,8 +136,11 @@ test('the safe reload writes a verified recovery envelope for the dirty editor',
     await page.waitForLoadState('domcontentloaded');
     await openAdmin(page, '/#/admin/alerts');
 
-    // The envelope survived the reload, is scoped, and carries the edit.
-    const captured = await readRecoveryDraftViaApp(page, 'admin-alerts');
+    // Read the snapshot taken at DOCUMENT START. AdminAlerts now adopts and
+    // clears its envelope as soon as the recovery scope lands, so reading
+    // localStorage after boot could not distinguish "never written" from
+    // "written and correctly restored".
+    const captured = await readEnvelopeAtLoad(page, 'admin-alerts');
     expect(captured, 'the safe reload must persist the dirty alert draft').not.toBeNull();
     expect(captured.form.title).toBe(DRAFT_TITLE);
     expect(captured.form.text).toContain(DRAFT_BODY);
@@ -148,14 +151,14 @@ test('the safe reload writes a verified recovery envelope for the dirty editor',
  *
  * The envelope is written and is readable (the test above proves it), but the
  * work never comes back on screen. AdminAlerts reads its recovery draft in a
- * mount-only effect (src/components/AdminAlerts.jsx:160-168), while the
+ * mount-only effect (src/components/AdminAlerts.jsx:160-171), while the
  * recovery scope is installed asynchronously by AuthContext
  * (src/context/AuthContext.jsx:319-332) roughly a second later, once the admin
  * identity resolves. At mount `recoveryScope` is still null, so
  * readAdminRecoveryDraft returns null (src/utils/adminEditSession.js:332-334)
  * and the draft is dropped. AdminBoom and AdminGantt avoid this by also
  * listening for ADMIN_RECOVERY_STATE_EVENT and re-running their restore
- * (src/components/AdminBoom.jsx:373, src/components/AdminGantt.jsx:914);
+ * (src/components/AdminBoom.jsx:373, src/components/AdminGantt.jsx:939);
  * AdminAlerts does not. Remounting AdminAlerts afterwards DOES restore the
  * draft, which is what e2e/recovery-scope-rejection.spec.js relies on.
  */

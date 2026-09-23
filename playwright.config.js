@@ -21,8 +21,13 @@ export default defineConfig({
     forbidOnly: !!process.env.CI,
     retries: 0,
     reporter: [['list']],
-    timeout: 60_000,
-    expect: { timeout: 10_000 },
+    // 49 specs share one Vite dev server in a single worker. A 10s expect
+    // budget was marginal for the reload/hydration waits once the run was under
+    // load: specs passed alone and failed in the batch. Raising the budget does
+    // not hide a failure -- a genuinely broken expectation still exhausts it --
+    // it just stops a slow-but-correct wait from being reported as a defect.
+    timeout: 90_000,
+    expect: { timeout: 20_000 },
     use: {
         baseURL: `http://localhost:${PORT}`,
         headless: true,

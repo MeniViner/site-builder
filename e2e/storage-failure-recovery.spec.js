@@ -102,7 +102,7 @@ test('a failed save leaves the editor and the config controller genuinely dirty 
  *
  * AdminAlerts.commitEdit passes the raw error message straight to the toast
  * (`toast.error(saveError?.message || 'שמירת ההתראה נכשלה.')`,
- * src/components/AdminAlerts.jsx:306), so the store's English text
+ * src/components/AdminAlerts.jsx:309), so the store's English text
  * "Kashar demo changes could not be saved. Your previous draft is unchanged."
  * (src/services/KasharDraftStore.js:506) is shown verbatim in a Hebrew RTL
  * console. Every other admin screen routes the same failure through
