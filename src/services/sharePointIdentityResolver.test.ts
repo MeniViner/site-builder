@@ -18,6 +18,7 @@ vi.mock('./sharePointSiteCollectionAdminsService', async () => {
 
 import {
     ensureSingleConfirmedCandidate,
+    isExactSharePointIdentityInput,
     resolveConfirmedSinglePrincipalFromCandidate,
     resolveExactSharePointIdentity,
     searchSharePointIdentityCandidates,
@@ -27,6 +28,18 @@ describe('sharePointIdentityResolver', () => {
     beforeEach(() => {
         mocks.ensureUserByIdentity.mockReset();
         mocks.searchSharePointUsers.mockReset();
+    });
+
+    describe('isExactSharePointIdentityInput', () => {
+        it.each(['1234567', 's1234567', 'user@army.idf.il', 'domain\\user', 'i:0#.f|membership|user@army.idf.il'])(
+            'classifies %s as an exact identity',
+            (value) => expect(isExactSharePointIdentityInput(value)).toBe(true),
+        );
+
+        it.each(['נועה', 'צוות מבצעים', 'noa cohen'])(
+            'keeps %s in candidate-search mode',
+            (value) => expect(isExactSharePointIdentityInput(value)).toBe(false),
+        );
     });
 
     describe('resolveExactSharePointIdentity', () => {

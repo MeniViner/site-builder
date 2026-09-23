@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ConfigAdapter } from './ConfigAdapter';
+import {
+    ConfigAdapter,
+    mergeConfigTexts,
+    resolveConfigConflictTexts,
+} from './ConfigAdapter';
 import { ConfigService } from './ConfigService';
 import { clearRuntimeConfigForTests, setRuntimeConfigForTests } from './storage/runtimeConfig';
 import { clearStorageDescriptorForTests, getStorageDiagnostics } from './storage/storageBackend';
@@ -29,6 +33,50 @@ function createMemoryAdapter(initialText = null) {
         isLoadFailureFatal: () => true,
     };
 }
+
+describe('ConfigAdapter three-way conflict resolution', () => {
+    it('merges non-overlapping edits automatically', () => {
+        const result = mergeConfigTexts(
+            JSON.stringify({ title: 'base', description: 'base' }),
+            JSON.stringify({ title: 'local', description: 'base' }),
+            JSON.stringify({ title: 'base', description: 'remote' }),
+        );
+        expect(result.ok).toBe(true);
+        expect(JSON.parse(result.text)).toEqual({ title: 'local', description: 'remote' });
+    });
+
+    it('requires and applies an explicit choice for overlapping and deletion conflicts', () => {
+        const baseline = JSON.stringify({ title: 'base', item: { id: '1', name: 'base' } });
+        const draft = JSON.stringify({ title: 'local' });
+        const remote = JSON.stringify({ title: 'remote', item: { id: '1', name: 'changed remotely' } });
+        const conflict = mergeConfigTexts(baseline, draft, remote);
+        expect(conflict).toMatchObject({
+            ok: false,
+            conflicts: expect.arrayContaining(['$.title', '$.item']),
+        });
+
+        const resolved = resolveConfigConflictTexts(baseline, draft, remote, {
+            '$.title': 'local',
+            '$.item': 'remote',
+        });
+        expect(resolved.ok).toBe(true);
+        expect(JSON.parse(resolved.text)).toEqual({
+            title: 'local',
+            item: { id: '1', name: 'changed remotely' },
+        });
+    });
+
+    it('treats duplicate array IDs conservatively instead of dropping entities through a map', () => {
+        const baseline = JSON.stringify({ items: [{ id: '1', value: 'base' }] });
+        const draft = JSON.stringify({ items: [{ id: '1', value: 'local-a' }, { id: '1', value: 'local-b' }] });
+        const remote = JSON.stringify({ items: [{ id: '1', value: 'remote' }] });
+
+        expect(mergeConfigTexts(baseline, draft, remote)).toMatchObject({
+            ok: false,
+            conflicts: ['$.items'],
+        });
+    });
+});
 
 describe('ConfigAdapter TXT persistence', () => {
     beforeEach(() => {

@@ -102,7 +102,7 @@ function NavigationTargetDialog({ dialog, onChange, onClose, onSubmit }) {
                                     value={NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO}
                                     checked={isAutomatic}
                                     disabled={!dialog.canAutomatic || dialog.submitting}
-                                    onChange={() => onChange({ mode: NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO, error: '' })}
+                                    onChange={() => onChange({ mode: NAVIGATION_TARGET_MODES.SHAREPOINT_AUTO, error: '', reconciliation: null })}
                                     className="mt-1 accent-primary"
                                 />
                                 <span>
@@ -121,7 +121,7 @@ function NavigationTargetDialog({ dialog, onChange, onClose, onSubmit }) {
                                     value={NAVIGATION_TARGET_MODES.MANUAL}
                                     checked={!isAutomatic}
                                     disabled={dialog.submitting}
-                                    onChange={() => onChange({ mode: NAVIGATION_TARGET_MODES.MANUAL, error: '' })}
+                                    onChange={() => onChange({ mode: NAVIGATION_TARGET_MODES.MANUAL, error: '', reconciliation: null })}
                                     className="mt-1 accent-primary"
                                 />
                                 <span>
@@ -143,7 +143,7 @@ function NavigationTargetDialog({ dialog, onChange, onClose, onSubmit }) {
                             <input
                                 value={dialog.manualUrl}
                                 disabled={dialog.submitting}
-                                onChange={(event) => onChange({ manualUrl: event.target.value, error: '' })}
+                                onChange={(event) => onChange({ manualUrl: event.target.value, error: '', reconciliation: null })}
                                 className="min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-left text-sm text-blue-700 outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-2 focus:ring-primary/15 dark:border-white/10 dark:bg-white/5 dark:text-blue-300"
                                 placeholder="https:// או z:/public או /Users/name/Documents"
                                 dir="ltr"
@@ -153,9 +153,27 @@ function NavigationTargetDialog({ dialog, onChange, onClose, onSubmit }) {
                     )}
 
                     {dialog.error && (
-                        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold leading-6 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
-                            {dialog.error}
-                        </div>
+                        <>
+                            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold leading-6 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+                                {dialog.error}
+                            </div>
+                            {dialog.reconciliation && (
+                                <details className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100">
+                                    <summary className="cursor-pointer font-black">אבחון ופעולת מפעיל בטוחה</summary>
+                                    <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                                        {Object.entries(dialog.reconciliation.evidence || {}).map(([key, value]) => (
+                                            <div key={key}>
+                                                <dt className="font-black">{key}</dt>
+                                                <dd dir="ltr" className="break-all">{value === null || value === '' ? 'לא אומת' : String(value)}</dd>
+                                            </div>
+                                        ))}
+                                    </dl>
+                                    <ol className="mt-4 list-decimal space-y-2 pr-5 text-xs leading-5">
+                                        {(dialog.reconciliation.operatorSteps || []).map((step) => <li key={step}>{step}</li>)}
+                                    </ol>
+                                </details>
+                            )}
+                        </>
                     )}
 
                     <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 pt-5 dark:border-white/10">
@@ -370,6 +388,7 @@ export default function AdminNavigation() {
             canAutomatic,
             submitting: false,
             error: '',
+            reconciliation: null,
             // Set once a provisioning attempt has been made for this exact key so a
             // repeat click is treated as an idempotent retry rather than a collision.
             attemptedProvisionKey: '',
@@ -516,6 +535,7 @@ export default function AdminNavigation() {
                     ? provisionKey
                     : (current?.attemptedProvisionKey || ''),
                 error: creationError?.userMessage || creationError?.message || 'יצירת היעד נכשלה.',
+                reconciliation: creationError?.details?.reconciliation || null,
             }));
         }
     };

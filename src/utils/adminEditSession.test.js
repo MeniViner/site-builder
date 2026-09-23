@@ -1,18 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     ADMIN_STALE_THRESHOLD_MS,
-    ADMIN_RECOVERY_DRAFT_STORAGE_KEY,
     assertAdminEditSessionFresh,
     beginAdminEditSession,
     completeAdminRecoveryRevalidation,
     endAdminEditSession,
     getAdminRecoveryState,
+    getAdminRecoveryStorageKey,
     prepareAdminSafeReload,
     recordAdminActivity,
     recordAdminVisibility,
     registerAdminPersistenceController,
     registerAdminRecoveryParticipant,
     resetAdminEditSessionForTests,
+    setAdminRecoveryScope,
     shouldWarnBeforeAdminUnload,
 } from './adminEditSession';
 
@@ -20,6 +21,7 @@ describe('adminEditSession', () => {
     beforeEach(() => {
         sessionStorage.clear();
         resetAdminEditSessionForTests();
+        setAdminRecoveryScope({ backend: 'txt', target: '/sites/alpha/data', user: 'user-a' });
         beginAdminEditSession(1_000);
     });
     afterEach(() => {
@@ -74,8 +76,12 @@ describe('adminEditSession', () => {
 
     it('freezes edits, waits for queued persistence, verifies the draft, and approves only that reload', async () => {
         const release = {};
+        let dirty = true;
         const flush = vi.fn(() => new Promise((resolve) => {
-            release.resolve = resolve;
+            release.resolve = (value) => {
+                dirty = false;
+                resolve(value);
+            };
         }));
         registerAdminRecoveryParticipant({
             id: 'alerts',
@@ -84,7 +90,7 @@ describe('adminEditSession', () => {
         });
         registerAdminPersistenceController({
             id: 'config',
-            getState: () => ({ dirty: true, saving: true }),
+            getState: () => ({ dirty, saving: dirty }),
             flush,
         });
 
@@ -95,7 +101,9 @@ describe('adminEditSession', () => {
 
         release.resolve({ ok: true });
         await expect(preparation).resolves.toMatchObject({ reloadApproved: true, draftVerified: true });
-        expect(JSON.parse(sessionStorage.getItem(ADMIN_RECOVERY_DRAFT_STORAGE_KEY))).toMatchObject({
+        expect(JSON.parse(sessionStorage.getItem(getAdminRecoveryStorageKey()))).toMatchObject({
+            version: 2,
+            scope: { backend: 'txt', target: '/sites/alpha/data', user: 'user-a' },
             participants: { alerts: { text: 'טיוטה בטוחה' } },
         });
         expect(shouldWarnBeforeAdminUnload()).toBe(false);
@@ -136,5 +144,40 @@ describe('adminEditSession', () => {
             draftVerified: false,
             reloadApproved: true,
         });
+    });
+
+    it('does not restore another site or user draft and ignores the unscoped legacy envelope', async () => {
+        registerAdminRecoveryParticipant({
+            id: 'alerts',
+            isDirty: () => true,
+            captureDraft: () => ({ text: 'site A' }),
+        });
+        await prepareAdminSafeReload();
+        const siteAKey = getAdminRecoveryStorageKey();
+        sessionStorage.setItem('siteBuilder.adminRecoveryDraft.v1', JSON.stringify({
+            participants: { alerts: { text: 'legacy' } },
+        }));
+
+        setAdminRecoveryScope({ backend: 'txt', target: '/sites/beta/data', user: 'user-a' });
+        expect(getAdminRecoveryStorageKey()).not.toBe(siteAKey);
+        expect(sessionStorage.getItem(getAdminRecoveryStorageKey())).toBeNull();
+
+        setAdminRecoveryScope({ backend: 'txt', target: '/sites/alpha/data', user: 'user-b' });
+        expect(sessionStorage.getItem(getAdminRecoveryStorageKey())).toBeNull();
+    });
+
+    it('blocks reload when selected file bytes are not recoverable', async () => {
+        registerAdminRecoveryParticipant({
+            id: 'upload-form',
+            isDirty: () => true,
+            getState: () => ({
+                recoveryBlocked: true,
+                recoveryBlockReason: 'pending-file-bytes',
+            }),
+            captureDraft: () => ({ fileName: 'photo.png' }),
+        });
+
+        await expect(prepareAdminSafeReload()).rejects.toThrow('לא ניתן לשחזר');
+        expect(getAdminRecoveryState().reloadApproved).toBe(false);
     });
 });

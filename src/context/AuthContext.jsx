@@ -4,8 +4,13 @@ import UsersService from '../services/UsersService';
 import { spLog } from '../utils/spAppLog';
 import { ensureRecentBackup } from '../utils/sharepointUtils';
 import { fetchSharePointAdmins } from '../utils/sharepointAdmins';
-import { isMongoStorageBackend, isSharePointReadonlyBackend } from '../services/storage/storageBackend';
+import {
+    getStorageDescriptor,
+    isMongoStorageBackend,
+    isSharePointReadonlyBackend,
+} from '../services/storage/storageBackend';
 import { shouldSuppressAutomaticBackup } from '../utils/sharePointSetupContext';
+import { setAdminRecoveryScope } from '../utils/adminEditSession';
 import {
     closeBackupProgressToast,
     showBackupCompletedToast,
@@ -308,6 +313,23 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [adminUsersInfo, setAdminUsersInfo] = useState([]);
     const backupCheckTimerRef = useRef(null);
+
+    useEffect(() => {
+        if (loading || !currentUser) {
+            setAdminRecoveryScope(null);
+            return;
+        }
+        const storage = getStorageDescriptor();
+        const userIdentity = currentUser.loginName
+            || currentUser.email
+            || currentUser.personalNumber
+            || currentUser.id;
+        setAdminRecoveryScope({
+            backend: storage.backend,
+            target: `${storage.siteId || ''}|${storage.siteRoot || storage.backendApiUrl || ''}`,
+            user: userIdentity,
+        });
+    }, [currentUser, loading]);
 
     const signIn = (userInput, adminUsers) => {
         const user = normalizeCurrentUser(userInput);

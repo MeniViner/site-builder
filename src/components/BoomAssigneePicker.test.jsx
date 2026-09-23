@@ -10,20 +10,33 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../services/sharePointIdentityResolver', () => ({
+    isExactSharePointIdentityInput: (value) => /^\d{6,8}$/.test(value)
+        || /^s\d{6,8}$/i.test(value)
+        || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+        || /[|\\]/.test(value)
+        || /^[ic]:/i.test(value),
     isConfirmedUserPrincipal: (candidate) => Number(candidate?.Id) > 0 && Number(candidate?.PrincipalType ?? 1) === 1,
     resolveExactSharePointIdentity: mocks.resolveExactSharePointIdentity,
     resolveConfirmedSinglePrincipalFromCandidate: mocks.resolveConfirmedSinglePrincipalFromCandidate,
     searchSharePointIdentityCandidates: mocks.searchSharePointIdentityCandidates,
 }));
 
-function PickerHarness({ initialAssignee = null }) {
+function PickerHarness({ initialAssignee = null, taskKey = 'task-1' }) {
     const [assignee, setAssignee] = useState(initialAssignee);
     return (
         <div className="relative">
             <span>{assignee ? `אחראי נבחר: ${assignee.displayName}` : 'לא נבחר אחראי'}</span>
-            <BoomAssigneePicker linkedAssignee={assignee} onAssigneeChange={setAssignee} />
+            <BoomAssigneePicker taskKey={taskKey} linkedAssignee={assignee} onAssigneeChange={setAssignee} />
         </div>
     );
+}
+
+function deferred() {
+    let resolve;
+    const promise = new Promise((resolvePromise) => {
+        resolve = resolvePromise;
+    });
+    return { promise, resolve };
 }
 
 describe('BoomAssigneePicker', () => {
@@ -53,6 +66,135 @@ describe('BoomAssigneePicker', () => {
         await waitFor(() => expect(screen.getByText('אחראי נבחר: רוני')).toBeInTheDocument());
         expect(mocks.resolveExactSharePointIdentity).toHaveBeenCalledWith('1234567', []);
         expect(mocks.searchSharePointIdentityCandidates).not.toHaveBeenCalled();
+    });
+
+    it('is usable after exact resolution closes and the picker is reopened', async () => {
+        mocks.resolveExactSharePointIdentity.mockResolvedValue({
+            ok: true,
+            principal: {
+                identityKey: 'sp:44',
+                identities: ['sp:44', 'pn:1234567'],
+                displayName: 'רוני',
+                sharePointUserId: 44,
+                personalNumber: '1234567',
+            },
+        });
+        render(<PickerHarness />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'בחירת אחראי משימה' }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'חיפוש אחראי משימה' }), { target: { value: '1234567' } });
+        fireEvent.click(screen.getByRole('button', { name: 'חיפוש' }));
+        await waitFor(() => expect(screen.queryByRole('dialog', { name: 'בחירת אחראי משימה' })).not.toBeInTheDocument());
+
+        fireEvent.click(screen.getByRole('button', { name: 'בחירת אחראי משימה' }));
+        expect(screen.getByRole('textbox', { name: 'חיפוש אחראי משימה' })).toBeEnabled();
+        expect(screen.getByRole('button', { name: 'חיפוש' })).toBeEnabled();
+    });
+
+    it('cancels a pending search and reopens with an enabled empty picker', async () => {
+        const pendingSearch = deferred();
+        mocks.searchSharePointIdentityCandidates.mockReturnValue(pendingSearch.promise);
+        render(<PickerHarness />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'בחירת אחראי משימה' }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'חיפוש אחראי משימה' }), { target: { value: 'נועה' } });
+        fireEvent.click(screen.getByRole('button', { name: 'חיפוש' }));
+        expect(screen.getByRole('textbox', { name: 'חיפוש אחראי משימה' })).toBeDisabled();
+        fireEvent.click(screen.getByRole('button', { name: 'סגירת בחירת אחראי' }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'בחירת אחראי משימה' }));
+        expect(screen.getByRole('textbox', { name: 'חיפוש אחראי משימה' })).toBeEnabled();
+        expect(screen.getByRole('textbox', { name: 'חיפוש אחראי משימה' })).toHaveValue('');
+
+        pendingSearch.resolve({
+            ok: true,
+            candidates: [{ Id: 17, Title: 'נועה', PrincipalType: 1 }],
+        });
+        await Promise.resolve();
+        expect(screen.queryByRole('button', { name: /נועה/ })).not.toBeInTheDocument();
+    });
+
+    it('ignores a late exact response after a new query starts', async () => {
+        const pendingResolution = deferred();
+        mocks.resolveExactSharePointIdentity.mockReturnValue(pendingResolution.promise);
+        render(<PickerHarness />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'בחירת אחראי משימה' }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'חיפוש אחראי משימה' }), { target: { value: '1234567' } });
+        fireEvent.click(screen.getByRole('button', { name: 'חיפוש' }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'חיפוש אחראי משימה' }), { target: { value: 'נועה' } });
+        pendingResolution.resolve({
+            ok: true,
+            principal: { identityKey: 'sp:44', identities: ['sp:44'], displayName: 'רוני', sharePointUserId: 44 },
+        });
+
+        await Promise.resolve();
+        expect(screen.getByText('לא נבחר אחראי')).toBeInTheDocument();
+        expect(screen.getByRole('textbox', { name: 'חיפוש אחראי משימה' })).toHaveValue('נועה');
+        expect(screen.getByRole('textbox', { name: 'חיפוש אחראי משימה' })).toBeEnabled();
+    });
+
+    it('keeps the picker retryable after exact resolution failure', async () => {
+        mocks.resolveExactSharePointIdentity.mockResolvedValue({
+            ok: false,
+            error: 'לא ניתן לזהות משתמש מאומת יחיד עבור הערך שהוזן.',
+        });
+        render(<PickerHarness />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'בחירת אחראי משימה' }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'חיפוש אחראי משימה' }), { target: { value: '1234567' } });
+        fireEvent.click(screen.getByRole('button', { name: 'חיפוש' }));
+
+        await screen.findByText('לא ניתן לזהות משתמש מאומת יחיד עבור הערך שהוזן.');
+        expect(screen.getByRole('textbox', { name: 'חיפוש אחראי משימה' })).toBeEnabled();
+        expect(screen.getByRole('button', { name: 'חיפוש' })).toBeEnabled();
+    });
+
+    it('invalidates pending work and clears busy state when the task changes', async () => {
+        const pendingSearch = deferred();
+        mocks.searchSharePointIdentityCandidates.mockReturnValue(pendingSearch.promise);
+        const { rerender } = render(<PickerHarness taskKey="task-1" />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'בחירת אחראי משימה' }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'חיפוש אחראי משימה' }), { target: { value: 'נועה' } });
+        fireEvent.click(screen.getByRole('button', { name: 'חיפוש' }));
+        rerender(<PickerHarness taskKey="task-2" />);
+
+        expect(screen.queryByRole('dialog', { name: 'בחירת אחראי משימה' })).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'בחירת אחראי משימה' }));
+        expect(screen.getByRole('textbox', { name: 'חיפוש אחראי משימה' })).toBeEnabled();
+        expect(screen.getByRole('textbox', { name: 'חיפוש אחראי משימה' })).toHaveValue('');
+        pendingSearch.resolve({
+            ok: true,
+            candidates: [{ Id: 17, Title: 'נועה', PrincipalType: 1 }],
+        });
+        await Promise.resolve();
+        expect(screen.queryByRole('button', { name: /נועה/ })).not.toBeInTheDocument();
+    });
+
+    it('preserves stable aliases and personal-number metadata in the linked assignee', async () => {
+        mocks.resolveExactSharePointIdentity.mockResolvedValue({
+            ok: true,
+            principal: {
+                identityKey: 'sp:44',
+                identities: ['sp:44', 'pn:1234567'],
+                displayName: 'רוני',
+                sharePointUserId: 44,
+                personalNumber: '1234567',
+            },
+        });
+        const onAssigneeChange = vi.fn();
+        render(<BoomAssigneePicker taskKey="task-1" linkedAssignee={null} onAssigneeChange={onAssigneeChange} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'בחירת אחראי משימה' }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'חיפוש אחראי משימה' }), { target: { value: '1234567' } });
+        fireEvent.click(screen.getByRole('button', { name: 'חיפוש' }));
+
+        await waitFor(() => expect(onAssigneeChange).toHaveBeenCalledWith(expect.objectContaining({
+            identityKey: 'sp:44',
+            identities: ['sp:44', 'pn:1234567'],
+            personalNumber: '1234567',
+        })));
     });
 
     it('searches SharePoint users, performs an explicit final resolve, and replaces the selected single assignee', async () => {

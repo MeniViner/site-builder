@@ -27,6 +27,9 @@ const mocks = vi.hoisted(() => ({
     sharePointConfig: {
         useMock: false,
     },
+    listSharePointBackups: vi.fn(),
+    listSharePointBackupFiles: vi.fn(),
+    readSharePointTextFile: vi.fn(),
 }));
 
 vi.mock('../services/storage/backendApiClient', () => ({
@@ -79,9 +82,9 @@ vi.mock('./BackupSiteLivePreview', () => ({
 vi.mock('../utils/sharepointUtils', () => ({
     createBackup: vi.fn(),
     deleteSharePointBackup: vi.fn(),
-    listSharePointBackupFiles: vi.fn(),
-    listSharePointBackups: vi.fn(),
-    readSharePointTextFile: vi.fn(),
+    listSharePointBackupFiles: mocks.listSharePointBackupFiles,
+    listSharePointBackups: mocks.listSharePointBackups,
+    readSharePointTextFile: mocks.readSharePointTextFile,
     upsertSharePointTextFile: vi.fn(),
 }));
 
@@ -230,6 +233,14 @@ function mockMongoList(backups = [listBackup]) {
     mocks.backendApiClient.listBackups.mockResolvedValue({ ok: true, backups });
 }
 
+function deferred() {
+    let resolve;
+    const promise = new Promise((resolvePromise) => {
+        resolve = resolvePromise;
+    });
+    return { promise, resolve };
+}
+
 let createdSafetyPackage = null;
 
 describe('AdminBackupManagement', () => {
@@ -243,6 +254,9 @@ describe('AdminBackupManagement', () => {
         mocks.reload.mockResolvedValue(true);
         mocks.reloadBoom.mockResolvedValue(true);
         mocks.reloadGantt.mockResolvedValue(true);
+        mocks.listSharePointBackups.mockReset();
+        mocks.listSharePointBackupFiles.mockReset();
+        mocks.readSharePointTextFile.mockReset();
         mockMongoList();
         createdSafetyPackage = null;
         mocks.backendApiClient.createBackup.mockImplementation(async (_siteId, payload) => {
@@ -314,8 +328,8 @@ describe('AdminBackupManagement', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /גיבוי מערכת ידני/ }));
 
-        expect(await screen.findByText('Mongo write failed')).toBeInTheDocument();
-        expect(mocks.toast.error).toHaveBeenCalledWith('Mongo write failed');
+        expect(await screen.findByText('יצירת גיבוי Mongo נכשלה.')).toBeInTheDocument();
+        expect(mocks.toast.error).toHaveBeenCalledWith('יצירת גיבוי Mongo נכשלה.');
     });
 
     it('downloads Mongo backups by fetching the full backup package', async () => {
@@ -405,7 +419,7 @@ describe('AdminBackupManagement', () => {
         expect(screen.getByRole('button', { name: /שחזור מהגיבוי הזה/ })).not.toBeDisabled();
     });
 
-    it('disables non-restorable restore entries and explains why', async () => {
+    it('lets valid payload hydration override stale invalid metadata', async () => {
         const invalidRestoreEntries = backupPackage.meta.restoreEntries.map((entry) => (entry.fileName === 'users_data.txt'
             ? {
                 ...entry,
@@ -428,9 +442,113 @@ describe('AdminBackupManagement', () => {
         await screen.findByText('1 פריטים');
 
         fireEvent.click(screen.getByRole('button', { name: /בחר גיבוי מלא/ }));
-        const disabledCheckbox = await screen.findByRole('checkbox', { name: /גיבוי מנהלים/ });
-        expect(disabledCheckbox).toBeDisabled();
+        const checkbox = await screen.findByRole('checkbox', { name: /גיבוי מנהלים/ });
+        expect(checkbox).not.toBeDisabled();
+        expect(screen.queryByText(/הקובץ אינו תקין\./)).not.toBeInTheDocument();
+    });
+
+    it('marks a null payload invalid even when stale metadata says it has data', async () => {
+        const invalidFiles = backupPackage.files.map((file) => (
+            file.name === 'users_data.txt'
+                ? { ...file, text: 'null', status: 'hasData', invalid: false, recordCount: 7 }
+                : file
+        ));
+        const invalidBackupPackage = {
+            ...backupPackage,
+            files: invalidFiles,
+            meta: {
+                ...backupPackage.meta,
+                restoreEntries: backupPackage.meta.restoreEntries.map((entry) => (
+                    entry.fileName === 'users_data.txt'
+                        ? { ...entry, status: 'hasData', invalid: false, recordCount: 7 }
+                        : entry
+                )),
+            },
+        };
+        mocks.backendApiClient.getBackup.mockResolvedValueOnce({
+            ok: true,
+            backup: { ...listBackup, backupPackage: invalidBackupPackage },
+        });
+
+        render(<AdminBackupManagement />);
+        await screen.findByText('1 פריטים');
+        fireEvent.click(screen.getByRole('button', { name: /בחר גיבוי מלא/ }));
+
+        expect(await screen.findByRole('checkbox', { name: /גיבוי מנהלים/ })).toBeDisabled();
         expect(screen.getByText(/הקובץ אינו תקין\./)).toBeInTheDocument();
+    });
+
+    it('keeps the latest backup selection when file-list responses return out of order', async () => {
+        const first = deferred();
+        const second = deferred();
+        const secondListBackup = {
+            ...listBackup,
+            id: 'backup-two',
+            name: 'backup-two',
+            serverRelativeUrl: 'mongo-backup:backup-two',
+            timeCreated: '2026-06-11T10:00:00.000Z',
+            timeLastModified: '2026-06-11T10:00:00.000Z',
+        };
+        mockMongoList([listBackup, secondListBackup]);
+        mocks.backendApiClient.getBackup
+            .mockImplementationOnce(() => first.promise)
+            .mockImplementationOnce(() => second.promise);
+
+        render(<AdminBackupManagement />);
+        const selectButtons = await screen.findAllByRole('button', { name: /בחר גיבוי מלא/ });
+        fireEvent.click(selectButtons[0]);
+        fireEvent.click(selectButtons[1]);
+        await waitFor(() => expect(mocks.backendApiClient.getBackup).toHaveBeenCalledTimes(2));
+
+        second.resolve({
+            ok: true,
+            backup: {
+                ...secondListBackup,
+                backupPackage: {
+                    ...backupPackage,
+                    id: 'backup-two',
+                    backup: { ...backupPackage.backup, id: 'backup-two', name: 'backup-two' },
+                },
+            },
+        });
+        const previewLabel = await screen.findByText('תצוגה מקדימה לשחזור');
+        const latestHeading = previewLabel.parentElement.querySelector('h2').textContent;
+
+        first.resolve({ ok: true, backup: { ...listBackup, backupPackage } });
+        await Promise.resolve();
+        expect(screen.getByText('תצוגה מקדימה לשחזור').parentElement.querySelector('h2')).toHaveTextContent(latestHeading);
+    });
+
+    it('does not reopen a restore modal after it was closed while payload hydration was pending', async () => {
+        const pending = deferred();
+        mocks.storageState.mongo = false;
+        const sharePointBackup = {
+            id: 'sp-backup',
+            name: 'sp-backup',
+            serverRelativeUrl: '/sites/alpha/backups/sp-backup',
+            status: 'complete',
+            files: [{
+                name: 'bihs_master_config_v1.txt',
+                serverRelativeUrl: '/sites/alpha/backups/sp-backup/bihs_master_config_v1.txt',
+                status: 'hasData',
+                willRestore: true,
+            }],
+        };
+        mocks.listSharePointBackups.mockResolvedValue({
+            backups: [sharePointBackup],
+            baseFolderUrl: '/sites/alpha/backups',
+        });
+        mocks.readSharePointTextFile.mockReturnValue(pending.promise);
+        render(<AdminBackupManagement />);
+        await screen.findByText('1 פריטים');
+
+        fireEvent.click(screen.getByRole('button', { name: /בחר גיבוי מלא/ }));
+        expect(await screen.findByText('תצוגה מקדימה לשחזור')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'סגור חלון שחזור' }));
+        pending.resolve(JSON.stringify(backupFileData['bihs_master_config_v1.txt']));
+        await Promise.resolve();
+
+        expect(screen.queryByText('תצוגה מקדימה לשחזור')).not.toBeInTheDocument();
     });
 
     it('warns when destructive selected entries are included', async () => {

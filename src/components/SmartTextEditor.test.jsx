@@ -15,6 +15,7 @@ function placeCaretAtEnd(element) {
 
 describe('SmartTextEditor formatting toolbar', () => {
     afterEach(() => {
+        vi.useRealTimers();
         vi.restoreAllMocks();
     });
 
@@ -42,17 +43,20 @@ describe('SmartTextEditor formatting toolbar', () => {
         ['bullet list', '• פריט ראשון', '• פריט ראשון\n• '],
         ['numbered list', '1. פריט ראשון', '1. פריט ראשון\n2. '],
     ])('inserts a normal Enter line break for %s', (_kind, initialText, expectedText) => {
+        vi.useFakeTimers();
         const onChange = vi.fn();
         render(<SmartTextEditor value={[{ type: 'text', text: initialText }]} onChange={onChange} />);
 
         const editor = screen.getByRole('textbox');
         placeCaretAtEnd(editor);
         fireEvent.keyDown(editor, { key: 'Enter' });
+        vi.advanceTimersByTime(80);
 
         expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ plainText: expectedText }));
     });
 
     it('preserves an intentional blank line when Enter is pressed twice in a row', () => {
+        vi.useFakeTimers();
         const onChange = vi.fn();
         render(<SmartTextEditor value={[{ type: 'text', text: 'שורה ראשונה' }]} onChange={onChange} />);
 
@@ -60,17 +64,20 @@ describe('SmartTextEditor formatting toolbar', () => {
         placeCaretAtEnd(editor);
         fireEvent.keyDown(editor, { key: 'Enter' });
         fireEvent.keyDown(editor, { key: 'Enter' });
+        vi.advanceTimersByTime(80);
 
         expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ plainText: 'שורה ראשונה\n\n' }));
     });
 
     it('does not continue a bullet marker on Shift+Enter', () => {
+        vi.useFakeTimers();
         const onChange = vi.fn();
         render(<SmartTextEditor value={[{ type: 'text', text: '• פריט ראשון' }]} onChange={onChange} />);
 
         const editor = screen.getByRole('textbox');
         placeCaretAtEnd(editor);
         fireEvent.keyDown(editor, { key: 'Enter', shiftKey: true });
+        vi.advanceTimersByTime(80);
 
         expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ plainText: '• פריט ראשון\n' }));
     });
@@ -87,6 +94,7 @@ describe('SmartTextEditor formatting toolbar', () => {
     });
 
     it('renders an editor-only caret placeholder for a trailing blank line without persisting it', () => {
+        vi.useFakeTimers();
         const onChange = vi.fn();
         const value = [
             { type: 'text', text: 'שורה ראשונה', marks: [] },
@@ -99,6 +107,7 @@ describe('SmartTextEditor formatting toolbar', () => {
         expect(placeholderBr).not.toBeNull();
 
         fireEvent.input(editor);
+        vi.advanceTimersByTime(80);
 
         expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ plainText: 'שורה ראשונה\n' }));
     });

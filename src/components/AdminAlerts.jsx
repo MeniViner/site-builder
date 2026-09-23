@@ -379,11 +379,12 @@ export default function AdminAlerts() {
                                     type="button"
                                     role="tab"
                                     aria-selected={activeTab === tab.id}
+                                    aria-describedby={disabled ? 'alerts-editor-selection-instruction' : undefined}
                                     disabled={disabled}
                                     onClick={() => goToTab(tab.id)}
                                     className={`${tabClass} ${activeTab === tab.id
                                         ? 'bg-primary text-white shadow-sm'
-                                        : 'bg-theme-card text-theme shadow-[0_0_0_1px_rgba(15,23,42,0.09)] hover:bg-theme-card-hover dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]'} disabled:cursor-not-allowed disabled:opacity-40`}
+                                        : 'bg-theme-card text-theme shadow-[0_0_0_1px_rgba(15,23,42,0.09)] hover:bg-theme-card-hover dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]'} disabled:opacity-60`}
                                 >
                                     <Icon size={16} />
                                     {tab.label}
@@ -391,6 +392,11 @@ export default function AdminAlerts() {
                             );
                         })}
                     </div>
+                    {!editingId && (
+                        <p id="alerts-editor-selection-instruction" className="text-sm font-semibold text-theme-muted">
+                            כדי לערוך תוכן או תזמון, בחרו התראה קיימת או צרו התראה חדשה.
+                        </p>
+                    )}
                     {activeTab !== 'list' && editingId && (
                         <button
                             type="button"

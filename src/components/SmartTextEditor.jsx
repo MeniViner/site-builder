@@ -1,4 +1,4 @@
-import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
     Bold,
     Italic,
@@ -391,6 +391,7 @@ export default function SmartTextEditor({
 }) {
     const editorRef = useRef(null);
     const pendingSelectionRef = useRef(null);
+    const inputSyncTimerRef = useRef(null);
     const [linkDialog, setLinkDialog] = useState(null);
     const tokens = useMemo(
         () => getSmartTextDocument(value, plainText, linkLabels),
@@ -417,6 +418,18 @@ export default function SmartTextEditor({
         const selectionOffsets = preserveSelection ? getSelectionOffsets(editor) : null;
         commitTokens(readSmartTextTokensFromElement(editor), selectionOffsets);
     }, [commitTokens]);
+
+    const scheduleSyncFromDom = useCallback(() => {
+        if (inputSyncTimerRef.current !== null) window.clearTimeout(inputSyncTimerRef.current);
+        inputSyncTimerRef.current = window.setTimeout(() => {
+            inputSyncTimerRef.current = null;
+            syncFromDom();
+        }, 80);
+    }, [syncFromDom]);
+
+    useEffect(() => () => {
+        if (inputSyncTimerRef.current !== null) window.clearTimeout(inputSyncTimerRef.current);
+    }, []);
 
     const runFormatCommand = useCallback((command) => {
         const editor = editorRef.current;
@@ -610,8 +623,12 @@ export default function SmartTextEditor({
                     dir="auto"
                     role="textbox"
                     aria-multiline="true"
-                    onInput={() => syncFromDom()}
-                    onBlur={() => syncFromDom({ preserveSelection: false })}
+                    onInput={scheduleSyncFromDom}
+                    onBlur={() => {
+                        if (inputSyncTimerRef.current !== null) window.clearTimeout(inputSyncTimerRef.current);
+                        inputSyncTimerRef.current = null;
+                        syncFromDom({ preserveSelection: false });
+                    }}
                     onPaste={(event) => {
                         event.preventDefault();
                         insertPlainTextAtSelection(editorRef.current, event.clipboardData?.getData('text/plain') || '');
@@ -627,7 +644,7 @@ export default function SmartTextEditor({
                             const editor = editorRef.current;
                             if (!editor) return;
                             insertPlainTextAtSelection(editor, getEnterText(editor, !event.shiftKey));
-                            syncFromDom();
+                            scheduleSyncFromDom();
                             return;
                         }
                         if (!event.metaKey && !event.ctrlKey) return;

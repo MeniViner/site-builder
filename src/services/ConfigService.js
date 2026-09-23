@@ -208,6 +208,21 @@ export class ConfigService {
         }
         return this._saveNormalizedConfig(normalized);
     }
+
+    async saveResolvedConfig(config, reviewedEtag) {
+        const normalized = validateAndNormalize(this._withDefaults(config));
+        if (typeof this.adapter?.saveResolved !== 'function') {
+            throw new Error('The active storage adapter does not support conditional conflict resolution.');
+        }
+        const result = await this.adapter.saveResolved(JSON.stringify(normalized, null, 2), reviewedEtag);
+        return typeof result?.text === 'string'
+            ? validateAndNormalize(JSON.parse(result.text))
+            : normalized;
+    }
+
+    getVersionState() {
+        return this.adapter?.getVersionState?.() || { accepted: null, observedRemote: null };
+    }
 }
 
 export default new ConfigService();
