@@ -3,6 +3,33 @@ export const ADMIN_STALE_THRESHOLD_MS = Math.max(
     Number(import.meta.env.VITE_ADMIN_STALE_EDIT_THRESHOLD_MS) || 60 * 60 * 1000
 );
 
+/**
+ * Hebrew heading for the inactivity dialog.
+ *
+ * The "60 דקות" wording is only correct when the threshold that actually fired
+ * IS 60 minutes. VITE_ADMIN_STALE_EDIT_THRESHOLD_MS can lower it (floor 60s),
+ * so the copy is derived from the real threshold instead of being hard-coded,
+ * and never describes an unrelated failure.
+ */
+export function staleInactivityTitle(thresholdMs = ADMIN_STALE_THRESHOLD_MS) {
+    const totalMinutes = Math.round(Number(thresholdMs) / 60_000);
+    if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) {
+        return 'זיהינו שלא עבדת במערכת זמן מה';
+    }
+    if (totalMinutes === 60) return 'זיהינו שלא עבדת במערכת כבר 60 דקות';
+    if (totalMinutes === 1) return 'זיהינו שלא עבדת במערכת כבר דקה';
+    if (totalMinutes === 2) return 'זיהינו שלא עבדת במערכת כבר שתי דקות';
+    if (totalMinutes % 60 === 0) {
+        const hours = totalMinutes / 60;
+        if (hours === 1) return 'זיהינו שלא עבדת במערכת כבר שעה';
+        if (hours === 2) return 'זיהינו שלא עבדת במערכת כבר שעתיים';
+        return `זיהינו שלא עבדת במערכת כבר ${hours} שעות`;
+    }
+    return `זיהינו שלא עבדת במערכת כבר ${totalMinutes} דקות`;
+}
+
+export const STALE_INACTIVITY_BODY = 'כפתור הריענון יחזיר אותך לעניינים.';
+
 export const STALE_ADMIN_EDIT_EVENT = 'site-builder:stale-admin-edit';
 export const ADMIN_RECOVERY_STATE_EVENT = 'site-builder:admin-recovery-state';
 export const ADMIN_RECOVERY_DRAFT_STORAGE_KEY = 'siteBuilder.adminRecoveryDraft.v1';
