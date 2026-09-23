@@ -63,11 +63,23 @@ function isObject(value) {
 }
 
 function isIdArray(value) {
-    return Array.isArray(value)
-        && value.every((item) => isObject(item) && ['string', 'number'].includes(typeof item.id));
+    if (!Array.isArray(value)) return false;
+    const ids = value.map((item) => (
+        isObject(item) && ['string', 'number'].includes(typeof item.id)
+            ? String(item.id)
+            : null
+    ));
+    return ids.every(Boolean) && new Set(ids).size === ids.length;
 }
 
-function mergeIdArray(base, draft, remote, path) {
+function resolveConflict(path, draft, remote, resolutions) {
+    const choice = resolutions?.[path];
+    if (choice === 'local') return { ok: true, value: draft, conflicts: [] };
+    if (choice === 'remote') return { ok: true, value: remote, conflicts: [] };
+    return { ok: false, conflicts: [path] };
+}
+
+function mergeIdArray(base, draft, remote, path, resolutions) {
     const baseMap = new Map(base.map((item) => [String(item.id), item]));
     const draftMap = new Map(draft.map((item) => [String(item.id), item]));
     const remoteMap = new Map(remote.map((item) => [String(item.id), item]));
@@ -78,9 +90,12 @@ function mergeIdArray(base, draft, remote, path) {
     const survivingBaseOrder = (map) => baseOrder.filter((id) => map.has(id));
     const draftReordered = !jsonEqual(projectBaseIds(draftOrder), survivingBaseOrder(draftMap));
     const remoteReordered = !jsonEqual(projectBaseIds(remoteOrder), survivingBaseOrder(remoteMap));
+    let preferredOrder = null;
 
     if (draftReordered && remoteReordered && !jsonEqual(draftOrder, remoteOrder)) {
-        return { ok: false, conflicts: [`${path}#order`] };
+        const orderResolution = resolveConflict(`${path}#order`, draftOrder, remoteOrder, resolutions);
+        if (!orderResolution.ok) return orderResolution;
+        preferredOrder = orderResolution.value;
     }
 
     const values = new Map();
@@ -92,16 +107,18 @@ function mergeIdArray(base, draft, remote, path) {
             draftMap.has(id) ? draftMap.get(id) : MISSING,
             remoteMap.has(id) ? remoteMap.get(id) : MISSING,
             `${path}[id=${id}]`,
+            resolutions,
         );
         if (result.ok && result.value !== MISSING) values.set(id, result.value);
         if (!result.ok) conflicts.push(...result.conflicts);
     });
     if (conflicts.length > 0) return { ok: false, conflicts };
 
-    let preferredOrder;
-    if (draftReordered) preferredOrder = draftOrder;
-    else if (remoteReordered) preferredOrder = remoteOrder;
-    else preferredOrder = [...baseOrder, ...draftOrder, ...remoteOrder];
+    if (!preferredOrder) {
+        if (draftReordered) preferredOrder = draftOrder;
+        else if (remoteReordered) preferredOrder = remoteOrder;
+        else preferredOrder = [...baseOrder, ...draftOrder, ...remoteOrder];
+    }
     const order = [...new Set(preferredOrder)].filter((id) => values.has(id));
     values.forEach((_value, id) => {
         if (!order.includes(id)) order.push(id);
@@ -109,7 +126,7 @@ function mergeIdArray(base, draft, remote, path) {
     return { ok: true, value: order.map((id) => values.get(id)), conflicts: [] };
 }
 
-function mergeNode(base, draft, remote, path = '$') {
+function mergeNode(base, draft, remote, path = '$', resolutions = null) {
     if (draft !== MISSING && remote !== MISSING && jsonEqual(draft, remote)) {
         return { ok: true, value: draft, conflicts: [] };
     }
@@ -125,24 +142,24 @@ function mergeNode(base, draft, remote, path = '$') {
     if (base !== MISSING && draft === MISSING && remote !== MISSING) {
         return jsonEqual(base, remote)
             ? { ok: true, value: MISSING, conflicts: [] }
-            : { ok: false, conflicts: [path] };
+            : resolveConflict(path, MISSING, remote, resolutions);
     }
     if (base !== MISSING && remote === MISSING && draft !== MISSING) {
         return jsonEqual(base, draft)
             ? { ok: true, value: MISSING, conflicts: [] }
-            : { ok: false, conflicts: [path] };
+            : resolveConflict(path, draft, MISSING, resolutions);
     }
     if (base === MISSING) {
         if (draft === MISSING) return { ok: true, value: remote, conflicts: [] };
         if (remote === MISSING) return { ok: true, value: draft, conflicts: [] };
-        return { ok: false, conflicts: [path] };
+        return resolveConflict(path, draft, remote, resolutions);
     }
 
     if (Array.isArray(base) && Array.isArray(draft) && Array.isArray(remote)) {
         if (isIdArray(base) && isIdArray(draft) && isIdArray(remote)) {
-            return mergeIdArray(base, draft, remote, path);
+            return mergeIdArray(base, draft, remote, path, resolutions);
         }
-        return { ok: false, conflicts: [path] };
+        return resolveConflict(path, draft, remote, resolutions);
     }
 
     if (isObject(base) && isObject(draft) && isObject(remote)) {
@@ -155,6 +172,7 @@ function mergeNode(base, draft, remote, path = '$') {
                 Object.prototype.hasOwnProperty.call(draft, key) ? draft[key] : MISSING,
                 Object.prototype.hasOwnProperty.call(remote, key) ? remote[key] : MISSING,
                 `${path}.${key}`,
+                resolutions,
             );
             if (result.ok && result.value !== MISSING) value[key] = result.value;
             if (!result.ok) conflicts.push(...result.conflicts);
@@ -164,7 +182,7 @@ function mergeNode(base, draft, remote, path = '$') {
             : { ok: true, value, conflicts: [] };
     }
 
-    return { ok: false, conflicts: [path] };
+    return resolveConflict(path, draft, remote, resolutions);
 }
 
 export function mergeConfigTexts(baselineText, draftText, remoteText) {
@@ -173,6 +191,23 @@ export function mergeConfigTexts(baselineText, draftText, remoteText) {
             JSON.parse(baselineText),
             JSON.parse(draftText),
             JSON.parse(remoteText),
+        );
+        return result.ok
+            ? { ...result, text: JSON.stringify(result.value, null, 2) }
+            : result;
+    } catch (error) {
+        return { ok: false, conflicts: ['$'], error };
+    }
+}
+
+export function resolveConfigConflictTexts(baselineText, draftText, remoteText, resolutions) {
+    try {
+        const result = mergeNode(
+            JSON.parse(baselineText),
+            JSON.parse(draftText),
+            JSON.parse(remoteText),
+            '$',
+            resolutions,
         );
         return result.ok
             ? { ...result, text: JSON.stringify(result.value, null, 2) }
@@ -544,6 +579,64 @@ export class ConfigAdapter {
             category: 'version',
             resolutionMessage: 'הטיוטה נשמרה. יש לטעון את הגרסה העדכנית ולנסות שוב.',
         });
+    }
+
+    async saveResolved(text, reviewedEtag) {
+        if (!reviewedEtag) {
+            throw new TxtStorageError('Cannot save a conflict resolution without the reviewed ETag.', {
+                code: 'missing_resolution_etag',
+                category: 'version',
+                resolutionMessage: 'לא ניתן לשמור את ההכרעה ללא גרסת שרת מאומתת. טענו מחדש ונסו שוב.',
+            });
+        }
+        const fileUrl = this.fileServerRelativeUrl;
+        const response = await fetch(fileUrl, {
+            method: 'PUT',
+            credentials: 'include',
+            cache: 'no-store',
+            headers: {
+                Accept: 'application/json, text/plain, */*',
+                'Content-Type': 'text/plain; charset=utf-8',
+                'Cache-Control': 'no-cache',
+                'If-Match': reviewedEtag,
+            },
+            body: text,
+        });
+        if (response.status === 412) {
+            const remote = await this._loadSharePoint({ verification: true, adopt: false });
+            throw new TxtStorageError('גרסת השרת השתנתה בזמן פתרון ההתנגשות.', {
+                status: 412,
+                code: 'version_conflict',
+                category: 'version',
+                details: { accepted: this.accepted, remote },
+                resolutionMessage: 'השרת השתנה שוב. יש לבדוק מחדש את ההבדלים לפני שמירה.',
+            });
+        }
+        if (!response.ok) {
+            const body = await response.text().catch(() => '');
+            const metadata = errorMetadata(response.status, 'txt_resolution_save_failed');
+            throw new TxtStorageError(`SharePoint conflict resolution save failed (${response.status}): ${responseBodyPrefix(body)}`, {
+                status: response.status,
+                ...metadata,
+            });
+        }
+        const verified = await this._loadSharePoint({ verification: true, adopt: false });
+        if (!equivalentJsonText(text, verified.text ?? '')) {
+            throw new TxtStorageError('SharePoint conflict resolution verification did not match.', {
+                code: 'txt_readback_mismatch',
+                category: 'verification',
+                details: { accepted: this.accepted, observedRemote: verified },
+            });
+        }
+        this._adoptVerifiedSharePoint(text, verified.etag);
+        return { ok: true, text, etag: verified.etag };
+    }
+
+    getVersionState() {
+        return {
+            accepted: this.accepted ? { ...this.accepted } : null,
+            observedRemote: this.observedRemote ? { ...this.observedRemote } : null,
+        };
     }
 
     _adoptVerifiedSharePoint(text, etag) {

@@ -1,6 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Loader2, Search, UserRound, X } from 'lucide-react';
 import {
+    isExactSharePointIdentityInput,
     isConfirmedUserPrincipal,
     resolveExactSharePointIdentity,
     resolveConfirmedSinglePrincipalFromCandidate,
@@ -9,26 +10,27 @@ import {
 
 function toLinkedAssignee(principal) {
     if (!principal) return null;
-    const { identityKey, displayName, sharePointUserId, loginName, email } = principal;
+    const {
+        identityKey,
+        identities,
+        displayName,
+        sharePointUserId,
+        loginName,
+        email,
+        personalNumber,
+    } = principal;
     return {
         identityKey,
+        ...(Array.isArray(identities) && identities.length > 0 ? { identities: [...identities] } : {}),
         displayName,
         ...(Number.isInteger(sharePointUserId) && sharePointUserId > 0 ? { sharePointUserId } : {}),
         ...(loginName ? { loginName } : {}),
         ...(email ? { email } : {}),
+        ...(personalNumber ? { personalNumber } : {}),
     };
 }
 
-function isExactIdentityInput(value) {
-    const input = String(value || '').trim();
-    return /^\d{6,8}$/.test(input)
-        || /^s\d{6,8}$/i.test(input)
-        || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input)
-        || /[|\\]/.test(input)
-        || /^[ic]:/i.test(input);
-}
-
-export default function BoomAssigneePicker({ linkedAssignee, onAssigneeChange }) {
+export default function BoomAssigneePicker({ taskKey, linkedAssignee, onAssigneeChange }) {
     const [isOpen, setIsOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
@@ -37,17 +39,29 @@ export default function BoomAssigneePicker({ linkedAssignee, onAssigneeChange })
     const [error, setError] = useState('');
     const requestVersionRef = useRef(0);
 
-    const close = () => {
+    const resetPicker = (open) => {
         requestVersionRef.current += 1;
-        setIsOpen(false);
+        setIsOpen(open);
         setQuery('');
         setResults([]);
         setError('');
+        setIsSearching(false);
         setIsResolving(false);
     };
 
+    const close = () => resetPicker(false);
+    const open = () => resetPicker(true);
+
+    useEffect(() => {
+        resetPicker(false);
+    }, [taskKey]);
+
+    useEffect(() => () => {
+        requestVersionRef.current += 1;
+    }, []);
+
     const search = async () => {
-        const exactIdentity = isExactIdentityInput(query);
+        const exactIdentity = isExactSharePointIdentityInput(query);
         if (!exactIdentity && query.trim().length < 2) {
             setError('יש להזין לפחות שני תווים לחיפוש.');
             setResults([]);
@@ -84,7 +98,7 @@ export default function BoomAssigneePicker({ linkedAssignee, onAssigneeChange })
     };
 
     const selectAssignee = async (candidate) => {
-        const requestVersion = requestVersionRef.current;
+        const requestVersion = ++requestVersionRef.current;
         setError('');
         if (!isConfirmedUserPrincipal(candidate)) {
             setError('ניתן לבחור משתמש יחיד ומאומת בלבד. לא ניתן לשייך קבוצה כאחראי.');
@@ -115,7 +129,7 @@ export default function BoomAssigneePicker({ linkedAssignee, onAssigneeChange })
         <>
             <button
                 type="button"
-                onClick={() => setIsOpen(true)}
+                onClick={open}
                 className="absolute left-1 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-gray-500 transition-[background-color,color,transform] hover:bg-primary/10 hover:text-primary active:scale-[0.96] dark:text-gray-300"
                 title="בחירת אחראי משימה"
                 aria-label="בחירת אחראי משימה"
@@ -158,6 +172,7 @@ export default function BoomAssigneePicker({ linkedAssignee, onAssigneeChange })
                                     setQuery(event.target.value);
                                     setError('');
                                     setResults([]);
+                                    setIsSearching(false);
                                     setIsResolving(false);
                                 }}
                                 onKeyDown={(event) => {

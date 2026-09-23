@@ -245,6 +245,18 @@ describe('exact-name collision behaviour', () => {
         })).rejects.toMatchObject({
             code: 'FOLDER_RECONCILIATION_REQUIRED',
             mutationAttempted: false,
+            details: {
+                reconciliation: {
+                    repairPreview: {
+                        destructive: false,
+                        preservesExistingContent: true,
+                        automaticMutationAllowed: false,
+                    },
+                    operatorSteps: expect.arrayContaining([
+                        expect.stringMatching(/אין למחוק/),
+                    ]),
+                },
+            },
         });
         expect(ensureFolder).toHaveBeenCalledOnce();
     });

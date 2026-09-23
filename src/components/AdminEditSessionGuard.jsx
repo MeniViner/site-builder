@@ -18,6 +18,7 @@ export default function AdminEditSessionGuard({ reloadPage = () => window.locati
     const [stale, setStale] = useState(false);
     const [reloading, setReloading] = useState(false);
     const [reloadError, setReloadError] = useState('');
+    const [localOnlyApproval, setLocalOnlyApproval] = useState(false);
 
     useEffect(() => {
         beginAdminEditSession();
@@ -69,7 +70,13 @@ export default function AdminEditSessionGuard({ reloadPage = () => window.locati
         setReloading(true);
         setReloadError('');
         try {
-            await prepareAdminSafeReload();
+            const result = await prepareAdminSafeReload({ allowLocalOnly: localOnlyApproval });
+            if (result.requiresLocalOnlyApproval) {
+                setReloadError('השמירה בשרת לא הושלמה. הטיוטה נשמרה מקומית בלבד; אפשר לנסות שוב או לאשר רענון מהטיוטה המקומית.');
+                setLocalOnlyApproval(true);
+                setReloading(false);
+                return;
+            }
             reloadPage();
         } catch (error) {
             setReloadError(error?.message || 'לא ניתן לאבטח את השינויים לפני הרענון.');
@@ -98,7 +105,8 @@ export default function AdminEditSessionGuard({ reloadPage = () => window.locati
                     disabled={reloading || getAdminRecoveryState().reloadApproved}
                     className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 font-black text-white disabled:opacity-60"
                 >
-                    <RefreshCw size={18} className={reloading ? 'animate-spin' : ''} />רענון בטוח
+                    <RefreshCw size={18} className={reloading ? 'animate-spin' : ''} />
+                    {localOnlyApproval ? 'רענון עם טיוטה מקומית' : 'רענון בטוח'}
                 </button>
             </div>
         </div>

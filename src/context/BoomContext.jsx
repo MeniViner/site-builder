@@ -3,6 +3,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import BoomService from '../services/BoomService';
 import { DEFAULT_BOOM_DATA, normalizeBoomData } from '../utils/boomData';
 import { assertAdminEditSessionFresh } from '../utils/adminEditSession';
+import { toSafeHebrewError } from '../utils/userFacingError';
 
 const BoomContext = createContext(null);
 
@@ -24,7 +25,7 @@ export const BoomProvider = ({ children }) => {
             setLoaded(true);
             return loaded;
         } catch (loadError) {
-            setError(loadError?.message || 'Failed to load BOOM');
+            setError(toSafeHebrewError(loadError, 'טעינת נתוני BOOM נכשלה. נסו שוב.'));
             return null;
         } finally {
             setLoading(false);
@@ -45,9 +46,9 @@ export const BoomProvider = ({ children }) => {
         });
     }, []);
 
-    const saveBoom = useCallback((payload = undefined) => {
+    const saveBoom = useCallback((payload = undefined, { recoveryOperation = null } = {}) => {
         try {
-            assertAdminEditSessionFresh();
+            assertAdminEditSessionFresh({ recoveryOperation });
         } catch (staleError) {
             return Promise.reject(staleError);
         }
@@ -58,7 +59,7 @@ export const BoomProvider = ({ children }) => {
         pendingSaveCountRef.current += 1;
         setSaving(true);
         const operation = saveChainRef.current.then(async () => {
-            assertAdminEditSessionFresh();
+            assertAdminEditSessionFresh({ recoveryOperation });
             setError(null);
             try {
                 const saved = await BoomService.saveBoom(next);
@@ -66,7 +67,7 @@ export const BoomProvider = ({ children }) => {
                 setBoom(normalized);
                 return normalized;
             } catch (saveError) {
-                setError(saveError?.message || 'Failed to save BOOM');
+                setError(toSafeHebrewError(saveError, 'שמירת נתוני BOOM נכשלה. נסו שוב.'));
                 throw saveError;
             } finally {
                 pendingSaveCountRef.current -= 1;

@@ -7,6 +7,25 @@ function isObject(value) {
 
 const fileBaseName = (value) => String(value || '').replace(/\\/g, '/').split('/').pop()?.toLowerCase() || '';
 
+export function isValidBackupFilePayload(fileName, data) {
+    const name = fileBaseName(fileName);
+    if (data === null || data === undefined) return false;
+    if (name === 'users_data.txt' || name === 'nav_data.txt' || name === 'external_links_data.txt') {
+        return Array.isArray(data) || (isObject(data) && Array.isArray(data.items));
+    }
+    if (name === 'events_data.txt') {
+        return Array.isArray(data) || (isObject(data) && Array.isArray(data.events));
+    }
+    if (name === 'boom_data.txt') return isObject(data) && Array.isArray(data.items);
+    if (name === 'gantt_data.txt') {
+        return isObject(data) && (Array.isArray(data.tasks) || Array.isArray(data.items));
+    }
+    if (name === 'widgets_data.txt' || name === 'bihs_master_config_v1.txt' || name === 'site_content_data.txt' || name === 'theme_data.txt') {
+        return isObject(data);
+    }
+    return Array.isArray(data) || isObject(data);
+}
+
 export function countBackupFileRecords(fileName, data) {
     const name = fileBaseName(fileName);
     if (name === 'users_data.txt' || name === 'nav_data.txt' || name === 'external_links_data.txt') {
@@ -47,8 +66,18 @@ export function countBackupFileRecords(fileName, data) {
 }
 
 export function deriveBackupFileRecordCount(fileName, textValue, fallback = null) {
+    if (textValue === undefined) {
+        return fallback !== null && fallback !== undefined && Number.isFinite(Number(fallback))
+            ? Number(fallback)
+            : null;
+    }
     try {
         const data = typeof textValue === 'string' ? JSON.parse(textValue) : textValue;
+        if (!isValidBackupFilePayload(fileName, data)) {
+            return fallback !== null && fallback !== undefined && Number.isFinite(Number(fallback))
+                ? Number(fallback)
+                : null;
+        }
         return countBackupFileRecords(fileName, data);
     } catch {
         return fallback !== null && fallback !== undefined && Number.isFinite(Number(fallback))

@@ -89,6 +89,7 @@ export const ExternalLinksProvider = ({ children }) => {
         patchConfig: patchExternalLinksConfig,
         updateConfig,
         saveNow,
+        recoveryId: 'external-links-save-debounce',
     });
 
     const externalLinks = useMemo(
