@@ -14,6 +14,9 @@ export default defineConfig({
       'dist-universal/**',
       '.tmp-build/**',
       'scripts/server-colocation/**',
+      // Playwright owns e2e/: those specs import @playwright/test and must not
+      // be collected by vitest. Run them with `npm run test:e2e`.
+      'e2e/**',
     ],
     globals: true,
     setupFiles: ['./src/test/setupTests.js'],

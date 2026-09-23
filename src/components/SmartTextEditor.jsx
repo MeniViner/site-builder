@@ -397,12 +397,31 @@ export default function SmartTextEditor({
         () => getSmartTextDocument(value, plainText, linkLabels),
         [value, plainText, linkLabels]
     );
-    const editorKey = useMemo(() => JSON.stringify(tokens), [tokens]);
+    const tokensKey = useMemo(() => JSON.stringify(tokens), [tokens]);
+    // Tokens we last read OUT of this editor's own DOM.
+    const tokensRef = useRef(tokens);
+    tokensRef.current = tokens;
+    const [domOriginKey, setDomOriginKey] = useState(null);
+    // The key the contenteditable is rendered with. It deliberately does NOT
+    // follow every token change: keying the editor on its own content made React
+    // unmount and remount it on every keystroke, and characters typed during
+    // that remount -- together with the caret restore below -- were dropped or
+    // reordered. The DOM is rebuilt only for tokens that did NOT come from here:
+    // an external value change, an auto-link rewrite, or a link insertion.
+    const [editorKey, setEditorKey] = useState(tokensKey);
+    const [seenTokensKey, setSeenTokensKey] = useState(tokensKey);
+    if (tokensKey !== seenTokensKey) {
+        setSeenTokensKey(tokensKey);
+        if (tokensKey !== domOriginKey) setEditorKey(tokensKey);
+    }
     const plainValue = useMemo(() => smartTextTokensToPlainText(tokens), [tokens]);
     const isEmpty = plainValue.trim() === '';
 
-    const commitTokens = useCallback((nextTokens, selectionOffsets = null) => {
+    const commitTokens = useCallback((nextTokens, selectionOffsets = null, { fromDom = false } = {}) => {
         const normalizedTokens = autoLinkSmartTextTokens(nextTokens, linkLabels);
+        // Remember what the DOM already shows so the round-trip back through
+        // props does not rebuild it underneath the caret.
+        setDomOriginKey(fromDom ? JSON.stringify(normalizedTokens) : null);
         pendingSelectionRef.current = selectionOffsets;
         onChange?.({
             tokens: normalizedTokens,
@@ -416,7 +435,7 @@ export default function SmartTextEditor({
         if (!editor) return;
         const preserveSelection = options?.preserveSelection !== false;
         const selectionOffsets = preserveSelection ? getSelectionOffsets(editor) : null;
-        commitTokens(readSmartTextTokensFromElement(editor), selectionOffsets);
+        commitTokens(readSmartTextTokensFromElement(editor), selectionOffsets, { fromDom: true });
     }, [commitTokens]);
 
     const scheduleSyncFromDom = useCallback(() => {
@@ -510,13 +529,43 @@ export default function SmartTextEditor({
         commitTokens(nextTokens, { start: caretOffset, end: caretOffset });
     }, [commitTokens, linkDialog, tokens]);
 
+    // Children are rebuilt ONLY when editorKey changes. While the user types,
+    // this returns the very same element objects, so React's diff bails out and
+    // never touches the contenteditable. That matters because the user has been
+    // mutating this DOM directly: reconciling fresh elements against it
+    // duplicated and reordered text. An intentional rebuild changes editorKey,
+    // which both recomputes these children and remounts the element below.
+    const editorChildren = useMemo(
+        () => {
+            const rendered = tokensRef.current.map((token, index) => renderToken(token, index, linkClassName));
+            const last = tokensRef.current[tokensRef.current.length - 1];
+            if (last?.type === SMART_TEXT_TOKEN_TYPES.break) {
+                // Editor-only filler so the browser renders/positions the caret on
+                // the trailing blank line; never persisted (see
+                // readSmartTextTokensFromElement).
+                rendered.push(<br key="caret-placeholder" data-caret-placeholder="true" aria-hidden="true" />);
+            }
+            return rendered;
+        },
+        // Intentionally keyed on editorKey, not tokens: see above.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [editorKey, linkClassName],
+    );
+
+    const lastEditorKeyRef = useRef(editorKey);
     useLayoutEffect(() => {
+        const rebuiltDom = lastEditorKeyRef.current !== editorKey;
+        lastEditorKeyRef.current = editorKey;
         const editor = editorRef.current;
         const selection = pendingSelectionRef.current;
         if (!editor || !selection) return;
         pendingSelectionRef.current = null;
+        // Only reposition the caret when React actually rebuilt the DOM. After an
+        // ordinary keystroke the browser's caret is already correct, and forcing
+        // a range here fights the user and disturbs IME composition.
+        if (!rebuiltDom) return;
         restoreSelectionOffsets(editor, selection);
-    }, [tokens]);
+    }, [tokens, editorKey]);
 
     return (
         <div className={className}>
@@ -644,7 +693,21 @@ export default function SmartTextEditor({
                             const editor = editorRef.current;
                             if (!editor) return;
                             insertPlainTextAtSelection(editor, getEnterText(editor, !event.shiftKey));
-                            scheduleSyncFromDom();
+                            // Enter can leave the caret on a trailing blank line,
+                            // which only exists once the editor-only caret filler
+                            // is rendered. Commit synchronously as a NON-DOM origin
+                            // so the editor rebuilds with that filler and the caret
+                            // is restored to the intended offset. Ordinary
+                            // keystrokes keep the debounced, rebuild-free path.
+                            if (inputSyncTimerRef.current !== null) {
+                                window.clearTimeout(inputSyncTimerRef.current);
+                                inputSyncTimerRef.current = null;
+                            }
+                            commitTokens(
+                                readSmartTextTokensFromElement(editor),
+                                getSelectionOffsets(editor),
+                                { fromDom: false },
+                            );
                             return;
                         }
                         if (!event.metaKey && !event.ctrlKey) return;
@@ -659,13 +722,7 @@ export default function SmartTextEditor({
                     }}
                     className={`min-h-[108px] w-full whitespace-pre-wrap rounded-xl border border-theme-subtle bg-theme-elevated px-4 py-3 text-sm leading-6 text-theme outline-none transition focus:border-blue-500 ${editorClassName}`}
                 >
-                    {tokens.map((token, index) => renderToken(token, index, linkClassName))}
-                    {tokens[tokens.length - 1]?.type === SMART_TEXT_TOKEN_TYPES.break ? (
-                        // Editor-only filler so the browser renders/positions the
-                        // caret on the trailing blank line; never persisted (see
-                        // readSmartTextTokensFromElement).
-                        <br key="caret-placeholder" data-caret-placeholder="true" aria-hidden="true" />
-                    ) : null}
+                    {editorChildren}
                 </div>
             </div>
 

@@ -48,7 +48,8 @@
     "sharepoint:install-runtime-config": "node scripts/sharepoint-closed-export/install-runtime-config.mjs",
     "sharepoint:closed-export": "node scripts/sharepoint-closed-export/export-from-sharepoint.mjs",
     "sharepoint:closed-validate": "node scripts/sharepoint-closed-export/validate-manual-export.mjs",
-    "migrate:sharepoint-export-to-mongo:dry-run": "node server/scripts/migrateSharePointToMongo.js --dry-run"
+    "migrate:sharepoint-export-to-mongo:dry-run": "node server/scripts/migrateSharePointToMongo.js --dry-run",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@hebcal/hdate": "^0.22.8",
@@ -75,6 +76,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "^1.63.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.7",
