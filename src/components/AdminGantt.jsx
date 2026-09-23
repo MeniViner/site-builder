@@ -171,7 +171,7 @@ function compareText(a, b) {
 
 function createCategory(name, color, order) {
     return {
-        id: `gantt-category-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        id: createGanttEntityId('gantt-category'),
         name: String(name || '').trim() || 'כללי',
         color: isValidGanttColor(color) ? color : GANTT_COLOR_OPTIONS[0],
         order: Number.isFinite(Number(order)) ? Math.max(0, Math.round(Number(order))) : 1,
@@ -684,6 +684,21 @@ function TaskModal({ modal, categories, onClose, onSubmit, onChange }) {
     );
 }
 
+/**
+ * Ids for newly created Gantt entities.
+ *
+ * Date.now() alone collides when two items are created inside the same
+ * millisecond -- duplicating a task twice quickly produced two items with the
+ * same id, and React then keys them identically. The random suffix matches the
+ * convention already used for categories.
+ */
+function createGanttEntityId(prefix = 'gantt') {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return `${prefix}-${crypto.randomUUID()}`;
+    }
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
 export default function AdminGantt() {
     const navigate = useNavigate();
     const { gantt, loading, saving, error, saveGantt, reloadGantt } = useGantt();
@@ -722,6 +737,14 @@ export default function AdminGantt() {
         draftSnapshotRef.current = incomingSnapshot;
         draftRef.current = next;
         // Persisted AI updates must replace the editor draft before autosave can replay stale state.
+        //
+        // This is a deliberate external-value adoption, not derived state: it runs
+        // only when the incoming gantt actually differs AND there are no local
+        // edits to protect, and the surrounding snapshot refs are what make that
+        // decision. Restating it as an adjust-during-render would move those ref
+        // writes into render and trade one rule violation for another, in the
+        // middle of the Gantt draft/recovery contract.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setDraft(next);
     }, [gantt]);
 
@@ -932,7 +955,7 @@ export default function AdminGantt() {
         setTaskModal({
             mode: 'add',
             form: createGanttTask({
-                id: `gantt-${Date.now()}`,
+                id: createGanttEntityId(),
                 category: firstCategory?.name || 'כללי',
                 color: firstCategory?.color || GANTT_COLOR_OPTIONS[0],
             }),
@@ -1003,7 +1026,7 @@ export default function AdminGantt() {
     const duplicateTask = (task) => {
         const nextTask = createGanttTask({
             ...task,
-            id: `gantt-${Date.now()}`,
+            id: createGanttEntityId(),
             title: `${task.title} - עותק`,
         });
         updateDraft((prev) => ({
