@@ -1,6 +1,7 @@
 // scripts/sp-env.js
 import fs from 'fs';
 import path from 'path';
+import { assertDailyDataApiUrl } from './deploymentArtifacts.mjs';
 
 const DEFAULTS = {
   host: 'portal.army.idf',
@@ -16,6 +17,7 @@ const DEFAULTS = {
   widgetsDbTarget: 'users',
   autoDeploy: 'false',
   storageBackend: 'txt',
+  dailyDataApiUrl: '',
   backendApiUrl: '',
 };
 
@@ -150,11 +152,20 @@ export function resolveConfig({ envFilePath = path.resolve(process.cwd(), '.env.
   if (!['txt', 'mongo'].includes(storageBackend)) {
     throw new Error(`Invalid VITE_STORAGE_BACKEND "${storageBackend}". Expected txt or mongo.`);
   }
+  const dailyDataApiUrl = pick(
+    cli['daily-data-url'] || cli.dailyDataUrl,
+    environment.VITE_DAILY_DATA_API_URL || envFromFile.VITE_DAILY_DATA_API_URL,
+    DEFAULTS.dailyDataApiUrl,
+  ).replace(/\/+$/g, '');
   const backendApiUrl = pick(
     cli['backend-url'] || cli.backendUrl || cli['api-url'],
     environment.VITE_BACKEND_API_URL || envFromFile.VITE_BACKEND_API_URL,
     DEFAULTS.backendApiUrl,
   ).replace(/\/+$/g, '');
+  if (storageBackend === 'mongo' && dailyDataApiUrl && backendApiUrl && dailyDataApiUrl !== backendApiUrl) {
+    throw new Error('VITE_DAILY_DATA_API_URL conflicts with legacy VITE_BACKEND_API_URL.');
+  }
+  if (storageBackend === 'mongo' && dailyDataApiUrl) assertDailyDataApiUrl(dailyDataApiUrl);
   const bootstrapLibrary = normalizePathSegment(pick(
     cli['bootstrap-library'],
     environment.VITE_SP_BOOTSTRAP_LIBRARY || envFromFile.VITE_SP_BOOTSTRAP_LIBRARY,
@@ -230,6 +241,7 @@ export function resolveConfig({ envFilePath = path.resolve(process.cwd(), '.env.
     autoDeploy,
     storageBackend,
     storageBackendSource: explicitStorageBackend ? 'production-environment' : 'safe-production-default',
+    dailyDataApiUrl,
     backendApiUrl,
     siteId,
     bootstrapLibrary,
@@ -266,7 +278,8 @@ export function writeEnvProduction(config, outputPath = path.resolve(process.cwd
     `VITE_SP_SITE_API_ROOT=${config.siteApiRootRel}`,
     `VITE_SITE_BASE_URL=${config.siteBaseUrl}`,
     `VITE_STORAGE_BACKEND=${config.storageBackend || 'txt'}`,
-    `VITE_BACKEND_API_URL=${config.backendApiUrl || ''}`,
+    `VITE_DAILY_DATA_API_URL=${config.storageBackend === 'mongo' ? config.dailyDataApiUrl || '' : ''}`,
+    `VITE_BACKEND_API_URL=${config.storageBackend === 'mongo' ? config.backendApiUrl || '' : ''}`,
     `VITE_SITE_ID=${config.siteId || config.siteCode}`,
     '',
     '# Logging (מרוכז)',

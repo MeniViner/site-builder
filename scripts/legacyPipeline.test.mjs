@@ -3,7 +3,13 @@ import os from 'os';
 import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runLegacyBuild } from './build-legacy.mjs';
-import { commitFinalIndex, commitIndexLast, runLegacyDeploy, runRobocopy } from './deploy-legacy.mjs';
+import {
+  assertMongoTargetReady,
+  commitFinalIndex,
+  commitIndexLast,
+  runLegacyDeploy,
+  runRobocopy,
+} from './deploy-legacy.mjs';
 import {
   assertLegacyManifestFilesVerified,
   readLegacyDeployManifest,
@@ -71,6 +77,65 @@ const mirrorWithoutIndex = (source, destination) => {
   copyWithoutIndex(source, destination);
   if (oldIndex) fs.writeFileSync(path.join(destination, 'index.html'), oldIndex);
 };
+
+describe('Mongo deployment readiness', () => {
+  it('checks the unauthenticated central readyz endpoint and requires JSON ok true', async () => {
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    await expect(assertMongoTargetReady({
+      storageBackend: 'mongo',
+      dailyDataApiUrl: 'https://daily.example/api/daily-data/v1',
+      siteId: 'stable-site',
+    }, { request })).resolves.toMatchObject({
+      readinessUrl: 'https://daily.example/api/daily-data/v1/readyz',
+      transport: 'daily-data',
+    });
+
+    expect(request).toHaveBeenCalledWith(
+      'https://daily.example/api/daily-data/v1/readyz',
+      { headers: { Accept: 'application/json' } },
+    );
+    expect(request.mock.calls[0][1].headers).not.toHaveProperty('Authorization');
+    expect(request.mock.calls[0][1].headers).not.toHaveProperty('X-API-Key');
+  });
+
+  it('rejects central readiness without a valid JSON ok envelope', async () => {
+    const falseResponse = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: false }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+    await expect(assertMongoTargetReady({
+      dailyDataApiUrl: 'https://daily.example/api/daily-data/v1',
+      siteId: 'stable-site',
+    }, { request: falseResponse })).rejects.toThrow('{"ok":true}');
+
+    const invalidJson = vi.fn().mockResolvedValue(new Response('<html>not json</html>', { status: 200 }));
+    await expect(assertMongoTargetReady({
+      dailyDataApiUrl: 'https://daily.example/api/daily-data/v1',
+      siteId: 'stable-site',
+    }, { request: invalidJson })).rejects.toThrow('invalid JSON');
+  });
+
+  it('preserves historical site readiness for legacy backendApiUrl', async () => {
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    await assertMongoTargetReady({
+      backendApiUrl: 'https://legacy.example',
+      siteId: 'legacy site',
+    }, { request });
+
+    expect(request).toHaveBeenCalledWith(
+      'https://legacy.example/api/sites/legacy%20site',
+      { headers: { Accept: 'application/json' } },
+    );
+  });
+});
 
 describe('Bootstrap WebDAV Boundary A transport', () => {
   it('derives the existing bootstrap library anchor separately from the deep dist target', () => {

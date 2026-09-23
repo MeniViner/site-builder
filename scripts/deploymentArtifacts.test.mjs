@@ -60,18 +60,32 @@ describe('deployment artifacts', () => {
   });
 
   it('requires complete Mongo public configuration and emits no secret fields', () => {
-    expect(() => assertProductionBuildConfig({ storageBackend: 'mongo', siteId: 'site-1' })).toThrow('VITE_BACKEND_API_URL');
+    expect(() => assertProductionBuildConfig({ storageBackend: 'mongo', siteId: 'site-1' })).toThrow('VITE_DAILY_DATA_API_URL');
     const payload = buildRuntimeConfigPayload({
       storageBackend: 'mongo',
       host: 'portal.army.idf',
       siteCode: 'site-1',
-      backendApiUrl: 'https://builder.example/api/',
+      dailyDataApiUrl: 'https://daily.example/api/daily-data/v1/',
       siteId: 'site-1',
       apiKey: 'must-not-ship',
     });
-    expect(payload).toMatchObject({ storageBackend: 'mongo', backendApiUrl: 'https://builder.example/api', siteId: 'site-1' });
+    expect(payload).toMatchObject({ storageBackend: 'mongo', dailyDataApiUrl: 'https://daily.example/api/daily-data/v1', siteId: 'site-1' });
+    expect(payload).not.toHaveProperty('backendApiUrl');
     expect(payload).not.toHaveProperty('apiKey');
     expect(JSON.stringify(buildDeployManifest(['index.html']))).not.toContain('must-not-ship');
+    expect(() => buildRuntimeConfigPayload({
+      storageBackend: 'mongo',
+      host: 'portal.army.idf',
+      siteCode: 'site-1',
+      siteId: 'site-1',
+      dailyDataApiUrl: 'https://daily.example/api/daily-data/v1',
+      backendApiUrl: 'https://legacy.example',
+    })).toThrow('conflicts');
+    expect(() => assertProductionBuildConfig({
+      storageBackend: 'mongo',
+      siteId: 'site-1',
+      dailyDataApiUrl: 'https://daily.example/api',
+    })).toThrow('/api/daily-data/v1');
   });
 
   it('rejects non-lowercase selectors instead of silently normalizing them', () => {
@@ -101,6 +115,8 @@ describe('deployment artifacts', () => {
     expect(environment).toMatchObject({
       VITE_SITE_BUILD_MODE: 'legacy',
       VITE_STORAGE_BACKEND: 'txt',
+      VITE_DAILY_DATA_API_URL: '',
+      VITE_BACKEND_API_URL: '',
       VITE_SITE_ID: 'target-site',
       VITE_SITE_BASE_URL: 'https://portal.army.idf/sites/target-site/records/dist',
       VITE_SP_HOST: 'portal.army.idf',
@@ -122,10 +138,18 @@ describe('deployment artifacts', () => {
       VITE_SP_SITE_CODE: 'compiled-site',
       VITE_SITE_ID: 'compiled-site',
       VITE_STORAGE_BACKEND: 'txt',
+      VITE_DAILY_DATA_API_URL: 'https://daily.example/api',
+      VITE_BACKEND_API_URL: 'https://legacy.example',
+      VITE_ALPHA_AI_API_BASE: 'https://target-ai.example/api',
+      VITE_ALPHA_AI_API_TOKEN: 'target-secret',
     });
     expect(environment).toMatchObject({
       VITE_SITE_BUILD_MODE: 'universal',
       VITE_STORAGE_BACKEND: '',
+      VITE_DAILY_DATA_API_URL: '',
+      VITE_BACKEND_API_URL: '',
+      VITE_ALPHA_AI_API_BASE: '',
+      VITE_ALPHA_AI_API_TOKEN: '',
       VITE_SITE_ID: '',
       VITE_SP_HOST: '',
       VITE_SP_SITE_CODE: '',

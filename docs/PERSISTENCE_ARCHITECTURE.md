@@ -49,7 +49,7 @@ Production Mongo:
   "schemaVersion": 1,
   "storageBackend": "mongo",
   "siteId": "target-site",
-  "backendApiUrl": "https://builder-api.example",
+  "dailyDataApiUrl": "https://daily-data.example/api/daily-data/v1",
   "allowedSiteRoot": "https://portal.example/sites/target-site"
 }
 ```
@@ -63,10 +63,11 @@ Site Builder production build variables:
 ```dotenv
 VITE_STORAGE_BACKEND=txt
 VITE_SITE_ID=
+VITE_DAILY_DATA_API_URL=
 VITE_BACKEND_API_URL=
 ```
 
-For a Mongo-specific build, use `VITE_STORAGE_BACKEND=mongo` and provide `VITE_SITE_ID` and `VITE_BACKEND_API_URL`. A target-specific Hub deployment still overwrites the selector for its destination.
+For a Mongo-specific build, use `VITE_STORAGE_BACKEND=mongo` and provide a stable `VITE_SITE_ID` plus `VITE_DAILY_DATA_API_URL`. The central URL must end in `/api/daily-data/v1`; requests use `{dailyDataApiUrl}/sites/{siteId}/...`, and deployment readiness uses the unauthenticated `{dailyDataApiUrl}/readyz` endpoint with a required JSON `{ "ok": true }` response. `VITE_BACKEND_API_URL` remains supported only for historical servers and uses `{backendApiUrl}/api/sites/{siteId}/...`. If both URL fields are supplied with materially different values, bootstrap fails instead of choosing a server. TXT runtime payloads omit both Mongo URL fields. A target-specific Hub deployment still overwrites the selector for its destination.
 
 SiteBuilderHub has one production authority:
 
@@ -106,7 +107,7 @@ VITE_SITE_ID=local-dev-site \
 npm run dev
 ```
 
-If the local server requires its development API key, pass it only through `VITE_SITE_BUILDER_DEV_API_KEY` in the development process. Production builds forcibly remove that variable.
+The bundled historical local server uses the explicitly legacy `VITE_BACKEND_API_URL` route contract. Central Daily Data environments use `VITE_DAILY_DATA_API_URL` instead. Production builds forcibly remove API keys and both API URL variables from universal assets.
 
 ## Nested SharePoint hosting
 
@@ -159,4 +160,4 @@ In the browser console inspect:
 window.__SITE_BUILDER_GET_STORAGE_DIAGNOSTICS__()
 ```
 
-Verify `backend`, `source`, `siteId`, `siteRoot`/`backendApiUrl`, `repository`, runtime attempts, and the last redacted error. For a universal deployment, also fetch `sitebuilder-runtime-config.json`, `sitebuilder-deployment.json`, and `sharepoint-deploy-manifest.json` beside the loaded HTML. Legacy deployments intentionally need none of those runtime files.
+Verify `backend`, `source`, `siteId`, `siteRoot`/`dailyDataApiUrl` (or explicit legacy `backendApiUrl`), `repository`, runtime attempts, and the last redacted error. For a universal deployment, also fetch `sitebuilder-runtime-config.json`, `sitebuilder-deployment.json`, and `sharepoint-deploy-manifest.json` beside the loaded HTML. Legacy deployments intentionally need none of those runtime files.

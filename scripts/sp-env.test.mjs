@@ -75,4 +75,41 @@ describe('SharePoint deployment environment', () => {
       environment: {},
     })).toThrow('Expected txt or mongo');
   });
+
+  it('resolves the canonical Daily Data URL and rejects a conflicting legacy URL', () => {
+    expect(resolveConfig({
+      envFilePath: '/missing',
+      cli: {
+        site: 'alpha',
+        'storage-backend': 'mongo',
+        'daily-data-url': 'https://daily.example/api/daily-data/v1/',
+      },
+      environment: {},
+    })).toMatchObject({
+      storageBackend: 'mongo',
+      siteId: 'alpha',
+      dailyDataApiUrl: 'https://daily.example/api/daily-data/v1',
+      backendApiUrl: '',
+    });
+
+    expect(() => resolveConfig({
+      envFilePath: '/missing',
+      cli: {
+        site: 'alpha',
+        'storage-backend': 'mongo',
+        'daily-data-url': 'https://daily.example/api/daily-data/v1',
+        'backend-url': 'https://legacy.example',
+      },
+      environment: {},
+    })).toThrow('conflicts');
+    expect(() => resolveConfig({
+      envFilePath: '/missing',
+      cli: {
+        site: 'alpha',
+        'storage-backend': 'mongo',
+        'daily-data-url': 'https://daily.example/api',
+      },
+      environment: {},
+    })).toThrow('/api/daily-data/v1');
+  });
 });

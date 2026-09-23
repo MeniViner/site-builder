@@ -98,6 +98,7 @@ function createDevelopmentFallback() {
   return normalizeCandidate({
     schemaVersion: 2,
     storageBackend: import.meta.env.VITE_STORAGE_BACKEND || 'txt',
+    dailyDataApiUrl: import.meta.env.VITE_DAILY_DATA_API_URL,
     backendApiUrl: import.meta.env.VITE_BACKEND_API_URL,
     siteId: import.meta.env.VITE_SITE_ID || import.meta.env.VITE_SP_SITE_CODE,
     host: import.meta.env.VITE_SP_HOST,
@@ -128,6 +129,7 @@ function createLegacyBuildConfig() {
   const config = normalizeCandidate({
     schemaVersion: 2,
     storageBackend: import.meta.env.VITE_STORAGE_BACKEND || 'txt',
+    dailyDataApiUrl: import.meta.env.VITE_DAILY_DATA_API_URL,
     backendApiUrl: import.meta.env.VITE_BACKEND_API_URL,
     siteId: import.meta.env.VITE_SITE_ID || import.meta.env.VITE_SP_SITE_CODE,
     host: import.meta.env.VITE_SP_HOST,
@@ -183,7 +185,19 @@ function normalizeCandidate(candidate = {}, { source = 'runtime config', require
   }
   const rawBackend = candidate.storageBackend;
   const storageBackend = sanitizeBackend(rawBackend, { allowEmpty: true });
+  const dailyDataApiUrl = asString(candidate.dailyDataApiUrl);
   const backendApiUrl = asString(candidate.backendApiUrl || candidate.backendUrl || candidate.apiUrl || candidate.API_URL);
+  if (
+    storageBackend !== 'txt'
+    && dailyDataApiUrl
+    && backendApiUrl
+    && dailyDataApiUrl.replace(/\/+$/g, '') !== backendApiUrl.replace(/\/+$/g, '')
+  ) {
+    throw new RuntimeConfigError(
+      `${source} contains conflicting "dailyDataApiUrl" and legacy "backendApiUrl" values.`,
+      { code: 'conflicting_mongo_api_urls' },
+    );
+  }
   const rawSiteId = asString(candidate.siteId || candidate.site || candidate.siteCode);
   const releaseVersion = asString(candidate.releaseVersion || candidate.siteBuilderVersion || candidate.appVersion || candidate.version);
   const releaseId = asString(candidate.releaseId);
@@ -196,6 +210,7 @@ function normalizeCandidate(candidate = {}, { source = 'runtime config', require
 
   if (
     !storageBackend
+    && !dailyDataApiUrl
     && !backendApiUrl
     && !rawSiteId
     && !releaseVersion
@@ -239,10 +254,16 @@ function normalizeCandidate(candidate = {}, { source = 'runtime config', require
 
   // API keys, tokens, and credentials are intentionally never accepted from a
   // publicly hosted runtime configuration file.
+  const mongoApiFields = storageBackend === 'txt'
+    ? {}
+    : {
+      ...(dailyDataApiUrl ? { dailyDataApiUrl } : {}),
+      ...(backendApiUrl ? { backendApiUrl } : {}),
+    };
   return Object.freeze({
     schemaVersion: Number(candidate.schemaVersion || 2),
     storageBackend,
-    backendApiUrl,
+    ...mongoApiFields,
     siteId: rawSiteId || sharePointDescriptor?.siteCode || '',
     releaseVersion,
     releaseId,
@@ -425,6 +446,14 @@ function assertNoBackendDisagreement(runtimeConfig, deploymentMetadata) {
       { code: 'storage_backend_disagreement' },
     );
   }
+  const runtimeApiUrl = asString(runtimeConfig?.dailyDataApiUrl || runtimeConfig?.backendApiUrl).replace(/\/+$/g, '');
+  const auditApiUrl = asString(deploymentMetadata?.dailyDataApiUrl || deploymentMetadata?.backendApiUrl).replace(/\/+$/g, '');
+  if (runtimeApiUrl && auditApiUrl && runtimeApiUrl !== auditApiUrl) {
+    throw new RuntimeConfigError(
+      'Runtime Mongo API URL disagrees with deployment audit metadata.',
+      { code: 'mongo_api_url_disagreement' },
+    );
+  }
 }
 
 async function resolveRuntimeConfig() {
@@ -589,6 +618,7 @@ export function getRuntimeValue(key, fallback = '') {
   if (Object.prototype.hasOwnProperty.call(config, key)) return config[key] || fallback;
   switch (key) {
     case 'storageBackend': return config.storageBackend || '';
+    case 'dailyDataApiUrl': return config.dailyDataApiUrl || '';
     case 'backendApiUrl': return config.backendApiUrl || '';
     case 'siteId': return config.siteId || '';
     case 'siteRoot': return config.siteRoot || '';

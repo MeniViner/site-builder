@@ -35,6 +35,7 @@ const SITE_IDENTITY_ENV_KEYS = Object.freeze([
   'VITE_SP_BOOTSTRAP_FOLDER',
   'VITE_SITE_BASE_URL',
   'VITE_STORAGE_BACKEND',
+  'VITE_DAILY_DATA_API_URL',
   'VITE_BACKEND_API_URL',
   'VITE_SITE_ID',
 ]);
@@ -51,6 +52,8 @@ export function buildUniversalProductionEnvironment(baseEnvironment = process.en
     VITE_SITE_BUILDER_API_KEY: '',
     VITE_SITE_BUILDER_DEV_API_KEY: '',
     VITE_ADMIN_API_KEY: '',
+    VITE_ALPHA_AI_API_BASE: '',
+    VITE_ALPHA_AI_API_TOKEN: '',
     VITE_AUTO_DEPLOY: 'false',
   };
 }

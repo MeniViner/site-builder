@@ -25,6 +25,34 @@ const projectRoot = path.resolve(path.dirname(__filename), '..');
 
 const enabled = (value) => value === true || String(value || '').trim().toLowerCase() === 'true';
 
+export async function assertMongoTargetReady(config, { request = fetch } = {}) {
+  const siteId = String(config?.siteId || '').trim();
+  if (config?.dailyDataApiUrl) {
+    if (!siteId) throw new Error('Mongo deploy requires VITE_SITE_ID.');
+    const readinessUrl = `${String(config.dailyDataApiUrl).replace(/\/+$/g, '')}/readyz`;
+    const response = await request(readinessUrl, { headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error(`Mongo target readiness failed (${response.status}) at ${readinessUrl}.`);
+    let payload;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new Error(`Mongo target readiness returned invalid JSON at ${readinessUrl}.`);
+    }
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload) || payload.ok !== true) {
+      throw new Error(`Mongo target readiness did not return {"ok":true} at ${readinessUrl}.`);
+    }
+    return { readinessUrl, payload, transport: 'daily-data' };
+  }
+
+  if (!config?.backendApiUrl || !siteId) {
+    throw new Error('Mongo deploy requires VITE_DAILY_DATA_API_URL (or legacy VITE_BACKEND_API_URL) and VITE_SITE_ID.');
+  }
+  const readinessUrl = `${String(config.backendApiUrl).replace(/\/+$/g, '')}/api/sites/${encodeURIComponent(siteId)}`;
+  const response = await request(readinessUrl, { headers: { Accept: 'application/json' } });
+  if (!response.ok) throw new Error(`Mongo target readiness failed (${response.status}) at ${readinessUrl}.`);
+  return { readinessUrl, transport: 'legacy-backend' };
+}
+
 const printRobocopyOutput = (output, stream = process.stdout) => {
   if (output && String(output).length > 0) stream.write(String(output));
 };
@@ -222,10 +250,7 @@ export async function runLegacyDeploy({
     if (missingTxtFiles.length) throw new Error(`TXT backend is not ready; ${missingTxtFiles.length} required TXT file(s) are missing. Run site:init first.`);
   }
   if (config.storageBackend === 'mongo') {
-    if (!config.backendApiUrl || !config.siteId) throw new Error('Mongo deploy requires VITE_BACKEND_API_URL and VITE_SITE_ID.');
-    const healthUrl = `${config.backendApiUrl.replace(/\/+$/g, '')}/api/sites/${encodeURIComponent(config.siteId)}`;
-    const response = await fetch(healthUrl, { headers: { Accept: 'application/json' } });
-    if (!response.ok) throw new Error(`Mongo target readiness failed (${response.status}) at ${healthUrl}.`);
+    await assertMongoTargetReady(config);
   }
 
   const bootstrapTransport = deployMode === 'bootstrap'

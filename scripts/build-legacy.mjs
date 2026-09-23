@@ -12,8 +12,8 @@ const projectRoot = path.resolve(path.dirname(__filename), '..');
 export function buildLegacyProductionEnvironment(config, baseEnvironment = process.env) {
   const storageBackend = String(config.storageBackend || 'txt').trim();
   if (!['txt', 'mongo'].includes(storageBackend)) throw new Error(`Invalid Legacy storage backend "${storageBackend}".`);
-  if (storageBackend === 'mongo' && (!config.backendApiUrl || !config.siteId)) {
-    throw new Error('Legacy Mongo build requires VITE_BACKEND_API_URL and VITE_SITE_ID.');
+  if (storageBackend === 'mongo' && ((!config.dailyDataApiUrl && !config.backendApiUrl) || !config.siteId)) {
+    throw new Error('Legacy Mongo build requires VITE_DAILY_DATA_API_URL (or legacy VITE_BACKEND_API_URL) and VITE_SITE_ID.');
   }
   return {
     ...baseEnvironment,
@@ -31,7 +31,8 @@ export function buildLegacyProductionEnvironment(config, baseEnvironment = proce
     VITE_SP_BOOTSTRAP_FOLDER: String(config.bootstrapFolder || ''),
     VITE_SITE_BASE_URL: String(config.siteBaseUrl || ''),
     VITE_STORAGE_BACKEND: storageBackend,
-    VITE_BACKEND_API_URL: String(config.backendApiUrl || ''),
+    VITE_DAILY_DATA_API_URL: storageBackend === 'mongo' ? String(config.dailyDataApiUrl || '') : '',
+    VITE_BACKEND_API_URL: storageBackend === 'mongo' ? String(config.backendApiUrl || '') : '',
     VITE_SITE_ID: String(config.siteId || config.siteCode || ''),
     VITE_SITE_BUILDER_API_KEY: '',
     VITE_SITE_BUILDER_DEV_API_KEY: '',

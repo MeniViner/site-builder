@@ -33,7 +33,11 @@ export function resolveRuntimeConfigPlan({ config, cli = {} } = {}) {
   }
   const rawSite = cli.site || cli['site-code'] || config?.siteCode || '';
   const storageBackend = String(cli['storage-backend'] || cli.storageBackend || config?.storageBackend || 'txt').trim();
+  const dailyDataApiUrl = String(cli['daily-data-url'] || cli.dailyDataUrl || config?.dailyDataApiUrl || '').trim();
   const backendApiUrl = String(cli['backend-url'] || cli.backendUrl || cli['api-url'] || config?.backendApiUrl || '').trim();
+  if (dailyDataApiUrl && backendApiUrl && dailyDataApiUrl.replace(/\/+$/g, '') !== backendApiUrl.replace(/\/+$/g, '')) {
+    throw new Error('dailyDataApiUrl conflicts with legacy backendApiUrl.');
+  }
   const siteId = String(cli['site-id'] || cli.siteId || rawSite || '').trim();
   const filename = normalizeRuntimeConfigFileName(
     cli['runtime-config-file'] || cli.runtimeConfigFile || 'sitebuilder-runtime-config.json',
@@ -61,6 +65,7 @@ export function resolveRuntimeConfigPlan({ config, cli = {} } = {}) {
     siteCode: String(rawSite).replace(/^\/+|\/+$/g, ''),
     siteId,
     storageBackend,
+    dailyDataApiUrl,
     backendApiUrl,
     filename,
     distRel,
@@ -92,8 +97,8 @@ export function assertSafeRuntimeConfigPlan(plan) {
   if (!['txt', 'mongo'].includes(plan.storageBackend)) {
     throw new Error(`Unsupported storageBackend ${plan.storageBackend}. Expected txt or mongo.`);
   }
-  if (plan.storageBackend === 'mongo' && !plan.backendApiUrl) {
-    throw new Error('backendApiUrl is required for runtime config.');
+  if (plan.storageBackend === 'mongo' && !plan.dailyDataApiUrl && !plan.backendApiUrl) {
+    throw new Error('dailyDataApiUrl (or legacy backendApiUrl) is required for runtime config.');
   }
   if (!plan.siteId) {
     throw new Error('siteId is required for runtime config.');
@@ -112,6 +117,7 @@ export function buildRuntimeConfigPayload(plan) {
   // identical payload and validation contract as the ordinary legacy deploy.
   return buildCanonicalRuntimeConfigPayload({
     storageBackend: plan.storageBackend,
+    dailyDataApiUrl: plan.dailyDataApiUrl,
     backendApiUrl: plan.backendApiUrl,
     host: plan.host,
     siteCode: plan.siteCode,

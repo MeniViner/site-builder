@@ -18,9 +18,11 @@ import {
   buildTxtStoragePath,
   clearStorageDescriptorForTests,
   getBackendApiBaseUrl,
+  getDailyDataApiBaseUrl,
   getSiteId,
   getStorageBackend,
   getStorageDescriptor,
+  getStorageDiagnostics,
   getTxtSiteRoot,
   resolveSharePointAppHostingContext,
   resolveHostedTxtSiteRoot,
@@ -89,6 +91,7 @@ describe('runtimeConfig and storage descriptor', () => {
       siteId: 'runtime-site',
       apiKey: 'must-not-escape',
     });
+
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(asResponse({}, 404))));
 
     await loadRuntimeConfig();
@@ -106,6 +109,63 @@ describe('runtimeConfig and storage descriptor', () => {
     expect(getBackendApiBaseUrl()).toBe('https://api.example.test');
     expect(getSiteId()).toBe('runtime-site');
     expect(JSON.stringify(getRuntimeLog())).not.toContain('must-not-escape');
+  });
+
+  it('preserves the canonical Daily Data API URL and stable site identity', () => {
+    setRuntimeConfigForTests({
+      storageBackend: 'mongo',
+      dailyDataApiUrl: 'https://daily.example.test/api/daily-data/v1/',
+      siteId: 'stable-site',
+    });
+
+    expect(getRuntimeConfig()).toEqual(expect.objectContaining({
+      storageBackend: 'mongo',
+      dailyDataApiUrl: 'https://daily.example.test/api/daily-data/v1/',
+      siteId: 'stable-site',
+    }));
+    expect(getDailyDataApiBaseUrl()).toBe('https://daily.example.test/api/daily-data/v1');
+    expect(getBackendApiBaseUrl()).toBe('https://daily.example.test/api/daily-data/v1');
+    expect(getStorageDescriptor()).toMatchObject({
+      dailyDataApiUrl: 'https://daily.example.test/api/daily-data/v1',
+      mongoApiRoutePrefix: '/sites',
+      siteId: 'stable-site',
+    });
+    expect(getStorageDiagnostics()).toMatchObject({
+      backend: 'mongo',
+      dailyDataApiUrl: 'https://daily.example.test/api/daily-data/v1',
+      siteId: 'stable-site',
+      repository: 'central-mongo-api',
+    });
+  });
+
+  it('rejects materially different canonical and legacy Mongo API URLs', () => {
+    expect(() => setRuntimeConfigForTests({
+      storageBackend: 'mongo',
+      dailyDataApiUrl: 'https://daily.example.test/api/daily-data/v1',
+      backendApiUrl: 'https://legacy.example.test',
+      siteId: 'stable-site',
+    })).toThrow('conflicting');
+  });
+
+  it('rejects a Daily Data URL without the versioned API suffix', () => {
+    setRuntimeConfigForTests({
+      storageBackend: 'mongo',
+      dailyDataApiUrl: 'https://daily.example.test/api',
+      siteId: 'stable-site',
+    });
+    expect(() => getStorageDescriptor()).toThrow('/api/daily-data/v1');
+  });
+
+  it('omits Mongo-only URL fields from normalized TXT runtime config', () => {
+    setRuntimeConfigForTests({
+      storageBackend: 'txt',
+      dailyDataApiUrl: 'https://must-not-survive.example',
+      backendApiUrl: 'https://must-not-survive.example',
+      siteId: 'txt-site',
+    });
+    expect(getRuntimeConfig()).not.toHaveProperty('dailyDataApiUrl');
+    expect(getRuntimeConfig()).not.toHaveProperty('backendApiUrl');
+    expect(getStorageDescriptor()).not.toHaveProperty('dailyDataApiUrl');
   });
 
   it('derives a descriptor from a legacy Mongo SharePoint URL for compatibility', async () => {
@@ -261,7 +321,7 @@ describe('runtimeConfig and storage descriptor', () => {
 
   it('fails closed when Mongo is missing a URL or site ID', () => {
     setRuntimeConfigForTests({ storageBackend: 'mongo', siteId: 'alpha' });
-    expect(() => getStorageDescriptor()).toThrow('backendApiUrl is required');
+    expect(() => getStorageDescriptor()).toThrow('dailyDataApiUrl');
 
     clearStorageDescriptorForTests();
     clearRuntimeConfigForTests();
