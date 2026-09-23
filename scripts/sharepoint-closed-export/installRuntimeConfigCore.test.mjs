@@ -102,6 +102,25 @@ describe('runtime config core', () => {
     expect(buildRuntimeConfigPayload(plan)).not.toHaveProperty('backendApiUrl');
   });
 
+  it('emits the canonical Daily Data URL for Mongo bootstrap config', () => {
+    const plan = resolveRuntimeConfigPlan({
+      config,
+      cli: {
+        site: 'demo-site',
+        'storage-backend': 'mongo',
+        'site-id': 'stable-site',
+        'daily-data-url': 'https://daily.example/api/daily-data/v1/',
+      },
+    });
+
+    expect(buildRuntimeConfigPayload(plan)).toEqual(expect.objectContaining({
+      storageBackend: 'mongo',
+      siteId: 'stable-site',
+      dailyDataApiUrl: 'https://daily.example/api/daily-data/v1',
+    }));
+    expect(buildRuntimeConfigPayload(plan)).not.toHaveProperty('backendApiUrl');
+  });
+
   it('rejects attempts to place an API key in the static runtime config', () => {
     expect(() => resolveRuntimeConfigPlan({
       config,
