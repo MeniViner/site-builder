@@ -345,7 +345,7 @@ describe('runtimeConfig and storage descriptor', () => {
       backendApiUrl: 'http://127.0.0.1:3001',
       siteId: 'alpha',
     });
-    expect(() => getStorageDescriptor()).toThrow('cannot use an insecure Mongo backendApiUrl');
+    expect(() => getStorageDescriptor()).toThrow('cannot use an insecure central dailyDataApiUrl');
   });
 
   it('accepts only the exact lowercase backend values and rejects URL query credentials', () => {
