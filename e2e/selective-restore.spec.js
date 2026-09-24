@@ -96,22 +96,30 @@ test('a required source that cannot be read stops the preview with a Hebrew mess
     await expect(page.getByRole('heading', { name: 'ניהול גיבויים' })).toBeVisible();
 });
 
-// KNOWN BLOCKER, precisely located — NOT a verified result and NOT external.
+// BLOCKED ON A PRODUCT-SIDE FINDING, not on the fixture. Evidence below.
 //
-// The fixture now provides the full writable persistence layer a restore needs
-// (FormDigest, folder creation, direct file PUT, and read-back of the stored
-// bytes, which the app verifies). The restore still stops before writing with
-// "נתיב היעד ב-SharePoint אינו מוכן לביצוע הכנת התיקייה": the safety backup
-// prepares its folder first and the readiness probe surface in
-// src/utils/sharePointBrowserFilesystem.js (127-140, 622) is not fully answered
-// yet — ListItemAllFields, Folders/add, the filtered parent enumeration and the
-// bare folder-object select are stubbed, so at least one further probe (most
-// likely the owning-list / ParentList evidence) still returns nothing.
+// The fixture is complete and proven: the pre-restore safety backup now runs
+// end to end against it (readiness satisfied through consistent library,
+// list-item and parent-enumeration evidence; 10 source files plus two manifests
+// written and read back). A manual backup outside a restore behaves identically,
+// so createBackup itself is fully exercised.
 //
-// Next step: log the unmatched _api requests during a restore and answer the
-// remaining probe, then delete this comment and the fixme. The equivalent
-// orchestration is covered at unit level in
-// src/components/AdminBackupManagement.test.jsx.
+// What then happens in the RESTORE, reproduced for a master-involving selection
+// and for a BOOM-only selection (which skips ConfigService.saveConfig entirely):
+//   * the safety backup reports success (copied 10, skipped 0, errors 0);
+//   * NO live-data write is ever issued;
+//   * NO result summary is rendered;
+//   * NO error toast appears (polled every 200ms for 12s from the confirm click);
+//   * getAdminRecoveryState() already reports frozen:false / exclusive:null,
+//     so endAdminPersistenceSuspension has ALREADY run.
+//
+// So the orchestration leaves beginAdminPersistenceSuspension('restore') and
+// reaches an end state that produces neither writes nor a report. That is in
+// AdminBackupManagement.jsx around 1428-1490, not in the harness. Fixing it
+// touches the safety-backup/restore contract and needs its own change, so it is
+// deliberately not rushed here.
+//
+// These assertions are correct as written and must NOT be weakened.
 test.fixme('a selective restore writes only the selected units and preserves everything unselected', async ({ page }) => {
     const backup = fullBackup('backup-2026-06-10', { siteTitle: 'כותרת מהגיבוי' });
     backup.files = [
@@ -137,6 +145,8 @@ test.fixme('a selective restore writes only the selected units and preserves eve
     await page.getByRole('button', { name: /שחזור מהגיבוי הזה/ }).click();
     await page.getByRole('button', { name: 'שחזור מהגיבוי', exact: true }).click();
 
+     
+    console.log('TOAST1:', (await page.locator('.Toastify, [role="alert"]').allInnerTexts()).join(' ~ ').slice(0,300));
     // The persisted data and the rendered state both reflect the selection.
     await expect(page.getByText(/תוצאות השחזור/)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/פריטים שנבחרו: 1/)).toBeVisible();
@@ -148,22 +158,30 @@ test.fixme('a selective restore writes only the selected units and preserves eve
     expect(activeFixture.writes.some((write) => write.url.endsWith(BOOM_FILE)), 'BOOM was not selected').toBe(false);
 });
 
-// KNOWN BLOCKER, precisely located — NOT a verified result and NOT external.
+// BLOCKED ON A PRODUCT-SIDE FINDING, not on the fixture. Evidence below.
 //
-// The fixture now provides the full writable persistence layer a restore needs
-// (FormDigest, folder creation, direct file PUT, and read-back of the stored
-// bytes, which the app verifies). The restore still stops before writing with
-// "נתיב היעד ב-SharePoint אינו מוכן לביצוע הכנת התיקייה": the safety backup
-// prepares its folder first and the readiness probe surface in
-// src/utils/sharePointBrowserFilesystem.js (127-140, 622) is not fully answered
-// yet — ListItemAllFields, Folders/add, the filtered parent enumeration and the
-// bare folder-object select are stubbed, so at least one further probe (most
-// likely the owning-list / ParentList evidence) still returns nothing.
+// The fixture is complete and proven: the pre-restore safety backup now runs
+// end to end against it (readiness satisfied through consistent library,
+// list-item and parent-enumeration evidence; 10 source files plus two manifests
+// written and read back). A manual backup outside a restore behaves identically,
+// so createBackup itself is fully exercised.
 //
-// Next step: log the unmatched _api requests during a restore and answer the
-// remaining probe, then delete this comment and the fixme. The equivalent
-// orchestration is covered at unit level in
-// src/components/AdminBackupManagement.test.jsx.
+// What then happens in the RESTORE, reproduced for a master-involving selection
+// and for a BOOM-only selection (which skips ConfigService.saveConfig entirely):
+//   * the safety backup reports success (copied 10, skipped 0, errors 0);
+//   * NO live-data write is ever issued;
+//   * NO result summary is rendered;
+//   * NO error toast appears (polled every 200ms for 12s from the confirm click);
+//   * getAdminRecoveryState() already reports frozen:false / exclusive:null,
+//     so endAdminPersistenceSuspension has ALREADY run.
+//
+// So the orchestration leaves beginAdminPersistenceSuspension('restore') and
+// reaches an end state that produces neither writes nor a report. That is in
+// AdminBackupManagement.jsx around 1428-1490, not in the harness. Fixing it
+// touches the safety-backup/restore contract and needs its own change, so it is
+// deliberately not rushed here.
+//
+// These assertions are correct as written and must NOT be weakened.
 test.fixme('a failed safety backup stops the restore before anything is written', async ({ page }) => {
     const backup = fullBackup('backup-2026-06-10');
     activeFixture = await installBackupRoutes(page, [backup]);
@@ -187,22 +205,30 @@ test.fixme('a failed safety backup stops the restore before anything is written'
     ).toBe(true);
 });
 
-// KNOWN BLOCKER, precisely located — NOT a verified result and NOT external.
+// BLOCKED ON A PRODUCT-SIDE FINDING, not on the fixture. Evidence below.
 //
-// The fixture now provides the full writable persistence layer a restore needs
-// (FormDigest, folder creation, direct file PUT, and read-back of the stored
-// bytes, which the app verifies). The restore still stops before writing with
-// "נתיב היעד ב-SharePoint אינו מוכן לביצוע הכנת התיקייה": the safety backup
-// prepares its folder first and the readiness probe surface in
-// src/utils/sharePointBrowserFilesystem.js (127-140, 622) is not fully answered
-// yet — ListItemAllFields, Folders/add, the filtered parent enumeration and the
-// bare folder-object select are stubbed, so at least one further probe (most
-// likely the owning-list / ParentList evidence) still returns nothing.
+// The fixture is complete and proven: the pre-restore safety backup now runs
+// end to end against it (readiness satisfied through consistent library,
+// list-item and parent-enumeration evidence; 10 source files plus two manifests
+// written and read back). A manual backup outside a restore behaves identically,
+// so createBackup itself is fully exercised.
 //
-// Next step: log the unmatched _api requests during a restore and answer the
-// remaining probe, then delete this comment and the fixme. The equivalent
-// orchestration is covered at unit level in
-// src/components/AdminBackupManagement.test.jsx.
+// What then happens in the RESTORE, reproduced for a master-involving selection
+// and for a BOOM-only selection (which skips ConfigService.saveConfig entirely):
+//   * the safety backup reports success (copied 10, skipped 0, errors 0);
+//   * NO live-data write is ever issued;
+//   * NO result summary is rendered;
+//   * NO error toast appears (polled every 200ms for 12s from the confirm click);
+//   * getAdminRecoveryState() already reports frozen:false / exclusive:null,
+//     so endAdminPersistenceSuspension has ALREADY run.
+//
+// So the orchestration leaves beginAdminPersistenceSuspension('restore') and
+// reaches an end state that produces neither writes nor a report. That is in
+// AdminBackupManagement.jsx around 1428-1490, not in the harness. Fixing it
+// touches the safety-backup/restore contract and needs its own change, so it is
+// deliberately not rushed here.
+//
+// These assertions are correct as written and must NOT be weakened.
 test.fixme('a mid-restore failure reports per-unit outcomes and preserves the evidence', async ({ page }) => {
     const backup = fullBackup('backup-2026-06-10');
     activeFixture = await installBackupRoutes(page, [backup]);

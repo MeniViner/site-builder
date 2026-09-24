@@ -62,6 +62,54 @@ export async function installBackupRoutes(page, initialBackups = []) {
         },
     };
 
+    /**
+     * The document libraries this site really has. A folder is "ready" only when
+     * the app can see which library owns it, so the fixture has to model that
+     * ownership consistently across every probe shape rather than answering each
+     * endpoint in isolation.
+     */
+    const LIBRARIES = [
+        { title: 'siteDB', id: '11111111-1111-4111-8111-111111111111', root: '/sites/schedule/siteDB' },
+        { title: 'siteUsersDb', id: '22222222-2222-4222-8222-222222222222', root: '/sites/schedule/siteUsersDb' },
+    ];
+    const parentOf = (p) => String(p || '').split('/').slice(0, -1).join('/');
+    /**
+     * One stable list-item id per folder path.
+     *
+     * The readiness check compares the id from the ListItemAllFields probe with
+     * the id from the parent enumeration and refuses the folder when they differ
+     * (sharePointBrowserFilesystem.js:461). Hard-coding a different constant in
+     * each handler made every freshly created backup folder look inconsistent,
+     * so the restore retried and gave up before writing anything.
+     */
+    const listItemIdFor = (p) => {
+        let hash = 0;
+        for (const ch of String(p || '')) hash = ((hash * 31) + ch.charCodeAt(0)) % 100000;
+        return hash + 1;
+    };
+    const owningLibrary = (p) => LIBRARIES.find((lib) => String(p || '').startsWith(lib.root)) || LIBRARIES[0];
+
+    // Library resolution: _api/web/lists/GetByTitle('<title>') with RootFolder.
+    await page.route(/_api\/web\/lists\/GetByTitle/i, (route) => {
+        const title = /GetByTitle\('([^']*)'\)/.exec(decodeURIComponent(route.request().url()))?.[1] || '';
+        const library = LIBRARIES.find((lib) => lib.title.toLowerCase() === title.toLowerCase());
+        if (!library) {
+            return route.fulfill({ status: 404, contentType: ODATA, body: JSON.stringify({ error: { message: { value: 'List not found.' } } }) });
+        }
+        return route.fulfill({
+            status: 200,
+            contentType: ODATA,
+            body: JSON.stringify({ d: {
+                Id: library.id,
+                Title: library.title,
+                // 101 is a document library; anything else would not be a valid
+                // restore destination.
+                BaseTemplate: 101,
+                RootFolder: { ServerRelativeUrl: library.root },
+            } }),
+        });
+    });
+
     const decodeFolderPath = (url) => {
         const match = /GetFolderByServerRelativeUrl\('([^']*)'\)/.exec(decodeURIComponent(url));
         return match ? match[1] : '';
@@ -82,10 +130,27 @@ export async function installBackupRoutes(page, initialBackups = []) {
         }
 
         if (/\/ListItemAllFields/.test(url)) {
+            // The readiness classifier wants OWNING-LIBRARY evidence, not just a
+            // list item id: ParentList with its Id, Title and RootFolder. Without
+            // it the folder reads as "not list-bound" and the restore refuses to
+            // prepare its safety-backup folder.
+            const owner = owningLibrary(folderPath);
             return route.fulfill({
                 status: 200,
                 contentType: ODATA,
-                body: JSON.stringify({ d: { Id: 17, FileSystemObjectType: 1, FileRef: folderPath, FileDirRef: folderPath.split('/').slice(0, -1).join('/') } }),
+                body: JSON.stringify({ d: {
+                    Id: listItemIdFor(folderPath),
+                    FileSystemObjectType: 1,
+                    FileRef: folderPath,
+                    FileDirRef: parentOf(folderPath),
+                    ContentTypeId: { StringValue: '0x0120009B1F1A' },
+                    Folder: { ServerRelativeUrl: folderPath },
+                    ParentList: {
+                        Id: owner.id,
+                        Title: owner.title,
+                        RootFolder: { ServerRelativeUrl: owner.root },
+                    },
+                } }),
             });
         }
 
@@ -105,7 +170,17 @@ export async function installBackupRoutes(page, initialBackups = []) {
                     Name: leaf,
                     ServerRelativeUrl: childPath,
                     Exists: true,
-                    ListItemAllFields: { Id: 18, FileSystemObjectType: 1, FileRef: childPath, FileDirRef: folderPath },
+                    ListItemAllFields: {
+                        Id: listItemIdFor(childPath),
+                        FileSystemObjectType: 1,
+                        FileRef: childPath,
+                        FileDirRef: folderPath,
+                        ParentList: {
+                            Id: owningLibrary(childPath).id,
+                            Title: owningLibrary(childPath).title,
+                            RootFolder: { ServerRelativeUrl: owningLibrary(childPath).root },
+                        },
+                    },
                 }] } }),
             });
         }
@@ -152,11 +227,31 @@ export async function installBackupRoutes(page, initialBackups = []) {
     // The payload reads are plain GETs on the file URL, not an _api call
     // (src/utils/sharepointUtils.js:340 `buildFileValueEndpoint`).
     await page.route(/\/Backups\//, async (route) => {
-        const requestUrl = route.request().url();
+        const request = route.request();
+        const requestUrl = request.url();
         // The OData folder endpoints embed the same "/Backups/" path inside the
         // quoted argument; they belong to the route registered above.
         if (requestUrl.includes('/_api/')) return route.fallback();
         const path = new URL(requestUrl).pathname;
+
+        // A safety backup WRITES into a freshly created backup folder (its
+        // manifest and a copy of every source file). Treating /Backups/ as
+        // read-only made those writes 404 and the restore abort after readiness
+        // had already succeeded.
+        if (request.method() === 'PUT') {
+            if (fixture.failWritesMatching && path.includes(fixture.failWritesMatching)) {
+                fixture.writes.push({ path, ok: false });
+                return route.fulfill({ status: 500, contentType: 'text/plain', body: 'write failed' });
+            }
+            const body = request.postData() ?? '';
+            fixture.live.set(path, body);
+            fixture.writes.push({ path, ok: true, bytes: body.length });
+            return route.fulfill({ status: 200, contentType: ODATA, body: JSON.stringify({ d: {} }) });
+        }
+        // Anything written during this test reads back as written.
+        if (fixture.live.has(path)) {
+            return route.fulfill({ status: 200, contentType: 'text/plain', body: fixture.live.get(path) });
+        }
         const segments = path.split('/').filter(Boolean);
         const fileName = segments.pop();
         const backupName = segments.pop();
@@ -235,6 +330,24 @@ export async function installBackupRoutes(page, initialBackups = []) {
             return route.fallback();
         },
     );
+
+    // Seed the LIVE site. A safety backup copies the current files, so an empty
+    // site makes it report zero copied files and refuse to continue — which is
+    // correct behaviour, just not the scenario under test.
+    const SITE_ASSETS = '/sites/schedule/siteDB/siteAssets';
+    const seedDefaults = {
+        [`${SITE_ASSETS}/bihs_master_config_v1.txt`]: masterConfigText({ siteContent: { hero: { title: 'כותרת חיה' } } }),
+        [`${SITE_ASSETS}/events_data.txt`]: JSON.stringify({ displayCount: 1, displayMode: 'default', events: [{ id: 'event-live', title: 'אירוע חי' }] }),
+        [`${SITE_ASSETS}/nav_data.txt`]: JSON.stringify([{ id: 'nav-live', label: 'ניווט חי' }]),
+        [`${SITE_ASSETS}/site_content_data.txt`]: JSON.stringify({ hero: { title: 'כותרת חיה' } }),
+        [`${SITE_ASSETS}/theme_data.txt`]: JSON.stringify({ mode: 'light' }),
+        [`${SITE_ASSETS}/external_links_data.txt`]: JSON.stringify([]),
+        [`${SITE_ASSETS}/gantt_data.txt`]: JSON.stringify({ items: [{ id: 'gantt-live', title: 'שלב חי' }], categories: [] }),
+        [`${SITE_ASSETS}/boom_data.txt`]: JSON.stringify({ enabled: true, items: [{ id: 'boom-live', title: 'משימה חיה' }], categories: [] }),
+        [`${SITE_ASSETS}/users_data.txt`]: JSON.stringify([{ id: 'admin-live', name: 'מנהל חי' }]),
+        '/sites/schedule/siteUsersDb/widgets_data.txt': JSON.stringify({ active: [] }),
+    };
+    Object.entries(seedDefaults).forEach(([url, text]) => fixture.live.set(url, text));
 
     return fixture;
 }
