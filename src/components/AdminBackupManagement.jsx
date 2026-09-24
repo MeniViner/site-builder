@@ -42,6 +42,7 @@ import {
     packageToBackupListItem,
     packageToFileTextsMap,
     deriveBackupFileRecordCount,
+    isValidBackupFilePayload,
     validateRestorePlan,
 } from '../utils/backupPackage';
 import {
@@ -50,6 +51,7 @@ import {
     endAdminPersistenceSuspension,
     quiesceAdminPersistence,
 } from '../utils/adminEditSession';
+import { toSafeHebrewError } from '../utils/userFacingError';
 import ConfigService from '../services/ConfigService';
 import { useConfig } from '../context/ConfigProvider';
 import { useBoom } from '../context/BoomContext';
@@ -226,8 +228,20 @@ const parseBackupJson = (fileName, text) => {
 
 const buildPreviewFromBackupTexts = (fileTextsByName) => {
     const parsedByName = new Map();
+    const unparseableFileNames = [];
     fileTextsByName.forEach((text, fileName) => {
-        parsedByName.set(fileName, parseBackupJson(fileName, text));
+        // One unparseable file must not destroy the whole preview. It used to
+        // throw from here, which took the restore SELECTION panel down with it:
+        // the operator saw no restore UI at all and no reason why, even though
+        // every other unit in the backup was perfectly restorable. The per-entry
+        // classifier already reports this file as "לא תקין" and refuses to
+        // restore it, so the correct behaviour here is to leave it out of the
+        // rendered preview and carry on.
+        try {
+            parsedByName.set(fileName, parseBackupJson(fileName, text));
+        } catch {
+            unparseableFileNames.push(fileName);
+        }
     });
 
     const getJsonForTarget = (targetUrl) => {
@@ -245,6 +259,7 @@ const buildPreviewFromBackupTexts = (fileTextsByName) => {
             config: validateAndNormalize(parsed),
             gantt,
             boom,
+            unparseableFileNames,
         };
     }
 
@@ -361,7 +376,10 @@ const hydrateRestoreFiles = (files = [], fileTextsByName = new Map()) => files.m
     }
 
     try {
-        JSON.parse(text);
+        const payload = JSON.parse(text);
+        if (!isValidBackupFilePayload(fileName, payload)) {
+            return { ...file, text, recordCount: null, missing: false, invalid: true, empty: false, status: 'invalid', restoreStatus: 'invalid' };
+        }
         const recordCount = deriveBackupFileRecordCount(fileName, text);
         const empty = recordCount === 0;
         return {
@@ -408,12 +426,16 @@ const getRestoreEntriesForBackup = (backup, files = []) => {
     if (Array.isArray(packageEntries) && packageEntries.length > 0) {
         const fileByName = new Map(files.map((file) => [file.name || file.fileName, file]));
         return packageEntries
-            .map((entry) => summarizeFileForRestore({
-                ...(fileByName.get(entry.fileName || entry.name) || {}),
+            .map((entry) => {
+                const hydratedFile = fileByName.get(entry.fileName || entry.name) || {};
+                return summarizeFileForRestore({
                 ...entry,
+                ...hydratedFile,
+                restoreUnitId: entry.restoreUnitId || hydratedFile.restoreUnitId,
                 name: entry.fileName || entry.name,
                 backupId: backup?.id || backup?.backup?.id || backup?.backupId || '',
-            }))
+            });
+            })
             .filter((entry) => entry.fileName);
     }
 
@@ -538,6 +560,15 @@ export default function AdminBackupManagement() {
     const [isImportingBackup, setIsImportingBackup] = useState(false);
     const restorePreviewRequestRef = useRef(0);
 
+    useEffect(() => () => {
+        restorePreviewRequestRef.current += 1;
+    }, []);
+
+    const closeRestorePreview = () => {
+        restorePreviewRequestRef.current += 1;
+        setRestoreModal(null);
+    };
+
     const selectedBackup = useMemo(
         () => backups.find((backup) => backup.serverRelativeUrl === selectedBackupPath) || null,
         [backups, selectedBackupPath],
@@ -545,12 +576,16 @@ export default function AdminBackupManagement() {
 
     const stats = useMemo(() => {
         const count = backups.length;
+        // An unknown count must not be folded in as 0: that would report a
+        // confident total that is quietly too low.
+        const unknownFileCounts = backups.filter((backup) => backup?.fileCount == null).length;
         const totalSizeBytes = backups.reduce((sum, backup) => sum + (Number(backup?.totalSizeBytes) || 0), 0);
         const totalFiles = backups.reduce((sum, backup) => sum + (Number(backup?.fileCount) || 0), 0);
         const latest = [...backups].sort((a, b) => parseComparableTimestamp(b) - parseComparableTimestamp(a))[0] || null;
 
         return {
             count,
+            unknownFileCounts,
             totalSizeBytes,
             totalFiles,
             latest,
@@ -599,8 +634,14 @@ export default function AdminBackupManagement() {
 
         const masterSelected = selected.find((entry) => entry.fileName === MASTER_CONFIG_FILE_NAME);
         if (masterSelected) {
-            selectedRecordCountKnown = masterSelected.recordCount !== null && masterSelected.recordCount !== undefined;
-            selectedRecordCount = selectedRecordCountKnown ? Number(masterSelected.recordCount) : 0;
+            const independentEntries = selected.filter((entry) => (
+                ['boom_data.txt', 'gantt_data.txt'].includes(String(entry.fileName || '').toLowerCase())
+            ));
+            selectedRecordCountKnown = [masterSelected, ...independentEntries]
+                .every((entry) => entry.recordCount !== null && entry.recordCount !== undefined);
+            selectedRecordCount = selectedRecordCountKnown
+                ? [masterSelected, ...independentEntries].reduce((sum, entry) => sum + Number(entry.recordCount), 0)
+                : 0;
         }
 
         return {
@@ -827,7 +868,7 @@ export default function AdminBackupManagement() {
                 const selectedFromRefresh = nextBackups.find((item) => item.serverRelativeUrl === nextSelection);
                 setSelectedBackupFiles(Array.isArray(selectedFromRefresh?.files) ? selectedFromRefresh.files : []);
             } catch (loadError) {
-                const message = loadError?.message || 'טעינת גיבויי Mongo נכשלה.';
+                const message = toSafeHebrewError(loadError, 'טעינת גיבויי Mongo נכשלה.');
                 setError(message);
                 setBackups([]);
                 setSelectedBackupPath('');
@@ -861,7 +902,7 @@ export default function AdminBackupManagement() {
                 const selectedFromRefresh = nextBackups.find((item) => item.serverRelativeUrl === nextSelection);
                 setSelectedBackupFiles(Array.isArray(selectedFromRefresh?.files) ? selectedFromRefresh.files : []);
             } catch (loadError) {
-                setError(loadError?.message || 'טעינת גיבויי הפיתוח נכשלה.');
+                setError(toSafeHebrewError(loadError, 'טעינת גיבויי הפיתוח נכשלה.'));
                 setBackups([]);
                 setSelectedBackupPath('');
                 setSelectedBackupFiles([]);
@@ -894,7 +935,7 @@ export default function AdminBackupManagement() {
             const selectedFromRefresh = nextBackups.find((item) => item.serverRelativeUrl === nextSelection);
             setSelectedBackupFiles(Array.isArray(selectedFromRefresh?.files) ? selectedFromRefresh.files : []);
         } catch (loadError) {
-            setError(loadError?.message || 'טעינת הגיבויים נכשלה.');
+            setError(toSafeHebrewError(loadError, 'טעינת הגיבויים נכשלה.'));
             setBackups([]);
             setSelectedBackupPath('');
             setSelectedBackupFiles([]);
@@ -908,7 +949,7 @@ export default function AdminBackupManagement() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const loadBackupFilesForBackup = async (backup, { includePackage = false } = {}) => {
+    const loadBackupFilesForBackup = async (backup, { includePackage = false, requestId = null } = {}) => {
         if (backup?.backupPackage) {
             const files = Array.isArray(backup.files) ? backup.files : [];
             return includePackage ? { backupPackage: backup.backupPackage, files } : files;
@@ -919,6 +960,7 @@ export default function AdminBackupManagement() {
             const backupPackage = normalizeImportedBackupPackage(response?.backup?.backupPackage, { masterFileName: MASTER_CONFIG_FILE_NAME });
             const backupItem = packageToBackupListItem(backupPackage, { idPrefix: 'mongo-backup' });
             const files = backupItem.files;
+            if (requestId !== null && requestId !== restorePreviewRequestRef.current) return includePackage ? { backupPackage, files } : files;
             setBackups((prevBackups) => prevBackups.map((item) => (
                 item.id === backup.id
                     ? {
@@ -938,6 +980,7 @@ export default function AdminBackupManagement() {
         }
 
         const files = await listSharePointBackupFiles(backup.serverRelativeUrl);
+        if (requestId !== null && requestId !== restorePreviewRequestRef.current) return includePackage ? { backupPackage: null, files } : files;
         setBackups((prevBackups) => prevBackups.map((item) => (
             item.serverRelativeUrl === backup.serverRelativeUrl
                 ? {
@@ -951,8 +994,8 @@ export default function AdminBackupManagement() {
         return includePackage ? { backupPackage: null, files } : files;
     };
 
-    const openRestorePreview = async (backup, files) => {
-        const requestId = ++restorePreviewRequestRef.current;
+    const openRestorePreview = async (backup, files, requestId) => {
+        if (requestId !== restorePreviewRequestRef.current) return;
         const restoreEntries = buildRestoreEntriesFromBackup(backup, files);
 
         setRestoreModal({
@@ -987,16 +1030,22 @@ export default function AdminBackupManagement() {
             const preview = buildPreviewFromBackupTexts(fileTextsByName);
             if (requestId !== restorePreviewRequestRef.current) return;
 
-            setRestoreModal({
-                backup,
-                files: hydratedFiles,
-                loading: false,
-                error: '',
-                preview,
-                fileTextsByName,
-                restoreEntries: hydratedEntries,
-                selectedRestoreUnitIds: buildRestoreSelectionState(hydratedEntries),
-                restoreResult: null,
+            setRestoreModal((current) => {
+                if (!current || requestId !== restorePreviewRequestRef.current) return current;
+                const restorableIds = new Set(hydratedEntries.filter((entry) => entry.canRestore).map((entry) => entry.restoreUnitId));
+                const preservedSelection = (current.selectedRestoreUnitIds || []).filter((id) => restorableIds.has(id));
+                return {
+                    ...current,
+                    backup,
+                    files: hydratedFiles,
+                    loading: false,
+                    error: '',
+                    preview,
+                    fileTextsByName,
+                    restoreEntries: hydratedEntries,
+                    selectedRestoreUnitIds: preservedSelection,
+                    restoreResult: null,
+                };
             });
         } catch (previewError) {
             if (requestId !== restorePreviewRequestRef.current) return;
@@ -1004,7 +1053,7 @@ export default function AdminBackupManagement() {
                 backup,
                 files,
                 loading: false,
-                error: previewError?.message || 'יצירת תצוגת השחזור נכשלה.',
+                error: toSafeHebrewError(previewError, 'יצירת תצוגת השחזור נכשלה.'),
                 preview: null,
                 fileTextsByName: new Map(),
                 restoreEntries,
@@ -1020,24 +1069,34 @@ export default function AdminBackupManagement() {
             toast.error('הגיבוי אינו שלם ומאומת ולכן לא ניתן לשחזר ממנו.');
             return;
         }
+        const requestId = ++restorePreviewRequestRef.current;
         setSelectedBackupPath(backup.serverRelativeUrl);
+        setRestoreModal(null);
 
         setFilesLoading(true);
         try {
-            const loaded = await loadBackupFilesForBackup(backup, { includePackage: true });
+            const loaded = await loadBackupFilesForBackup(backup, { includePackage: true, requestId });
+            if (requestId !== restorePreviewRequestRef.current) return;
             const files = loaded.files;
             setSelectedBackupFiles(files);
             await openRestorePreview({
                 ...backup,
                 ...(loaded.backupPackage ? { backupPackage: loaded.backupPackage } : {}),
                 files,
-            }, files);
+            }, files, requestId);
         } catch (filesError) {
+            if (requestId !== restorePreviewRequestRef.current) return;
             setSelectedBackupFiles([]);
-            toast.error(filesError?.message || 'טעינת קבצי הגיבוי נכשלה.');
+            toast.error(toSafeHebrewError(filesError, 'טעינת קבצי הגיבוי נכשלה.'));
         } finally {
-            setFilesLoading(false);
+            if (requestId === restorePreviewRequestRef.current) setFilesLoading(false);
         }
+    };
+
+    const handleOpenSelectedRestorePreview = () => {
+        if (!selectedBackup) return;
+        const requestId = ++restorePreviewRequestRef.current;
+        void openRestorePreview(selectedBackup, selectedBackupFiles, requestId);
     };
 
     const handleDeleteBackup = async (backup) => {
@@ -1075,7 +1134,7 @@ export default function AdminBackupManagement() {
             toast.success('הגיבוי נמחק בהצלחה.');
             await loadBackups({ preserveSelection: true });
         } catch (deleteError) {
-            toast.error(deleteError?.message || 'מחיקת הגיבוי נכשלה.');
+            toast.error(toSafeHebrewError(deleteError, 'מחיקת הגיבוי נכשלה.'));
         } finally {
             setDeletingBackupPath('');
         }
@@ -1107,7 +1166,7 @@ export default function AdminBackupManagement() {
                     setSelectedBackupFiles(Array.isArray(response.backup.files) ? response.backup.files : []);
                 }
             } catch (createError) {
-                const message = createError?.message || 'יצירת גיבוי Mongo נכשלה.';
+                const message = toSafeHebrewError(createError, 'יצירת גיבוי Mongo נכשלה.');
                 setError(message);
                 toast.error(message);
             } finally {
@@ -1126,7 +1185,7 @@ export default function AdminBackupManagement() {
                 setSelectedBackupPath(backupItem.serverRelativeUrl);
                 setSelectedBackupFiles(backupItem.files);
             } catch (createError) {
-                toast.error(createError?.message || 'יצירת גיבוי הפיתוח נכשלה.');
+                toast.error(toSafeHebrewError(createError, 'יצירת גיבוי הפיתוח נכשלה.'));
             } finally {
                 setIsCreatingBackup(false);
             }
@@ -1157,7 +1216,7 @@ export default function AdminBackupManagement() {
                 },
             });
         } catch (createError) {
-            result = { success: false, error: createError?.message || 'אימות הגיבוי נכשל.' };
+            result = { success: false, error: toSafeHebrewError(createError, 'אימות הגיבוי נכשל.') };
         }
         closeBackupProgressToast(toastId);
         setIsCreatingBackup(false);
@@ -1252,9 +1311,24 @@ export default function AdminBackupManagement() {
             selectedRestoreUnitIds: restoreUnitIds,
         };
 
+        // restoreTargetId identifies the backup ROW for the Mongo backend, which
+        // restores by id through the API (see the mongoBackupStore branch below;
+        // it is the ONLY consumer). A SharePoint/TXT backup has no id at all --
+        // listSharePointBackups identifies a backup by serverRelativeUrl -- so
+        // requiring this unconditionally made every SharePoint selective restore
+        // impossible.
+        //
+        // It also threw OUTSIDE the try below, from an async click handler, so
+        // the failure surfaced as an unhandled rejection: no toast, no modal
+        // error, no result, and not even the restoring spinner. A precondition
+        // failure has to end the operation explicitly, the way the empty
+        // selection guard above already does.
         const restoreTargetId = getRestoreTargetId(restoreModal.backup);
-        if (!restoreTargetId) {
-            throw new Error('לגיבוי הזה חסר מזהה לשחזור.');
+        if (mongoBackupStore && !restoreTargetId) {
+            const message = 'לגיבוי הזה חסר מזהה לשחזור ולכן לא ניתן לשחזר ממנו.';
+            toast.error(message);
+            setRestoreModal((prev) => (prev ? { ...prev, error: message } : prev));
+            return;
         }
 
         setIsRestoring(true);
@@ -1372,7 +1446,16 @@ export default function AdminBackupManagement() {
                             || safetyBackup?.manifest?.status !== 'complete'
                             || Number(safetyBackup?.copiedFiles) <= 0
                         ) {
-                            throw new Error(safetyBackup?.error || 'יצירת גיבוי בטיחות לפני שחזור נכשלה.');
+                            // Say WHICH step stopped the restore. Throwing the raw
+                            // transport text (e.g. "SharePoint save failed (500)")
+                            // collapsed to the generic "שחזור הגיבוי נכשל.", which
+                            // hides the one fact the operator most needs: the run
+                            // stopped at the safety backup, so live data was never
+                            // touched. The raw cause is kept for diagnostics only.
+                            throw Object.assign(
+                                new Error('יצירת גיבוי הבטיחות נכשלה, ולכן השחזור נעצר ולא בוצע שינוי בנתונים. בדקו את ההרשאות לתיקיית הגיבויים ונסו שוב.'),
+                                { code: 'safety_backup_failed', userFacing: true, cause: safetyBackup?.error || null },
+                            );
                         }
 
                     if (shouldWriteAuthoritativeMaster) {
@@ -1427,17 +1510,17 @@ export default function AdminBackupManagement() {
             clearAllAdminRecoveryDrafts();
             endAdminPersistenceSuspension({ revalidated: true });
         } catch (restoreError) {
-            toast.error(restoreError?.message || 'שחזור הגיבוי נכשל.');
+            toast.error(toSafeHebrewError(restoreError, 'שחזור הגיבוי נכשל.'));
             if (restoreResultSummary.restored.length > 0) {
                 restoreResultSummary.status = 'partial';
                 restoreResultSummary.restoredFiles = restoreResultSummary.restored.length;
                 restoreResultSummary.failed = selectedItems
                     .filter((entry) => !restoreResultSummary.restored.some((restored) => restored.restoreUnitId === entry.restoreUnitId))
-                    .map((entry) => ({ ...entry, outcome: 'failed', error: restoreError?.message || 'השחזור נכשל.' }));
+                    .map((entry) => ({ ...entry, outcome: 'failed', error: toSafeHebrewError(restoreError, 'השחזור נכשל.') }));
             }
             setRestoreModal((prev) => prev ? {
                 ...prev,
-                error: restoreError?.message || 'שחזור הגיבוי נכשל.',
+                error: toSafeHebrewError(restoreError, 'שחזור הגיבוי נכשל.'),
                 restoreResult: restoreResultSummary.status === 'partial' ? restoreResultSummary : prev.restoreResult,
             } : prev);
             endAdminPersistenceSuspension();
@@ -1465,7 +1548,7 @@ export default function AdminBackupManagement() {
             );
             toast.success('קובץ הגיבוי יוצא בהצלחה.');
         } catch (exportError) {
-            toast.error(exportError?.message || 'ייצוא הגיבוי נכשל.');
+            toast.error(toSafeHebrewError(exportError, 'ייצוא הגיבוי נכשל.'));
         } finally {
             setExportingBackupPath('');
         }
@@ -1476,6 +1559,8 @@ export default function AdminBackupManagement() {
     };
 
     const handleImportBackupFile = async (event) => {
+        restorePreviewRequestRef.current += 1;
+        setRestoreModal(null);
         const file = event.target.files?.[0];
         event.target.value = '';
         if (!file) return;
@@ -1555,7 +1640,7 @@ export default function AdminBackupManagement() {
             });
             toast.success('קובץ הגיבוי נטען לתצוגה מקדימה.');
         } catch (importError) {
-            toast.error(importError?.message || 'ייבוא הגיבוי נכשל.');
+            toast.error(toSafeHebrewError(importError, 'ייבוא הגיבוי נכשל.'));
         } finally {
             setIsImportingBackup(false);
         }
@@ -1605,6 +1690,9 @@ export default function AdminBackupManagement() {
                                 type="file"
                                 accept="application/json,.json"
                                 className="hidden"
+                                // Distinguishes this from the demo-data importer in the
+                                // sidebar, which is also an input[type=file] on this page.
+                                data-testid="backup-package-import"
                                 onChange={handleImportBackupFile}
                             />
                             <button
@@ -1683,7 +1771,16 @@ export default function AdminBackupManagement() {
                             <Files size={14} />
                             סה״כ קבצים
                         </div>
-                        <div className="mt-3 text-3xl font-black text-gray-900 dark:text-white">{stats.totalFiles}</div>
+                        <div className="mt-3 text-3xl font-black text-gray-900 dark:text-white">
+                            {stats.unknownFileCounts > 0 && stats.totalFiles === 0 ? '—' : stats.totalFiles}
+                        </div>
+                        {stats.unknownFileCounts > 0 && (
+                            <div className="mt-1 text-xs font-bold text-amber-600 dark:text-amber-400">
+                                {stats.unknownFileCounts === 1
+                                    ? 'לגיבוי אחד לא ניתן היה לקרוא את רשימת הקבצים'
+                                    : `ל-${stats.unknownFileCounts} גיבויים לא ניתן היה לקרוא את רשימת הקבצים`}
+                            </div>
+                        )}
                     </div>
                     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-[#232733]">
                         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -1732,7 +1829,11 @@ export default function AdminBackupManagement() {
                                                             {formatDateTime(backup.timeLastModified || backup.timeCreated)}
                                                         </div>
                                                         <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                            {backup.fileCount} קבצים · {formatBytes(backup.totalSizeBytes)}
+                                                            {backup.fileCount == null
+                                                                ? 'מספר הקבצים אינו ידוע'
+                                                                : `${backup.fileCount} קבצים`}
+                                                            {' · '}
+                                                            {backup.totalSizeBytes == null ? 'גודל לא ידוע' : formatBytes(backup.totalSizeBytes)}
                                                         </div>
                                                         {backup.status && (
                                                             <div className="mt-1 text-xs font-bold text-gray-600 dark:text-gray-300">
@@ -1793,7 +1894,7 @@ export default function AdminBackupManagement() {
                                 {selectedBackup && (
                                     <button
                                         type="button"
-                                        onClick={() => openRestorePreview(selectedBackup, selectedBackupFiles)}
+                                        onClick={handleOpenSelectedRestorePreview}
                                         className="inline-flex items-center gap-1 rounded-lg border border-primary/30 px-3 py-1.5 text-xs font-bold text-primary transition hover:bg-primary/10"
                                     >
                                         <RotateCcw size={14} />
@@ -1857,7 +1958,7 @@ export default function AdminBackupManagement() {
             {restoreModal && (
                 <div
                     className="fixed inset-0 z-[12000] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
-                    onMouseDown={() => setRestoreModal(null)}
+                    onMouseDown={closeRestorePreview}
                 >
                     <div
                         className="flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#171b24]"
@@ -1875,7 +1976,7 @@ export default function AdminBackupManagement() {
                             </div>
                             <button
                                 type="button"
-                                onClick={() => setRestoreModal(null)}
+                                onClick={closeRestorePreview}
                                 className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-primary/40 hover:text-primary dark:border-white/10 dark:text-gray-300"
                                 aria-label="סגור חלון שחזור"
                             >

@@ -53,6 +53,15 @@ const NO_MATCH_MESSAGE = 'לא נמצא משתמש מתאים. נסו לחדד �
 const AMBIGUOUS_MATCH_MESSAGE = 'נמצאו מספר משתמשים תואמים. יש לצמצם את החיפוש ולבחור אדם אחד בלבד.';
 const STALE_RESULT_MESSAGE = 'תוצאת החיפוש אינה עדכנית. חפשו את המשתמש מחדש ובחרו שוב.';
 
+export function isExactSharePointIdentityInput(value: unknown) {
+    const input = String(value || '').trim();
+    return /^\d{6,8}$/.test(input)
+        || /^s\d{6,8}$/i.test(input)
+        || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input)
+        || /[|\\]/.test(input)
+        || /^[ic]:/i.test(input);
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
     return value !== null && typeof value === 'object' && !Array.isArray(value)
         ? value as Record<string, unknown>
@@ -212,11 +221,21 @@ export async function searchSharePointIdentityCandidates(
     query: string,
     logs: AdminLogEntry[] = []
 ): Promise<IdentitySearchResult> {
+    const result = await searchSharePointPrincipalCandidates(query, logs);
+    return result.ok
+        ? { ok: true, candidates: result.candidates.filter(isConfirmedUserPrincipal) }
+        : result;
+}
+
+export async function searchSharePointPrincipalCandidates(
+    query: string,
+    logs: AdminLogEntry[] = []
+): Promise<IdentitySearchResult> {
     try {
         const response = await searchSharePointUsers(query, logs);
         return {
             ok: true,
-            candidates: parsePrincipalCandidates(response).filter(isConfirmedUserPrincipal),
+            candidates: parsePrincipalCandidates(response),
         };
     } catch (error) {
         return { ok: false, error: mapSharePointErrorToHebrewMessage(error) };

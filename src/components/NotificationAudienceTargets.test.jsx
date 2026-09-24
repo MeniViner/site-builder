@@ -5,6 +5,8 @@ import NotificationAudienceTargets from './NotificationAudienceTargets';
 
 const mocks = vi.hoisted(() => ({
     resolveExactSharePointIdentity: vi.fn(),
+    resolveConfirmedSinglePrincipalFromCandidate: vi.fn(),
+    searchSharePointPrincipalCandidates: vi.fn(),
     listSharePointGroupMembersByIdentity: vi.fn(),
 }));
 
@@ -16,8 +18,15 @@ vi.mock('../services/sharePointSiteCollectionAdminsService', () => ({
 }));
 
 vi.mock('../services/sharePointIdentityResolver', () => ({
+    isExactSharePointIdentityInput: (value) => /^\d{6,8}$/.test(value)
+        || /^s\d{6,8}$/i.test(value)
+        || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+        || /[|\\]/.test(value)
+        || /^[ic]:/i.test(value),
     isConfirmedUserPrincipal: (candidate) => Number(candidate?.Id) > 0 && Number(candidate?.PrincipalType ?? 1) === 1,
     resolveExactSharePointIdentity: mocks.resolveExactSharePointIdentity,
+    resolveConfirmedSinglePrincipalFromCandidate: mocks.resolveConfirmedSinglePrincipalFromCandidate,
+    searchSharePointPrincipalCandidates: mocks.searchSharePointPrincipalCandidates,
 }));
 
 function TargetPickerHarness() {
@@ -28,6 +37,8 @@ function TargetPickerHarness() {
 describe('NotificationAudienceTargets', () => {
     beforeEach(() => {
         mocks.resolveExactSharePointIdentity.mockReset();
+        mocks.resolveConfirmedSinglePrincipalFromCandidate.mockReset();
+        mocks.searchSharePointPrincipalCandidates.mockReset();
         mocks.listSharePointGroupMembersByIdentity.mockReset();
     });
 
@@ -51,6 +62,10 @@ describe('NotificationAudienceTargets', () => {
                 { Id: 18, Title: 'דנה', Email: 'dana@army.idf.il', LoginName: 'i:0#.f|membership|dana@army.idf.il', PrincipalType: 1 },
             ],
         });
+        mocks.searchSharePointPrincipalCandidates.mockResolvedValue({
+            ok: true,
+            candidates: [{ Id: 12, Title: 'צוות מבצעים', LoginName: 'ops-team', PrincipalType: 8 }],
+        });
         render(<TargetPickerHarness />);
 
         fireEvent.change(screen.getByRole('textbox', { name: 'יעד התראה' }), {
@@ -63,6 +78,7 @@ describe('NotificationAudienceTargets', () => {
             target: { value: 'צוות מבצעים' },
         });
         fireEvent.click(screen.getByRole('button', { name: 'הוסף יעד' }));
+        fireEvent.click(await screen.findByRole('button', { name: /צוות מבצעים/ }));
 
         await waitFor(() => expect(screen.getByText('נועה')).toBeInTheDocument());
         expect(screen.getByText('דנה')).toBeInTheDocument();
@@ -87,6 +103,10 @@ describe('NotificationAudienceTargets', () => {
     });
 
     it('filters nested group principals out of a resolved group member list', async () => {
+        mocks.searchSharePointPrincipalCandidates.mockResolvedValue({
+            ok: true,
+            candidates: [{ Id: 12, Title: 'צוות מבצעים', LoginName: 'ops-team', PrincipalType: 8 }],
+        });
         mocks.listSharePointGroupMembersByIdentity.mockResolvedValue({
             id: 12,
             title: 'צוות מבצעים',
@@ -101,9 +121,43 @@ describe('NotificationAudienceTargets', () => {
             target: { value: 'צוות מבצעים' },
         });
         fireEvent.click(screen.getByRole('button', { name: 'הוסף יעד' }));
+        fireEvent.click(await screen.findByRole('button', { name: /צוות מבצעים/ }));
 
         await waitFor(() => expect(screen.getByText('נועה')).toBeInTheDocument());
         expect(screen.queryByText('תת-קבוצה מקוננת')).not.toBeInTheDocument();
         expect(screen.getAllByText('קבוצה: צוות מבצעים')).toHaveLength(1);
+    });
+
+    it('resolves an ordinary display name as a verified user candidate instead of treating it as a group', async () => {
+        const candidate = {
+            Id: 17,
+            Title: 'נועה כהן',
+            Email: 'noa@army.idf.il',
+            LoginName: 'i:0#.f|membership|noa@army.idf.il',
+            PrincipalType: 1,
+        };
+        mocks.searchSharePointPrincipalCandidates.mockResolvedValue({ ok: true, candidates: [candidate] });
+        mocks.resolveConfirmedSinglePrincipalFromCandidate.mockResolvedValue({
+            ok: true,
+            principal: {
+                identityKey: 'sp:17',
+                identities: ['sp:17'],
+                displayName: 'נועה כהן',
+                sharePointUserId: 17,
+                email: 'noa@army.idf.il',
+                loginName: candidate.LoginName,
+            },
+        });
+        render(<TargetPickerHarness />);
+
+        fireEvent.change(screen.getByRole('textbox', { name: 'יעד התראה' }), {
+            target: { value: 'נועה כהן' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'הוסף יעד' }));
+        fireEvent.click(await screen.findByRole('button', { name: /נועה כהן/ }));
+
+        expect(await screen.findByText('משתמשים שנבחרו')).toBeInTheDocument();
+        expect(mocks.resolveConfirmedSinglePrincipalFromCandidate).toHaveBeenCalledWith(candidate, []);
+        expect(mocks.listSharePointGroupMembersByIdentity).not.toHaveBeenCalled();
     });
 });

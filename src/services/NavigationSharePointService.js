@@ -162,6 +162,35 @@ function classifyProvisioningError(error, mutationAttempted = false) {
     return classified;
 }
 
+export function buildFolderReconciliationGuidance(details = {}) {
+    const probe = details.lastProbe || details.firstProbe || details.probe || details;
+    return {
+        evidence: {
+            reason: String(probe?.reason || details.reason || 'FOLDER_IDENTITY_INCOMPLETE'),
+            expectedPath: String(probe?.expectedPath || details.target || ''),
+            actualPath: String(probe?.actualPath || ''),
+            parentPath: String(probe?.parentPath || probe?.expectedParentPath || ''),
+            listItemId: Number(probe?.listItemId || probe?.id) || null,
+            fileSystemObjectType: Number.isFinite(Number(probe?.fileSystemObjectType))
+                ? Number(probe.fileSystemObjectType)
+                : null,
+            ownerLibraryId: String(probe?.libraryId || probe?.ownerListId || probe?.actualLibraryId || ''),
+        },
+        repairPreview: {
+            destructive: false,
+            preservesExistingContent: true,
+            automaticMutationAllowed: false,
+            action: 'COMPARE_WITH_HEALTHY_SIBLING_THEN_LINK_OR_ESCALATE',
+        },
+        operatorSteps: [
+            'פתחו ב-SharePoint תיקייה תקינה באותה ספרייה והשוו נתיב, מזהה פריט, סוג אובייקט וספרייה בעלים.',
+            'אם כל הזהויות תואמות, חזרו ובחרו ״יעד קיים / ידני״ כדי לקשר לנתיב המאומת בלי ליצור או למחוק דבר.',
+            'אם הזהויות אינן תואמות, ייצאו את תוכן התיקייה ושמרו גיבוי לפני פנייה למנהל SharePoint לתיקון פריט הרשימה.',
+            'אין למחוק, לשנות שם או ליצור מחדש תיקייה כל עוד האבחון אינו חד-משמעי.',
+        ],
+    };
+}
+
 function toProvisioningError(error) {
     if (error instanceof NavigationSharePointProvisioningError) return error;
     const status = Number(error?.status || error?.details?.status || error?.details?.lastProbe?.status || 0);
@@ -203,11 +232,12 @@ function toProvisioningError(error) {
         );
     }
     if (code === 'FOLDER_RECONCILIATION_REQUIRED' || code === 'FOLDER_PROBE_INCONCLUSIVE') {
+        const reconciliation = buildFolderReconciliationGuidance(error?.details || {});
         return new NavigationSharePointProvisioningError(
             code,
             'התיקייה נראית ב-SharePoint אך אינה מחוברת באופן תקין לספריית המסמכים. לא בוצעה מחיקה או יצירה מחדש; יש לבדוק את פרטי האבחון ולבצע תיקון מבוקר.',
             error,
-            { filesystemDetails: error?.details || null },
+            { filesystemDetails: error?.details || null, reconciliation },
         );
     }
     return new NavigationSharePointProvisioningError(

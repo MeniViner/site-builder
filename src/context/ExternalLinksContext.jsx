@@ -63,7 +63,8 @@ function toV1Links(links) {
     }));
 }
 
-export const ExternalLinksProvider = ({ children }) => {
+/** See NavigationProvider: a read-only preview registers no recovery participant. */
+export const ExternalLinksProvider = ({ children, previewOnly = false }) => {
     const { config, status, error, updateConfig, saveNow, reload } = useConfig();
 
     const patchExternalLinksConfig = useCallback((prev, items) => ({
@@ -89,6 +90,7 @@ export const ExternalLinksProvider = ({ children }) => {
         patchConfig: patchExternalLinksConfig,
         updateConfig,
         saveNow,
+        recoveryId: previewOnly ? '' : 'external-links-save-debounce',
     });
 
     const externalLinks = useMemo(

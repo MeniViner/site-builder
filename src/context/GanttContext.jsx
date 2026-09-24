@@ -3,6 +3,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import GanttService from '../services/GanttService';
 import { DEFAULT_GANTT_DATA, normalizeGanttData } from '../utils/ganttData';
 import { assertAdminEditSessionFresh } from '../utils/adminEditSession';
+import { toSafeHebrewError } from '../utils/userFacingError';
 
 const GanttContext = createContext(null);
 
@@ -20,7 +21,7 @@ export const GanttProvider = ({ children }) => {
             setGantt(normalizeGanttData(loaded));
             return loaded;
         } catch (loadError) {
-            setError(loadError?.message || 'Failed to load gantt');
+            setError(toSafeHebrewError(loadError, 'טעינת נתוני הגאנט נכשלה. נסו שוב.'));
             return null;
         } finally {
             setLoading(false);
@@ -39,8 +40,8 @@ export const GanttProvider = ({ children }) => {
         });
     }, []);
 
-    const saveGantt = useCallback(async (payload = undefined) => {
-        assertAdminEditSessionFresh();
+    const saveGantt = useCallback(async (payload = undefined, { recoveryOperation = null } = {}) => {
+        assertAdminEditSessionFresh({ recoveryOperation });
         setSaving(true);
         setError(null);
         try {
@@ -49,7 +50,7 @@ export const GanttProvider = ({ children }) => {
             setGantt(normalizeGanttData(saved));
             return normalizeGanttData(saved);
         } catch (saveError) {
-            setError(saveError?.message || 'Failed to save gantt');
+            setError(toSafeHebrewError(saveError, 'שמירת נתוני הגאנט נכשלה. נסו שוב.'));
             throw saveError;
         } finally {
             setSaving(false);

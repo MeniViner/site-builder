@@ -187,7 +187,13 @@ function updateNestedNode(nodes, parentId, childId, updater) {
     });
 }
 
-export const NavigationProvider = ({ children }) => {
+/**
+ * `previewOnly` renders a read-only copy of the site (the backup preview) that
+ * must NOT take part in the operator's editing session. Registering the same
+ * recovery participant id twice threw and, with no error boundary above it,
+ * blanked the whole admin console.
+ */
+export const NavigationProvider = ({ children, previewOnly = false }) => {
     const { config, status, error, updateConfig, saveNow, reload } = useConfig();
 
     const patchNavigationConfig = useCallback((prev, items) => ({
@@ -213,6 +219,7 @@ export const NavigationProvider = ({ children }) => {
         patchConfig: patchNavigationConfig,
         updateConfig,
         saveNow,
+        recoveryId: previewOnly ? '' : 'navigation-save-debounce',
     });
 
     const navItems = useMemo(

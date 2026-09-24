@@ -19,6 +19,8 @@ import {
     isAdminRecoveryActionTarget,
     readAdminRecoveryDraft,
     registerAdminRecoveryParticipant,
+    ADMIN_RECOVERY_STATE_EVENT,
+    hasAdminRecoveryScope,
 } from '../utils/adminEditSession';
 import {
     getNotificationEffectiveStatus,
@@ -26,6 +28,7 @@ import {
     normalizeNotifications,
 } from '../utils/notificationData';
 import { sanitizeSmartHref, smartTextTokensToPlainText } from '../utils/smartText';
+import { toSafeHebrewError } from '../utils/userFacingError';
 import SmartTextEditor from './SmartTextEditor';
 import NotificationAudienceTargets from './NotificationAudienceTargets';
 import NotificationPopupCard from './NotificationPopupCard';
@@ -158,14 +161,40 @@ export default function AdminAlerts() {
     }), [activeTab, baseline, editingId, form]);
 
     useEffect(() => {
-        const recovered = readAdminRecoveryDraft('admin-alerts');
-        if (!recovered?.editingId || !recovered?.form) return;
-        setActiveTab(recovered.activeTab || 'content');
-        setEditingId(recovered.editingId);
-        setForm({ ...emptyForm(), ...recovered.form });
-        setBaseline(recovered.baseline || '');
-        clearAdminRecoveryDraft('admin-alerts');
-        toast.info('טיוטת ההתראה שוחזרה.');
+        // The recovery scope is installed asynchronously once the signed-in user
+        // is known (AuthContext), which lands AFTER this component mounts. A
+        // mount-only read therefore ran while the scope was still null and
+        // silently dropped a recovered draft. AdminBoom and AdminGantt already
+        // re-read on ADMIN_RECOVERY_STATE_EVENT; this does the same.
+        // Recovery is a ONE-SHOT adoption of an envelope written by a PREVIOUS
+        // page load. Listening indefinitely would also consume the envelope this
+        // page writes while preparing its own safe reload, destroying the very
+        // draft it was protecting.
+        let done = false;
+        const stop = () => {
+            if (done) return;
+            done = true;
+            window.removeEventListener(ADMIN_RECOVERY_STATE_EVENT, restore);
+        };
+        function restore() {
+            if (done) return;
+            if (!hasAdminRecoveryScope()) return;
+            // The scope has landed: this is the only moment a pre-existing
+            // envelope can belong to an earlier load. Take it or leave it, then
+            // stop listening either way.
+            const recovered = readAdminRecoveryDraft('admin-alerts');
+            stop();
+            if (!recovered?.editingId || !recovered?.form) return;
+            setActiveTab(recovered.activeTab || 'content');
+            setEditingId(recovered.editingId);
+            setForm({ ...emptyForm(), ...recovered.form });
+            setBaseline(recovered.baseline || '');
+            clearAdminRecoveryDraft('admin-alerts');
+            toast.info('טיוטת ההתראה שוחזרה.');
+        }
+        restore();
+        window.addEventListener(ADMIN_RECOVERY_STATE_EVENT, restore);
+        return stop;
     }, []);
 
     const persistNotifications = useCallback(async (nextList, nextEnabled = alertsEnabled) => {
@@ -196,7 +225,7 @@ export default function AdminAlerts() {
             await persistNotifications(list, nextEnabled);
             toast.success(nextEnabled ? 'מרכז ההתראות הופעל' : 'מרכז ההתראות כובה');
         } catch (saveError) {
-            toast.error(saveError?.message || 'שמירת הגדרת ההתראות נכשלה.');
+            toast.error(toSafeHebrewError(saveError, 'שמירת הגדרת ההתראות נכשלה.'));
         }
     };
 
@@ -306,7 +335,7 @@ export default function AdminAlerts() {
             resetEditorToList();
             toast.success(status === 'published' ? 'ההתראה פורסמה' : 'ההתראה נשמרה כטיוטה');
         } catch (saveError) {
-            toast.error(saveError?.message || 'שמירת ההתראה נכשלה.');
+            toast.error(toSafeHebrewError(saveError, 'שמירת ההתראה נכשלה.'));
         }
     };
 
@@ -323,7 +352,7 @@ export default function AdminAlerts() {
             if (editingId === item.id) resetEditorToList();
             toast.success('ההתראה נמחקה');
         } catch (saveError) {
-            toast.error(saveError?.message || 'מחיקת ההתראה נכשלה.');
+            toast.error(toSafeHebrewError(saveError, 'מחיקת ההתראה נכשלה.'));
         }
     };
 
@@ -379,11 +408,12 @@ export default function AdminAlerts() {
                                     type="button"
                                     role="tab"
                                     aria-selected={activeTab === tab.id}
+                                    aria-describedby={disabled ? 'alerts-editor-selection-instruction' : undefined}
                                     disabled={disabled}
                                     onClick={() => goToTab(tab.id)}
                                     className={`${tabClass} ${activeTab === tab.id
                                         ? 'bg-primary text-white shadow-sm'
-                                        : 'bg-theme-card text-theme shadow-[0_0_0_1px_rgba(15,23,42,0.09)] hover:bg-theme-card-hover dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]'} disabled:cursor-not-allowed disabled:opacity-40`}
+                                        : 'bg-theme-card text-theme shadow-[0_0_0_1px_rgba(15,23,42,0.09)] hover:bg-theme-card-hover dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]'} disabled:opacity-60`}
                                 >
                                     <Icon size={16} />
                                     {tab.label}
@@ -391,6 +421,11 @@ export default function AdminAlerts() {
                             );
                         })}
                     </div>
+                    {!editingId && (
+                        <p id="alerts-editor-selection-instruction" className="text-sm font-semibold text-theme-muted">
+                            כדי לערוך תוכן או תזמון, בחרו התראה קיימת או צרו התראה חדשה.
+                        </p>
+                    )}
                     {activeTab !== 'list' && editingId && (
                         <button
                             type="button"

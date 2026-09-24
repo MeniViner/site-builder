@@ -212,13 +212,13 @@ function BackupPreviewProviders({ config, gantt, boom, children }) {
 
     return (
         <ConfigContext.Provider value={configContextValue}>
-            <NavigationProvider>
+            <NavigationProvider previewOnly>
                 <EventsProvider>
                     <SiteContentProvider>
                         <OrgChartProvider>
                             <GanttContext.Provider value={ganttContextValue}>
                                 <BoomContext.Provider value={boomContextValue}>
-                                  <ExternalLinksProvider>
+                                  <ExternalLinksProvider previewOnly>
                                     <ThemeContext.Provider value={themeContextValue}>
                                         <WidgetContext.Provider value={widgetContextValue}>
                                             {children}

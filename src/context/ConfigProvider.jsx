@@ -7,7 +7,7 @@ import React, {
     useRef,
 } from 'react';
 import ConfigService from '../services/ConfigService';
-import { mergeConfigTexts } from '../services/ConfigAdapter';
+import { mergeConfigTexts, resolveConfigConflictTexts } from '../services/ConfigAdapter';
 import { ensureSharePointBootstrapFiles, overwriteSharePointBootstrapFiles } from '../services/SharePointBootstrapService';
 import { DEFAULT_CONFIG_V1, validateAndNormalize } from '../config/AppSchema';
 import { SHAREPOINT_CONFIG } from '../config/sharepoint.config';
@@ -22,6 +22,7 @@ import {
     approveAdminReload,
     clearAdminRecoveryDraft,
     completeAdminRecoveryRevalidation,
+    getAdminExclusiveOperation,
     readAdminRecoveryDraft,
     registerAdminPersistenceController,
     isStaleAdminEditError,
@@ -49,6 +50,56 @@ const createUnresolvedConflictError = () => Object.assign(
 );
 const MASTER_CONFIG_MOCK_KEY = import.meta.env.VITE_SP_MASTER_CONFIG_MOCK_KEY || 'bihs_master_config_v1';
 const USE_LOCAL_MOCK_STORAGE = SHAREPOINT_CONFIG.useMockStorage === true;
+
+function ConfigConflictDialog({ conflict, onChoose, onSave }) {
+    if (!conflict) return null;
+    const allResolved = conflict.conflicts.every((path) => conflict.resolutions[path]);
+    return (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 p-4" dir="rtl">
+            <div role="dialog" aria-modal="true" aria-labelledby="config-conflict-title" className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 text-right shadow-2xl dark:bg-[#1b1f2a]">
+                <h2 id="config-conflict-title" className="text-xl font-black text-gray-900 dark:text-white">פתרון התנגשות שמירה</h2>
+                <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
+                    גרסת השרת השתנתה במקביל. הטיוטה נשמרה; בחרו לכל הבדל אם להשאיר את העריכה המקומית או את גרסת השרת.
+                </p>
+                <ul className="mt-5 space-y-3">
+                    {conflict.conflicts.map((path) => (
+                        <li key={path} className="rounded-xl border border-gray-200 p-4 dark:border-white/10">
+                            <code dir="ltr" className="block overflow-x-auto text-xs text-gray-600 dark:text-gray-300">{path}</code>
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                {[
+                                    ['local', 'השארת הטיוטה המקומית'],
+                                    ['remote', 'קבלת גרסת השרת'],
+                                ].map(([value, label]) => (
+                                    <label key={value} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 text-sm font-bold dark:border-white/10">
+                                        <input
+                                            type="radio"
+                                            name={`conflict-${path}`}
+                                            checked={conflict.resolutions[path] === value}
+                                            onChange={() => onChoose(path, value)}
+                                        />
+                                        {label}
+                                    </label>
+                                ))}
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+                {conflict.error ? <p role="alert" className="mt-4 text-sm font-bold text-red-600 dark:text-red-300">{conflict.error}</p> : null}
+                <button
+                    type="button"
+                    onClick={onSave}
+                    disabled={!allResolved || conflict.saving || !conflict.remoteEtag}
+                    className="mt-5 min-h-11 w-full rounded-xl bg-primary px-5 font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    {conflict.saving ? 'שומר הכרעה...' : 'שמירת ההכרעה מול הגרסה שנבדקה'}
+                </button>
+                {!conflict.remoteEtag ? (
+                    <p className="mt-2 text-sm font-bold text-amber-700 dark:text-amber-300">לגרסת השרת אין מזהה גרסה מאומת. יש לטעון מחדש לפני שמירה.</p>
+                ) : null}
+            </div>
+        </div>
+    );
+}
 const SKIP_LEGACY_MIGRATION_ONCE_KEY = 'bihs_skip_legacy_migration_once';
 const MIGRATED_DEFAULTS_REPAIR_KEY = 'bihs_migrated_defaults_repair_v1';
 const LEGACY_MOCK_STORAGE_KEYS = [
@@ -235,6 +286,7 @@ export const ConfigProvider = ({ children }) => {
     const [config, setConfig] = useState(() => normalizeConfigSafely(DEFAULT_CONFIG_V1));
     const [status, setStatus] = useState(STATUS.LOADING);
     const [error, setError] = useState(null);
+    const [conflict, setConflict] = useState(null);
     const [persistence, setPersistence] = useState(() => ({
         status: PERSISTENCE_STATUS.CLEAN,
         revision: 0,
@@ -340,6 +392,7 @@ export const ConfigProvider = ({ children }) => {
             const recoveredBaseline = recoveredEnvelope?.baseline || null;
             let normalizedDraft = recoveredDraft ? normalizeConfigStrict(recoveredDraft) : null;
             let recoveryConflict = false;
+            let recoveryConflicts = [];
             if (normalizedDraft && recoveredBaseline) {
                 const merged = mergeConfigTexts(
                     JSON.stringify(normalizeConfigStrict(recoveredBaseline)),
@@ -350,9 +403,25 @@ export const ConfigProvider = ({ children }) => {
                     normalizedDraft = normalizeConfigStrict(JSON.parse(merged.text));
                 } else {
                     recoveryConflict = true;
+                    recoveryConflicts = merged.conflicts || ['$'];
                 }
             }
             saveBlockedByConflictRef.current = recoveryConflict;
+            if (recoveryConflict) {
+                const versionState = ConfigService.getVersionState?.() || {};
+                setConflict({
+                    baseline: recoveredBaseline,
+                    draft: normalizedDraft,
+                    remote: resolvedConfig,
+                    remoteEtag: versionState.accepted?.etag || null,
+                    conflicts: recoveryConflicts,
+                    resolutions: {},
+                    saving: false,
+                    error: '',
+                });
+            } else {
+                setConflict(null);
+            }
             const hasRecoveredDraft = Boolean(
                 normalizedDraft
                 && JSON.stringify(normalizedDraft) !== JSON.stringify(resolvedConfig),
@@ -490,10 +559,30 @@ export const ConfigProvider = ({ children }) => {
 
                 let normalizedSaved;
                 try {
-                    assertAdminEditSessionFresh({ allowFrozen: true, allowStale: true });
+                    assertAdminEditSessionFresh({ recoveryOperation: getAdminExclusiveOperation() });
                     const saved = await ConfigService.saveConfig(snapshot);
                     normalizedSaved = normalizeConfigStrict(saved);
                 } catch (err) {
+                    if (err?.code === 'version_conflict' && err?.details?.accepted?.text && err?.details?.remote?.text) {
+                        const accepted = normalizeConfigStrict(JSON.parse(err.details.accepted.text));
+                        const remote = normalizeConfigStrict(JSON.parse(err.details.remote.text));
+                        const merge = mergeConfigTexts(
+                            JSON.stringify(accepted),
+                            JSON.stringify(snapshot),
+                            JSON.stringify(remote),
+                        );
+                        setConflict({
+                            baseline: accepted,
+                            draft: snapshot,
+                            remote,
+                            remoteEtag: err.details.remote.etag || null,
+                            conflicts: merge.conflicts || ['$'],
+                            resolutions: {},
+                            saving: false,
+                            error: '',
+                        });
+                        saveBlockedByConflictRef.current = true;
+                    }
                     if (isMountedRef.current) {
                         setStatus(STATUS.ERROR);
                         setError(err?.resolutionMessage || err?.message || 'Failed to save configuration');
@@ -606,6 +695,83 @@ export const ConfigProvider = ({ children }) => {
         ensureSaveLoop();
         return waiter;
     }, [ensureSaveLoop]);
+
+    const chooseConflictResolution = useCallback((path, choice) => {
+        setConflict((current) => current ? {
+            ...current,
+            resolutions: { ...current.resolutions, [path]: choice },
+            error: '',
+        } : current);
+    }, []);
+
+    const saveConflictResolution = useCallback(async () => {
+        if (!conflict || conflict.saving) return;
+        const merged = resolveConfigConflictTexts(
+            JSON.stringify(conflict.baseline),
+            JSON.stringify(conflict.draft),
+            JSON.stringify(conflict.remote),
+            conflict.resolutions,
+        );
+        if (!merged.ok) {
+            setConflict((current) => current ? {
+                ...current,
+                error: 'יש לבחור הכרעה לכל ההבדלים לפני השמירה.',
+            } : current);
+            return;
+        }
+        const resolved = normalizeConfigStrict(JSON.parse(merged.text));
+        setConflict((current) => current ? { ...current, saving: true, error: '' } : current);
+        try {
+            const saved = normalizeConfigStrict(await ConfigService.saveResolvedConfig(resolved, conflict.remoteEtag));
+            acceptedConfigRef.current = saved;
+            configRef.current = saved;
+            const nextRevision = revisionRef.current + 1;
+            revisionRef.current = nextRevision;
+            persistedRevisionRef.current = nextRevision;
+            saveBlockedByConflictRef.current = false;
+            setConfig(saved);
+            setConflict(null);
+            setError(null);
+            setStatus(STATUS.IDLE);
+            setPersistence({
+                status: PERSISTENCE_STATUS.SAVED,
+                revision: nextRevision,
+                persistedRevision: nextRevision,
+                dirty: false,
+                saving: false,
+                savedAt: new Date().toISOString(),
+                error: null,
+            });
+            clearAdminRecoveryDraft('persistence:master-config');
+        } catch (resolutionError) {
+            if (
+                resolutionError?.code === 'version_conflict'
+                && resolutionError?.details?.remote?.text
+            ) {
+                const remote = normalizeConfigStrict(JSON.parse(resolutionError.details.remote.text));
+                const refreshedMerge = mergeConfigTexts(
+                    JSON.stringify(conflict.baseline),
+                    JSON.stringify(conflict.draft),
+                    JSON.stringify(remote),
+                );
+                setConflict({
+                    ...conflict,
+                    remote,
+                    remoteEtag: resolutionError.details.remote.etag || null,
+                    conflicts: refreshedMerge.conflicts || ['$'],
+                    resolutions: {},
+                    saving: false,
+                    error: 'גרסת השרת השתנתה שוב. בדקו מחדש את ההבדלים.',
+                });
+                return;
+            }
+            setConflict((current) => current ? {
+                ...current,
+                saving: false,
+                error: resolutionError?.resolutionMessage || 'שמירת ההכרעה נכשלה. הטיוטה נשמרה וניתן לנסות שוב.',
+            } : current);
+        }
+    }, [conflict]);
 
     useEffect(() => registerAdminPersistenceController({
         id: 'master-config',
@@ -890,6 +1056,11 @@ export const ConfigProvider = ({ children }) => {
             }}
         >
             {children}
+            <ConfigConflictDialog
+                conflict={conflict}
+                onChoose={chooseConflictResolution}
+                onSave={saveConflictResolution}
+            />
         </ConfigContext.Provider>
     );
 };

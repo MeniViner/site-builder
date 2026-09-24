@@ -35,6 +35,21 @@ const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex'
 
 export const createBuildId = () => crypto.randomUUID();
 
+export function assertDailyDataApiUrl(value) {
+  const raw = text(value).replace(/\/+$/g, '');
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error('dailyDataApiUrl must be an absolute HTTP(S) URL ending in /api/daily-data/v1.');
+  }
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash
+    || !url.pathname.replace(/\/+$/g, '').endsWith('/api/daily-data/v1')) {
+    throw new Error('dailyDataApiUrl must be an absolute HTTP(S) URL ending in /api/daily-data/v1.');
+  }
+  return raw;
+}
+
 export function normalizeStorageBackend(value, { defaultBackend = STORAGE_BACKENDS.TXT } = {}) {
   const normalized = String(value || defaultBackend).trim();
   if (normalized !== STORAGE_BACKENDS.TXT && normalized !== STORAGE_BACKENDS.MONGO) {
@@ -46,8 +61,14 @@ export function normalizeStorageBackend(value, { defaultBackend = STORAGE_BACKEN
 export function assertProductionBuildConfig(config = {}) {
   const storageBackend = normalizeStorageBackend(config.storageBackend);
   if (storageBackend === STORAGE_BACKENDS.MONGO) {
-    if (!text(config.backendApiUrl)) {
-      throw new Error('VITE_BACKEND_API_URL is required when VITE_STORAGE_BACKEND=mongo.');
+    const dailyDataApiUrl = text(config.dailyDataApiUrl).replace(/\/+$/g, '');
+    const backendApiUrl = text(config.backendApiUrl).replace(/\/+$/g, '');
+    if (dailyDataApiUrl && backendApiUrl && dailyDataApiUrl !== backendApiUrl) {
+      throw new Error('dailyDataApiUrl conflicts with legacy backendApiUrl.');
+    }
+    if (dailyDataApiUrl) assertDailyDataApiUrl(dailyDataApiUrl);
+    if (!text(config.dailyDataApiUrl) && !text(config.backendApiUrl)) {
+      throw new Error('VITE_DAILY_DATA_API_URL (or legacy VITE_BACKEND_API_URL) is required when VITE_STORAGE_BACKEND=mongo.');
     }
     if (!text(config.siteId)) {
       throw new Error('VITE_SITE_ID is required when VITE_STORAGE_BACKEND=mongo.');
@@ -147,7 +168,11 @@ export function buildRuntimeConfigPayload(config = {}, {
     deploymentGeneratedBy,
   };
   if (storageBackend === STORAGE_BACKENDS.MONGO) {
-    payload.backendApiUrl = text(config.backendApiUrl).replace(/\/+$/g, '');
+    if (text(config.dailyDataApiUrl)) {
+      payload.dailyDataApiUrl = assertDailyDataApiUrl(config.dailyDataApiUrl);
+    } else {
+      payload.backendApiUrl = text(config.backendApiUrl).replace(/\/+$/g, '');
+    }
   }
   return payload;
 }
@@ -165,7 +190,8 @@ export function buildDeploymentMetadataPayload(config = {}, options = {}) {
     storageBackendSource: text(config.storageBackendSource || 'deployment-target'),
     ...descriptorRuntimeFields(runtimeConfig),
     siteId: runtimeConfig.siteId,
-    backendApiUrl: runtimeConfig.backendApiUrl || '',
+    ...(runtimeConfig.dailyDataApiUrl ? { dailyDataApiUrl: runtimeConfig.dailyDataApiUrl } : {}),
+    ...(runtimeConfig.backendApiUrl ? { backendApiUrl: runtimeConfig.backendApiUrl } : {}),
   };
 }
 

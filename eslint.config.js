@@ -27,7 +27,9 @@ export default defineConfig([
     },
   },
   {
-    files: ['server/**/*.js', 'scripts/**/*.{js,mjs}', 'deploy.js'],
+    // Node-side files: build scripts, the server, and the Playwright harness
+    // (its config and specs run in Node, not in the browser bundle).
+    files: ['server/**/*.js', 'scripts/**/*.{js,mjs}', 'deploy.js', 'playwright.config.js', 'e2e/**/*.js'],
     languageOptions: {
       globals: {
         ...globals.node,

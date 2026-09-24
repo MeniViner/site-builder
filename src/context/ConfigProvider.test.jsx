@@ -1,18 +1,20 @@
 import React, { useEffect } from 'react';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigProvider, useConfig } from './ConfigProvider';
 import {
-    ADMIN_RECOVERY_DRAFT_STORAGE_KEY,
+    getAdminRecoveryStorageKey,
     beginAdminPersistenceSuspension,
     endAdminPersistenceSuspension,
     quiesceAdminPersistence,
     resetAdminEditSessionForTests,
+    setAdminRecoveryScope,
 } from '../utils/adminEditSession';
 
 const mocks = vi.hoisted(() => ({
     loadConfigEnvelope: vi.fn(),
     saveConfig: vi.fn(),
+    saveResolvedConfig: vi.fn(),
     ensureBootstrap: vi.fn(),
     overwriteBootstrap: vi.fn(),
     kashar: false,
@@ -22,6 +24,8 @@ vi.mock('../services/ConfigService', () => ({
     default: {
         loadConfigEnvelope: mocks.loadConfigEnvelope,
         saveConfig: mocks.saveConfig,
+        saveResolvedConfig: mocks.saveResolvedConfig,
+        getVersionState: () => ({ accepted: null, observedRemote: null }),
         loadConfig: vi.fn(),
         adapter: { isLoadFailureFatal: () => false },
     },
@@ -107,6 +111,7 @@ describe('ConfigProvider persistence queue', () => {
         localStorage.clear();
         sessionStorage.clear();
         resetAdminEditSessionForTests();
+        setAdminRecoveryScope({ backend: 'txt', target: '/sites/test/data', user: 'tester' });
         mocks.loadConfigEnvelope.mockReset().mockResolvedValue({
             source: 'test',
             config: {
@@ -115,6 +120,7 @@ describe('ConfigProvider persistence queue', () => {
             },
         });
         mocks.saveConfig.mockReset().mockImplementation(async (config) => config);
+        mocks.saveResolvedConfig.mockReset().mockImplementation(async (config) => config);
         mocks.ensureBootstrap.mockReset().mockResolvedValue([]);
         mocks.overwriteBootstrap.mockReset().mockResolvedValue([]);
         mocks.kashar = false;
@@ -376,9 +382,43 @@ describe('ConfigProvider persistence queue', () => {
         expect(mocks.saveConfig).not.toHaveBeenCalled();
     });
 
+    it('shows an operable Hebrew conflict workflow and saves the reviewed resolution conditionally', async () => {
+        await renderLoadedProvider();
+        const baseline = providerApi.config;
+        const remote = withTitle(baseline, 'כותרת מהשרת');
+        mocks.saveConfig.mockRejectedValueOnce(Object.assign(new Error('conflict'), {
+            code: 'version_conflict',
+            resolutionMessage: 'נדרשת הכרעה',
+            details: {
+                conflicts: ['$.content.hero.title'],
+                accepted: { text: JSON.stringify(baseline), etag: '"v1"' },
+                remote: { text: JSON.stringify(remote), etag: '"v2"' },
+            },
+        }));
+
+        act(() => {
+            providerApi.updateConfig((config) => withTitle(config, 'כותרת מקומית'));
+        });
+        await act(async () => {
+            await expect(providerApi.saveNow()).rejects.toThrow();
+        });
+
+        expect(screen.getByRole('dialog', { name: 'פתרון התנגשות שמירה' })).toBeInTheDocument();
+        expect(screen.getByText('$.content.hero.title')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('radio', { name: 'השארת הטיוטה המקומית' }));
+        fireEvent.click(screen.getByRole('button', { name: 'שמירת ההכרעה מול הגרסה שנבדקה' }));
+
+        await waitFor(() => expect(mocks.saveResolvedConfig).toHaveBeenCalledWith(
+            expect.objectContaining({ content: expect.objectContaining({ hero: expect.objectContaining({ title: 'כותרת מקומית' }) }) }),
+            '"v2"',
+        ));
+        await waitFor(() => expect(screen.queryByRole('dialog', { name: 'פתרון התנגשות שמירה' })).not.toBeInTheDocument());
+    });
+
     it('hydrates a recoverable local draft only after loading fresh server state', async () => {
-        sessionStorage.setItem(ADMIN_RECOVERY_DRAFT_STORAGE_KEY, JSON.stringify({
-            version: 1,
+        sessionStorage.setItem(getAdminRecoveryStorageKey(), JSON.stringify({
+            version: 2,
+            scope: { backend: 'txt', target: '/sites/test/data', user: 'tester' },
             participants: {
                 'persistence:master-config': {
                     schemaVersion: '1.0.0',
@@ -416,8 +456,9 @@ describe('ConfigProvider persistence queue', () => {
     });
 
     it('discards a recovery draft when an authoritative restore reload is requested', async () => {
-        sessionStorage.setItem(ADMIN_RECOVERY_DRAFT_STORAGE_KEY, JSON.stringify({
-            version: 1,
+        sessionStorage.setItem(getAdminRecoveryStorageKey(), JSON.stringify({
+            version: 2,
+            scope: { backend: 'txt', target: '/sites/test/data', user: 'tester' },
             participants: {
                 'persistence:master-config': {
                     baseline: {

@@ -43,6 +43,14 @@ import {
     buildBoomAssignmentNotification,
 } from '../utils/notificationData';
 import { toSafeHebrewError } from '../utils/userFacingError';
+import {
+    ADMIN_RECOVERY_STATE_EVENT,
+    clearAdminRecoveryDraft,
+    getAdminExclusiveOperation,
+    readAdminRecoveryDraft,
+    registerAdminPersistenceController,
+    registerAdminRecoveryParticipant,
+} from '../utils/adminEditSession';
 import { AdminAddonTabs, AdminAddonToggle } from './AdminAddonControls';
 import TaskManagementTable, { TASK_STATUS_META } from './TaskManagementTable';
 import BoomPresentation from './BoomPresentation';
@@ -97,6 +105,7 @@ function BoomTaskDialog({ modal, categories, onChange, onClose, onSubmit }) {
                         <div className="relative">
                             <input id="boom-task-assignee" aria-label="אחראי משימה" className={`${fieldClass} pl-12`} value={form.owner} readOnly placeholder="בחירת אחראי משימה" />
                             <BoomAssigneePicker
+                                taskKey={form.id || modal.taskId || modal.mode}
                                 linkedAssignee={form.linkedAssignee}
                                 onAssigneeChange={(linkedAssignee) => onChange({
                                     linkedAssignee,
@@ -157,6 +166,11 @@ export default function AdminBoom() {
     const publishPendingAssignmentsRef = useRef(async () => {});
     const ownPersistedSnapshotRef = useRef(null);
     const externalSyncSnapshotRef = useRef(null);
+    const autosaveTimerRef = useRef(null);
+    const isDirtyRef = useRef(false);
+    const modalRef = useRef(modal);
+    const localRevisionRef = useRef(0);
+    const persistedRevisionRef = useRef(0);
 
     useEffect(() => {
         const incomingSnapshot = JSON.stringify(normalizeBoomData(boom));
@@ -174,7 +188,6 @@ export default function AdminBoom() {
         draftSnapshotRef.current = incomingSnapshot;
         draftRef.current = next;
         // Persisted AI updates must replace the editor draft before autosave can replay stale state.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setDraft(next);
     }, [boom]);
 
@@ -185,13 +198,18 @@ export default function AdminBoom() {
     useEffect(() => {
         draftSnapshotRef.current = draftSnapshot;
         draftRef.current = draft;
-    }, [draft, draftSnapshot]);
+        isDirtyRef.current = isDirty;
+    }, [draft, draftSnapshot, isDirty]);
 
     useEffect(() => {
         loadedRef.current = loaded;
         saveBoomRef.current = saveBoom;
         configContextRef.current = configContext;
     }, [configContext, loaded, saveBoom]);
+
+    useEffect(() => {
+        modalRef.current = modal;
+    }, [modal]);
 
     const publishPendingAssignments = useCallback(async (savedBoom) => {
         const savedTasks = new Map((savedBoom?.items || []).map((task) => [task.id, task]));
@@ -227,18 +245,7 @@ export default function AdminBoom() {
         publishPendingAssignmentsRef.current = publishPendingAssignments;
     }, [publishPendingAssignments]);
 
-    useEffect(() => () => {
-        const pendingDraft = draftRef.current;
-        const pendingSnapshot = JSON.stringify(normalizeBoomData(pendingDraft));
-        if (!loadedRef.current || pendingSnapshot === savedSnapshotRef.current) return;
-        void saveBoomRef.current(pendingDraft)
-            .then((saved) => publishPendingAssignmentsRef.current(saved))
-            .catch((saveError) => {
-                console.error('[BOOM] Failed to flush pending changes while leaving the admin page.', saveError);
-            });
-    }, []);
-
-    const savePayload = useCallback(async (payload) => {
+    const savePayload = useCallback(async (payload, revision = localRevisionRef.current) => {
         const normalized = normalizeBoomData(payload);
         const payloadSnapshot = JSON.stringify(normalized);
         setAutoSaveState('saving');
@@ -247,6 +254,11 @@ export default function AdminBoom() {
             const persistedSnapshot = JSON.stringify(normalizeBoomData(saved));
             ownPersistedSnapshotRef.current = persistedSnapshot;
             savedSnapshotRef.current = persistedSnapshot;
+            persistedRevisionRef.current = Math.max(persistedRevisionRef.current, revision);
+            if (draftSnapshotRef.current === persistedSnapshot) {
+                isDirtyRef.current = false;
+                clearAdminRecoveryDraft('persistence:boom-workflow');
+            }
             setAutoSaveState(draftSnapshotRef.current === payloadSnapshot ? 'saved' : 'pending');
             try {
                 await publishPendingAssignments(saved);
@@ -269,11 +281,18 @@ export default function AdminBoom() {
             return undefined;
         }
         if (loading || !isDirty) return undefined;
-        const timer = window.setTimeout(() => savePayload(draft), 800);
-        return () => window.clearTimeout(timer);
+        autosaveTimerRef.current = window.setTimeout(() => {
+            autosaveTimerRef.current = null;
+            void savePayload(draft, localRevisionRef.current);
+        }, 800);
+        return () => {
+            if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
+            autosaveTimerRef.current = null;
+        };
     }, [draft, draftSnapshot, isDirty, loading, savePayload]);
 
     const updateDraft = (updater) => {
+        localRevisionRef.current += 1;
         setAutoSaveState((current) => (current === 'error' ? 'pending' : current));
         setDraft((current) => (
             typeof updater === 'function'
@@ -281,6 +300,79 @@ export default function AdminBoom() {
                 : { ...current, ...updater }
         ));
     };
+
+    useEffect(() => registerAdminPersistenceController({
+        id: 'boom-workflow',
+        getState: () => ({
+            revision: localRevisionRef.current,
+            persistedRevision: persistedRevisionRef.current,
+            dirty: isDirtyRef.current || pendingAssignmentNotificationsRef.current.size > 0,
+            saving: autoSaveState === 'saving' || saving,
+        }),
+        captureDraft: () => ({
+            revision: localRevisionRef.current,
+            draft: draftRef.current,
+            pendingAssignmentNotifications: [...pendingAssignmentNotificationsRef.current.values()],
+        }),
+        cancelPending: () => {
+            if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
+            autosaveTimerRef.current = null;
+        },
+        flush: async () => {
+            let persisted = draftRef.current;
+            if (isDirtyRef.current) {
+                persisted = await saveBoomRef.current(draftRef.current, {
+                    recoveryOperation: getAdminExclusiveOperation(),
+                });
+                const snapshot = JSON.stringify(normalizeBoomData(persisted));
+                savedSnapshotRef.current = snapshot;
+                persistedRevisionRef.current = localRevisionRef.current;
+                isDirtyRef.current = draftSnapshotRef.current !== snapshot;
+            }
+            await publishPendingAssignmentsRef.current(persisted);
+            if (isDirtyRef.current || pendingAssignmentNotificationsRef.current.size > 0) {
+                throw new Error('שמירת נתוני BOOM והתראות השיוך טרם הושלמה.');
+            }
+            clearAdminRecoveryDraft('persistence:boom-workflow');
+            return persisted;
+        },
+    }), [autoSaveState, saving]);
+
+    useEffect(() => registerAdminRecoveryParticipant({
+        id: 'admin-boom-editor',
+        isDirty: () => Boolean(modalRef.current),
+        getState: () => ({
+            revision: localRevisionRef.current,
+            dirty: Boolean(modalRef.current),
+        }),
+        captureDraft: () => modalRef.current ? { modal: modalRef.current } : undefined,
+    }), []);
+
+    useEffect(() => {
+        if (!loaded) return undefined;
+        const restore = () => {
+            const workflow = readAdminRecoveryDraft('persistence:boom-workflow');
+            if (workflow?.draft) {
+                const recoveredDraft = cloneBoomData(workflow.draft);
+                draftRef.current = recoveredDraft;
+                draftSnapshotRef.current = JSON.stringify(normalizeBoomData(recoveredDraft));
+                localRevisionRef.current = Math.max(localRevisionRef.current + 1, Number(workflow.revision) || 1);
+                setDraft(recoveredDraft);
+                setAutoSaveState('pending');
+                (workflow.pendingAssignmentNotifications || []).forEach((notification) => {
+                    if (notification?.eventKey) pendingAssignmentNotificationsRef.current.set(notification.eventKey, notification);
+                });
+            }
+            const editor = readAdminRecoveryDraft('admin-boom-editor');
+            if (editor?.modal) {
+                setModal(editor.modal);
+                clearAdminRecoveryDraft('admin-boom-editor');
+            }
+        };
+        restore();
+        window.addEventListener(ADMIN_RECOVERY_STATE_EVENT, restore);
+        return () => window.removeEventListener(ADMIN_RECOVERY_STATE_EVENT, restore);
+    }, [loaded]);
 
     const updateDesign = (patch) => {
         updateDraft((current) => ({ ...current, design: { ...current.design, ...patch } }));

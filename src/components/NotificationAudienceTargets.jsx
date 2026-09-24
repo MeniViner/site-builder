@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
-import { CheckCircle2, Loader2, Search, Trash2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { CheckCircle2, Loader2, Search, Trash2, UserRound } from 'lucide-react';
 import { listSharePointGroupMembersByIdentity } from '../services/sharePointSiteCollectionAdminsService';
 import {
+    isExactSharePointIdentityInput,
     isConfirmedUserPrincipal,
+    resolveConfirmedSinglePrincipalFromCandidate,
     resolveExactSharePointIdentity,
+    searchSharePointPrincipalCandidates,
 } from '../services/sharePointIdentityResolver';
 import { getStableUserIdentities } from '../utils/notificationData';
 
@@ -50,19 +53,16 @@ function mergeAudienceTargets(currentTargets, incomingTargets) {
     }, currentTargets);
 }
 
-function isExactIdentityInput(value) {
-    const input = String(value || '').trim();
-    return /^\d{6,8}$/.test(input)
-        || /^s\d{6,8}$/i.test(input)
-        || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input)
-        || /[|\\]/.test(input)
-        || /^[ic]:/i.test(input);
-}
-
 export default function NotificationAudienceTargets({ selectedTargets = [], onSelectedTargetsChange }) {
     const [identityInput, setIdentityInput] = useState('');
     const [resolving, setResolving] = useState(false);
     const [error, setError] = useState('');
+    const [candidates, setCandidates] = useState([]);
+    const requestVersionRef = useRef(0);
+
+    useEffect(() => () => {
+        requestVersionRef.current += 1;
+    }, []);
     const addTargets = (targets) => {
         const mergedTargets = mergeAudienceTargets(selectedTargets, targets);
         onSelectedTargetsChange?.(mergedTargets);
@@ -74,11 +74,14 @@ export default function NotificationAudienceTargets({ selectedTargets = [], onSe
             setError('יש להזין שם, מספר אישי, מייל או LoginName.');
             return;
         }
+        const requestVersion = ++requestVersionRef.current;
         setResolving(true);
         setError('');
+        setCandidates([]);
         try {
-            if (isExactIdentityInput(input)) {
+            if (isExactSharePointIdentityInput(input)) {
                 const resolution = await resolveExactSharePointIdentity(input, []);
+                if (requestVersion !== requestVersionRef.current) return;
                 if (!resolution.ok) {
                     setError(resolution.error);
                     return;
@@ -93,7 +96,51 @@ export default function NotificationAudienceTargets({ selectedTargets = [], onSe
                 return;
             }
 
-            const group = await listSharePointGroupMembersByIdentity(input, []);
+            const searchResult = await searchSharePointPrincipalCandidates(input, []);
+            if (requestVersion !== requestVersionRef.current) return;
+            if (!searchResult.ok) {
+                setError(searchResult.error);
+                return;
+            }
+            setCandidates(searchResult.candidates);
+            if (searchResult.candidates.length === 0) {
+                setError('לא נמצאו משתמשים או קבוצות תואמים ב־SharePoint.');
+            }
+        } catch {
+            if (requestVersion === requestVersionRef.current) {
+                setError('לא ניתן לזהות יעד ב־SharePoint. בדקו את השם או המזהה ואת ההרשאות.');
+            }
+        } finally {
+            if (requestVersion === requestVersionRef.current) setResolving(false);
+        }
+    };
+
+    const selectCandidate = async (candidate) => {
+        const requestVersion = ++requestVersionRef.current;
+        setResolving(true);
+        setError('');
+        try {
+            if (isConfirmedUserPrincipal(candidate)) {
+                const resolution = await resolveConfirmedSinglePrincipalFromCandidate(candidate, []);
+                if (requestVersion !== requestVersionRef.current) return;
+                if (!resolution.ok) {
+                    setError(resolution.error);
+                    return;
+                }
+                const target = toAudienceTargetFromPrincipal(resolution.principal);
+                if (!target) {
+                    setError('למשתמש שנבחר חסרים פרטי זיהוי של SharePoint.');
+                    return;
+                }
+                addTargets([target]);
+                setIdentityInput('');
+                setCandidates([]);
+                return;
+            }
+
+            const groupIdentity = candidate.LoginName || candidate.Title;
+            const group = await listSharePointGroupMembersByIdentity(groupIdentity, []);
+            if (requestVersion !== requestVersionRef.current) return;
             const targets = group.members
                 .map((member) => toAudienceTargetFromGroupMember(member, group))
                 .filter(Boolean);
@@ -103,10 +150,13 @@ export default function NotificationAudienceTargets({ selectedTargets = [], onSe
             }
             addTargets(targets);
             setIdentityInput('');
+            setCandidates([]);
         } catch {
-            setError('לא ניתן לזהות יעד ב־SharePoint. בדקו את השם או המזהה ואת ההרשאות.');
+            if (requestVersion === requestVersionRef.current) {
+                setError('לא ניתן לקרוא את חברי הקבוצה ב־SharePoint. בדקו שהקבוצה נתמכת ושיש הרשאת קריאה.');
+            }
         } finally {
-            setResolving(false);
+            if (requestVersion === requestVersionRef.current) setResolving(false);
         }
     };
 
@@ -127,11 +177,13 @@ export default function NotificationAudienceTargets({ selectedTargets = [], onSe
                         className="min-h-11 w-full rounded-xl border border-theme-subtle bg-theme-elevated px-3 text-sm text-theme outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
                         value={identityInput}
                         onChange={(event) => {
+                            requestVersionRef.current += 1;
                             setIdentityInput(event.target.value);
                             setError('');
+                            setCandidates([]);
+                            setResolving(false);
                         }}
-                        placeholder="מספר אישי, מייל, LoginName או שם קבוצת SharePoint"
-                        disabled={resolving}
+                        placeholder="מספר אישי, מייל, LoginName, שם אדם או קבוצה"
                     />
                 </label>
                 <button
@@ -146,6 +198,30 @@ export default function NotificationAudienceTargets({ selectedTargets = [], onSe
             </div>
 
             {error ? <p className="text-xs font-bold text-red-600 dark:text-red-300">{error}</p> : null}
+
+            {candidates.length > 0 ? (
+                <ul className="overflow-hidden rounded-xl border border-theme-subtle divide-y divide-theme-subtle">
+                    {candidates.map((candidate) => (
+                        <li key={`${candidate.PrincipalType || 'principal'}:${candidate.Id || candidate.LoginName || candidate.Title}`}>
+                            <button
+                                type="button"
+                                onClick={() => void selectCandidate(candidate)}
+                                disabled={resolving}
+                                className="flex min-h-12 w-full items-center gap-3 px-3 py-2 text-right transition hover:bg-primary/5 disabled:opacity-60"
+                            >
+                                <UserRound size={16} className="shrink-0 text-primary" />
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-sm font-bold text-theme">{candidate.Title || candidate.Email || candidate.LoginName}</span>
+                                    <span className="block truncate text-xs text-theme-muted" dir="ltr">{candidate.Email || candidate.LoginName}</span>
+                                </span>
+                                <span className="text-[11px] font-bold text-theme-muted">
+                                    {isConfirmedUserPrincipal(candidate) ? 'משתמש' : 'קבוצה'}
+                                </span>
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            ) : null}
 
             {selectedTargets.length > 0 ? (
                 <div className="overflow-hidden rounded-xl border border-theme-subtle">
