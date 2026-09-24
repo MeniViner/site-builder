@@ -213,6 +213,7 @@ export const NavigationProvider = ({ children }) => {
         patchConfig: patchNavigationConfig,
         updateConfig,
         saveNow,
+        recoveryId: 'navigation-save-debounce',
     });
 
     const navItems = useMemo(

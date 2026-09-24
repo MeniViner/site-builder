@@ -108,7 +108,11 @@ describe('backupPackage', () => {
     });
 
     it('reports an unknown record count instead of turning unreadable payloads into zero', () => {
+        expect(deriveBackupFileRecordCount('events_data.txt', undefined)).toBeNull();
         expect(deriveBackupFileRecordCount('events_data.txt', '{bad json')).toBeNull();
+        expect(deriveBackupFileRecordCount('events_data.txt', 'null')).toBeNull();
+        expect(deriveBackupFileRecordCount('events_data.txt', '{"unexpected":[]}')).toBeNull();
+        expect(deriveBackupFileRecordCount('events_data.txt', '{"events":[]}')).toBe(0);
     });
 
     it('cannot complete a manifest with zero required files', () => {

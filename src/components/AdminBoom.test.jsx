@@ -3,6 +3,11 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminBoom from './AdminBoom';
+import {
+    prepareAdminSafeReload,
+    resetAdminEditSessionForTests,
+    setAdminRecoveryScope,
+} from '../utils/adminEditSession';
 
 const mocks = vi.hoisted(() => ({
     boom: null,
@@ -85,6 +90,9 @@ const initialBoom = {
 
 describe('AdminBoom', () => {
     beforeEach(() => {
+        sessionStorage.clear();
+        resetAdminEditSessionForTests();
+        setAdminRecoveryScope({ backend: 'txt', target: '/sites/test/data', user: 'tester' });
         mocks.boom = JSON.parse(JSON.stringify(initialBoom));
         mocks.loaded = true;
         mocks.error = null;
@@ -173,15 +181,20 @@ describe('AdminBoom', () => {
         expect(mocks.reloadBoom).toHaveBeenCalledOnce();
     });
 
-    it('flushes a pending autosave when leaving the page', async () => {
+    it('flushes a pending autosave through safe reload instead of saving during unmount', async () => {
         const { unmount } = render(<MemoryRouter><AdminBoom /></MemoryRouter>);
         fireEvent.change(screen.getByLabelText('כותרת העמוד'), { target: { value: 'חדר מצב מעודכן' } });
 
+        await prepareAdminSafeReload();
+        expect(mocks.saveBoom).toHaveBeenCalledWith(
+            expect.objectContaining({ pageTitle: 'חדר מצב מעודכן' }),
+            { recoveryOperation: 'reload' },
+        );
+        mocks.saveBoom.mockClear();
         unmount();
 
-        await waitFor(() => expect(mocks.saveBoom).toHaveBeenCalledWith(
-            expect.objectContaining({ pageTitle: 'חדר מצב מעודכן' })
-        ));
+        await Promise.resolve();
+        expect(mocks.saveBoom).not.toHaveBeenCalled();
     });
 
     it('sends a BOOM assignment notification only to the selected SharePoint user', async () => {

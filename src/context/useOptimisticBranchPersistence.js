@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { registerAdminRecoveryParticipant } from '../utils/adminEditSession';
 
 const DEFAULT_SAVE_DELAY_MS = 300;
 
@@ -9,6 +10,7 @@ export function useOptimisticBranchPersistence({
     updateConfig,
     saveNow,
     saveDelayMs = DEFAULT_SAVE_DELAY_MS,
+    recoveryId,
 }) {
     const initialValue = normalizeValue(sourceValue);
     const [optimisticValue, setOptimisticValue] = useState(initialValue);
@@ -35,6 +37,23 @@ export function useOptimisticBranchPersistence({
             waitersRef.current.splice(0).forEach(({ resolve }) => resolve(false));
         };
     }, []);
+
+    useEffect(() => {
+        if (!recoveryId) return undefined;
+        return registerAdminRecoveryParticipant({
+            id: recoveryId,
+            isDirty: () => false,
+            getState: () => ({
+                revision: latestRevisionRef.current,
+                persistedRevision: persistedRevisionRef.current,
+                dirty: dirtyRef.current,
+            }),
+            cancelPending: () => {
+                if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+                timerRef.current = null;
+            },
+        });
+    }, [recoveryId]);
 
     useEffect(() => {
         if (dirtyRef.current) return;

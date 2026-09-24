@@ -131,6 +131,51 @@ const splitServerRelativeFileUrl = (serverRelativeUrl) => {
     };
 };
 
+export class SharePointTextFileError extends Error {
+    constructor(message, {
+        status = 0,
+        code = 'sharepoint_text_file_error',
+        category = 'unknown',
+        operation = 'upsert-text-file',
+        cause = null,
+        details = null,
+    } = {}) {
+        super(message, cause ? { cause } : undefined);
+        this.name = 'SharePointTextFileError';
+        this.status = status;
+        this.code = code;
+        this.category = category;
+        this.operation = operation;
+        this.details = details;
+    }
+}
+
+const probeExactSharePointFolder = async (folderServerRelativeUrl) => {
+    const siteRoot = resolveApiSiteRoot(folderServerRelativeUrl);
+    const endpoint = buildSiteApiUrl(
+        siteRoot,
+        `/_api/web/GetFolderByServerRelativeUrl('${escapeODataString(folderServerRelativeUrl)}')?$select=Exists,ServerRelativeUrl`,
+    );
+    const response = await fetch(endpoint, {
+        method: 'GET',
+        credentials: 'include',
+        cache: 'no-store',
+        headers: { Accept: ODATA_ACCEPT, 'Cache-Control': 'no-cache' },
+    });
+    if (response.status === 404) return { exists: false, status: 404 };
+    if (!response.ok) {
+        return { exists: null, status: response.status };
+    }
+    const payload = await response.json().catch(() => null);
+    const folder = payload?.d || payload;
+    const actualUrl = toPathname(folder?.ServerRelativeUrl || '');
+    return {
+        exists: folder?.Exists !== false && actualUrl.toLowerCase() === toPathname(folderServerRelativeUrl).toLowerCase(),
+        status: response.status,
+        actualUrl,
+    };
+};
+
 const extractSiteRootFromPath = (path) => {
     const normalizedPath = toPathname(path);
     const segments = splitPathSegments(normalizedPath);
@@ -409,6 +454,7 @@ export const upsertSharePointTextFile = async ({
     text,
     contentType = 'text/plain; charset=utf-8',
     digest = null,
+    recoveryIo = {},
 }) => {
     if (typeof text !== 'string') {
         throw new Error('upsertSharePointTextFile expects "text" as a string');
@@ -422,12 +468,41 @@ export const upsertSharePointTextFile = async ({
         return { created, response: saveResponse };
     }
 
-    // Most common missing-file/folder case in bootstrapping.
-    if (saveResponse.status === 404) {
+    let shouldRepairParent = saveResponse.status === 404;
+    let conflictEvidence = null;
+    if (saveResponse.status === 409) {
+        const responseText = await responseTextSafe(saveResponse);
+        const probeParent = recoveryIo.probeParent || probeExactSharePointFolder;
+        const parentProbe = await probeParent(folderServerRelativeUrl);
+        conflictEvidence = {
+            response: summarizeErrorText(responseText),
+            parentProbe,
+        };
+        if (parentProbe.exists === false) {
+            shouldRepairParent = true;
+        } else if (parentProbe.status === 401 || parentProbe.status === 403) {
+            throw new SharePointTextFileError('לא ניתן לבדוק את תיקיית היעד עקב הרשאות SharePoint.', {
+                status: parentProbe.status,
+                code: 'sharepoint_parent_probe_forbidden',
+                category: 'authorization',
+                details: conflictEvidence,
+            });
+        } else {
+            throw new SharePointTextFileError('SharePoint דיווח על התנגשות או נעילה ביעד קיים; התוכן לא נדרס.', {
+                status: 409,
+                code: 'sharepoint_file_collision',
+                category: 'collision',
+                details: conflictEvidence,
+            });
+        }
+    }
+
+    if (shouldRepairParent) {
         spLog.warn(`קובץ/תיקייה חסרים, מנסה להקים נתיב ואז לשמור: ${fileServerRelativeUrl}`);
         const siteRoot = resolveApiSiteRoot(fileServerRelativeUrl);
         const digestValue = digest || await getRequestDigest(siteRoot);
-        await ensureSharePointFolderHierarchy(folderServerRelativeUrl, digestValue);
+        const ensureParent = recoveryIo.ensureParent || ensureSharePointFolderHierarchy;
+        await ensureParent(folderServerRelativeUrl, digestValue);
 
         const retryResponse = await putTextFile(requestUrl, text, contentType);
         if (retryResponse.ok) {
@@ -435,11 +510,22 @@ export const upsertSharePointTextFile = async ({
         }
 
         const retryError = summarizeErrorText(await responseTextSafe(retryResponse));
-        throw new Error(`SharePoint save failed after folder ensure (${retryResponse.status}): ${retryError}`);
+        throw new SharePointTextFileError(`SharePoint save failed after folder ensure (${retryResponse.status}): ${retryError}`, {
+            status: retryResponse.status,
+            code: retryResponse.status === 409 ? 'sharepoint_file_collision' : 'sharepoint_save_retry_failed',
+            category: retryResponse.status === 409 ? 'collision' : 'persistence',
+            details: conflictEvidence,
+        });
     }
 
     const saveError = summarizeErrorText(await responseTextSafe(saveResponse));
-    throw new Error(`SharePoint save failed (${saveResponse.status}): ${saveError}`);
+    throw new SharePointTextFileError(`SharePoint save failed (${saveResponse.status}): ${saveError}`, {
+        status: saveResponse.status,
+        code: saveResponse.status === 401 || saveResponse.status === 403
+            ? 'sharepoint_save_forbidden'
+            : 'sharepoint_save_failed',
+        category: saveResponse.status === 401 || saveResponse.status === 403 ? 'authorization' : 'persistence',
+    });
 };
 
 /**

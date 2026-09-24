@@ -42,6 +42,14 @@ import GanttChart from './GanttChart';
 import DismissibleNotice from './DismissibleNotice';
 import TaskManagementTable, { TASK_STATUS_META } from './TaskManagementTable';
 import { AdminAddonTabs, AdminAddonToggle } from './AdminAddonControls';
+import {
+    ADMIN_RECOVERY_STATE_EVENT,
+    clearAdminRecoveryDraft,
+    getAdminExclusiveOperation,
+    readAdminRecoveryDraft,
+    registerAdminPersistenceController,
+    registerAdminRecoveryParticipant,
+} from '../utils/adminEditSession';
 
 const TABS = [
     { id: 'basic', label: 'הגדרות בסיס' },
@@ -693,6 +701,14 @@ export default function AdminGantt() {
     const draftSnapshotRef = useRef(JSON.stringify(normalizeGanttData(gantt)));
     const draftRef = useRef(draft);
     const externalSyncSnapshotRef = useRef(null);
+    const autosaveTimerRef = useRef(null);
+    const isDirtyRef = useRef(false);
+    const saveGanttRef = useRef(saveGantt);
+    const taskModalRef = useRef(taskModal);
+    const categoryFormRef = useRef(categoryForm);
+    const isAddingCategoryRef = useRef(isAddingCategory);
+    const localRevisionRef = useRef(0);
+    const persistedRevisionRef = useRef(0);
 
     useEffect(() => {
         const incomingSnapshot = JSON.stringify(normalizeGanttData(gantt));
@@ -706,7 +722,6 @@ export default function AdminGantt() {
         draftSnapshotRef.current = incomingSnapshot;
         draftRef.current = next;
         // Persisted AI updates must replace the editor draft before autosave can replay stale state.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setDraft(next);
     }, [gantt]);
 
@@ -717,7 +732,18 @@ export default function AdminGantt() {
     useEffect(() => {
         draftSnapshotRef.current = normalizedDraftString;
         draftRef.current = draft;
-    }, [draft, normalizedDraftString]);
+        isDirtyRef.current = isDirty;
+    }, [draft, isDirty, normalizedDraftString]);
+
+    useEffect(() => {
+        saveGanttRef.current = saveGantt;
+    }, [saveGantt]);
+
+    useEffect(() => {
+        taskModalRef.current = taskModal;
+        categoryFormRef.current = categoryForm;
+        isAddingCategoryRef.current = isAddingCategory;
+    }, [categoryForm, isAddingCategory, taskModal]);
 
     const categoryOptions = useMemo(
         () => [...draft.categories].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'he')),
@@ -747,6 +773,7 @@ export default function AdminGantt() {
     );
 
     const updateDraft = (updater) => {
+        localRevisionRef.current += 1;
         setAutoSaveState((prev) => (prev === 'error' ? 'saved' : prev));
         setDraft((prev) => normalizeGanttData(typeof updater === 'function' ? updater(prev) : { ...prev, ...updater }));
     };
@@ -787,6 +814,9 @@ export default function AdminGantt() {
         try {
             const saved = await saveGantt(normalizedPayload);
             savedSnapshotRef.current = JSON.stringify(normalizeGanttData(saved));
+            persistedRevisionRef.current = localRevisionRef.current;
+            isDirtyRef.current = draftSnapshotRef.current !== savedSnapshotRef.current;
+            if (!isDirtyRef.current) clearAdminRecoveryDraft('persistence:gantt-data');
             setAutoSaveState(draftSnapshotRef.current === payloadSnapshot ? 'saved' : 'pending');
             return true;
         } catch (saveError) {
@@ -806,12 +836,86 @@ export default function AdminGantt() {
         if (loading || !isDirty) return undefined;
 
         const payload = normalizeGanttData(draft);
-        const timer = window.setTimeout(() => {
-            savePayload(payload);
+        autosaveTimerRef.current = window.setTimeout(() => {
+            autosaveTimerRef.current = null;
+            void savePayload(payload);
         }, 900);
 
-        return () => window.clearTimeout(timer);
+        return () => {
+            if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
+            autosaveTimerRef.current = null;
+        };
     }, [draft, isDirty, loading, normalizedDraftString, savePayload]);
+
+    useEffect(() => registerAdminPersistenceController({
+        id: 'gantt-data',
+        getState: () => ({
+            revision: localRevisionRef.current,
+            persistedRevision: persistedRevisionRef.current,
+            dirty: isDirtyRef.current,
+            saving,
+        }),
+        captureDraft: () => ({
+            revision: localRevisionRef.current,
+            draft: draftRef.current,
+        }),
+        cancelPending: () => {
+            if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
+            autosaveTimerRef.current = null;
+        },
+        flush: async () => {
+            if (!isDirtyRef.current) return draftRef.current;
+            const saved = await saveGanttRef.current(draftRef.current, {
+                recoveryOperation: getAdminExclusiveOperation(),
+            });
+            const snapshot = JSON.stringify(normalizeGanttData(saved));
+            savedSnapshotRef.current = snapshot;
+            persistedRevisionRef.current = localRevisionRef.current;
+            isDirtyRef.current = draftSnapshotRef.current !== snapshot;
+            if (isDirtyRef.current) throw new Error('שמירת נתוני הגאנט טרם הושלמה.');
+            clearAdminRecoveryDraft('persistence:gantt-data');
+            return saved;
+        },
+    }), [saving]);
+
+    useEffect(() => registerAdminRecoveryParticipant({
+        id: 'admin-gantt-editor',
+        isDirty: () => Boolean(taskModalRef.current || isAddingCategoryRef.current),
+        getState: () => ({
+            revision: localRevisionRef.current,
+            dirty: Boolean(taskModalRef.current || isAddingCategoryRef.current),
+        }),
+        captureDraft: () => ({
+            taskModal: taskModalRef.current,
+            categoryForm: categoryFormRef.current,
+            isAddingCategory: isAddingCategoryRef.current,
+        }),
+    }), []);
+
+    useEffect(() => {
+        if (loading) return undefined;
+        const restore = () => {
+            const persisted = readAdminRecoveryDraft('persistence:gantt-data');
+            if (persisted?.draft) {
+                const recoveredDraft = cloneGanttData(persisted.draft);
+                draftRef.current = recoveredDraft;
+                draftSnapshotRef.current = JSON.stringify(normalizeGanttData(recoveredDraft));
+                localRevisionRef.current = Math.max(localRevisionRef.current + 1, Number(persisted.revision) || 1);
+                setDraft(recoveredDraft);
+                setAutoSaveState('pending');
+            }
+            const editor = readAdminRecoveryDraft('admin-gantt-editor');
+            if (editor) {
+                setTaskModal(editor.taskModal || null);
+                setCategoryForm(editor.categoryForm || { name: '', color: GANTT_COLOR_OPTIONS[0], order: '' });
+                setIsAddingCategory(Boolean(editor.isAddingCategory));
+                clearAdminRecoveryDraft('admin-gantt-editor');
+            }
+        };
+        restore();
+        window.addEventListener(ADMIN_RECOVERY_STATE_EVENT, restore);
+        return () => window.removeEventListener(ADMIN_RECOVERY_STATE_EVENT, restore);
+    }, [loading]);
 
     const selectDesignPreset = (presetId) => {
         updateDraft((prev) => ({

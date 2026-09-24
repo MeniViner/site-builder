@@ -6,11 +6,13 @@ import {
     ADMIN_STALE_THRESHOLD_MS,
     beginAdminEditSession,
     resetAdminEditSessionForTests,
+    setAdminRecoveryScope,
 } from '../utils/adminEditSession';
 
 describe('AdminEditSessionGuard', () => {
     beforeEach(() => {
         resetAdminEditSessionForTests();
+        setAdminRecoveryScope({ backend: 'txt', target: '/sites/test/data', user: 'tester' });
         beginAdminEditSession(1_000);
         vi.spyOn(Date, 'now').mockReturnValue(1_000 + ADMIN_STALE_THRESHOLD_MS + 1);
     });

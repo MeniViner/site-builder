@@ -6,12 +6,18 @@ export function toSafeHebrewError(error, fallbackMessage) {
 
     const message = String(error?.message || '').toLowerCase();
     if (
-        error instanceof TypeError
-        || message.includes('failed to fetch')
+        message.includes('failed to fetch')
         || message.includes('network')
-        || message.includes('load failed')
+        || message.includes('econnrefused')
     ) {
         return 'לא ניתן להתחבר לשירות כרגע. בדקו את החיבור ונסו שוב.';
+    }
+
+    if (status === 409) {
+        return 'הפעולה מתנגשת עם מצב קיים. רעננו את הנתונים ובדקו אותם לפני ניסיון נוסף.';
+    }
+    if (status === 412 || error?.code === 'version_conflict') {
+        return 'הנתונים השתנו במקביל. הטיוטה נשמרה ויש לפתור את ההתנגשות לפני שמירה.';
     }
 
     return fallbackMessage;
