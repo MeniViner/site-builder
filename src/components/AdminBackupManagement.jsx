@@ -1311,9 +1311,24 @@ export default function AdminBackupManagement() {
             selectedRestoreUnitIds: restoreUnitIds,
         };
 
+        // restoreTargetId identifies the backup ROW for the Mongo backend, which
+        // restores by id through the API (see the mongoBackupStore branch below;
+        // it is the ONLY consumer). A SharePoint/TXT backup has no id at all --
+        // listSharePointBackups identifies a backup by serverRelativeUrl -- so
+        // requiring this unconditionally made every SharePoint selective restore
+        // impossible.
+        //
+        // It also threw OUTSIDE the try below, from an async click handler, so
+        // the failure surfaced as an unhandled rejection: no toast, no modal
+        // error, no result, and not even the restoring spinner. A precondition
+        // failure has to end the operation explicitly, the way the empty
+        // selection guard above already does.
         const restoreTargetId = getRestoreTargetId(restoreModal.backup);
-        if (!restoreTargetId) {
-            throw new Error('לגיבוי הזה חסר מזהה לשחזור.');
+        if (mongoBackupStore && !restoreTargetId) {
+            const message = 'לגיבוי הזה חסר מזהה לשחזור ולכן לא ניתן לשחזר ממנו.';
+            toast.error(message);
+            setRestoreModal((prev) => (prev ? { ...prev, error: message } : prev));
+            return;
         }
 
         setIsRestoring(true);
@@ -1431,7 +1446,16 @@ export default function AdminBackupManagement() {
                             || safetyBackup?.manifest?.status !== 'complete'
                             || Number(safetyBackup?.copiedFiles) <= 0
                         ) {
-                            throw new Error(safetyBackup?.error || 'יצירת גיבוי בטיחות לפני שחזור נכשלה.');
+                            // Say WHICH step stopped the restore. Throwing the raw
+                            // transport text (e.g. "SharePoint save failed (500)")
+                            // collapsed to the generic "שחזור הגיבוי נכשל.", which
+                            // hides the one fact the operator most needs: the run
+                            // stopped at the safety backup, so live data was never
+                            // touched. The raw cause is kept for diagnostics only.
+                            throw Object.assign(
+                                new Error('יצירת גיבוי הבטיחות נכשלה, ולכן השחזור נעצר ולא בוצע שינוי בנתונים. בדקו את ההרשאות לתיקיית הגיבויים ונסו שוב.'),
+                                { code: 'safety_backup_failed', userFacing: true, cause: safetyBackup?.error || null },
+                            );
                         }
 
                     if (shouldWriteAuthoritativeMaster) {

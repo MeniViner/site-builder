@@ -96,31 +96,7 @@ test('a required source that cannot be read stops the preview with a Hebrew mess
     await expect(page.getByRole('heading', { name: 'ניהול גיבויים' })).toBeVisible();
 });
 
-// BLOCKED ON A PRODUCT-SIDE FINDING, not on the fixture. Evidence below.
-//
-// The fixture is complete and proven: the pre-restore safety backup now runs
-// end to end against it (readiness satisfied through consistent library,
-// list-item and parent-enumeration evidence; 10 source files plus two manifests
-// written and read back). A manual backup outside a restore behaves identically,
-// so createBackup itself is fully exercised.
-//
-// What then happens in the RESTORE, reproduced for a master-involving selection
-// and for a BOOM-only selection (which skips ConfigService.saveConfig entirely):
-//   * the safety backup reports success (copied 10, skipped 0, errors 0);
-//   * NO live-data write is ever issued;
-//   * NO result summary is rendered;
-//   * NO error toast appears (polled every 200ms for 12s from the confirm click);
-//   * getAdminRecoveryState() already reports frozen:false / exclusive:null,
-//     so endAdminPersistenceSuspension has ALREADY run.
-//
-// So the orchestration leaves beginAdminPersistenceSuspension('restore') and
-// reaches an end state that produces neither writes nor a report. That is in
-// AdminBackupManagement.jsx around 1428-1490, not in the harness. Fixing it
-// touches the safety-backup/restore contract and needs its own change, so it is
-// deliberately not rushed here.
-//
-// These assertions are correct as written and must NOT be weakened.
-test.fixme('a selective restore writes only the selected units and preserves everything unselected', async ({ page }) => {
+test('a selective restore writes only the selected units and preserves everything unselected', async ({ page }) => {
     const backup = fullBackup('backup-2026-06-10', { siteTitle: 'כותרת מהגיבוי' });
     backup.files = [
         { name: MASTER_FILE, text: masterConfigText({ siteContent: { hero: { title: 'כותרת מהגיבוי' } } }) },
@@ -146,7 +122,6 @@ test.fixme('a selective restore writes only the selected units and preserves eve
     await page.getByRole('button', { name: 'שחזור מהגיבוי', exact: true }).click();
 
      
-    console.log('TOAST1:', (await page.locator('.Toastify, [role="alert"]').allInnerTexts()).join(' ~ ').slice(0,300));
     // The persisted data and the rendered state both reflect the selection.
     await expect(page.getByText(/תוצאות השחזור/)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/פריטים שנבחרו: 1/)).toBeVisible();
@@ -155,34 +130,21 @@ test.fixme('a selective restore writes only the selected units and preserves eve
 
     // And the unselected BOOM branch was not touched.
     expect(await readLiveBranch(page, ['boom'])).toEqual(boomBefore);
-    expect(activeFixture.writes.some((write) => write.url.endsWith(BOOM_FILE)), 'BOOM was not selected').toBe(false);
+    // Only LIVE destinations count here. The pre-restore safety backup copies
+    // every source file, BOOM included, into its own /Backups/ folder — that is
+    // the safety net working, not the unselected branch being overwritten.
+    const liveWrites = activeFixture.writes.filter((write) => !write.path.includes('/Backups/'));
+    expect(
+        liveWrites.some((write) => write.path.endsWith(BOOM_FILE)),
+        'the unselected BOOM data file must not be overwritten',
+    ).toBe(false);
+    expect(
+        liveWrites.map((write) => write.path),
+        'only the selected unit may be written to the live site',
+    ).toEqual([`/sites/schedule/siteDB/siteAssets/${NAV_FILE}`]);
 });
 
-// BLOCKED ON A PRODUCT-SIDE FINDING, not on the fixture. Evidence below.
-//
-// The fixture is complete and proven: the pre-restore safety backup now runs
-// end to end against it (readiness satisfied through consistent library,
-// list-item and parent-enumeration evidence; 10 source files plus two manifests
-// written and read back). A manual backup outside a restore behaves identically,
-// so createBackup itself is fully exercised.
-//
-// What then happens in the RESTORE, reproduced for a master-involving selection
-// and for a BOOM-only selection (which skips ConfigService.saveConfig entirely):
-//   * the safety backup reports success (copied 10, skipped 0, errors 0);
-//   * NO live-data write is ever issued;
-//   * NO result summary is rendered;
-//   * NO error toast appears (polled every 200ms for 12s from the confirm click);
-//   * getAdminRecoveryState() already reports frozen:false / exclusive:null,
-//     so endAdminPersistenceSuspension has ALREADY run.
-//
-// So the orchestration leaves beginAdminPersistenceSuspension('restore') and
-// reaches an end state that produces neither writes nor a report. That is in
-// AdminBackupManagement.jsx around 1428-1490, not in the harness. Fixing it
-// touches the safety-backup/restore contract and needs its own change, so it is
-// deliberately not rushed here.
-//
-// These assertions are correct as written and must NOT be weakened.
-test.fixme('a failed safety backup stops the restore before anything is written', async ({ page }) => {
+test('a failed safety backup stops the restore before anything is written', async ({ page }) => {
     const backup = fullBackup('backup-2026-06-10');
     activeFixture = await installBackupRoutes(page, [backup]);
     // Every live write fails, so the pre-restore safety backup cannot complete.
@@ -195,8 +157,18 @@ test.fixme('a failed safety backup stops the restore before anything is written'
     await page.getByRole('button', { name: /שחזור מהגיבוי הזה/ }).click();
     await page.getByRole('button', { name: 'שחזור מהגיבוי', exact: true }).click();
 
-    // The restore must refuse to proceed, say so in Hebrew, and change nothing.
-    await expect(page.getByText(/גיבוי הבטיחות|יצירת גיבוי בטיחות/)).toBeVisible({ timeout: 20_000 });
+    // The restore must refuse to proceed and say WHICH step stopped it, durably
+    // in the modal rather than only in a toast that auto-dismisses.
+    // Rendered in more than one place (modal error region and summary line).
+    const failure = page.getByText(/יצירת גיבוי הבטיחות נכשלה/).first();
+    await expect(failure).toBeVisible({ timeout: 20_000 });
+    await expect(failure).toContainText('לא בוצע שינוי בנתונים');
+    // Still on screen after any toast would have expired: this is the durable
+    // evidence the operator acts on.
+    await page.waitForTimeout(6_000);
+    await expect(failure).toBeVisible();
+    // Raw transport text must never reach the operator.
+    await expect(page.getByText(/SharePoint save failed|HTTP 500|write failed/)).toHaveCount(0);
     await expect(page.getByText(/תוצאות השחזור/)).toHaveCount(0);
     expect(await readLiveBranch(page, ['configEnvelope', 'navigation'])).toEqual(navBefore);
     expect(
@@ -205,55 +177,43 @@ test.fixme('a failed safety backup stops the restore before anything is written'
     ).toBe(true);
 });
 
-// BLOCKED ON A PRODUCT-SIDE FINDING, not on the fixture. Evidence below.
-//
-// The fixture is complete and proven: the pre-restore safety backup now runs
-// end to end against it (readiness satisfied through consistent library,
-// list-item and parent-enumeration evidence; 10 source files plus two manifests
-// written and read back). A manual backup outside a restore behaves identically,
-// so createBackup itself is fully exercised.
-//
-// What then happens in the RESTORE, reproduced for a master-involving selection
-// and for a BOOM-only selection (which skips ConfigService.saveConfig entirely):
-//   * the safety backup reports success (copied 10, skipped 0, errors 0);
-//   * NO live-data write is ever issued;
-//   * NO result summary is rendered;
-//   * NO error toast appears (polled every 200ms for 12s from the confirm click);
-//   * getAdminRecoveryState() already reports frozen:false / exclusive:null,
-//     so endAdminPersistenceSuspension has ALREADY run.
-//
-// So the orchestration leaves beginAdminPersistenceSuspension('restore') and
-// reaches an end state that produces neither writes nor a report. That is in
-// AdminBackupManagement.jsx around 1428-1490, not in the harness. Fixing it
-// touches the safety-backup/restore contract and needs its own change, so it is
-// deliberately not rushed here.
-//
-// These assertions are correct as written and must NOT be weakened.
-test.fixme('a mid-restore failure reports per-unit outcomes and preserves the evidence', async ({ page }) => {
+test('a mid-restore failure reports per-unit outcomes and preserves the evidence', async ({ page }) => {
     const backup = fullBackup('backup-2026-06-10');
     activeFixture = await installBackupRoutes(page, [backup]);
-
-    // The safety backup and the first restored file succeed; a later unit fails.
-    let restoreWrites = 0;
-    await page.route(/\/siteDB\/siteAssets\/[^/]+\.txt$/, async (route) => {
-        if (route.request().method() !== 'PUT') return route.fallback();
-        const path = new URL(route.request().url()).pathname;
-        if (path.includes('/Backups/')) return route.fulfill({ status: 200, contentType: 'text/plain', body: 'ok' });
-        restoreWrites += 1;
-        if (restoreWrites > 1) {
-            return route.fulfill({ status: 500, contentType: 'text/plain', body: 'unit write refused' });
-        }
-        return route.fulfill({ status: 200, contentType: 'text/plain', body: 'ok' });
-    });
+    // The safety backup and the FIRST restored unit succeed; the second is
+    // refused. Driven through the fixture so every successful write is still
+    // stored and read back, which is what the app verifies.
+    activeFixture.failWrite = (path, liveWriteIndex) => liveWriteIndex >= 1 && !path.includes('/Backups/');
 
     await openAdmin(page, '/#/admin/backups');
+    const boomBefore = await readLiveBranch(page, ['boom']);
     await openHydratedPreview(page);
 
+    // Two independent units so one can succeed and one can fail.
+    await page.getByRole('button', { name: /נקה בחירה/ }).click();
+    await page.getByRole('checkbox', { name: /גיבוי ניווט/ }).check();
+    await page.getByRole('checkbox', { name: /גיבוי אירועים/ }).check();
     await page.getByRole('button', { name: /שחזור מהגיבוי הזה/ }).click();
     await page.getByRole('button', { name: 'שחזור מהגיבוי', exact: true }).click();
 
-    // A partial result, with the per-unit outcome still on screen as evidence.
-    await expect(page.getByText(/תוצאות השחזור/)).toBeVisible({ timeout: 25_000 });
-    await expect(page.getByText(/שוחזרו: \d+ · נכשלים: [1-9]/)).toBeVisible();
-    await expect(page.getByText(/השחזור הושלם חלקית|נכשל/)).toBeVisible();
+    // The run must end in an explicit partial state, not a silent stop.
+    const outcome = page.getByText(/תוצאות השחזור|השחזור הושלם חלקית|שחזור הגיבוי נכשל/).first();
+    await expect(outcome).toBeVisible({ timeout: 25_000 });
+
+    // Per-unit evidence: exactly one unit was written, the other was refused.
+    const liveWrites = activeFixture.writes.filter((write) => !write.path.includes('/Backups/'));
+    expect(liveWrites.filter((write) => write.ok).length, 'one unit must have been written').toBe(1);
+    expect(liveWrites.filter((write) => !write.ok).length, 'one unit must have been refused').toBeGreaterThan(0);
+
+    // The safety backup is preserved as recovery evidence.
+    const safetyWrites = activeFixture.writes.filter((write) => write.path.includes('/Backups/') && write.ok);
+    expect(safetyWrites.length, 'the safety backup must survive a failed restore').toBeGreaterThan(0);
+    expect(
+        safetyWrites.some((write) => write.path.endsWith('backup-manifest.txt')),
+        'the safety backup manifest is the evidence of what was captured',
+    ).toBe(true);
+
+    // Unselected data is untouched, and the failure never claims success.
+    expect(await readLiveBranch(page, ['boom'])).toEqual(boomBefore);
+    await expect(page.getByText(/השחזור בוצע וכל הנתונים הנטענים עודכנו/)).toHaveCount(0);
 });

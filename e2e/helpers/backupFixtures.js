@@ -239,7 +239,7 @@ export async function installBackupRoutes(page, initialBackups = []) {
         // read-only made those writes 404 and the restore abort after readiness
         // had already succeeded.
         if (request.method() === 'PUT') {
-            if (fixture.failWritesMatching && path.includes(fixture.failWritesMatching)) {
+            if (shouldRefuse(path)) {
                 fixture.writes.push({ path, ok: false });
                 return route.fulfill({ status: 500, contentType: 'text/plain', body: 'write failed' });
             }
@@ -284,10 +284,22 @@ export async function installBackupRoutes(page, initialBackups = []) {
     fixture.writes = [];
     /** Set to a URL substring to make the NEXT matching write fail. */
     fixture.failWritesMatching = null;
+    /**
+     * Fine-grained write failure: `(path, liveWriteIndex) => boolean`.
+     * liveWriteIndex counts only writes to LIVE destinations, so a test can fail
+     * the second restored unit while letting the safety backup complete.
+     */
+    fixture.failWrite = null;
     /** Set true to make safety-backup folder creation fail. */
     fixture.failSafetyBackup = false;
 
     fixture.seedLive = (serverRelativeUrl, text) => fixture.live.set(serverRelativeUrl, text);
+    const shouldRefuse = (path) => {
+        if (fixture.failWritesMatching && path.includes(fixture.failWritesMatching)) return true;
+        if (typeof fixture.failWrite !== 'function') return false;
+        const liveIndex = fixture.writes.filter((w) => !w.path.includes('/Backups/')).length;
+        return Boolean(fixture.failWrite(path, liveIndex));
+    };
     fixture.readLive = (serverRelativeUrl) => fixture.live.get(serverRelativeUrl);
 
     // FormDigest. Every SharePoint write asks for one first.
@@ -314,7 +326,7 @@ export async function installBackupRoutes(page, initialBackups = []) {
             const pathname = new URL(request.url()).pathname;
 
             if (request.method() === 'PUT') {
-                if (fixture.failWritesMatching && pathname.includes(fixture.failWritesMatching)) {
+                if (shouldRefuse(pathname)) {
                     fixture.writes.push({ path: pathname, ok: false });
                     return route.fulfill({ status: 500, contentType: 'text/plain', body: 'write failed' });
                 }
