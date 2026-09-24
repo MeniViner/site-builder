@@ -228,8 +228,20 @@ const parseBackupJson = (fileName, text) => {
 
 const buildPreviewFromBackupTexts = (fileTextsByName) => {
     const parsedByName = new Map();
+    const unparseableFileNames = [];
     fileTextsByName.forEach((text, fileName) => {
-        parsedByName.set(fileName, parseBackupJson(fileName, text));
+        // One unparseable file must not destroy the whole preview. It used to
+        // throw from here, which took the restore SELECTION panel down with it:
+        // the operator saw no restore UI at all and no reason why, even though
+        // every other unit in the backup was perfectly restorable. The per-entry
+        // classifier already reports this file as "לא תקין" and refuses to
+        // restore it, so the correct behaviour here is to leave it out of the
+        // rendered preview and carry on.
+        try {
+            parsedByName.set(fileName, parseBackupJson(fileName, text));
+        } catch {
+            unparseableFileNames.push(fileName);
+        }
     });
 
     const getJsonForTarget = (targetUrl) => {
@@ -247,6 +259,7 @@ const buildPreviewFromBackupTexts = (fileTextsByName) => {
             config: validateAndNormalize(parsed),
             gantt,
             boom,
+            unparseableFileNames,
         };
     }
 
@@ -1653,6 +1666,9 @@ export default function AdminBackupManagement() {
                                 type="file"
                                 accept="application/json,.json"
                                 className="hidden"
+                                // Distinguishes this from the demo-data importer in the
+                                // sidebar, which is also an input[type=file] on this page.
+                                data-testid="backup-package-import"
                                 onChange={handleImportBackupFile}
                             />
                             <button

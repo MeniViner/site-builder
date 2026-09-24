@@ -60,6 +60,20 @@ test.afterEach(async ({ page }) => {
     await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
 
+
+/**
+ * A row inside the RESTORE SELECTION panel.
+ *
+ * Scoped deliberately: the backup's plain file list is rendered elsewhere on the
+ * same screen and matches the same file name, so an unscoped getByText finds the
+ * listing entry (which carries a date, not a payload state) instead of the
+ * selectable restore unit.
+ */
+const restoreUnitRow = (page, fileName) => page
+    .locator('label[for^="restore-"]')
+    .filter({ has: page.getByText(fileName, { exact: true }) });
+
+
 test('opening a restore preview must not destroy the admin console', async ({ page }) => {
     const pageErrors = [];
     page.on('pageerror', (error) => pageErrors.push(String(error)));
@@ -219,13 +233,7 @@ test('a later user choice is not overwritten by an in-flight payload hydration',
         .toHaveText(/11\.6\.2026/);
 });
 
-// UNFINISHED SCAFFOLDING, not a verified result. The flow reaches the restore
-// confirmation, but the fixture does not yet drive the orchestration far enough
-// for these assertions to mean anything. Marked fixme so the suite reports it as
-// outstanding work rather than either a silent pass or permanent red. The
-// equivalent behaviour IS covered at unit level in
-// src/components/AdminBackupManagement.test.jsx.
-test.fixme('known-empty, invalid JSON and JSON null are three distinct states, and none of them reads as the others', async ({ page }) => {
+test('known-empty, invalid JSON and JSON null are three distinct states, and none of them reads as the others', async ({ page }) => {
     const backup = fullBackup('backup-2026-06-10');
     backup.files = [
         { name: MASTER_FILE, text: masterConfigText() },
@@ -243,30 +251,24 @@ test.fixme('known-empty, invalid JSON and JSON null are three distinct states, a
     await selectBackupRow(backupRows(page).first());
     await expect(page.getByText(PREVIEW_LOADING)).toHaveCount(0, { timeout: 15_000 });
 
-    const emptyRow = page.getByText(NAV_FILE).locator('xpath=..');
+    const emptyRow = restoreUnitRow(page, NAV_FILE);
     await expect(emptyRow).toContainText('ריק');
     await expect(emptyRow).toContainText('0 רשומות');
     await expect(emptyRow).not.toContainText('מספר רשומות לא ידוע');
 
-    const invalidRow = page.getByText(EVENTS_FILE).locator('xpath=..');
+    const invalidRow = restoreUnitRow(page, EVENTS_FILE);
     await expect(invalidRow).toContainText('לא תקין');
     await expect(invalidRow).toContainText('מספר רשומות לא ידוע');
     await expect(invalidRow).not.toContainText('0 רשומות');
     await expect(page.getByRole('checkbox', { name: /גיבוי אירועים/ })).toBeDisabled();
 
-    const nullRow = page.getByText(USERS_FILE).locator('xpath=..');
+    const nullRow = restoreUnitRow(page, USERS_FILE);
     await expect(nullRow).toContainText('לא תקין');
     await expect(nullRow).not.toContainText('ריק');
     await expect(page.getByRole('checkbox', { name: /גיבוי מנהלים/ })).toBeDisabled();
 });
 
-// UNFINISHED SCAFFOLDING, not a verified result. The flow reaches the restore
-// confirmation, but the fixture does not yet drive the orchestration far enough
-// for these assertions to mean anything. Marked fixme so the suite reports it as
-// outstanding work rather than either a silent pass or permanent red. The
-// equivalent behaviour IS covered at unit level in
-// src/components/AdminBackupManagement.test.jsx.
-test.fixme('a valid downloaded payload overrides stale metadata that says the file is missing or empty', async ({ page }) => {
+test('a valid downloaded payload overrides stale metadata that says the file is missing or empty', async ({ page }) => {
     activeFixture = await installBackupRoutes(page, []);
     await openAdmin(page, '/#/admin/backups');
 
@@ -292,14 +294,15 @@ test.fixme('a valid downloaded payload overrides stale metadata that says the fi
         meta: { restoreEntries: staleEntries },
     };
 
-    await page.setInputFiles('input[type="file"]', {
+    // This page has two file inputs; the other is the demo-data importer.
+    await page.setInputFiles('input[data-testid="backup-package-import"]', {
         name: 'bihs-backup.json',
         mimeType: 'application/json',
         buffer: Buffer.from(JSON.stringify(importedPackage), 'utf8'),
     });
 
     await expect(page.getByText(PREVIEW_LABEL)).toBeVisible();
-    const usersRow = page.getByText(USERS_FILE).locator('xpath=..');
+    const usersRow = restoreUnitRow(page, USERS_FILE);
     await expect(usersRow, 'the real payload must win over stale "missing" metadata').toContainText('יש נתונים');
     await expect(usersRow).toContainText('2 רשומות');
     await expect(page.getByRole('checkbox', { name: /גיבוי מנהלים/ })).not.toBeDisabled();

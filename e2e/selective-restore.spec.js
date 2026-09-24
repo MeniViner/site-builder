@@ -96,11 +96,21 @@ test('a required source that cannot be read stops the preview with a Hebrew mess
     await expect(page.getByRole('heading', { name: 'ניהול גיבויים' })).toBeVisible();
 });
 
-// UNFINISHED SCAFFOLDING, not a verified result. The flow reaches the restore
-// confirmation, but the fixture does not yet drive the orchestration far enough
-// for these assertions to mean anything. Marked fixme so the suite reports it as
-// outstanding work rather than either a silent pass or permanent red. The
-// equivalent behaviour IS covered at unit level in
+// KNOWN BLOCKER, precisely located — NOT a verified result and NOT external.
+//
+// The fixture now provides the full writable persistence layer a restore needs
+// (FormDigest, folder creation, direct file PUT, and read-back of the stored
+// bytes, which the app verifies). The restore still stops before writing with
+// "נתיב היעד ב-SharePoint אינו מוכן לביצוע הכנת התיקייה": the safety backup
+// prepares its folder first and the readiness probe surface in
+// src/utils/sharePointBrowserFilesystem.js (127-140, 622) is not fully answered
+// yet — ListItemAllFields, Folders/add, the filtered parent enumeration and the
+// bare folder-object select are stubbed, so at least one further probe (most
+// likely the owning-list / ParentList evidence) still returns nothing.
+//
+// Next step: log the unmatched _api requests during a restore and answer the
+// remaining probe, then delete this comment and the fixme. The equivalent
+// orchestration is covered at unit level in
 // src/components/AdminBackupManagement.test.jsx.
 test.fixme('a selective restore writes only the selected units and preserves everything unselected', async ({ page }) => {
     const backup = fullBackup('backup-2026-06-10', { siteTitle: 'כותרת מהגיבוי' });
@@ -112,13 +122,10 @@ test.fixme('a selective restore writes only the selected units and preserves eve
         { name: BOOM_FILE, text: JSON.stringify({ enabled: true, items: [{ id: 'boom-restored', title: 'משימה מהגיבוי' }], categories: [] }) },
         { name: GANTT_FILE, text: JSON.stringify({ items: [{ id: 'gantt-restored', title: 'שלב מהגיבוי' }], categories: [] }) },
     ];
-    const writes = [];
+    // The fixture owns persistence: a restore reads each file back to verify the
+    // stored bytes, so a write stub that does not serve the value back makes the
+    // app's own verification fail and the restore never completes.
     activeFixture = await installBackupRoutes(page, [backup]);
-    await page.route(/\/siteDB\/siteAssets\/[^/]+\.txt$/, async (route) => {
-        if (route.request().method() !== 'PUT') return route.fallback();
-        writes.push({ url: new URL(route.request().url()).pathname, body: route.request().postData() });
-        return route.fulfill({ status: 200, contentType: 'text/plain', body: 'ok' });
-    });
 
     await openAdmin(page, '/#/admin/backups');
     const boomBefore = await readLiveBranch(page, ['boom']);
@@ -138,25 +145,30 @@ test.fixme('a selective restore writes only the selected units and preserves eve
 
     // And the unselected BOOM branch was not touched.
     expect(await readLiveBranch(page, ['boom'])).toEqual(boomBefore);
-    expect(writes.some((write) => write.url.endsWith(BOOM_FILE)), 'BOOM was not selected').toBe(false);
+    expect(activeFixture.writes.some((write) => write.url.endsWith(BOOM_FILE)), 'BOOM was not selected').toBe(false);
 });
 
-// UNFINISHED SCAFFOLDING, not a verified result. The flow reaches the restore
-// confirmation, but the fixture does not yet drive the orchestration far enough
-// for these assertions to mean anything. Marked fixme so the suite reports it as
-// outstanding work rather than either a silent pass or permanent red. The
-// equivalent behaviour IS covered at unit level in
+// KNOWN BLOCKER, precisely located — NOT a verified result and NOT external.
+//
+// The fixture now provides the full writable persistence layer a restore needs
+// (FormDigest, folder creation, direct file PUT, and read-back of the stored
+// bytes, which the app verifies). The restore still stops before writing with
+// "נתיב היעד ב-SharePoint אינו מוכן לביצוע הכנת התיקייה": the safety backup
+// prepares its folder first and the readiness probe surface in
+// src/utils/sharePointBrowserFilesystem.js (127-140, 622) is not fully answered
+// yet — ListItemAllFields, Folders/add, the filtered parent enumeration and the
+// bare folder-object select are stubbed, so at least one further probe (most
+// likely the owning-list / ParentList evidence) still returns nothing.
+//
+// Next step: log the unmatched _api requests during a restore and answer the
+// remaining probe, then delete this comment and the fixme. The equivalent
+// orchestration is covered at unit level in
 // src/components/AdminBackupManagement.test.jsx.
 test.fixme('a failed safety backup stops the restore before anything is written', async ({ page }) => {
     const backup = fullBackup('backup-2026-06-10');
-    const writes = [];
     activeFixture = await installBackupRoutes(page, [backup]);
-    await page.route(/\/siteDB\/siteAssets\/[^/]+\.txt$/, async (route) => {
-        if (route.request().method() !== 'PUT') return route.fallback();
-        writes.push(new URL(route.request().url()).pathname);
-        // Every write fails, so the pre-restore safety backup cannot complete.
-        return route.fulfill({ status: 500, contentType: 'text/plain', body: 'safety backup write refused' });
-    });
+    // Every live write fails, so the pre-restore safety backup cannot complete.
+    activeFixture.failWritesMatching = '/siteAssets/';
 
     await openAdmin(page, '/#/admin/backups');
     const navBefore = await readLiveBranch(page, ['configEnvelope', 'navigation']);
@@ -170,16 +182,26 @@ test.fixme('a failed safety backup stops the restore before anything is written'
     await expect(page.getByText(/תוצאות השחזור/)).toHaveCount(0);
     expect(await readLiveBranch(page, ['configEnvelope', 'navigation'])).toEqual(navBefore);
     expect(
-        writes.every((path) => path.includes('/Backups/')),
+        activeFixture.writes.filter((write) => write.ok).every((write) => write.path.includes('/Backups/')),
         'no live data file may be written once the safety backup failed',
     ).toBe(true);
 });
 
-// UNFINISHED SCAFFOLDING, not a verified result. The flow reaches the restore
-// confirmation, but the fixture does not yet drive the orchestration far enough
-// for these assertions to mean anything. Marked fixme so the suite reports it as
-// outstanding work rather than either a silent pass or permanent red. The
-// equivalent behaviour IS covered at unit level in
+// KNOWN BLOCKER, precisely located — NOT a verified result and NOT external.
+//
+// The fixture now provides the full writable persistence layer a restore needs
+// (FormDigest, folder creation, direct file PUT, and read-back of the stored
+// bytes, which the app verifies). The restore still stops before writing with
+// "נתיב היעד ב-SharePoint אינו מוכן לביצוע הכנת התיקייה": the safety backup
+// prepares its folder first and the readiness probe surface in
+// src/utils/sharePointBrowserFilesystem.js (127-140, 622) is not fully answered
+// yet — ListItemAllFields, Folders/add, the filtered parent enumeration and the
+// bare folder-object select are stubbed, so at least one further probe (most
+// likely the owning-list / ParentList evidence) still returns nothing.
+//
+// Next step: log the unmatched _api requests during a restore and answer the
+// remaining probe, then delete this comment and the fixme. The equivalent
+// orchestration is covered at unit level in
 // src/components/AdminBackupManagement.test.jsx.
 test.fixme('a mid-restore failure reports per-unit outcomes and preserves the evidence', async ({ page }) => {
     const backup = fullBackup('backup-2026-06-10');

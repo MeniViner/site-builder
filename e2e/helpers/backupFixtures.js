@@ -71,6 +71,45 @@ export async function installBackupRoutes(page, initialBackups = []) {
         const url = route.request().url();
         const folderPath = decodeFolderPath(url);
 
+        // Folder READINESS probes. A restore prepares its safety-backup folder
+        // first and refuses to write until the destination is list-backed and
+        // ready (src/utils/sharePointBrowserFilesystem.js:127-140). Without
+        // these the restore stops at "the destination is not ready", which is
+        // correct behaviour against an unanswered probe but means the scenario
+        // never reaches what it is actually testing.
+        if (fixture.failSafetyBackup && /\/Backups/.test(folderPath)) {
+            return route.fulfill({ status: 403, contentType: ODATA, body: JSON.stringify({ error: { message: { value: 'Access denied.' } } }) });
+        }
+
+        if (/\/ListItemAllFields/.test(url)) {
+            return route.fulfill({
+                status: 200,
+                contentType: ODATA,
+                body: JSON.stringify({ d: { Id: 17, FileSystemObjectType: 1, FileRef: folderPath, FileDirRef: folderPath.split('/').slice(0, -1).join('/') } }),
+            });
+        }
+
+        if (/\/Folders\/add\(/.test(url)) {
+            return route.fulfill({ status: 200, contentType: ODATA, body: JSON.stringify({ d: { ServerRelativeUrl: folderPath, Exists: true } }) });
+        }
+
+        // A parent enumeration filtered to one leaf, used to confirm the folder
+        // is visible from its parent and list-backed.
+        if (/\/Folders\?.*\$filter=Name/.test(decodeURIComponent(url))) {
+            const leaf = /Name eq '([^']*)'/.exec(decodeURIComponent(url))?.[1] || '';
+            const childPath = `${folderPath}/${leaf}`;
+            return route.fulfill({
+                status: 200,
+                contentType: ODATA,
+                body: JSON.stringify({ d: { results: [{
+                    Name: leaf,
+                    ServerRelativeUrl: childPath,
+                    Exists: true,
+                    ListItemAllFields: { Id: 18, FileSystemObjectType: 1, FileRef: childPath, FileDirRef: folderPath },
+                }] } }),
+            });
+        }
+
         if (/\/Folders(\?|$)/.test(url)) {
             fixture.counts.folders += 1;
             const results = fixture.backups.map((backup) => ({
@@ -99,6 +138,14 @@ export async function installBackupRoutes(page, initialBackups = []) {
             return route.fulfill({ status: 200, contentType: ODATA, body: JSON.stringify({ d: { results } }) });
         }
 
+        if (/\$select=[^&]*Exists/.test(decodeURIComponent(url))) {
+            return route.fulfill({
+                status: 200,
+                contentType: ODATA,
+                body: JSON.stringify({ d: { ServerRelativeUrl: folderPath, Name: folderPath.split('/').pop(), Exists: true, ItemCount: 0 } }),
+            });
+        }
+
         return route.fallback();
     });
 
@@ -124,6 +171,70 @@ export async function installBackupRoutes(page, initialBackups = []) {
         }
         return route.fulfill({ status: 200, contentType: 'text/plain', body: String(file.text ?? '') });
     });
+
+    // ---------------------------------------------------------------- writes
+    //
+    // A selective restore is not a read-only flow: it creates a safety backup,
+    // writes each selected file, and READS EACH ONE BACK to verify the stored
+    // bytes. Stubbing only the read endpoints left every restore stalled at the
+    // first write, so these scenarios could never reach their real assertions.
+    //
+    // This is a writable store rather than a blanket 200: the read-back has to
+    // return exactly what was written, or the app's own verification fails --
+    // which is the behaviour under test.
+
+    /** Server-relative URL -> stored text, for everything written or seeded. */
+    fixture.live = new Map();
+    /** Ordered log of writes, so a test can assert what was and was not touched. */
+    fixture.writes = [];
+    /** Set to a URL substring to make the NEXT matching write fail. */
+    fixture.failWritesMatching = null;
+    /** Set true to make safety-backup folder creation fail. */
+    fixture.failSafetyBackup = false;
+
+    fixture.seedLive = (serverRelativeUrl, text) => fixture.live.set(serverRelativeUrl, text);
+    fixture.readLive = (serverRelativeUrl) => fixture.live.get(serverRelativeUrl);
+
+    // FormDigest. Every SharePoint write asks for one first.
+    await page.route(/_api\/contextinfo/, (route) => route.fulfill({
+        status: 200,
+        contentType: ODATA,
+        body: JSON.stringify({ d: { GetContextWebInformation: { FormDigestValue: 'e2e-digest', FormDigestTimeoutSeconds: 3600 } } }),
+    }));
+
+    // Folder creation, used by the safety backup and by parent recovery.
+    await page.route(/_api\/web\/folders/i, (route) => {
+        if (fixture.failSafetyBackup) {
+            return route.fulfill({ status: 403, contentType: ODATA, body: JSON.stringify({ error: { message: { value: 'Access denied.' } } }) });
+        }
+        return route.fulfill({ status: 200, contentType: ODATA, body: JSON.stringify({ d: {} }) });
+    });
+
+    // Direct file GET/PUT on the live site (NOT under /Backups/, which the
+    // read-only route above owns).
+    await page.route(
+        (url) => /\/sites\//.test(url.pathname) && !url.pathname.includes('/Backups/') && !url.pathname.includes('/_api/'),
+        async (route) => {
+            const request = route.request();
+            const pathname = new URL(request.url()).pathname;
+
+            if (request.method() === 'PUT') {
+                if (fixture.failWritesMatching && pathname.includes(fixture.failWritesMatching)) {
+                    fixture.writes.push({ path: pathname, ok: false });
+                    return route.fulfill({ status: 500, contentType: 'text/plain', body: 'write failed' });
+                }
+                const body = request.postData() ?? '';
+                fixture.live.set(pathname, body);
+                fixture.writes.push({ path: pathname, ok: true, bytes: body.length });
+                return route.fulfill({ status: 200, contentType: ODATA, body: JSON.stringify({ d: {} }) });
+            }
+
+            if (request.method() === 'GET' && fixture.live.has(pathname)) {
+                return route.fulfill({ status: 200, contentType: 'text/plain', body: fixture.live.get(pathname) });
+            }
+            return route.fallback();
+        },
+    );
 
     return fixture;
 }
