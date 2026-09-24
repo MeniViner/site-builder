@@ -77,55 +77,119 @@ describe('LegacyObjectStorageAdapter', () => {
         await expect(adapter.load()).rejects.toMatchObject({ code: 'invalid_backend_response' });
     });
 
-    it('fails closed when Mongo frontend mode is missing VITE_BACKEND_API_URL', async () => {
+    it('fails closed when Mongo frontend mode is missing a Daily Data API URL', async () => {
         const fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
-        vi.stubEnv('VITE_STORAGE_BACKEND', 'mongo');
-        vi.stubEnv('VITE_BACKEND_API_URL', '');
+        setRuntimeConfigForTests({ storageBackend: 'mongo', siteId: 'alpha' });
 
-        await expect(backendApiClient.request('/api/healthz')).rejects.toMatchObject({
-            code: 'missing_backend_url',
+        await expect(backendApiClient.request('/healthz')).rejects.toMatchObject({
+            code: 'missing_daily_data_url',
         });
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
-  it('allows the explicit development-only API key for local Mongo tools', async () => {
+    it('uses central routes for legacy objects and every backup operation', async () => {
         setRuntimeConfigForTests({
             storageBackend: 'mongo',
-            backendApiUrl: 'http://127.0.0.1:3001',
+            dailyDataApiUrl: 'http://127.0.0.1:3001/api/daily-data/v1',
             siteId: 'alpha',
         });
-        vi.stubEnv('VITE_SITE_BUILDER_DEV_API_KEY', 'secret');
-        const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ ok: true, backups: [] }), {
+        vi.stubEnv('DEV', true);
+        vi.stubEnv('VITE_SITE_BUILDER_DEV_API_KEY', 'legacy-only-secret');
+        const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ data: {}, version: 1, backups: [] }), {
             status: 200,
             headers: { 'content-type': 'application/json' },
         })));
         vi.stubGlobal('fetch', fetchMock);
 
+        await backendApiClient.readLegacyObject('alpha', 'site data.txt');
+        await backendApiClient.writeLegacyObject('alpha', {
+            key: 'site data.txt',
+            data: { title: 'Next' },
+            expectedVersion: 4,
+            allowEmptyOverwrite: false,
+        });
         await backendApiClient.listBackups('alpha');
         await backendApiClient.createBackup('alpha', { backupPackage: { id: 'one', files: [] } });
         await backendApiClient.getBackup('alpha', 'one');
         await backendApiClient.deleteBackup('alpha', 'one', { expectedVersion: 1 });
         await backendApiClient.restoreBackup('alpha', 'one');
 
-        expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://127.0.0.1:3001/api/sites/alpha/backups', expect.objectContaining({
+        expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://127.0.0.1:3001/api/daily-data/v1/sites/alpha/legacy-object?key=site%20data.txt', expect.objectContaining({
             method: 'GET',
-            headers: expect.objectContaining({ 'X-API-Key': 'secret' }),
+            headers: expect.not.objectContaining({ 'X-API-Key': expect.anything() }),
         }));
-        expect(fetchMock).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:3001/api/sites/alpha/backups', expect.objectContaining({
+        expect(fetchMock).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:3001/api/daily-data/v1/sites/alpha/legacy-object', expect.objectContaining({
+            method: 'PUT',
+            body: JSON.stringify({
+                key: 'site data.txt',
+                data: { title: 'Next' },
+                expectedVersion: 4,
+                allowEmptyOverwrite: false,
+            }),
+        }));
+        expect(fetchMock).toHaveBeenNthCalledWith(3, 'http://127.0.0.1:3001/api/daily-data/v1/sites/alpha/backups', expect.objectContaining({
+            method: 'GET',
+        }));
+        expect(fetchMock).toHaveBeenNthCalledWith(4, 'http://127.0.0.1:3001/api/daily-data/v1/sites/alpha/backups', expect.objectContaining({
             method: 'POST',
         }));
-        expect(fetchMock).toHaveBeenNthCalledWith(3, 'http://127.0.0.1:3001/api/sites/alpha/backups/one', expect.objectContaining({
+        expect(fetchMock).toHaveBeenNthCalledWith(5, 'http://127.0.0.1:3001/api/daily-data/v1/sites/alpha/backups/one', expect.objectContaining({
             method: 'GET',
         }));
-        expect(fetchMock).toHaveBeenNthCalledWith(4, 'http://127.0.0.1:3001/api/sites/alpha/backups/one', expect.objectContaining({
+        expect(fetchMock).toHaveBeenNthCalledWith(6, 'http://127.0.0.1:3001/api/daily-data/v1/sites/alpha/backups/one', expect.objectContaining({
             method: 'DELETE',
             body: JSON.stringify({ expectedVersion: 1 }),
         }));
-        expect(fetchMock).toHaveBeenNthCalledWith(5, 'http://127.0.0.1:3001/api/sites/alpha/backups/one/restore', expect.objectContaining({
+        expect(fetchMock).toHaveBeenNthCalledWith(7, 'http://127.0.0.1:3001/api/daily-data/v1/sites/alpha/backups/one/restore', expect.objectContaining({
             method: 'POST',
             body: JSON.stringify({ allowSiteIdMismatch: false }),
         }));
+        expect(JSON.stringify(fetchMock.mock.calls)).not.toContain('/api/api/');
+    });
+
+    it('preserves historical /api/sites routes for explicit legacy backendApiUrl', async () => {
+        setRuntimeConfigForTests({
+            storageBackend: 'mongo',
+            backendApiUrl: 'http://127.0.0.1:3001',
+            siteId: 'legacy-alpha',
+        });
+        vi.stubEnv('DEV', true);
+        vi.stubEnv('VITE_SITE_BUILDER_DEV_API_KEY', 'dev-secret');
+        const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ backups: [] }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+        })));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await backendApiClient.listBackups('legacy-alpha');
+
+        expect(fetchMock).toHaveBeenCalledWith(
+            'http://127.0.0.1:3001/api/sites/legacy-alpha/backups',
+            expect.objectContaining({
+                method: 'GET',
+                headers: expect.objectContaining({ 'X-API-Key': 'dev-secret' }),
+            }),
+        );
+    });
+
+    it('never sends the legacy development API key in production', async () => {
+        setRuntimeConfigForTests({
+            storageBackend: 'mongo',
+            backendApiUrl: 'https://legacy.example.test',
+            siteId: 'legacy-alpha',
+        });
+        vi.stubEnv('DEV', false);
+        vi.stubEnv('VITE_SITE_BUILDER_DEV_API_KEY', 'must-not-send');
+        const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ backups: [] }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+        })));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await backendApiClient.listBackups('legacy-alpha');
+
+        expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('X-API-Key');
     });
 
     it('rejects an HTML API fallback even when it returns HTTP 200', async () => {

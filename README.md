@@ -196,6 +196,12 @@ Development uses Vite values as a development fallback. In production, precedenc
 - `VITE_SITE_ID=<site-id>` או `VITE_SP_SITE_CODE`
 - `VITE_SITE_BUILDER_DEV_API_KEY=<ADMIN_API_KEY>` מותר רק בהרצת development מקומית.
 
+השרת המקומי המובנה משתמש בחוזה הישן `VITE_BACKEND_API_URL` ובנתיבים
+`/api/sites/...`. בשירות Daily Data המרכזי יש להגדיר במקום זאת
+`VITE_DAILY_DATA_API_URL` (לדוגמה `https://daily-data.example/api/daily-data/v1`);
+הכתובת חייבת להסתיים ב־`/api/daily-data/v1`, והנתיבים הם
+`{dailyDataApiUrl}/sites/{siteId}/...` ללא הוספת `/api` נוספת.
+
 ב-production אין להטמיע API key ב-Frontend או בקובץ runtime ציבורי. Mongo production חייב להיות מאחורי session/SSO או gateway מאומת.
 
 MongoDB משתמש במסד נתונים אחד לכלל האתרים:
