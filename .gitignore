@@ -40,3 +40,9 @@ tmp/agent-runs/
 # Playwright run output
 /test-results/
 /playwright-report/
+
+# Local environment files (kept out of the public repository; see .env.example)
+/.env
+/.env.production
+/env.txt
+newAlphaAIBackend/**/.env
